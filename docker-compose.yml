@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: homedb
+    environment:
+      POSTGRES_DB: ${DB_NAME:-homecloud}
+      POSTGRES_USER: ${DB_USER:-homecloud}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: homeredis
+    volumes:
+      - redis_data:/data
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: homebackend
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgres://${DB_USER:-homecloud}:${DB_PASSWORD:-changeme}@db:5432/${DB_NAME:-homecloud}
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-changeme-change-in-production}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-changeme-change-in-production}
+      STORAGE_PATH: /storage
+      MAX_FILE_SIZE: 0
+      CHUNK_SIZE: 10485760
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+    volumes:
+      - storage_data:/storage
+      - uploads_data:/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - app_network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: homefrontend
+    environment:
+      VITE_API_URL: ${API_URL:-http://localhost:3000}
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - app_network
+    restart: unless-stopped
+
+volumes:
+  db_data:
+  redis_data:
+  storage_data:
+  uploads_data:
+
+networks:
+  app_network:
+    driver: bridge
