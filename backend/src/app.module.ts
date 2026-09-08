@@ -8,6 +8,8 @@ import { UploadsModule } from './uploads/uploads.module';
 import { SharingModule } from './sharing/sharing.module';
 import { PreviewsModule } from './previews/previews.module';
 import { StorageModule } from './storage/storage.module';
+import { CommonModule } from './common/common.module';
+import { HealthController } from './common/health.controller';
 
 @Module({
   imports: [
@@ -38,6 +40,8 @@ import { StorageModule } from './storage/storage.module';
     SharingModule,
     PreviewsModule,
     StorageModule,
+    CommonModule,
   ],
+  controllers: [HealthController],
 })
 export class AppModule {}

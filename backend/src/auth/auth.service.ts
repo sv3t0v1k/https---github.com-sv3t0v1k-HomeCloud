@@ -105,6 +105,17 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
+  async verifyRefreshToken(token: string): Promise<JwtPayload> {
+    try {
+      const payload = this.jwtService.verify(token, {
+        secret: this.configService.get('JWT_REFRESH_SECRET'),
+      });
+      return payload as JwtPayload;
+    } catch {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+  }
+
   async hashPassword(password: string): Promise<string> {
     return bcrypt.hash(password, 12);
   }

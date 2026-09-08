@@ -7,6 +7,7 @@ import {
   HttpStatus,
   UseGuards,
   Request,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dtos/register.dto';
@@ -25,7 +26,7 @@ export class AuthController {
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   async register(@Body(ValidationPipe) dto: RegisterDto) {
-    const tokens = await this authService.register(dto.email, dto.password, dto.name);
+    const tokens = await this.authService.register(dto.email, dto.password, dto.name);
     return {
       message: 'User registered successfully',
       ...tokens,
@@ -35,7 +36,7 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(@Body(ValidationPipe) dto: LoginDto) {
-    const tokens = await this authService.login(dto.email, dto.password);
+    const tokens = await this.authService.login(dto.email, dto.password);
     return {
       message: 'Login successful',
       ...tokens,
@@ -46,8 +47,8 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async refresh(@Body(ValidationPipe) dto: RefreshTokenDto) {
     try {
-      const payload = this authService.verifyRefreshToken(dto.refreshToken);
-      const tokens = await this authService.refresh(payload.sub, dto.refreshToken);
+      const payload = this.authService.verifyRefreshToken(dto.refreshToken);
+      const tokens = await this.authService.refresh(payload.sub, dto.refreshToken);
       return {
         message: 'Token refreshed',
         ...tokens,
@@ -64,7 +65,7 @@ export class AuthController {
     @Request() req,
     @Body(ValidationPipe) dto: ChangePasswordDto,
   ) {
-    await this authService.changePassword(req.user.userId, dto.oldPassword, dto.newPassword);
+    await this.authService.changePassword(req.user.userId, dto.oldPassword, dto.newPassword);
     return { message: 'Password changed successfully' };
   }
 

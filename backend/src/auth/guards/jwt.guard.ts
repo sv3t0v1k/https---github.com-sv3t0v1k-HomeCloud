@@ -10,7 +10,7 @@ export class JwtGuard implements CanActivate {
     private reflector: Reflector,
   ) {}
 
-  async canopy(ctx: ExecutionContext): Promise<boolean> {
+  async canActivate(ctx: ExecutionContext): Promise<boolean> {
     const request = ctx.switchToHttp().getRequest<Request>();
     const authHeader = request.headers.authorization;
 
