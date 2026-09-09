@@ -5,44 +5,48 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToMany,
-} from 'typeorm';
-import { FileEntity } from './file.entity';
+} from "typeorm";
+import { FileEntity } from "./file.entity";
+import { RefreshTokenEntity } from "./refresh-token.entity";
 
-@Entity('users')
+@Entity("users")
 export class UserEntity {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @Column({ unique: true, length: 255 })
-  email: string;
+  email!: string;
 
   @Column({ length: 255 })
-  password: string;
+  password!: string;
 
-  @Column({ length: 100, default: 'User' })
-  name: string;
+  @Column({ length: 100, default: "User" })
+  name!: string;
 
   @Column({ default: true })
-  isActive: boolean;
+  isActive!: boolean;
 
   @Column({ default: false })
-  isEmailVerified: boolean;
+  isEmailVerified!: boolean;
 
   @Column({ length: 255, nullable: true })
-  avatar: string;
+  avatar!: string;
 
   @Column({ default: 0 })
-  storageQuota: number;
+  storageQuota!: number;
 
   @Column({ default: 0 })
-  storageUsed: number;
+  storageUsed!: number;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 
   @OneToMany(() => FileEntity, (file) => file.user)
-  files: FileEntity[];
+  files!: FileEntity[];
+
+  @OneToMany(() => RefreshTokenEntity, (rt) => rt.user)
+  refreshTokens!: RefreshTokenEntity[];
 }

@@ -1,7 +1,7 @@
-import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { JwtService } from '@nestjs/jwt';
-import { Request } from 'express';
+import { CanActivate, ExecutionContext, Injectable } from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
+import { JwtService } from "@nestjs/jwt";
+import { Request } from "express";
 
 @Injectable()
 export class JwtGuard implements CanActivate {
@@ -16,8 +16,8 @@ export class JwtGuard implements CanActivate {
 
     if (!authHeader) return false;
 
-    const [type, token] = authHeader.split(' ');
-    if (type !== 'Bearer') return false;
+    const [type, token] = authHeader.split(" ");
+    if (type !== "Bearer") return false;
 
     try {
       const payload = this.jwtService.verify(token);

@@ -1,9 +1,10 @@
-import { PassportStrategy } from '@nestjs/passport';
-import { Strategy, ExtractStrategy } from 'passport-jwt';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { UserEntity } from '../entities/user.entity';
-import { ConfigService } from '@nestjs/config';
+import { PassportStrategy } from "@nestjs/passport";
+import { Strategy, ExtractJwt } from "passport-jwt";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { UserEntity } from "../entities/user.entity";
+import { ConfigService } from "@nestjs/config";
 
 export interface JwtPayload {
   sub: number;
@@ -23,8 +24,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private configService: ConfigService,
   ) {
     super({
-      jwtFromRequest: ExtractStrategy.fromAuthHeaderAsBearerToken(),
-      secretOrKey: configService.get('JWT_SECRET'),
+      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      secretOrKey: configService.get("JWT_SECRET"),
     });
   }
 

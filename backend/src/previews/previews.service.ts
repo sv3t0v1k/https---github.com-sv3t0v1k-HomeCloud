@@ -1,15 +1,21 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import * as sharp from 'sharp';
-import { readFileSync } from 'fs';
-import { FileEntity } from '../entities/file.entity';
-import { StorageService } from '../storage/storage.service';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  Logger,
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import sharp from "sharp";
+import * as fs from "fs";
+import { FileEntity } from "../entities/file.entity";
+import { StorageService } from "../storage/storage.service";
 
 @Injectable()
 export class PreviewsService {
   private readonly logger = new Logger(PreviewsService.name);
   private readonly thumbnailSize = 300;
+  private readonly maxPreviewBytes = 5 * 1024 * 1024;
 
   constructor(
     @InjectRepository(FileEntity)
@@ -18,70 +24,114 @@ export class PreviewsService {
   ) {}
 
   async getThumbnail(userId: number, fileId: number): Promise<Buffer> {
-    const file = await this.fileRepository.findOne({ where: { id: fileId, userId } });
+    const file = await this.fileRepository.findOne({
+      where: { id: fileId, userId },
+    });
     if (!file) {
-      throw new NotFoundException('File not found');
+      throw new NotFoundException("File not found");
     }
 
-    if (!file.storagePath || !this.storageService.fileExists(file.storagePath)) {
-      throw new NotFoundException('File not found on storage');
+    if (
+      !file.storagePath ||
+      !this.storageService.fileExists(file.storagePath)
+    ) {
+      throw new NotFoundException("File not found on storage");
     }
 
-    const mimeType = file.mimeType || '';
-    if (!mimeType.startsWith('image/')) {
-      throw new BadRequestException('File is not an image');
+    const mimeType = file.mimeType || "";
+    if (!mimeType.startsWith("image/")) {
+      throw new BadRequestException("File is not an image");
     }
 
     try {
-      const buffer = readFileSync(file.storagePath);
+      const stats = await fs.promises.stat(file.storagePath);
+      if (stats.size > this.maxPreviewBytes) {
+        throw new BadRequestException("Image exceeds maximum preview size");
+      }
+      const buffer = fs.readFileSync(file.storagePath);
       const thumbnail = await sharp(buffer)
-        .resize(this.thumbnailSize, this.thumbnailSize)
+        .resize(this.thumbnailSize, this.thumbnailSize, {
+          fit: "inside",
+          withoutEnlargement: true,
+        })
         .png()
         .toBuffer();
 
       return thumbnail;
     } catch (error) {
-      this.logger.error(`Failed to generate thumbnail for file ${fileId}`, error);
-      throw new BadRequestException('Failed to generate thumbnail');
+      this.logger.error(
+        `Failed to generate thumbnail for file ${fileId}`,
+        error,
+      );
+      throw new BadRequestException("Failed to generate thumbnail");
     }
   }
 
-  async getPreview(userId: number, fileId: number): Promise<{ type: string; content: string | Buffer; mimeType: string }> {
-    const file = await this.fileRepository.findOne({ where: { id: fileId, userId } });
+  async getPreview(
+    userId: number,
+    fileId: number,
+  ): Promise<{ type: string; content: string | Buffer; mimeType: string }> {
+    const file = await this.fileRepository.findOne({
+      where: { id: fileId, userId },
+    });
     if (!file) {
-      throw new NotFoundException('File not found');
+      throw new NotFoundException("File not found");
     }
-
-    if (!file.storagePath || !this.storageService.fileExists(file.storagePath)) {
-      throw new NotFoundException('File not found on storage');
-    }
-
-    const mimeType = file.mimeType || '';
 
     if (
-      mimeType.startsWith('text/') ||
-      mimeType === 'application/json' ||
-      mimeType === 'application/javascript' ||
-      mimeType === 'application/xml'
+      !file.storagePath ||
+      !this.storageService.fileExists(file.storagePath)
     ) {
-      const content = readFileSync(file.storagePath, 'utf-8');
-      const maxLength = 5000;
-      const truncated = content.length > maxLength ? content.slice(0, maxLength) : content;
-      return { type: 'text', content: truncated, mimeType };
+      throw new NotFoundException("File not found on storage");
     }
 
-    if (mimeType.startsWith('image/')) {
-      const buffer = readFileSync(file.storagePath);
-      return { type: 'image', content: buffer, mimeType };
+    const mimeType = file.mimeType || "";
+
+    if (
+      mimeType.startsWith("text/") ||
+      mimeType === "application/json" ||
+      mimeType === "application/javascript" ||
+      mimeType === "application/xml"
+    ) {
+      const stream = fs.createReadStream(file.storagePath, {
+        encoding: "utf-8",
+      });
+      let content = "";
+      let total = 0;
+      for await (const chunk of stream) {
+        total += chunk.length;
+        if (total > this.maxPreviewBytes) {
+          content += "\n... (truncated)";
+          break;
+        }
+        content += chunk;
+      }
+      return { type: "text", content, mimeType };
     }
 
-    return { type: 'unsupported', content: 'Preview not available for this file type.', mimeType: 'text/plain' };
+    if (mimeType.startsWith("image/")) {
+      const stats = await fs.promises.stat(file.storagePath);
+      if (stats.size > this.maxPreviewBytes) {
+        throw new BadRequestException("Image exceeds maximum preview size");
+      }
+      const buffer = fs.readFileSync(file.storagePath);
+      const chunks: Buffer[] = [buffer];
+      return { type: "image", content: Buffer.concat(chunks), mimeType };
+    }
+
+    return {
+      type: "unsupported",
+      content: "Preview not available for this file type.",
+      mimeType: "text/plain",
+    };
   }
 
   async getFileInfo(userId: number, fileId: number): Promise<FileEntity> {
-    const file = await this.fileRepository.findOne({ where: { id: fileId, userId } });
+    const file = await this.fileRepository.findOne({
+      where: { id: fileId, userId },
+    });
     if (!file) {
-      throw new NotFoundException('File not found');
+      throw new NotFoundException("File not found");
     }
     return file;
   }

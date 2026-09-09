@@ -6,50 +6,50 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
-} from 'typeorm';
-import { UserEntity } from './user.entity';
-import { FileEntity } from './file.entity';
+} from "typeorm";
+import { UserEntity } from "./user.entity";
+import { FileEntity } from "./file.entity";
 
-@Entity('share_links')
+@Entity("share_links")
 export class ShareLinkEntity {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @Column({ length: 255 })
-  token: string;
+  token!: string;
 
   @Column({ length: 255, nullable: true })
-  password: string;
+  password!: string;
 
   @Column({ nullable: true })
-  expiresAt: Date;
+  expiresAt!: Date;
 
   @Column({ default: true })
-  isActive: boolean;
+  isActive!: boolean;
 
-  @Column({ type: 'bigint', default: 0 })
-  downloadCount: number;
+  @Column({ type: "bigint", default: 0 })
+  downloadCount!: number;
 
   @Column({ default: false })
-  isFolder: boolean;
+  isFolder!: boolean;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 
-  @ManyToOne(() => UserEntity, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'userId' })
-  user: UserEntity;
-
-  @Column()
-  userId: number;
-
-  @ManyToOne(() => FileEntity, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'fileId' })
-  file: FileEntity;
+  @ManyToOne(() => UserEntity, { onDelete: "CASCADE" })
+  @JoinColumn({ name: "userId" })
+  user!: UserEntity;
 
   @Column()
-  fileId: number;
+  userId!: number;
+
+  @ManyToOne(() => FileEntity, { onDelete: "CASCADE" })
+  @JoinColumn({ name: "fileId" })
+  file!: FileEntity;
+
+  @Column()
+  fileId!: number;
 }

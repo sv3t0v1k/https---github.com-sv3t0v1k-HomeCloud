@@ -5,27 +5,35 @@ import {
   Delete,
   Body,
   Param,
-  Request,
+  Request as NestRequest,
   HttpCode,
   HttpStatus,
   UseGuards,
-} from '@nestjs/common';
-import { JwtGuard } from '../auth/guards/jwt.guard';
-import { SharingService } from './sharing.service';
-import { CreateShareDto } from './dtos/create-share.dto';
+  BadRequestException,
+  Res,
+  NotFoundException,
+} from "@nestjs/common";
+import { Request as ExpressRequest, Response } from "express";
+import * as fs from "fs";
+import { JwtGuard } from "../auth/guards/jwt.guard";
+import { SharingService } from "./sharing.service";
+import { CreateShareDto } from "./dtos/create-share.dto";
 
 class VerifyPasswordDto {
-  password: string;
+  password: string = "";
 }
 
-@Controller('sharing')
+@Controller("sharing")
 export class SharingController {
   constructor(private sharingService: SharingService) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(JwtGuard)
-  async createShareLink(@Request() req, @Body() dto: CreateShareDto) {
+  async createShareLink(
+    @NestRequest() req: ExpressRequest & { user: { userId: number } },
+    @Body() dto: CreateShareDto,
+  ) {
     const userId = req.user.userId;
     return this.sharingService.createShareLink(userId, dto.fileId, {
       password: dto.password,
@@ -36,21 +44,26 @@ export class SharingController {
 
   @Get()
   @UseGuards(JwtGuard)
-  async listShares(@Request() req) {
+  async listShares(
+    @NestRequest() req: ExpressRequest & { user: { userId: number } },
+  ) {
     const userId = req.user.userId;
     return this.sharingService.listUserShares(userId);
   }
 
-  @Delete(':id')
+  @Delete(":id")
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtGuard)
-  async revokeShare(@Request() req, @Param('id') id: string) {
+  async revokeShare(
+    @NestRequest() req: ExpressRequest & { user: { userId: number } },
+    @Param("id") id: string,
+  ) {
     const userId = req.user.userId;
     return this.sharingService.revokeShare(userId, parseInt(id, 10));
   }
 
-  @Get('public/:token')
-  async getPublicShare(@Param('token') token: string) {
+  @Get("public/:token")
+  async getPublicShare(@Param("token") token: string) {
     const share = await this.sharingService.findShareByToken(token);
 
     return {
@@ -64,19 +77,29 @@ export class SharingController {
     };
   }
 
-  @Post('public/:token/verify')
-  async verifyPassword(@Param('token') token: string, @Body() dto: VerifyPasswordDto) {
-    const result = await this.sharingService.verifySharePassword(token, dto.password);
+  @Post("public/:token/verify")
+  async verifyPassword(
+    @Param("token") token: string,
+    @Body() dto: VerifyPasswordDto,
+  ) {
+    const result = await this.sharingService.verifySharePassword(
+      token,
+      dto.password,
+    );
     return { success: result };
   }
 
-  @Post('public/:token/download')
+  @Post("public/:token/download")
   @HttpCode(HttpStatus.OK)
-  async downloadShare(@Param('token') token: string, @Body() dto: VerifyPasswordDto) {
+  async downloadShare(
+    @Param("token") token: string,
+    @Body() dto: VerifyPasswordDto,
+    @Res() res: Response,
+  ) {
     const share = await this.sharingService.findShareByToken(token);
 
     if (share.password && !dto.password) {
-      throw new Error('Password is required');
+      throw new BadRequestException("Password is required");
     }
 
     if (share.password) {
@@ -85,14 +108,32 @@ export class SharingController {
 
     await this.sharingService.incrementDownloadCount(token);
 
-    return {
-      file: {
-        id: share.file.id,
-        name: share.file.name,
-        mimeType: share.file.mimeType,
-        size: share.file.size,
-        isFolder: share.file.isFolder,
-      },
-    };
+    if (share.file.isFolder) {
+      return {
+        file: {
+          id: share.file.id,
+          name: share.file.name,
+          mimeType: share.file.mimeType,
+          size: share.file.size,
+          isFolder: share.file.isFolder,
+        },
+      };
+    }
+
+    const filePath = share.file.storagePath;
+    if (!filePath || !fs.existsSync(filePath)) {
+      throw new NotFoundException("File not found on storage");
+    }
+
+    const fileName = share.file.name || "download";
+    const safeFileName = fileName.replace(/"/g, '\\"');
+
+    res.set({
+      "Content-Type": share.file.mimeType || "application/octet-stream",
+      "Content-Disposition": `attachment; filename="${safeFileName}"`,
+    });
+
+    const stream = fs.createReadStream(filePath);
+    stream.pipe(res);
   }
 }

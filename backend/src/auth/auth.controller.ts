@@ -6,73 +6,88 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
-  Request,
-  UnauthorizedException,
-} from '@nestjs/common';
-import { AuthService } from './auth.service';
-import { RegisterDto } from './dtos/register.dto';
-import { LoginDto } from './dtos/login.dto';
-import { ChangePasswordDto } from './dtos/change-password.dto';
-import { JwtGuard } from './guards/jwt.guard';
+  Request as NestRequest,
+} from "@nestjs/common";
+import { Request as ExpressRequest } from "express";
+import { AuthService } from "./auth.service";
+import { RegisterDto } from "./dtos/register.dto";
+import { LoginDto } from "./dtos/login.dto";
+import { ChangePasswordDto } from "./dtos/change-password.dto";
+import { JwtGuard } from "./guards/jwt.guard";
 
 class RefreshTokenDto {
-  refreshToken: string;
+  refreshToken!: string;
 }
 
-@Controller('auth')
+class LogoutDto {
+  refreshToken!: string;
+}
+
+@Controller("auth")
 export class AuthController {
   constructor(private authService: AuthService) {}
 
-  @Post('register')
+  @Post("register")
   @HttpCode(HttpStatus.CREATED)
   async register(@Body(ValidationPipe) dto: RegisterDto) {
-    const tokens = await this.authService.register(dto.email, dto.password, dto.name);
+    const tokens = await this.authService.register(
+      dto.email,
+      dto.password,
+      dto.name,
+    );
     return {
-      message: 'User registered successfully',
+      message: "User registered successfully",
       ...tokens,
     };
   }
 
-  @Post('login')
+  @Post("login")
   @HttpCode(HttpStatus.OK)
   async login(@Body(ValidationPipe) dto: LoginDto) {
     const tokens = await this.authService.login(dto.email, dto.password);
     return {
-      message: 'Login successful',
+      message: "Login successful",
       ...tokens,
     };
   }
 
-  @Post('refresh')
+  @Post("refresh")
   @HttpCode(HttpStatus.OK)
   async refresh(@Body(ValidationPipe) dto: RefreshTokenDto) {
-    try {
-      const payload = this.authService.verifyRefreshToken(dto.refreshToken);
-      const tokens = await this.authService.refresh(payload.sub, dto.refreshToken);
-      return {
-        message: 'Token refreshed',
-        ...tokens,
-      };
-    } catch (error) {
-      throw new UnauthorizedException('Invalid refresh token');
-    }
+    const payload = await this.authService.verifyRefreshToken(dto.refreshToken);
+    const tokens = await this.authService.refresh(
+      payload.sub,
+      dto.refreshToken,
+    );
+    return {
+      message: "Token refreshed",
+      ...tokens,
+    };
   }
 
-  @Post('change-password')
+  @Post("change-password")
   @UseGuards(JwtGuard)
   @HttpCode(HttpStatus.OK)
   async changePassword(
-    @Request() req,
+    @NestRequest() req: ExpressRequest & { user: { userId: number } },
     @Body(ValidationPipe) dto: ChangePasswordDto,
   ) {
-    await this.authService.changePassword(req.user.userId, dto.oldPassword, dto.newPassword);
-    return { message: 'Password changed successfully' };
+    await this.authService.changePassword(
+      req.user.userId,
+      dto.oldPassword,
+      dto.newPassword,
+    );
+    return { message: "Password changed successfully" };
   }
 
-  @Post('logout')
+  @Post("logout")
   @UseGuards(JwtGuard)
   @HttpCode(HttpStatus.OK)
-  async logout() {
-    return { message: 'Logged out successfully' };
+  async logout(
+    @NestRequest() req: ExpressRequest & { user: { userId: number } },
+    @Body(ValidationPipe) dto: LogoutDto,
+  ) {
+    await this.authService.logout(req.user.userId, dto.refreshToken);
+    return { message: "Logged out successfully" };
   }
 }

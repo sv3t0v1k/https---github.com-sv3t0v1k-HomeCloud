@@ -1,7 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { UserEntity } from '../entities/user.entity';
+import { Injectable, Logger, ForbiddenException } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { UserEntity } from "../entities/user.entity";
 
 @Injectable()
 export class UsersService {
@@ -20,18 +20,40 @@ export class UsersService {
     return this.userRepository.findOne({ where: { email } });
   }
 
-  async updateProfile(id: number, data: Partial<UserEntity>): Promise<UserEntity> {
+  async updateProfile(
+    id: number,
+    data: Partial<UserEntity>,
+  ): Promise<UserEntity> {
     await this.userRepository.update(id, data);
     const user = await this.findById(id);
-    if (!user) throw new Error('User not found');
+    if (!user) throw new Error("User not found");
     return user;
   }
 
   async updateStorageUsed(id: number, bytes: number): Promise<void> {
-    await this.userRepository.increment({ id }, 'storageUsed', bytes);
+    if (bytes <= 0) {
+      return;
+    }
+
+    const result = await this.userRepository
+      .createQueryBuilder()
+      .update(UserEntity)
+      .set({ storageUsed: () => `storage_used + ${bytes}` })
+      .where("id = :id AND storage_used + :bytes <= storage_quota", {
+        id,
+        bytes,
+      })
+      .execute();
+
+    if (result.affected === 0) {
+      const user = await this.userRepository.findOne({ where: { id } });
+      if (user && user.storageUsed + bytes > user.storageQuota) {
+        throw new ForbiddenException("Storage quota exceeded");
+      }
+    }
   }
 
   async decrementStorageUsed(id: number, bytes: number): Promise<void> {
-    await this.userRepository.decrement({ id }, 'storageUsed', bytes);
+    await this.userRepository.decrement({ id }, "storageUsed", bytes);
   }
 }

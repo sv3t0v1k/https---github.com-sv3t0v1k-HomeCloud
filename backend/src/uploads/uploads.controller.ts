@@ -6,26 +6,31 @@ import {
   Body,
   Param,
   UseGuards,
-  Request,
+  Request as NestRequest,
   HttpCode,
   HttpStatus,
   UploadedFile,
   UseInterceptors,
   BadRequestException,
-} from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { UploadsService } from './uploads.service';
-import { CreateSessionDto } from './dtos/create-session.dto';
-import { ChunkDto } from './dtos/chunk.dto';
+} from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
+import { JwtGuard } from "../auth/guards/jwt.guard";
+import { UploadsService } from "./uploads.service";
+import { CreateSessionDto } from "./dtos/create-session.dto";
+import { ChunkDto } from "./dtos/chunk.dto";
+import { Request as ExpressRequest } from "express";
 
-@Controller('uploads')
+@Controller("uploads")
 @UseGuards(JwtGuard)
 export class UploadsController {
   constructor(private uploadsService: UploadsService) {}
 
-  @Post('session')
+  @Post("session")
   @HttpCode(HttpStatus.CREATED)
-  async createSession(@Request() req, @Body() dto: CreateSessionDto) {
+  async createSession(
+    @NestRequest() req: ExpressRequest & { user: { userId: number } },
+    @Body() dto: CreateSessionDto,
+  ) {
     const userId = req.user.userId;
     return this.uploadsService.createUploadSession(
       userId,
@@ -36,19 +41,19 @@ export class UploadsController {
     );
   }
 
-  @Post('session/:uploadId/chunk')
-  @UseInterceptors(FileInterceptor('chunk'))
+  @Post("session/:uploadId/chunk")
+  @UseInterceptors(FileInterceptor("chunk"))
   @HttpCode(HttpStatus.OK)
   async uploadChunk(
-    @Request() req,
-    @Param('uploadId') uploadId: string,
+    @NestRequest() req: ExpressRequest & { user: { userId: number } },
+    @Param("uploadId") uploadId: string,
     @Body() dto: ChunkDto,
-    @UploadedFile() chunk: Express.Multer.File,
+    @UploadedFile() chunk: any,
   ) {
     const userId = req.user.userId;
 
     if (!chunk) {
-      throw new BadRequestException('Chunk file is required');
+      throw new BadRequestException("Chunk file is required");
     }
 
     return this.uploadsService.uploadChunk(
@@ -59,22 +64,30 @@ export class UploadsController {
     );
   }
 
-  @Post('session/:uploadId/complete')
+  @Post("session/:uploadId/complete")
   @HttpCode(HttpStatus.OK)
-  async completeUpload(@Request() req, @Param('uploadId') uploadId: string) {
+  async completeUpload(
+    @NestRequest() req: ExpressRequest & { user: { userId: number } },
+    @Param("uploadId") uploadId: string,
+  ) {
     const userId = req.user.userId;
     return this.uploadsService.completeUpload(userId, uploadId);
   }
 
-  @Delete('session/:uploadId')
+  @Delete("session/:uploadId")
   @HttpCode(HttpStatus.OK)
-  async abortUpload(@Request() req, @Param('uploadId') uploadId: string) {
+  async abortUpload(
+    @NestRequest() req: ExpressRequest & { user: { userId: number } },
+    @Param("uploadId") uploadId: string,
+  ) {
     const userId = req.user.userId;
     return this.uploadsService.abortUpload(userId, uploadId);
   }
 
-  @Get('sessions')
-  async listSessions(@Request() req) {
+  @Get("sessions")
+  async listSessions(
+    @NestRequest() req: ExpressRequest & { user: { userId: number } },
+  ) {
     const userId = req.user.userId;
     return this.uploadsService.listUploadSessions(userId);
   }

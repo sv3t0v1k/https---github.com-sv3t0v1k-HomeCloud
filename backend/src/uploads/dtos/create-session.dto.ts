@@ -1,16 +1,16 @@
-import { IsString, IsNumber, IsOptional, Min } from 'class-validator';
+import { IsString, IsNumber, IsOptional, Min } from "class-validator";
 
 export class CreateSessionDto {
   @IsString()
-  filename: string;
+  filename!: string;
 
   @IsNumber()
   @Min(1)
-  totalSize: number;
+  totalSize!: number;
 
   @IsNumber()
   @Min(1)
-  chunkSize: number;
+  chunkSize!: number;
 
   @IsOptional()
   @IsNumber()

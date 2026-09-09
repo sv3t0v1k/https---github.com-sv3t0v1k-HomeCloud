@@ -2,9 +2,9 @@ import {
   Injectable,
   CanActivate,
   ExecutionContext,
-  TooManyRequestsException,
-} from '@nestjs/common';
-import { Request } from 'express';
+  BadRequestException,
+} from "@nestjs/common";
+import { Request } from "express";
 
 @Injectable()
 export class RateLimitGuard implements CanActivate {
@@ -12,7 +12,7 @@ export class RateLimitGuard implements CanActivate {
 
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<Request>();
-    const ip = request.ip || request.connection.remoteAddress || 'unknown';
+    const ip = request.ip || request.connection.remoteAddress || "unknown";
     const now = Date.now();
     const windowMs = 60 * 1000;
     const maxRequests = 100;
@@ -28,7 +28,7 @@ export class RateLimitGuard implements CanActivate {
     }
 
     if (timestamps.length >= maxRequests) {
-      throw new TooManyRequestsException('Too many requests');
+      throw new BadRequestException("Too many requests");
     }
 
     timestamps.push(now);

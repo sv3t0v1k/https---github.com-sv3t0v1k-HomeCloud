@@ -8,16 +8,17 @@ import {
   Param,
   Query,
   UseGuards,
-  Request,
+  Request as NestRequest,
   HttpCode,
   HttpStatus,
   BadRequestException,
-} from '@nestjs/common';
-import { JwtGuard } from '../auth/guards/jwt.guard';
-import { FilesService } from './files.service';
+} from "@nestjs/common";
+import { Request as ExpressRequest } from "express";
+import { JwtGuard } from "../auth/guards/jwt.guard";
+import { FilesService } from "./files.service";
 
 class CreateFolderDto {
-  name: string;
+  name!: string;
   parentId?: number;
 }
 
@@ -34,108 +35,155 @@ class MoveFileDto {
   targetParentId?: number;
 }
 
-class SearchQueryDto {
-  q: string;
-}
-
-@Controller('files')
+@Controller("files")
 @UseGuards(JwtGuard)
 export class FilesController {
   constructor(private filesService: FilesService) {}
 
   @Get()
-  async findAll(@Request() req, @Query('parentId') parentId?: string, @Query('search') search?: string) {
+  async findAll(
+    @NestRequest() req: ExpressRequest & { user: { userId: number } },
+    @Query("parentId") parentId?: string,
+    @Query("search") search?: string,
+  ) {
     const userId = req.user.userId;
     const parentIdNum = parentId ? parseInt(parentId, 10) : undefined;
     return this.filesService.findAll(userId, parentIdNum, search);
   }
 
-  @Get('folders')
-  async findFolders(@Request() req, @Query('parentId') parentId?: string) {
+  @Get("folders")
+  async findFolders(
+    @NestRequest() req: ExpressRequest & { user: { userId: number } },
+    @Query("parentId") parentId?: string,
+  ) {
     const userId = req.user.userId;
     const parentIdNum = parentId ? parseInt(parentId, 10) : undefined;
     return this.filesService.findFolders(userId, parentIdNum);
   }
 
-  @Get('trash')
-  async getTrash(@Request() req) {
+  @Get("trash")
+  async getTrash(
+    @NestRequest() req: ExpressRequest & { user: { userId: number } },
+  ) {
     const userId = req.user.userId;
     return this.filesService.getTrash(userId);
   }
 
-  @Post('empty-trash')
+  @Post("empty-trash")
   @HttpCode(HttpStatus.OK)
-  async emptyTrash(@Request() req) {
+  async emptyTrash(
+    @NestRequest() req: ExpressRequest & { user: { userId: number } },
+  ) {
     const userId = req.user.userId;
     return this.filesService.emptyTrash(userId);
   }
 
-  @Get('search')
-  async search(@Request() req, @Query('q') q?: string) {
+  @Get("search")
+  async search(
+    @NestRequest() req: ExpressRequest & { user: { userId: number } },
+    @Query("q") q?: string,
+  ) {
     const userId = req.user.userId;
     if (!q) {
-      throw new BadRequestException('Query parameter q is required');
+      throw new BadRequestException("Query parameter q is required");
     }
     return this.filesService.search(userId, q);
   }
 
-  @Get('storage-info')
-  async getStorageInfo(@Request() req) {
+  @Get("storage-info")
+  async getStorageInfo(
+    @NestRequest() req: ExpressRequest & { user: { userId: number } },
+  ) {
     const userId = req.user.userId;
     return this.filesService.getStorageInfo(userId);
   }
 
-  @Post('folders')
+  @Post("folders")
   @HttpCode(HttpStatus.CREATED)
-  async createFolder(@Request() req, @Body() dto: CreateFolderDto) {
+  async createFolder(
+    @NestRequest() req: ExpressRequest & { user: { userId: number } },
+    @Body() dto: CreateFolderDto,
+  ) {
     const userId = req.user.userId;
     return this.filesService.createFolder(userId, dto.name, dto.parentId);
   }
 
-  @Get(':id')
-  async findOne(@Request() req, @Param('id') id: string) {
+  @Get(":id")
+  async findOne(
+    @NestRequest() req: ExpressRequest & { user: { userId: number } },
+    @Param("id") id: string,
+  ) {
     const userId = req.user.userId;
     return this.filesService.findOne(userId, parseInt(id, 10));
   }
 
-  @Patch(':id')
-  async update(@Request() req, @Param('id') id: string, @Body() dto: UpdateFileDto) {
+  @Patch(":id")
+  async update(
+    @NestRequest() req: ExpressRequest & { user: { userId: number } },
+    @Param("id") id: string,
+    @Body() dto: UpdateFileDto,
+  ) {
     const userId = req.user.userId;
     return this.filesService.updateFile(userId, parseInt(id, 10), dto);
   }
 
-  @Delete(':id')
+  @Delete(":id")
   @HttpCode(HttpStatus.OK)
-  async remove(@Request() req, @Param('id') id: string) {
+  async remove(
+    @NestRequest() req: ExpressRequest & { user: { userId: number } },
+    @Param("id") id: string,
+  ) {
     const userId = req.user.userId;
     return this.filesService.removeFile(userId, parseInt(id, 10));
   }
 
-  @Post(':id/restore')
+  @Post(":id/restore")
   @HttpCode(HttpStatus.OK)
-  async restore(@Request() req, @Param('id') id: string) {
+  async restore(
+    @NestRequest() req: ExpressRequest & { user: { userId: number } },
+    @Param("id") id: string,
+  ) {
     const userId = req.user.userId;
     return this.filesService.restoreFile(userId, parseInt(id, 10));
   }
 
-  @Delete(':id/permanent')
+  @Delete(":id/permanent")
   @HttpCode(HttpStatus.OK)
-  async deletePermanently(@Request() req, @Param('id') id: string) {
+  async deletePermanently(
+    @NestRequest() req: ExpressRequest & { user: { userId: number } },
+    @Param("id") id: string,
+  ) {
     const userId = req.user.userId;
     return this.filesService.deleteFilePermanently(userId, parseInt(id, 10));
   }
 
-  @Post(':id/copy')
+  @Post(":id/copy")
   @HttpCode(HttpStatus.CREATED)
-  async copy(@Request() req, @Param('id') id: string, @Body() dto: CopyFileDto) {
+  async copy(
+    @NestRequest() req: ExpressRequest & { user: { userId: number } },
+    @Param("id") id: string,
+    @Body() dto: CopyFileDto,
+  ) {
     const userId = req.user.userId;
-    return this.filesService.copyFile(userId, parseInt(id, 10), dto.targetParentId);
+    return this.filesService.copyFile(
+      userId,
+      parseInt(id, 10),
+      dto.targetParentId,
+    );
   }
 
-  @Post(':id/move')
+  @Post(":id/move")
   @HttpCode(HttpStatus.OK)
-  async move(@Request() req, @Param('id') id: string, @Body() dto: MoveFileDto) {
+  async move(
+    @NestRequest() req: ExpressRequest & { user: { userId: number } },
+    @Param("id") id: string,
+    @Body() dto: MoveFileDto,
+  ) {
     const userId = req.user.userId;
-    return this.filesService.moveFile(userId, parseInt(id, 10), dto.targetParentId);
+    return this.filesService.moveFile(
+      userId,
+      parseInt(id, 10),
+      dto.targetParentId,
+    );
   }
 }

@@ -1,8 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as crypto from 'crypto';
+import { Injectable, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import * as fs from "fs";
+import * as path from "path";
+import * as crypto from "crypto";
+import { Readable } from "stream";
 
 @Injectable()
 export class StorageService {
@@ -11,8 +12,8 @@ export class StorageService {
   private readonly tempPath: string;
 
   constructor(private configService: ConfigService) {
-    this.storagePath = configService.get('STORAGE_PATH') || '/storage';
-    this.tempPath = path.join(this.storagePath, '.tmp');
+    this.storagePath = configService.get("STORAGE_PATH") || "/storage";
+    this.tempPath = path.join(this.storagePath, ".tmp");
     this.ensureDirectories();
   }
 
@@ -36,8 +37,8 @@ export class StorageService {
   generateSafeFilename(originalName: string): string {
     const ext = path.extname(originalName);
     const baseName = path.basename(originalName, ext);
-    const safeBase = baseName.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const unique = crypto.randomBytes(8).toString('hex');
+    const safeBase = baseName.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const unique = crypto.randomBytes(8).toString("hex");
     return `${safeBase}_${unique}${ext.toLowerCase()}`;
   }
 
@@ -46,10 +47,20 @@ export class StorageService {
     if (!fs.existsSync(userDir)) {
       fs.mkdirSync(userDir, { recursive: true });
     }
-    return path.join(userDir, filename);
+    const fullPath = path.join(userDir, filename);
+    return this.ensureWithinStorageRoot(fullPath);
   }
 
-  async writeFile(filePath: string, data: Buffer | NodeJS.ReadableStream): Promise<void> {
+  ensureWithinStorageRoot(targetPath: string): string {
+    const resolved = path.resolve(targetPath);
+    const root = path.resolve(this.storagePath);
+    if (!resolved.startsWith(root + path.sep) && resolved !== root) {
+      throw new Error("Path traversal detected");
+    }
+    return resolved;
+  }
+
+  async writeFile(filePath: string, data: Buffer | Readable): Promise<void> {
     const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
@@ -61,24 +72,26 @@ export class StorageService {
       return new Promise((resolve, reject) => {
         const stream = fs.createWriteStream(filePath);
         data.pipe(stream);
-        stream.on('finish', () => resolve());
-        stream.on('error', (err) => reject(err));
+        stream.on("finish", () => resolve());
+        stream.on("error", (err) => reject(err));
       });
     }
   }
 
-  async readFile(filePath: string): Promise<NodeJS.ReadableStream> {
+  async readFile(filePath: string): Promise<Readable> {
     return fs.createReadStream(filePath);
   }
 
   async deleteFile(filePath: string): Promise<void> {
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    const safePath = this.ensureWithinStorageRoot(filePath);
+    if (fs.existsSync(safePath)) {
+      fs.unlinkSync(safePath);
     }
   }
 
   fileExists(filePath: string): boolean {
-    return fs.existsSync(filePath);
+    const safePath = this.ensureWithinStorageRoot(filePath);
+    return fs.existsSync(safePath);
   }
 
   getFileSize(filePath: string): number {
@@ -87,12 +100,6 @@ export class StorageService {
     } catch {
       return 0;
     }
-  }
-
-  sanitizePath(userPath: string): string {
-    const normalized = path.normalize(userPath).replace(/\.?\.\//g, '');
-    const parts = normalized.split(path.sep).filter((p) => p && p !== '..');
-    return path.join(...parts);
   }
 
   getStorageUsage(userId: number): number {

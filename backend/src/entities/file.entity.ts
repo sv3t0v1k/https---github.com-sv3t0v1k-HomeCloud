@@ -8,72 +8,72 @@ import {
   OneToMany,
   JoinColumn,
   Index,
-} from 'typeorm';
-import { UserEntity } from './user.entity';
-import { FolderEntity } from './folder.entity';
-import { ShareLinkEntity } from './share-link.entity';
+} from "typeorm";
+import { UserEntity } from "./user.entity";
+import { FolderEntity } from "./folder.entity";
+import { ShareLinkEntity } from "./share-link.entity";
 
-@Entity('files')
-@Index(['parentId'])
-@Index(['isDeleted'])
-@Index(['mimeType'])
+@Entity("files")
+@Index(["parentId"])
+@Index(["isDeleted"])
+@Index(["mimeType"])
 export class FileEntity {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @Column({ length: 255 })
-  name: string;
+  name!: string;
 
   @Column({ length: 500, nullable: true })
-  storagePath: string;
+  storagePath!: string;
 
-  @Column({ type: 'bigint', default: 0 })
-  size: number;
+  @Column({ type: "bigint", default: 0 })
+  size!: number;
 
   @Column({ length: 100, nullable: true })
-  mimeType: string;
+  mimeType!: string;
 
-  @Column({ type: 'text', nullable: true })
-  checksum: string;
-
-  @Column({ default: false })
-  isFolder: boolean;
+  @Column({ type: "text", nullable: true })
+  checksum!: string;
 
   @Column({ default: false })
-  isDeleted: boolean;
+  isFolder!: boolean;
 
   @Column({ default: false })
-  isStarred: boolean;
+  isDeleted!: boolean;
+
+  @Column({ default: false })
+  isStarred!: boolean;
 
   @Column({ nullable: true })
-  deletedAt: Date;
+  deletedAt!: Date | null;
 
   @Column({ nullable: true })
-  parentId: number;
+  parentId!: number | null;
 
   @Column({ default: 0 })
-  version: number;
+  version!: number;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 
-  @ManyToOne(() => UserEntity, (user) => user.files, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'userId' })
-  user: UserEntity;
+  @ManyToOne(() => UserEntity, (user) => user.files, { onDelete: "CASCADE" })
+  @JoinColumn({ name: "userId" })
+  user!: UserEntity;
 
   @Column()
-  userId: number;
+  userId!: number;
 
   @ManyToOne(() => FolderEntity, (folder) => folder.files, {
     nullable: true,
-    onDelete: 'SET NULL',
+    onDelete: "SET NULL",
   })
-  @JoinColumn({ name: 'parentId' })
-  parent: FolderEntity;
+  @JoinColumn({ name: "parentId" })
+  parent!: FolderEntity;
 
   @OneToMany(() => ShareLinkEntity, (share) => share.file)
-  shares: ShareLinkEntity[];
+  shares!: ShareLinkEntity[];
 }
