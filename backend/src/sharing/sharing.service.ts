@@ -9,6 +9,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import * as bcrypt from "bcryptjs";
 import { v4 as uuidv4 } from "uuid";
+import { ConfigService } from "@nestjs/config";
 import { ShareLinkEntity } from "../entities/share-link.entity";
 import { FileEntity } from "../entities/file.entity";
 import { UserEntity } from "../entities/user.entity";
@@ -26,14 +27,14 @@ export class SharingService {
     private fileRepository: Repository<FileEntity>,
     @InjectRepository(UserEntity)
     private userRepository: Repository<UserEntity>,
-    configService: { get: (key: string) => string | undefined },
+    private configService: ConfigService,
   ) {
     const rawMaxSize = configService.get("MAX_SHARE_SIZE");
     this.maxShareSize = rawMaxSize ? Number(rawMaxSize) : 100 * 1024 * 1024;
 
     const rawAllowedTypes = configService.get("ALLOWED_SHARE_MIME_TYPES");
     this.allowedShareMimeTypes = rawAllowedTypes
-      ? rawAllowedTypes.split(",").map((type) => type.trim())
+      ? rawAllowedTypes.split(",").map((type: string) => type.trim())
       : [
           "image/png",
           "image/jpeg",

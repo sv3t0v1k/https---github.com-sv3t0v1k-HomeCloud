@@ -14,34 +14,34 @@ export class UserEntity {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column({ unique: true, length: 255 })
+@Column({ unique: true, length: 255, name: "email" })
   email!: string;
 
-  @Column({ length: 255 })
+  @Column({ length: 255, name: "password" })
   password!: string;
 
-  @Column({ length: 100, default: "User" })
+  @Column({ length: 100, default: "User", name: "name" })
   name!: string;
 
-  @Column({ default: true })
+  @Column({ default: true, name: "isActive" })
   isActive!: boolean;
 
-  @Column({ default: false })
+  @Column({ default: false, name: "isEmailVerified" })
   isEmailVerified!: boolean;
 
-  @Column({ length: 255, nullable: true })
+  @Column({ length: 255, nullable: true, name: "avatar" })
   avatar!: string;
 
-  @Column({ default: 0 })
+  @Column({ default: 0, name: "storageQuota" })
   storageQuota!: number;
 
-  @Column({ default: 0 })
+  @Column({ default: 0, name: "storageUsed" })
   storageUsed!: number;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: "createdAt" })
   createdAt!: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ name: "updatedAt" })
   updatedAt!: Date;
 
   @OneToMany(() => FileEntity, (file) => file.user)

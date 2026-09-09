@@ -40,8 +40,12 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
+      DB_NAME: ${DB_NAME:-homecloud}
+      DB_USER: ${DB_USER:-homecloud}
+      DB_PASSWORD: ${DB_PASSWORD}
       DATABASE_URL: postgres://${DB_USER:-homecloud}:${DB_PASSWORD}@db:5432/${DB_NAME:-homecloud}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       STORAGE_PATH: /storage

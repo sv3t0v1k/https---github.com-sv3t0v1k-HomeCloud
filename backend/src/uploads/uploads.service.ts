@@ -10,7 +10,7 @@ import { Repository } from "typeorm";
 import * as fs from "fs";
 import * as path from "path";
 import { v4 as uuidv4 } from "uuid";
-import { fileTypeFromBuffer } from "file-type/core";
+import { ConfigService } from "@nestjs/config";
 import { UploadSessionEntity } from "../entities/upload-session.entity";
 import { FileEntity } from "../entities/file.entity";
 import { FolderEntity } from "../entities/folder.entity";
@@ -34,7 +34,7 @@ export class UploadsService {
     private folderRepository: Repository<FolderEntity>,
     private storageService: StorageService,
     private usersService: UsersService,
-    configService: { get: (key: string) => string | undefined },
+    private configService: ConfigService,
   ) {
     const rawMaxFileSize = configService.get("MAX_FILE_SIZE");
     const rawMaxChunkSize = configService.get("MAX_CHUNK_SIZE");
@@ -49,7 +49,7 @@ export class UploadsService {
       ? Number(rawSessionTtl) * 60 * 60 * 1000
       : 24 * 60 * 60 * 1000;
     this.allowedMimeTypes = rawAllowedMimeTypes
-      ? rawAllowedMimeTypes.split(",").map((type) => type.trim())
+      ? rawAllowedMimeTypes.split(",").map((type: string) => type.trim())
       : [
           "image/png",
           "image/jpeg",
@@ -267,6 +267,7 @@ export class UploadsService {
     });
 
     const buffer = fs.readFileSync(finalPath);
+    const { fileTypeFromBuffer } = await import("file-type");
     const detected = await fileTypeFromBuffer(buffer);
     const mimeType = detected?.mime || "application/octet-stream";
 

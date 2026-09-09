@@ -24,6 +24,9 @@ out/
 *.swp
 *.swo
 
+# TypeScript build info
+*.tsbuildinfo
+
 # OS
 .DS_Store
 Thumbs.db

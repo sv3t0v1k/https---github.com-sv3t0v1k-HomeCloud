@@ -16,30 +16,30 @@ export class RefreshTokenEntity {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column({ length: 255 })
+  @Column({ length: 255, name: "token_hash" })
   tokenHash!: string;
 
-  @Column({ type: "text", nullable: true })
+  @Column({ type: "text", nullable: true, name: "replaced_by" })
   replacedBy?: string;
 
   @Column({ default: false })
   revoked!: boolean;
 
-  @Column({ type: "timestamp" })
+  @Column({ type: "timestamp", name: "expires_at" })
   expiresAt!: Date;
 
-  @Column({ type: "timestamp", nullable: true })
+  @Column({ type: "timestamp", nullable: true, name: "revoked_at" })
   revokedAt?: Date;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: "created_at" })
   createdAt!: Date;
 
   @ManyToOne(() => UserEntity, (user) => user.refreshTokens, {
     onDelete: "CASCADE",
   })
-  @JoinColumn({ name: "userId" })
+  @JoinColumn({ name: "user_id" })
   user!: UserEntity;
 
-  @Column()
+  @Column({ name: "user_id" })
   userId!: number;
 }

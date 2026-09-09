@@ -21,16 +21,16 @@ export class ShareLinkEntity {
   @Column({ length: 255, nullable: true })
   password!: string;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, name: "expires_at" })
   expiresAt!: Date;
 
-  @Column({ default: true })
+  @Column({ default: true, name: "is_active" })
   isActive!: boolean;
 
-  @Column({ type: "bigint", default: 0 })
+  @Column({ type: "bigint", default: 0, name: "download_count" })
   downloadCount!: number;
 
-  @Column({ default: false })
+  @Column({ default: false, name: "is_folder" })
   isFolder!: boolean;
 
   @CreateDateColumn()
@@ -40,16 +40,16 @@ export class ShareLinkEntity {
   updatedAt!: Date;
 
   @ManyToOne(() => UserEntity, { onDelete: "CASCADE" })
-  @JoinColumn({ name: "userId" })
+  @JoinColumn({ name: "user_id" })
   user!: UserEntity;
 
-  @Column()
+  @Column({ name: "user_id" })
   userId!: number;
 
   @ManyToOne(() => FileEntity, { onDelete: "CASCADE" })
-  @JoinColumn({ name: "fileId" })
+  @JoinColumn({ name: "file_id" })
   file!: FileEntity;
 
-  @Column()
+  @Column({ name: "file_id" })
   fileId!: number;
 }

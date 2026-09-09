@@ -8,11 +8,11 @@ import { ForbiddenException, BadRequestException } from "@nestjs/common";
 import * as fs from "fs";
 import * as path from "path";
 
-jest.mock("file-type/core", () => ({
+jest.mock("file-type", () => ({
   fileTypeFromBuffer: jest.fn(),
 }), { virtual: true });
 
-import { fileTypeFromBuffer } from "file-type/core";
+import { fileTypeFromBuffer } from "file-type";
 
 describe("UploadsService - Post-Review Fixes", () => {
   let service: UploadsService;

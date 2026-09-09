@@ -21,13 +21,13 @@ export class FolderEntity {
   @Column({ length: 255 })
   name!: string;
 
-  @Column({ default: false })
+  @Column({ default: false, name: "is_deleted" })
   isDeleted!: boolean;
 
-  @Column({ nullable: true })
+  @Column({ type: "timestamp", nullable: true, name: "deleted_at" })
   deletedAt!: Date | null;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, name: "parent_id" })
   parentId!: number | null;
 
   @CreateDateColumn()
@@ -37,17 +37,17 @@ export class FolderEntity {
   updatedAt!: Date;
 
   @ManyToOne(() => UserEntity, (user) => user.files, { onDelete: "CASCADE" })
-  @JoinColumn({ name: "userId" })
+  @JoinColumn({ name: "user_id" })
   user!: UserEntity;
 
-  @Column()
+  @Column({ name: "user_id" })
   userId!: number;
 
   @ManyToOne(() => FolderEntity, (folder) => folder.children, {
     nullable: true,
     onDelete: "SET NULL",
   })
-  @JoinColumn({ name: "parentId" })
+  @JoinColumn({ name: "parent_id" })
   parent!: FolderEntity;
 
   @OneToMany(() => FolderEntity, (folder) => folder.children)
