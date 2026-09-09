@@ -50,7 +50,6 @@ services:
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
     volumes:
       - storage_data:/storage
-      - uploads_data:/uploads
     depends_on:
       db:
         condition: service_healthy

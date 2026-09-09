@@ -44,6 +44,7 @@
 - Безопасные имена файлов с уникальным суффиксом
 - Подсчёт используемого пространства
 - Persistent volumes через Docker
+- Резервное копирование и восстановление
 
 ### Мониторинг
 - Health check endpoint (`/api/v1/health`)
@@ -104,14 +105,15 @@ cp .env.example .env
 # База данных
 DB_NAME=homecloud
 DB_USER=homecloud
-DB_PASSWORD=changeme
+DB_PASSWORD=change-me-in-production
 
 # JWT (обязательно изменить в production!)
-JWT_SECRET=changeme-change-in-production
-JWT_REFRESH_SECRET=changeme-change-in-production
+JWT_SECRET=change-me-in-production
+JWT_REFRESH_SECRET=change-me-in-production
 
 # Redis
 REDIS_URL=redis://redis:6379
+REDIS_PASSWORD=change-me-in-production
 
 # Хранилище
 STORAGE_PATH=/storage
@@ -123,7 +125,7 @@ FRONTEND_URL=http://localhost:5173
 API_URL=http://localhost:3000
 ```
 
-**Важно**: для production обязательно измените `JWT_SECRET` и `JWT_REFRESH_SECRET` на надёжные случайные строки.
+**Важно**: для production обязательно измените `DB_PASSWORD`, `JWT_SECRET`, `JWT_REFRESH_SECRET` и `REDIS_PASSWORD` на надёжные случайные строки.
 
 ### 3. Запуск
 
@@ -331,7 +333,10 @@ HomeCloud/
 | `db_data` | Данные PostgreSQL |
 | `redis_data` | Персистентность Redis |
 | `storage_data` | Загруженные пользовательские файлы |
-| `uploads_data` | Временные файлы при chunked upload |
+
+## Резервное копирование
+
+См. [docs/backup-and-restore.md](docs/backup-and-restore.md).
 
 ## Переменные окружения
 

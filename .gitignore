@@ -44,3 +44,9 @@ coverage/
 # Uploads / storage (local development)
 storage_data/
 uploads_data/
+
+# Backups
+backups/
+*.sql.gz
+*.tar.gz
+*.meta
