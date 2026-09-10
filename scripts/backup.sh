@@ -145,8 +145,15 @@ echo "  Storage archive: OK"
 echo "[4/5] Creating metadata..."
 METADATA_FILE="$BACKUP_DIR/homecloud_${TIMESTAMP}.meta"
 
-# Count files in storage archive
-STORAGE_FILE_COUNT=$(tar -tzf "$STORAGE_ARCHIVE" 2>/dev/null | grep -v '/$' | wc -l || echo 0)
+# Count files in storage archive (use python3 for accurate count; robust across platforms)
+STORAGE_FILE_COUNT=$(python3 -c '
+import tarfile, sys
+try:
+    with tarfile.open(sys.argv[1], "r:gz") as tf:
+        print(sum(1 for m in tf.getmembers() if m.isfile()))
+except Exception:
+    print(0)
+' "$STORAGE_ARCHIVE" 2>/dev/null || echo 0)
 
 cat > "$METADATA_FILE" << EOF
 {
@@ -167,6 +174,9 @@ cat > "$METADATA_FILE" << EOF
 EOF
 
 echo "  Metadata created: $METADATA_FILE"
+
+# Restrict permissions on backup artifacts
+chmod 600 "$PG_DUMP_FILE" "$STORAGE_ARCHIVE" "$METADATA_FILE"
 
 # 5. Retention cleanup
 echo "[5/5] Applying retention policy (${RETENTION_DAYS} days)..."
