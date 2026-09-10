@@ -26,4 +26,6 @@ COPY --from=builder /app/package.json ./
 
 EXPOSE 3000
 
+USER nextjs
+
 CMD ["node", "dist/main.js"]
