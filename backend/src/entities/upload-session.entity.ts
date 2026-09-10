@@ -14,37 +14,37 @@ export class UploadSessionEntity {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column({ length: 255, name: "upload_id" })
+  @Column({ length: 255, name: "uploadId" })
   uploadId!: string;
 
-  @Column({ length: 255, name: "filename" })
+  @Column({ length: 255 })
   filename!: string;
 
-  @Column({ type: "bigint", name: "total_size" })
+  @Column({ type: "bigint", name: "totalSize" })
   totalSize!: number;
 
-  @Column({ type: "bigint", default: 0, name: "uploaded_size" })
+  @Column({ type: "bigint", default: 0, name: "uploadedSize" })
   uploadedSize!: number;
 
-  @Column({ type: "int", default: 0, name: "chunk_size" })
+  @Column({ type: "int", default: 0, name: "chunkSize" })
   chunkSize!: number;
 
-  @Column({ type: "int", default: 0, name: "total_chunks" })
+  @Column({ type: "int", default: 0, name: "totalChunks" })
   totalChunks!: number;
 
-  @Column({ type: "json", default: "[]", name: "uploaded_chunks" })
+  @Column({ type: "json", default: "[]", name: "uploadedChunks" })
   uploadedChunks!: number[];
 
-  @Column({ length: 500, name: "temp_path" })
+  @Column({ length: 500, name: "tempPath" })
   tempPath!: string;
 
-  @Column({ type: "int", nullable: true, name: "parent_id" })
+  @Column({ type: "int", nullable: true, name: "parentId" })
   parentId!: number | null;
 
-  @Column({ default: "pending", name: "status" })
+  @Column({ default: "pending" })
   status!: string;
 
-  @Column({ type: "timestamp", nullable: true, name: "expires_at" })
+  @Column({ type: "timestamp", nullable: true, name: "expiresAt" })
   expiresAt!: Date | null;
 
   @CreateDateColumn()
@@ -54,9 +54,9 @@ export class UploadSessionEntity {
   updatedAt!: Date;
 
   @ManyToOne(() => UserEntity, { onDelete: "CASCADE" })
-  @JoinColumn({ name: "user_id" })
+  @JoinColumn({ name: "userId" })
   user!: UserEntity;
 
-  @Column({ name: "user_id" })
+  @Column({ name: "userId" })
   userId!: number;
 }

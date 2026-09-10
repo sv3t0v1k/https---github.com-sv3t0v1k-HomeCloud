@@ -24,31 +24,31 @@ export class FileEntity {
   @Column({ length: 255 })
   name!: string;
 
-  @Column({ length: 500, nullable: true, name: "storage_path" })
+  @Column({ length: 500, nullable: true, name: "storagePath" })
   storagePath!: string;
 
   @Column({ type: "bigint", default: 0, name: "size" })
   size!: number;
 
-  @Column({ length: 100, nullable: true, name: "mime_type" })
+  @Column({ length: 100, nullable: true, name: "mimeType" })
   mimeType!: string;
 
   @Column({ type: "text", nullable: true, name: "checksum" })
   checksum!: string;
 
-  @Column({ default: false, name: "is_folder" })
+  @Column({ default: false, name: "isFolder" })
   isFolder!: boolean;
 
-  @Column({ default: false, name: "is_deleted" })
+  @Column({ default: false, name: "isDeleted" })
   isDeleted!: boolean;
 
-  @Column({ default: false, name: "is_starred" })
+  @Column({ default: false, name: "isStarred" })
   isStarred!: boolean;
 
-  @Column({ type: "timestamp", nullable: true, name: "deleted_at" })
+  @Column({ type: "timestamp", nullable: true, name: "deletedAt" })
   deletedAt!: Date | null;
 
-  @Column({ nullable: true, name: "parent_id" })
+  @Column({ nullable: true, name: "parentId" })
   parentId!: number | null;
 
   @Column({ default: 0, name: "version" })
@@ -61,17 +61,17 @@ export class FileEntity {
   updatedAt!: Date;
 
   @ManyToOne(() => UserEntity, (user) => user.files, { onDelete: "CASCADE" })
-  @JoinColumn({ name: "user_id" })
+  @JoinColumn({ name: "userId" })
   user!: UserEntity;
 
-  @Column({ name: "user_id" })
+  @Column({ name: "userId" })
   userId!: number;
 
   @ManyToOne(() => FolderEntity, (folder) => folder.files, {
     nullable: true,
     onDelete: "SET NULL",
   })
-  @JoinColumn({ name: "parent_id" })
+  @JoinColumn({ name: "parentId" })
   parent!: FolderEntity;
 
   @OneToMany(() => ShareLinkEntity, (share) => share.file)

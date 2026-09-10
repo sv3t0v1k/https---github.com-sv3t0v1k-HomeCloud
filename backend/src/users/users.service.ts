@@ -38,8 +38,8 @@ export class UsersService {
     const result = await this.userRepository
       .createQueryBuilder()
       .update(UserEntity)
-      .set({ storageUsed: () => `storage_used + ${bytes}` })
-      .where("id = :id AND storage_used + :bytes <= storage_quota", {
+      .set({ storageUsed: () => `"storageUsed" + ${bytes}` })
+      .where('id = :id AND "storageUsed" + :bytes <= "storageQuota"', {
         id,
         bytes,
       })
