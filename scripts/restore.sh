@@ -340,7 +340,7 @@ fi
 echo "[6/6] Verifying restore..."
 BACKEND_HEALTH=""
 for i in $(seq 1 20); do
-  BACKEND_HEALTH="$(docker compose exec -T backend wget -qO- http://localhost:3000/api/v1/health 2>/dev/null || true)"
+  BACKEND_HEALTH="$(docker compose exec -T backend node -e \"require('http').get('http://localhost:3000/api/v1/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1); }).on('error', () => process.exit(1));\" 2>/dev/null || true)"
   if [ -n "$BACKEND_HEALTH" ]; then
     break
   fi
