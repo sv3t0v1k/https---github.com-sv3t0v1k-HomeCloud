@@ -93,7 +93,7 @@ export class AuthService {
 
     const tokenHash = await bcrypt.hash(refreshToken, 10);
     const storedToken = await this.refreshTokenRepository.findOne({
-      where: { tokenHash, userId, revoked: false },
+      where: { tokenHash, userId },
     });
 
     if (!storedToken) {
@@ -104,8 +104,7 @@ export class AuthService {
       throw new UnauthorizedException("Refresh token expired");
     }
 
-    const isReuse = storedToken.revoked;
-    if (isReuse) {
+    if (storedToken.revoked) {
       await this.revokeAllUserTokens(userId);
       throw new UnauthorizedException("Refresh token was reused");
     }
@@ -113,7 +112,7 @@ export class AuthService {
     await this.refreshTokenRepository.update(storedToken.id, {
       revoked: true,
       revokedAt: new Date(),
-      replacedBy: undefined,
+      replacedBy: storedToken.tokenHash,
     });
 
     return this.generateTokens(user.id, user.email);
