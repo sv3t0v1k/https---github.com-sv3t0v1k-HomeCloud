@@ -6,11 +6,14 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from "typeorm";
 import { UserEntity } from "./user.entity";
 import { FileEntity } from "./file.entity";
 
 @Entity("share_links")
+@Index(["userId"])
+@Index(["fileId"])
 export class ShareLinkEntity {
   @PrimaryGeneratedColumn()
   id!: number;

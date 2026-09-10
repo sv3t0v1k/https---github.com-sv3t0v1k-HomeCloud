@@ -32,10 +32,10 @@ export class UserEntity {
   @Column({ length: 255, nullable: true, name: "avatar" })
   avatar!: string;
 
-  @Column({ default: 0, name: "storageQuota" })
+  @Column({ default: 0, name: "storageQuota", type: "bigint" })
   storageQuota!: number;
 
-  @Column({ default: 0, name: "storageUsed" })
+  @Column({ default: 0, name: "storageUsed", type: "bigint" })
   storageUsed!: number;
 
   @CreateDateColumn({ name: "createdAt" })

@@ -14,6 +14,7 @@ import { FileEntity } from "./file.entity";
 
 @Entity("folders")
 @Index(["parentId"])
+@Index(["userId"])
 export class FolderEntity {
   @PrimaryGeneratedColumn()
   id!: number;

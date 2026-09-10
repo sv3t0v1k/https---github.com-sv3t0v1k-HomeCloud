@@ -17,6 +17,7 @@ import { ShareLinkEntity } from "./share-link.entity";
 @Index(["parentId"])
 @Index(["isDeleted"])
 @Index(["mimeType"])
+@Index(["userId"])
 export class FileEntity {
   @PrimaryGeneratedColumn()
   id!: number;
@@ -51,7 +52,7 @@ export class FileEntity {
   @Column({ nullable: true, name: "parentId" })
   parentId!: number | null;
 
-  @Column({ default: 0, name: "version" })
+  @Column({ default: 0, name: "version", type: "bigint" })
   version!: number;
 
   @CreateDateColumn()
