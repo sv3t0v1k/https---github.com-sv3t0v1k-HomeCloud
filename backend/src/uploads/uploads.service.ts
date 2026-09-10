@@ -173,55 +173,80 @@ export class UploadsService {
     chunkIndex: number,
     chunkData: Buffer,
   ): Promise<UploadSessionEntity> {
-    const session = await this.getUploadSession(userId, uploadId);
+    const queryRunner = this.uploadSessionRepository.manager.connection.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    if (session.status === "completed" || session.status === "aborted") {
-      throw new BadRequestException(`Upload session is ${session.status}`);
+    try {
+      const session = await queryRunner.manager.findOne(UploadSessionEntity, {
+        where: { uploadId, userId },
+        lock: { mode: "pessimistic_write" },
+      });
+
+      if (!session) {
+        throw new NotFoundException("Upload session not found");
+      }
+
+      if (session.expiresAt && new Date() > session.expiresAt) {
+        throw new BadRequestException("Upload session expired");
+      }
+
+      if (session.status === "completed" || session.status === "aborted") {
+        throw new BadRequestException(`Upload session is ${session.status}`);
+      }
+
+      if (chunkIndex < 0 || chunkIndex >= session.totalChunks) {
+        throw new BadRequestException("Invalid chunk index");
+      }
+
+      const remainingBytes =
+        session.totalSize - chunkIndex * session.chunkSize;
+      if (remainingBytes <= 0) {
+        throw new BadRequestException("Invalid chunk position");
+      }
+
+      const maxAllowed =
+        chunkIndex === session.totalChunks - 1
+          ? remainingBytes
+          : session.chunkSize;
+
+      if (chunkData.length > maxAllowed) {
+        throw new BadRequestException("Chunk size exceeds allowed limit");
+      }
+
+      const chunkPath = path.join(session.tempPath, String(chunkIndex));
+      const tempPath = chunkPath + ".tmp";
+
+      fs.writeFileSync(tempPath, chunkData);
+      fs.renameSync(tempPath, chunkPath);
+
+      const uploadedChunks = session.uploadedChunks;
+      if (!uploadedChunks.includes(chunkIndex)) {
+        uploadedChunks.push(chunkIndex);
+      }
+
+      const uploadedSize = uploadedChunks.reduce((sum, index) => {
+        const chunkFile = path.join(session.tempPath, String(index));
+        const chunkSize = fs.existsSync(chunkFile)
+          ? fs.statSync(chunkFile).size
+          : 0;
+        return sum + chunkSize;
+      }, 0);
+
+      session.uploadedChunks = uploadedChunks;
+      session.uploadedSize = uploadedSize;
+      session.status = "uploading";
+
+      await queryRunner.manager.save(session);
+      await queryRunner.commitTransaction();
+
+      return session;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
-
-    if (chunkIndex < 0 || chunkIndex >= session.totalChunks) {
-      throw new BadRequestException("Invalid chunk index");
-    }
-
-    const remainingBytes =
-      session.totalSize - chunkIndex * session.chunkSize;
-    if (remainingBytes <= 0) {
-      throw new BadRequestException("Invalid chunk position");
-    }
-
-    const maxAllowed =
-      chunkIndex === session.totalChunks - 1
-        ? remainingBytes
-        : session.chunkSize;
-
-    if (chunkData.length > maxAllowed) {
-      throw new BadRequestException("Chunk size exceeds allowed limit");
-    }
-
-    const chunkPath = path.join(session.tempPath, String(chunkIndex));
-    const tempPath = chunkPath + ".tmp";
-
-    fs.writeFileSync(tempPath, chunkData);
-    fs.renameSync(tempPath, chunkPath);
-
-    const uploadedChunks = session.uploadedChunks;
-    if (!uploadedChunks.includes(chunkIndex)) {
-      uploadedChunks.push(chunkIndex);
-    }
-
-    const uploadedSize = uploadedChunks.reduce((sum, index) => {
-      const chunkFile = path.join(session.tempPath, String(index));
-      const chunkSize = fs.existsSync(chunkFile)
-        ? fs.statSync(chunkFile).size
-        : 0;
-      return sum + chunkSize;
-    }, 0);
-
-    session.uploadedChunks = uploadedChunks;
-    session.uploadedSize = uploadedSize;
-    session.status = "uploading";
-
-    return this.uploadSessionRepository.save(session);
   }
 
   async completeUpload(userId: number, uploadId: string): Promise<FileEntity> {
@@ -308,7 +333,7 @@ export class UploadsService {
       });
 
       await queryRunner.manager.save(file);
-      await this.usersService.updateStorageUsed(userId, session.totalSize);
+      await this.usersService.updateStorageUsed(userId, session.totalSize, queryRunner.manager);
 
       currentSession.status = "completed";
       await queryRunner.manager.save(currentSession);

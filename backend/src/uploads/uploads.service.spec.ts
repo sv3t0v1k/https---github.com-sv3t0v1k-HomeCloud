@@ -22,14 +22,31 @@ describe("UploadsService - Post-Review Fixes", () => {
   let mockStorageService: any;
   let mockUsersService: any;
   let mockConfigService: any;
+  let mockQueryRunner: any;
 
   beforeEach(() => {
+    mockQueryRunner = {
+      connect: jest.fn(),
+      startTransaction: jest.fn(),
+      commitTransaction: jest.fn(),
+      rollbackTransaction: jest.fn(),
+      release: jest.fn(),
+      manager: {
+        findOne: jest.fn(),
+        save: jest.fn(),
+      },
+    };
     mockUploadSessionRepository = {
       create: jest.fn(),
       save: jest.fn(),
       findOne: jest.fn(),
       find: jest.fn(),
       delete: jest.fn(),
+      manager: {
+        connection: {
+          createQueryRunner: jest.fn(() => mockQueryRunner),
+        },
+      },
     };
     mockFileRepository = {
       create: jest.fn(),
@@ -168,7 +185,8 @@ describe("UploadsService - Post-Review Fixes", () => {
       };
 
       mockUploadSessionRepository.findOne.mockResolvedValue(session);
-      mockUploadSessionRepository.save.mockResolvedValue(session);
+      mockQueryRunner.manager.findOne.mockResolvedValue(session);
+      mockQueryRunner.manager.save.mockResolvedValue(session);
 
       await expect(
         service.uploadChunk(1, "abc", 2, Buffer.alloc(501)),
@@ -191,8 +209,8 @@ describe("UploadsService - Post-Review Fixes", () => {
         expiresAt: new Date(Date.now() + 86400000),
       };
 
-      mockUploadSessionRepository.findOne.mockResolvedValue(session);
-      mockUploadSessionRepository.save.mockResolvedValue(session);
+      mockQueryRunner.manager.findOne.mockResolvedValue(session);
+      mockQueryRunner.manager.save.mockResolvedValue(session);
 
       await expect(
         service.uploadChunk(1, "abc", 2, Buffer.alloc(500)),
@@ -220,8 +238,8 @@ describe("UploadsService - Post-Review Fixes", () => {
         expiresAt: new Date(Date.now() + 86400000),
       };
 
-      mockUploadSessionRepository.findOne.mockResolvedValue(session);
-      mockUploadSessionRepository.save.mockResolvedValue(session);
+      mockQueryRunner.manager.findOne.mockResolvedValue(session);
+      mockQueryRunner.manager.save.mockResolvedValue(session);
 
       const result = await service.uploadChunk(1, "abc", 2, Buffer.alloc(500));
       expect(result.uploadedChunks).toContain(2);
@@ -249,8 +267,8 @@ describe("UploadsService - Post-Review Fixes", () => {
         expiresAt: new Date(Date.now() + 86400000),
       };
 
-      mockUploadSessionRepository.findOne.mockResolvedValue(session);
-      mockUploadSessionRepository.save.mockImplementation((s: any) => {
+      mockQueryRunner.manager.findOne.mockResolvedValue(session);
+      mockQueryRunner.manager.save.mockImplementation((s: any) => {
         return Promise.resolve(s);
       });
 
