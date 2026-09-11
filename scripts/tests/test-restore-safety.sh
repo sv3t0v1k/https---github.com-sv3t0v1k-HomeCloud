@@ -52,6 +52,17 @@ log ""
 log "=== Generating test fixtures ==="
 python3 "$SCRIPT_DIR/create_fixtures.py" "$FIXTURES_DIR" || die "Failed to create fixtures"
 
+# Build sidecar-specific fixtures without changing the production backup set.
+cp -r "$FIXTURES_DIR/valid" "$FIXTURES_DIR/legacy-no-sidecar"
+rm -f "$FIXTURES_DIR/legacy-no-sidecar/"*.meta.sha256
+cp -r "$FIXTURES_DIR/valid" "$FIXTURES_DIR/tampered-sidecar"
+printf 'x' >> "$FIXTURES_DIR/tampered-sidecar/"*.meta.sha256
+cp -r "$FIXTURES_DIR/valid" "$FIXTURES_DIR/wrong-sidecar-name"
+SIDECAR_HASH=$(awk '{print $1}' "$FIXTURES_DIR/wrong-sidecar-name/"*.meta.sha256)
+printf '%s  wrong.meta\n' "$SIDECAR_HASH" > "$FIXTURES_DIR/wrong-sidecar-name/"*.meta.sha256
+cp -r "$FIXTURES_DIR/valid" "$FIXTURES_DIR/unsafe-artifact-mode"
+chmod 666 "$FIXTURES_DIR/unsafe-artifact-mode/"*.meta
+
 # ===========================================================================
 # Phase A validation tests (no Docker operations — --validate-only)
 # ===========================================================================
@@ -96,31 +107,43 @@ run_phase_a_test() {
 # 1. Valid backup — should pass Phase A
 run_phase_a_test "valid backup" "$FIXTURES_DIR/valid" "no"
 
-# 2. Malformed .meta JSON
+# 2. Legacy backup without a sidecar must fail closed before JSON parsing
+run_phase_a_test "legacy backup without .meta.sha256" "$FIXTURES_DIR/legacy-no-sidecar" "yes" "Missing or unsafe .meta.sha256"
+
+# 3. Tampered sidecar must fail closed before JSON parsing
+run_phase_a_test "tampered .meta.sha256" "$FIXTURES_DIR/tampered-sidecar" "yes" "checksum mismatch"
+
+# 4. Sidecar filename must match the metadata file
+run_phase_a_test "sidecar references wrong metadata" "$FIXTURES_DIR/wrong-sidecar-name" "yes" "wrong metadata file"
+
+# 5. Malformed .meta JSON
 run_phase_a_test "malformed .meta JSON" "$FIXTURES_DIR/malformed-meta" "yes" "malformed .meta JSON"
 
-# 3. Missing checksum field
+# 6. Missing checksum field
 run_phase_a_test "missing checksum fields" "$FIXTURES_DIR/missing-checksum" "yes" "field empty"
 
-# 4. Invalid checksum value
+# 7. Invalid checksum value
 run_phase_a_test "invalid checksum value" "$FIXTURES_DIR/invalid-checksum" "yes" "checksum mismatch"
 
-# 5. Unsupported format version
+# 8. Unsafe artifact mode
+run_phase_a_test "unsafe artifact permissions" "$FIXTURES_DIR/unsafe-artifact-mode" "yes" "unsafe permissions"
+
+# 9. Unsupported format version
 run_phase_a_test "unsupported format version" "$FIXTURES_DIR/unsupported-version" "yes" "Unsupported backup format_version"
 
-# 6. Corrupted storage archive
+# 10. Corrupted storage archive
 run_phase_a_test "corrupted storage archive" "$FIXTURES_DIR/corrupted-archive" "yes" "tar integrity check failed"
 
-# 7. Corrupted DB dump (gzip)
+# 11. Corrupted DB dump (gzip)
 run_phase_a_test "corrupted DB dump (gzip)" "$FIXTURES_DIR/corrupted-dump" "yes" "gzip integrity check failed"
 
-# 8. Malicious archive (path traversal + device files)
+# 12. Malicious archive (path traversal + device files)
 run_phase_a_test "malicious archive" "$FIXTURES_DIR/malicious-archive" "yes" "security scan"
 
-# 9. Empty storage backup (0 files) — valid empty storage
+# 13. Empty storage backup (0 files) — valid empty storage
 run_phase_a_test "empty storage backup (valid)" "$FIXTURES_DIR/empty-storage" "no"
 
-# 10. File count mismatch
+# 14. File count mismatch
 run_phase_a_test "file count mismatch" "$FIXTURES_DIR/file-count-mismatch" "yes" "file count mismatch"
 
 # 11. Missing backup file (artifact referenced in .meta but not on disk)
@@ -175,10 +198,18 @@ if [ "$SKIP_INTEGRATION" -eq 0 ]; then
     (cd "$PROJECT_ROOT" && docker compose build --quiet backend 2>&1 | tail -3) || true
   fi
 
+  # Create a fresh sidecar-backed backup for the destructive integration test.
+  # Legacy repository backups intentionally remain sidecar-less and must fail closed.
+  INTEGRATION_BACKUP_DIR="$FIXTURES_DIR/live-backup"
+  mkdir -p "$INTEGRATION_BACKUP_DIR"
+  BACKUP_DIR="$INTEGRATION_BACKUP_DIR" bash "$PROJECT_ROOT/scripts/backup.sh" --yes >/dev/null 2>&1 || \
+    die "Failed to create integration backup"
+  VALID_BACKUP_DIR="$INTEGRATION_BACKUP_DIR"
+
   # --- Integration Test 1: Valid backup restores successfully ---
   log "--- Test: valid restore end-to-end ---"
-  # Use the real backup for integration test (has full schema)
-  if [ -f "$PROJECT_ROOT/backups/homecloud_20260909_230246.meta" ]; then
+  # Use the fresh real backup with a verified .meta.sha256 sidecar.
+  if [ -n "$VALID_BACKUP_DIR" ]; then
     # Pre-populate storage with existing data to test preservation on failure
     log "  Pre-populating storage volume with existing data..."
     EXISTING_VOL="homecloud_test_recon_existing_$$"
@@ -189,7 +220,7 @@ if [ "$SKIP_INTEGRATION" -eq 0 ]; then
 
     # Run restore with the real backup
     set +e
-    STORAGE_VOLUME="$EXISTING_VOL" BACKUP_DIR="$PROJECT_ROOT/backups" \
+    STORAGE_VOLUME="$EXISTING_VOL" BACKUP_DIR="$VALID_BACKUP_DIR" \
       bash "$RESTORE_SH" --yes 2>&1 | tail -25
     RC=${PIPESTATUS[0]}
     set -e

@@ -36,6 +36,14 @@ def sha256_file(path):
     return h.hexdigest()
 
 
+def create_meta_sidecar(meta_path):
+    """Create a .meta.sha256 sidecar with the exact-byte SHA256 of the .meta file."""
+    sha256 = sha256_file(meta_path)
+    sidecar_path = meta_path + ".sha256"
+    with open(sidecar_path, "w") as f:
+        f.write(f"{sha256}  {os.path.basename(meta_path)}\n")
+
+
 def file_size(path):
     return os.path.getsize(path)
 
@@ -226,6 +234,7 @@ def make_fixture(base_dir, name, db_dump_content=None, storage_files=None,
             f.write('  this is not valid json\n')
             f.write('  "db_dump": "%s",' % db_name)
             f.write('  "storage_file_count": 0\n0,')  # BSD wc -l corruption
+        create_meta_sidecar(f"{base_dir}/{meta_name}")
     elif missing_checksum:
         with open(f"{base_dir}/{meta_name}", "w") as f:
             json.dump({
@@ -242,6 +251,7 @@ def make_fixture(base_dir, name, db_dump_content=None, storage_files=None,
                 "storage_file_count": meta_fc,
                 "retention_days": 7,
             }, f, indent=2)
+        create_meta_sidecar(f"{base_dir}/{meta_name}")
     elif invalid_checksum:
         with open(f"{base_dir}/{meta_name}", "w") as f:
             json.dump({
@@ -258,6 +268,7 @@ def make_fixture(base_dir, name, db_dump_content=None, storage_files=None,
                 "storage_file_count": meta_fc,
                 "retention_days": 7,
             }, f, indent=2)
+        create_meta_sidecar(f"{base_dir}/{meta_name}")
     else:
         create_meta(
             f"{base_dir}/{meta_name}",
@@ -268,6 +279,7 @@ def make_fixture(base_dir, name, db_dump_content=None, storage_files=None,
             meta_fc,
             format_version=format_version,
         )
+        create_meta_sidecar(f"{base_dir}/{meta_name}")
 
     return base_dir
 
@@ -278,67 +290,78 @@ def create_all_fixtures(output_dir):
 
     # 1. Valid backup
     d = f"{output_dir}/valid"
-    os.makedirs(d, exist_ok=True)
+    os.makedirs(d, mode=0o700, exist_ok=True)
+    os.chmod(d, 0o700)
     make_fixture(d, "valid")
     fixtures["valid"] = d
 
     # 2. Malformed .meta
     d = f"{output_dir}/malformed-meta"
-    os.makedirs(d, exist_ok=True)
+    os.makedirs(d, mode=0o700, exist_ok=True)
+    os.chmod(d, 0o700)
     make_fixture(d, "malformed-meta", malformed_meta=True)
     fixtures["malformed-meta"] = d
 
     # 3. Missing checksum
     d = f"{output_dir}/missing-checksum"
-    os.makedirs(d, exist_ok=True)
+    os.makedirs(d, mode=0o700, exist_ok=True)
+    os.chmod(d, 0o700)
     make_fixture(d, "missing-checksum", missing_checksum=True)
     fixtures["missing-checksum"] = d
 
     # 4. Invalid checksum
     d = f"{output_dir}/invalid-checksum"
-    os.makedirs(d, exist_ok=True)
+    os.makedirs(d, mode=0o700, exist_ok=True)
+    os.chmod(d, 0o700)
     make_fixture(d, "invalid-checksum", invalid_checksum=True)
     fixtures["invalid-checksum"] = d
 
     # 5. Unsupported format version
     d = f"{output_dir}/unsupported-version"
-    os.makedirs(d, exist_ok=True)
+    os.makedirs(d, mode=0o700, exist_ok=True)
+    os.chmod(d, 0o700)
     make_fixture(d, "unsupported-version", format_version="2")
     fixtures["unsupported-version"] = d
 
     # 6. Corrupted archive
     d = f"{output_dir}/corrupted-archive"
-    os.makedirs(d, exist_ok=True)
+    os.makedirs(d, mode=0o700, exist_ok=True)
+    os.chmod(d, 0o700)
     make_fixture(d, "corrupted-archive", corrupted_archive=True)
     fixtures["corrupted-archive"] = d
 
     # 7. Corrupted dump
     d = f"{output_dir}/corrupted-dump"
-    os.makedirs(d, exist_ok=True)
+    os.makedirs(d, mode=0o700, exist_ok=True)
+    os.chmod(d, 0o700)
     make_fixture(d, "corrupted-dump", corrupted_dump=True)
     fixtures["corrupted-dump"] = d
 
     # 8. Malicious archive
     d = f"{output_dir}/malicious-archive"
-    os.makedirs(d, exist_ok=True)
+    os.makedirs(d, mode=0o700, exist_ok=True)
+    os.chmod(d, 0o700)
     make_fixture(d, "malicious-archive", malicious=True)
     fixtures["malicious-archive"] = d
 
     # 9. Empty storage (0 files)
     d = f"{output_dir}/empty-storage"
-    os.makedirs(d, exist_ok=True)
+    os.makedirs(d, mode=0o700, exist_ok=True)
+    os.chmod(d, 0o700)
     make_fixture(d, "empty-storage", empty_storage=True)
     fixtures["empty-storage"] = d
 
     # 10. File count mismatch
     d = f"{output_dir}/file-count-mismatch"
-    os.makedirs(d, exist_ok=True)
+    os.makedirs(d, mode=0o700, exist_ok=True)
+    os.chmod(d, 0o700)
     make_fixture(d, "file-count-mismatch", file_count_mismatch=True)
     fixtures["file-count-mismatch"] = d
 
     # 11. Partial dump (SQL error)
     d = f"{output_dir}/partial-dump"
-    os.makedirs(d, exist_ok=True)
+    os.makedirs(d, mode=0o700, exist_ok=True)
+    os.chmod(d, 0o700)
     make_fixture(d, "partial-dump", partial_dump=True)
     fixtures["partial-dump"] = d
 
