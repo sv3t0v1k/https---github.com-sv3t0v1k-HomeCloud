@@ -1,4 +1,4 @@
-import { Injectable, Logger, ForbiddenException } from "@nestjs/common";
+import { Injectable, Logger, ForbiddenException, NotFoundException, BadRequestException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, EntityManager } from "typeorm";
 import { UserEntity } from "../entities/user.entity";
@@ -66,9 +66,34 @@ export class UsersService {
     bytes: number,
     manager?: EntityManager,
   ): Promise<void> {
+    if (bytes <= 0) {
+      return;
+    }
+
     const repository = manager
       ? manager.getRepository(UserEntity)
       : this.userRepository;
-    await repository.decrement({ id }, "storageUsed", bytes);
+
+    const result = await repository
+      .createQueryBuilder()
+      .update(UserEntity)
+      .set({ storageUsed: () => `"storageUsed" - ${bytes}` })
+      .where('id = :id AND "storageUsed" >= :bytes', { id, bytes })
+      .execute();
+
+    if (result.affected === 0) {
+      const user = await repository.findOne({ where: { id } });
+      if (!user) {
+        throw new NotFoundException("User not found");
+      }
+      if (user.storageUsed < bytes) {
+        throw new BadRequestException(
+          "Storage used would go negative — data inconsistency detected",
+        );
+      }
+      throw new BadRequestException(
+        "Concurrent storage modification — please retry",
+      );
+    }
   }
 }
