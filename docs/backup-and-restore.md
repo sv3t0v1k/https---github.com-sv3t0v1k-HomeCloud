@@ -257,7 +257,7 @@ tar -xzf backups/homecloud_storage_YYYYMMDD_HHMMSS.tar.gz -C "$STAGE"
 
 | # | Description | Impact |
 |---|-------------|--------|
-| TD-1 | `.meta` имеет собственный checksum — нельзя обнаружить подмену .meta | Средний |
+| TD-1 | `.meta` не имеет собственного checksum — нельзя обнаружить подмену .meta | Средний |
 | TD-2 | pg_dump без `--clean --if-exists` в некоторых сценариях | Низкий (DROP SCHEMA покрывает) |
 | TD-3 | Cross-platform disk space check неточен на macOS | Средний |
 | TD-4 | Health endpoint возвращает ok без проверки DB/Redis | Средний (compensated by reconciliation) |
