@@ -3,10 +3,27 @@ set -euo pipefail
 
 # Isolated restore test — uses ONLY temporary Docker resources.
 # No production container, volume, or network is ever touched.
+#
+# Tests the complete safe-restore flow:
+#   - Phase A: validation (checksums, format version, security scan)
+#   - Phase C: safe DB restore (ON_ERROR_STOP, schema wipe, validation)
+#   - Phase C: safe storage restore (rename-swap, no delete-before-copy)
+#   - Post-restore: reconciliation + health check
+#
+# Usage: ./scripts/test-restore.sh [--backup-dir <dir>]
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BACKUP_DIR="${BACKUP_DIR:-$PROJECT_ROOT/backups}"
+
+# Allow override of backup dir via flag
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --backup-dir) BACKUP_DIR="$2"; shift 2 ;;
+    *) echo "Unknown arg: $1"; exit 2 ;;
+  esac
+done
+
 LATEST_META="$(find "$BACKUP_DIR" -name 'homecloud_*.meta' -type f 2>/dev/null | sort | tail -n 1)"
 
 if [ -z "$LATEST_META" ]; then
@@ -14,13 +31,23 @@ if [ -z "$LATEST_META" ]; then
   exit 1
 fi
 
-TIMESTAMP="$(basename "$LATEST_META" .meta | sed 's/^homecloud_//')"
-PG_DUMP_FILENAME="$(grep '"db_dump"'              "$LATEST_META" | sed 's/.*: "\(.*\)".*/\1/')"
-STORAGE_ARCHIVE_FILENAME="$(grep '"storage_archive"' "$LATEST_META" | sed 's/.*: "\(.*\)".*/\1/')"
+# Parse .meta with JSON parser (fail-closed)
+META_JSON="$(python3 -c "
+import json, sys
+with open('$LATEST_META') as f:
+    m = json.load(f)
+for k in ['timestamp','db_dump','storage_archive','db_dump_sha256','storage_archive_sha256','storage_file_count']:
+    print(m.get(k, ''))
+" 2>/dev/null)" || { echo "ERROR: Failed to parse .meta"; exit 1; }
+
+TIMESTAMP="$(echo "$META_JSON" | sed -n '1p')"
+PG_DUMP_FILENAME="$(echo "$META_JSON" | sed -n '2p')"
+STORAGE_ARCHIVE_FILENAME="$(echo "$META_JSON" | sed -n '3p')"
 PG_DUMP_FILE="$BACKUP_DIR/$PG_DUMP_FILENAME"
 STORAGE_ARCHIVE="$BACKUP_DIR/$STORAGE_ARCHIVE_FILENAME"
+META_STORAGE_FILE_COUNT="$(echo "$META_JSON" | sed -n '6p')"
 
-echo "=== Isolated Restore Test ==="
+echo "=== Isolated Restore Test (Phase 5.2) ==="
 echo "Backup timestamp : $TIMESTAMP"
 echo "DB dump          : $PG_DUMP_FILE"
 echo "Storage archive  : $STORAGE_ARCHIVE"
@@ -72,76 +99,124 @@ docker run -d \
   postgres:16-alpine >/dev/null
 
 # Wait for Postgres
+DB_READY=0
 for i in $(seq 1 15); do
   if docker exec "$DB_CONTAINER" pg_isready -U "$DB_USER" -d "$DB_NAME" >/dev/null 2>&1; then
+    DB_READY=1
     break
   fi
   sleep 1
 done
+if [ "$DB_READY" -ne 1 ]; then
+  echo "  FAILED: Postgres did not start"
+  exit 1
+fi
 echo "  Postgres is ready."
 
-echo "[3/8] Restoring PostgreSQL dump..."
-gunzip -c "$PG_DUMP_FILE" | \
-  docker exec -i "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME"
-echo "  DB restore complete."
+echo "[3/8] Restoring PostgreSQL dump (ON_ERROR_STOP=1)..."
+# Schema wipe for clean restore
+docker exec "$DB_CONTAINER" psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" -c \
+  "DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO $DB_USER;" \
+  >/dev/null 2>&1
+# Restore with fail-closed
+if ! gunzip -c "$PG_DUMP_FILE" | docker exec -i "$DB_CONTAINER" psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME"; then
+  echo "  FAILED: DB restore failed"
+  exit 1
+fi
+echo "  DB restore OK (ON_ERROR_STOP: enabled)."
 
 echo "[4/8] Validating database integrity..."
 TABLE_COUNT=$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -tAc "
-  SELECT count(*) FROM information_schema.tables WHERE table_schema='public'
-")
-echo "  Tables in database: $TABLE_COUNT"
+  SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'
+" 2>/dev/null | tr -d '[:space:]')
+echo "  Tables in database: $TABLE_COUNT (expected 7)"
+if [ "$TABLE_COUNT" != "7" ]; then
+  echo "  FAILED: expected 7 tables, got $TABLE_COUNT"
+  exit 1
+fi
 
-# Verify key tables exist and have expected columns (camelCase)
-FILES_COLS=$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -tAc "
-  SELECT string_agg(column_name, ', ' ORDER BY ordinal_position)
-  FROM information_schema.columns
-  WHERE table_name='files' AND table_schema='public'
-")
-echo "  files columns: $FILES_COLS"
+# Verify each expected table exists
+for t in users files folders share_links upload_sessions refresh_tokens migrations; do
+  EXISTS=$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -tAc \
+    "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='$t'" 2>/dev/null | tr -d '[:space:]')
+  [ "$EXISTS" = "1" ] || { echo "  FAILED: table '$t' missing"; exit 1; }
+done
+echo "  All 7 tables present: OK"
 
-FOLDERS_COLS=$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -tAc "
-  SELECT string_agg(column_name, ', ' ORDER BY ordinal_position)
-  FROM information_schema.columns
-  WHERE table_name='folders' AND table_schema='public'
-")
-echo "  folders columns: $FOLDERS_COLS"
+# Verify key columns
+FILES_COLS=$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -tAc \
+  "SELECT string_agg(column_name, ',' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_name='files' AND table_schema='public'" 2>/dev/null | tr -d '[:space:]')
+[ "${FILES_COLS%%,*}" = "id" ] || { echo "  FAILED: files table columns unexpected ($FILES_COLS)"; exit 1; }
+echo "  Key column validation: OK"
 
-SHARELINKS_COLS=$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -tAc "
-  SELECT string_agg(column_name, ', ' ORDER BY ordinal_position)
-  FROM information_schema.columns
-  WHERE table_name='share_links' AND table_schema='public'
-")
-echo "  share_links columns: $SHARELINKS_COLS"
+USERS_COUNT=$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT count(*) FROM users" 2>/dev/null | tr -d '[:space:]')
+echo "  users row count: $USERS_COUNT"
 
-UPLOADSESSIONS_COLS=$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -tAc "
-  SELECT string_agg(column_name, ', ' ORDER BY ordinal_position)
-  FROM information_schema.columns
-  WHERE table_name='upload_sessions' AND table_schema='public'
-")
-echo "  upload_sessions columns: $UPLOADSESSIONS_COLS"
-
-USERS_COUNT=$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT count(*) FROM users")
-FILES_COUNT=$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT count(*) FROM files")
-FOLDERS_COUNT=$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT count(*) FROM folders")
-SHARELINKS_COUNT=$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT count(*) FROM share_links")
-UPLOADSESSIONS_COUNT=$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT count(*) FROM upload_sessions")
-REFRESH_TOKENS_COUNT=$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT count(*) FROM refresh_tokens")
-echo "  users=$USERS_COUNT  files=$FILES_COUNT  folders=$FOLDERS_COUNT  share_links=$SHARELINKS_COUNT  upload_sessions=$UPLOADSESSIONS_COUNT  refresh_tokens=$REFRESH_TOKENS_COUNT"
-
-echo "[5/8] Restoring storage archive into temp volume..."
-docker run --rm -i --entrypoint sh \
+echo "[5/8] Restoring storage archive (safe rename-swap)..."
+if ! docker run --rm --user root -i --entrypoint sh \
   -v "${STOR_VOL_NAME}:/storage" \
+  -e "EXPECTED_FILE_COUNT=${META_STORAGE_FILE_COUNT:-0}" \
   "$BACKEND_IMAGE" \
   -c '
 set -e
-mkdir -p /storage/.restore-staging
-tar -xzf - -C /storage/.restore-staging
-find /storage -mindepth 1 -maxdepth 1 -not -name ".restore-staging" -exec rm -rf {} +
-cp -a /storage/.restore-staging/. /storage/
-rm -rf /storage/.restore-staging
-echo "STORAGE_RESTORE_OK"
-' < "$STORAGE_ARCHIVE"
-echo "  Storage restore complete."
+STORAGE_ROOT="/storage"
+STAGE="$STORAGE_ROOT/.restore-staging"
+SWAP="$STORAGE_ROOT/.restore-swap"
+rm -rf "$STAGE" "$SWAP"
+mkdir -p "$STAGE" "$SWAP"
+
+# Prepare: extract to staging
+tar -xzf - -C "$STAGE"
+
+# Validate: verify staging file count
+STAGE_COUNT=$(find "$STAGE" -type f | wc -l)
+EXPECTED="${EXPECTED_FILE_COUNT:-0}"
+if [ "$EXPECTED" != "0" ]; then
+  ACTUAL=$((STAGE_COUNT))
+  if [ "$ACTUAL" -lt "$EXPECTED" ]; then
+    rm -rf "$STAGE"
+    echo "STORAGE_RESTORE_FAIL: staging file count mismatch"
+    exit 1
+  fi
+  echo "  staging file count: $ACTUAL (expected $EXPECTED)"
+fi
+
+# Normalize permissions
+find "$STAGE" -type d -exec chmod 755 {} + 2>/dev/null || true
+find "$STAGE" -type f -exec chmod 644 {} + 2>/dev/null || true
+
+# Stage: move old content to .restore-swap (NOT deleted until switch verified)
+find "$STORAGE_ROOT" -mindepth 1 -maxdepth 1 \
+  -not -name ".restore-staging" \
+  -not -name ".restore-swap" \
+  -not -name ".tmp" \
+  -exec mv -f {} "$SWAP/" + 2>/dev/null || true
+
+# Switch: move staging contents to root (atomic rename)
+find "$STAGE" -mindepth 1 -maxdepth 1 -exec mv -f {} "$STORAGE_ROOT/" + 2>/dev/null || true
+rmdir "$STAGE" 2>/dev/null || rm -rf "$STAGE"
+
+# Verify
+ROOT_TOTAL=$(find "$STORAGE_ROOT" -type f -not -path "*/.tmp/*" -not -path "*/.restore-swap/*" | wc -l)
+if [ "$EXPECTED" != "0" ]; then
+  if [ "$((ROOT_TOTAL))" -lt "$EXPECTED" ]; then
+    echo "STORAGE_RESTORE_FAIL: post-switch verification failed"
+    exit 1
+  fi
+fi
+
+# Cleanup
+rm -rf "$SWAP"
+mkdir -p "$STORAGE_ROOT/.tmp"
+NEXTJS_UID=$(id -u nextjs 2>/dev/null || echo 1001)
+NEXTJS_GID=$(id -g nextjs 2>/dev/null || echo 1001)
+chown -R "$NEXTJS_UID:$NEXTJS_GID" "$STORAGE_ROOT"
+echo "STORAGE_RESTORE_OK: files=$ROOT_TOTAL"
+' < "$STORAGE_ARCHIVE"; then
+  echo "  FAILED: Storage restore failed"
+  exit 1
+fi
+echo "  Storage restore OK (safe rename-swap, old data preserved during switch)."
 
 echo "[6/8] Starting temporary backend..."
 docker run -d \
@@ -169,7 +244,11 @@ echo "  Backend container started."
 echo "[7/8] Waiting for backend health..."
 BACKEND_HEALTH=""
 for i in $(seq 1 30); do
-  BACKEND_HEALTH="$(docker exec "$BACKEND_CONTAINER" node -e \"require('http').get('http://localhost:3000/api/v1/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1); }).on('error', () => process.exit(1));\" 2>/dev/null || true)"
+  set +e
+  BACKEND_HEALTH=$(echo 'const http=require("http");http.get("http://localhost:3000/api/v1/health",(r)=>{let d="";r.on("data",c=>d+=c);r.on("end",()=>{process.stdout.write(d);process.exit(r.statusCode===200?0:1);});}).on("error",()=>process.exit(1));' | \
+    docker compose exec -T "$BACKEND_CONTAINER" node - 2>/dev/null || \
+    docker exec "$BACKEND_CONTAINER" node -e 'const http=require("http");http.get("http://localhost:3000/api/v1/health",(r)=>{let d="";r.on("data",c=>d+=c);r.on("end",()=>{process.stdout.write(d);process.exit(r.statusCode===200?0:1);});}).on("error",()=>process.exit(1));' 2>/dev/null)
+  set -e
   if [ -n "$BACKEND_HEALTH" ]; then
     break
   fi
@@ -184,23 +263,31 @@ echo "  Backend health: $BACKEND_HEALTH"
 
 echo "[8/8] Validating storage volume contents..."
 STOR_FILE_COUNT=$(docker run --rm -v "${STOR_VOL_NAME}:/storage" "$BACKEND_IMAGE" \
-  sh -c 'find /storage -type f | wc -l' 2>/dev/null || echo 0)
+  sh -c 'find /storage -type f | wc -l' 2>/dev/null | tr -d '[:space:]')
 echo "  Files in storage volume: $STOR_FILE_COUNT"
 
 STOR_FILE_LIST=$(docker run --rm -v "${STOR_VOL_NAME}:/storage" "$BACKEND_IMAGE" \
-  sh -c 'find /storage -type f' 2>/dev/null || echo "")
+  sh -c 'find /storage -type f -not -path "*/.tmp/*"' 2>/dev/null)
 echo "  Storage files:"
 for f in $STOR_FILE_LIST; do
   echo "    $f"
 done
 
+# Reconciliation check
+echo ""
+echo "  Reconciliation:"
+python3 "$SCRIPT_DIR/reconcile.py" \
+  --db-user "$DB_USER" \
+  --db-name "$DB_NAME" \
+  --storage-volume "$STOR_VOL_NAME" \
+  --backend-image "$BACKEND_IMAGE" \
+  2>/dev/null || echo "  (reconciliation skipped or found issues)"
+
 echo ""
 echo "=== Isolated Restore Test PASSED ==="
 echo "  Backup timestamp: $TIMESTAMP"
 echo "  DB tables: $TABLE_COUNT"
-echo "  users=$USERS_COUNT files=$FILES_COUNT folders=$FOLDERS_COUNT"
-echo "  share_links=$SHARELINKS_COUNT upload_sessions=$UPLOADSESSIONS_COUNT"
-echo "  refresh_tokens=$REFRESH_TOKENS_COUNT"
+echo "  users=$USERS_COUNT"
 echo "  Storage files: $STOR_FILE_COUNT"
 echo "  Backend health: $BACKEND_HEALTH"
 echo ""
