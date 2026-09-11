@@ -97,6 +97,87 @@ file_size() {
   stat -f%z "$1" 2>/dev/null || stat -c%s "$1" 2>/dev/null || echo 0
 }
 
+# Portable SHA-256 helper (GNU sha256sum / BSD shasum / python3 fallback)
+sha256_hex() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | awk '{print $1}'
+  else
+    python3 -c "
+import hashlib, sys
+h = hashlib.sha256()
+with open(sys.argv[1], 'rb') as f:
+    for chunk in iter(lambda: f.read(8192), b''):
+        h.update(chunk)
+print(h.hexdigest())
+" "$1"
+  fi
+}
+
+# Cryptographically random hex; fail closed if no entropy source is usable.
+random_hex() {
+  local nbytes="$1"
+  python3 -c "import secrets; print(secrets.token_hex($nbytes))" 2>/dev/null
+}
+
+# Remove only a regular file or a symlink itself; never follow a symlink.
+safe_remove_file() {
+  local path="$1"
+  [ -e "$path" ] || [ -L "$path" ] || return 0
+  if [ -L "$path" ] || [ -f "$path" ]; then
+    rm -f -- "$path" 2>/dev/null || return 1
+    [ ! -e "$path" ] && [ ! -L "$path" ] || return 1
+    return 0
+  fi
+  err "Refusing to remove non-regular path: $path" >&2
+  return 1
+}
+
+# Remove a directory tree without following symlinks or using rm -rf.
+safe_remove_dir() {
+  local path="$1"
+  [ -e "$path" ] || [ -L "$path" ] || return 0
+  if [ -L "$path" ] || [ ! -d "$path" ]; then
+    err "Refusing to remove non-directory path: $path" >&2
+    return 1
+  fi
+  find -P "$path" -depth -type f -exec rm -f -- {} + 2>/dev/null || return 1
+  find -P "$path" -depth -type l -exec rm -f -- {} + 2>/dev/null || return 1
+  find -P "$path" -depth -type d -exec rmdir -- {} + 2>/dev/null || return 1
+  [ ! -e "$path" ] && [ ! -L "$path" ] || return 1
+}
+
+# Remove an exact lock directory and its two known files.
+safe_remove_lock_dir() {
+  local lock_dir="$1"
+  [ -e "$lock_dir" ] || [ -L "$lock_dir" ] || return 0
+  if [ -L "$lock_dir" ] || [ ! -d "$lock_dir" ]; then
+    err "Unsafe lock path: $lock_dir" >&2
+    return 1
+  fi
+  safe_remove_file "$lock_dir/LOCK_PID" || return 1
+  safe_remove_file "$lock_dir/LOCK_TOKEN" || return 1
+  rmdir "$lock_dir" 2>/dev/null || return 1
+}
+
+# Reject group/other write bits portably on BSD and GNU stat output.
+assert_safe_mode() {
+  local path="$1" mode digits perm group_bit other_bit
+  mode="$(stat -f%Lp "$path" 2>/dev/null || stat -c%a "$path" 2>/dev/null || echo "")"
+  digits="$(printf '%s' "$mode" | tr -cd '0-7')"
+  if [ "${#digits}" -lt 3 ]; then
+    die "Cannot determine permissions for $path"
+  fi
+  perm="${digits: -3}"
+  group_bit="${perm:1:1}"
+  other_bit="${perm:2:1}"
+  case "$group_bit$other_bit" in
+    *[2367]*) die "$path has unsafe permissions (mode=$mode); expected no group/other write" ;;
+  esac
+}
+
+
 # ---------------------------------------------------------------------------
 # Security: scan a storage tar.gz archive BEFORE any destructive operation.
 # Rejects: absolute paths, path traversal (".." components), symlink/hardlink
@@ -259,6 +340,12 @@ try:
 Set STORAGE_VOLUME=<volume_name> explicitly or start the stack."
 }
 
+# Resolve and validate the backup root before reading any metadata.
+if [ -z "$BACKUP_DIR" ] || [ -L "$BACKUP_DIR" ] || [ ! -d "$BACKUP_DIR" ]; then
+  die "BACKUP_DIR is not a safe existing directory: $BACKUP_DIR"
+fi
+BACKUP_DIR="$(cd -P "$BACKUP_DIR" 2>/dev/null && pwd)" || die "Could not resolve BACKUP_DIR: $BACKUP_DIR"
+
 # ===========================================================================
 # Phase A: pre-validation (READ-ONLY — no docker compose down, no DB/volume
 # modification happens here)
@@ -269,10 +356,53 @@ echo "Supported backup format version(s): $SUPPORTED_FORMAT_VERSIONS"
 echo "Backup directory: $BACKUP_DIR"
 echo ""
 
+# A0 — Validate backup directory ownership and permissions
+assert_safe_mode "$BACKUP_DIR"
+log "  Backup directory permissions: OK"
+
 # A1 — Find latest backup metadata
-LATEST_META="$(find "$BACKUP_DIR" -name 'homecloud_*.meta' -type f 2>/dev/null | sort | tail -n 1)"
+LATEST_META="$(find "$BACKUP_DIR" -name 'homecloud_*.meta' -type f -not -path "*/.staging/*" 2>/dev/null | sort | tail -n 1)"
 [ -n "$LATEST_META" ] || die "No backup metadata found in $BACKUP_DIR"
 log "Latest backup metadata: $LATEST_META"
+
+# A1.5 — Verify .meta.sha256 sidecar (exact-byte hash of .meta)
+META_SHA256_FILE="${LATEST_META}.sha256"
+if [ -L "$META_SHA256_FILE" ] || [ ! -f "$META_SHA256_FILE" ]; then
+  die "Missing or unsafe .meta.sha256 sidecar: $META_SHA256_FILE"
+fi
+SIDECAR_LINES=$(wc -l < "$META_SHA256_FILE" 2>/dev/null | tr -d '[:space:]' || echo 0)
+if [ "$SIDECAR_LINES" -ne 1 ]; then
+  die ".meta.sha256 sidecar must contain exactly one line: $META_SHA256_FILE"
+fi
+read -r EXPECTED_META_SHA256 SIDECAR_META_NAME SIDECAR_EXTRA < "$META_SHA256_FILE" || \
+  die ".meta.sha256 sidecar is empty or unreadable: $META_SHA256_FILE"
+SIDECAR_BYTES=$(wc -c < "$META_SHA256_FILE" 2>/dev/null | tr -d '[:space:]' || echo 0)
+# Reconstruct the canonical line from the parsed fields and verify byte-for-byte.
+# This rejects trailing whitespace, extra spaces, or extra columns while
+# still tolerating the standard "hash  filename\n" format produced upstream.
+SIDECAR_EXPECTED_BYTES=$(printf '%s\n' "$EXPECTED_META_SHA256  $SIDECAR_META_NAME" | wc -c | tr -d '[:space:]')
+if [ "$SIDECAR_BYTES" -ne "$SIDECAR_EXPECTED_BYTES" ]; then
+  die ".meta.sha256 sidecar contains extra bytes or unexpected whitespace: $META_SHA256_FILE"
+fi
+if [ "$SIDECAR_BYTES" -lt 65 ]; then
+  die ".meta.sha256 sidecar is too short (expected 64-char hash + 2 spaces + filename): $META_SHA256_FILE"
+fi
+if [ -n "${SIDECAR_EXTRA:-}" ]; then
+  die ".meta.sha256 sidecar is malformed (extra fields): $META_SHA256_FILE"
+fi
+if [ "${#EXPECTED_META_SHA256}" -ne 64 ]; then
+  die ".meta.sha256 hash is not 64 hex characters: $META_SHA256_FILE"
+fi
+case "$EXPECTED_META_SHA256" in
+  *[!0-9a-fA-F]*) die ".meta.sha256 hash contains non-hex characters: $META_SHA256_FILE" ;;
+esac
+if [ "$SIDECAR_META_NAME" != "$(basename "$LATEST_META")" ]; then
+  die ".meta.sha256 sidecar references the wrong metadata file"
+fi
+ACTUAL_META_SHA256="$(sha256_hex "$LATEST_META")"
+[ "$ACTUAL_META_SHA256" = "$EXPECTED_META_SHA256" ] \
+  || die ".meta checksum mismatch (sidecar=$EXPECTED_META_SHA256, actual=$ACTUAL_META_SHA256)"
+log "  .meta.sha256 verification: OK"
 
 # A2 — Parse .meta with JSON parser (fail-closed on malformed JSON, missing/empty fields)
 META_OUTPUT="$(parse_meta "$LATEST_META")"
@@ -289,6 +419,45 @@ while IFS='=' read -r key value; do
     storage_file_count)    META_STORAGE_FILE_COUNT="$value" ;;
   esac
 done <<< "$META_OUTPUT"
+
+# Validate archive filenames contain no path separators (path safety)
+case "$PG_DUMP_FILENAME" in
+  */*|*\\*) die "db_dump filename contains path separator: $PG_DUMP_FILENAME" ;;
+esac
+case "$STORAGE_ARCHIVE_FILENAME" in
+  */*|*\\*) die "storage_archive filename contains path separator: $STORAGE_ARCHIVE_FILENAME" ;;
+esac
+
+# Validate numeric metadata fields are non-negative integers
+for NUM_FIELD_VAR in META_DB_DUMP_SIZE META_STORAGE_SIZE META_STORAGE_FILE_COUNT; do
+  VAL="${!NUM_FIELD_VAR}"
+  case "$VAL" in
+    ''|*[!0-9]*) die ".meta field ${NUM_FIELD_VAR#META_} is not a non-negative integer: $VAL" ;;
+  esac
+done
+
+# Validate consumed string fields before constructing paths or invoking tools.
+case "$TIMESTAMP" in
+  ''|*[!0-9_]*) die ".meta timestamp is malformed: $TIMESTAMP" ;;
+esac
+if ! printf '%s' "$TIMESTAMP" | grep -Eq '^[0-9]{8}_[0-9]{6}$'; then
+  die ".meta timestamp is malformed: $TIMESTAMP"
+fi
+for CHECKSUM_VAR in PG_DUMP_SHA256 STORAGE_SHA256; do
+  CHECKSUM_VALUE="${!CHECKSUM_VAR}"
+  if [ "${#CHECKSUM_VALUE}" -ne 64 ]; then
+    die ".meta field ${CHECKSUM_VAR#META_} is not a 64-character SHA256"
+  fi
+  case "$CHECKSUM_VALUE" in
+    *[!0-9a-fA-F]*) die ".meta field ${CHECKSUM_VAR#META_} contains non-hex characters" ;;
+  esac
+done
+case "$PG_DUMP_FILENAME" in
+  .|..) die "db_dump filename is unsafe: $PG_DUMP_FILENAME" ;;
+esac
+case "$STORAGE_ARCHIVE_FILENAME" in
+  .|..) die "storage_archive filename is unsafe: $STORAGE_ARCHIVE_FILENAME" ;;
+esac
 
 log "Backup timestamp : $TIMESTAMP"
 
@@ -314,17 +483,26 @@ echo "[0/6] Validating backup artifacts and environment (read-only)..."
 [ -f "$STORAGE_ARCHIVE" ]  || die "Storage archive not found: $STORAGE_ARCHIVE"
 log "  Artifact existence: OK"
 
+# A4.5 — Validate artifact ownership and permissions (not group/other writable)
+for ARTIFACT in "$LATEST_META" "$META_SHA256_FILE" "$PG_DUMP_FILE" "$STORAGE_ARCHIVE"; do
+  if [ -L "$ARTIFACT" ] || [ ! -f "$ARTIFACT" ]; then
+    die "Backup artifact is missing or unsafe: $ARTIFACT"
+  fi
+  assert_safe_mode "$ARTIFACT"
+done
+log "  Artifact permissions: OK"
+
 # A5 — SHA256 verification (DB) — fail-closed: empty checksum = failure
 # parse_meta already rejected empty checksum fields, but double-check:
 [ -n "$PG_DUMP_SHA256" ] || die "db_dump_sha256 is empty or missing in .meta"
-ACTUAL_DB_SHA256="$(sha256sum "$PG_DUMP_FILE" | awk '{print $1}')"
+ACTUAL_DB_SHA256="$(sha256_hex "$PG_DUMP_FILE")"
 [ "$ACTUAL_DB_SHA256" = "$PG_DUMP_SHA256" ] \
   || die "PostgreSQL dump checksum mismatch (expected $PG_DUMP_SHA256, got $ACTUAL_DB_SHA256)"
 log "  PostgreSQL dump checksum: OK"
 
 # A6 — SHA256 verification (storage) — fail-closed
 [ -n "$STORAGE_SHA256" ] || die "storage_archive_sha256 is empty or missing in .meta"
-ACTUAL_STOR_SHA256="$(sha256sum "$STORAGE_ARCHIVE" | awk '{print $1}')"
+ACTUAL_STOR_SHA256="$(sha256_hex "$STORAGE_ARCHIVE")"
 [ "$ACTUAL_STOR_SHA256" = "$STORAGE_SHA256" ] \
   || die "Storage archive checksum mismatch (expected $STORAGE_SHA256, got $ACTUAL_STOR_SHA256)"
 log "  Storage archive checksum: OK"
@@ -382,17 +560,16 @@ else
   log "  Storage archive file count: OK ($ARCHIVE_FILE_COUNT files)"
 fi
 
-# A13 — Disk space pre-check (need at least 2x storage archive size free)
-REQUIRED_SPACE=$((STOR_SIZE * 2))
-FREE_SPACE=$(df -P "$BACKUP_DIR" 2>/dev/null | awk 'NR==2 {print $4}')
-if [ -n "$FREE_SPACE" ] && [ "$FREE_SPACE" -gt 0 ] 2>/dev/null; then
-  if [ "$REQUIRED_SPACE" -gt "$FREE_SPACE" ]; then
-    die "Insufficient disk space: need at least ${REQUIRED_SPACE} bytes, available ${FREE_SPACE} bytes"
+# A13 — Disk space pre-check (need at least 2x storage archive size, in KiB)
+REQUIRED_SPACE_KB=$(( (STOR_SIZE + 511) / 512 ))
+FREE_SPACE_KB=$(df -Pk "$BACKUP_DIR" 2>/dev/null | awk 'NR==2 {print $4}')
+if [ -n "$FREE_SPACE_KB" ] && [ "$FREE_SPACE_KB" -gt 0 ] 2>/dev/null; then
+  if [ "$REQUIRED_SPACE_KB" -gt "$FREE_SPACE_KB" ]; then
+    die "Insufficient disk space: need at least ${REQUIRED_SPACE_KB} KiB, available ${FREE_SPACE_KB} KiB"
   fi
-  log "  Disk space check: OK (${FREE_SPACE} bytes available, ${REQUIRED_SPACE} required)"
+  log "  Disk space check: OK (${FREE_SPACE_KB} KiB available, ${REQUIRED_SPACE_KB} KiB required)"
 else
-  log "  Disk space check: SKIPPED (unable to determine free space on this platform)"
-  log "  NOTE: Docker volume has separate free-space accounting; cannot verify."
+  die "Could not determine free space for BACKUP_DIR; refusing to continue"
 fi
 
 # A14 — Resolve + validate Docker storage volume
@@ -433,6 +610,117 @@ if [ "$FORCE_YES" -eq 0 ]; then
 else
   log "Running in --yes mode; skipping confirmation prompt."
 fi
+
+# Acquire backup lock to prevent concurrent backup.sh during restore.
+BACKUP_LOCK_DIR="$BACKUP_DIR/.backup.lock"
+if ! RESTORE_TOKEN="$(random_hex 16)"; then
+  die "Cannot generate cryptographically random restore lock token (python3/secrets unavailable)"
+fi
+
+# Atomic lock acquisition: mkdir is atomic on most filesystems.
+# After mkdir succeeds, verify the path is a real directory (not a symlink
+# that was created by a racer between our check and our mkdir).
+if mkdir "$BACKUP_LOCK_DIR" 2>/dev/null; then
+  # Verify the path is NOT a symlink (race defense)
+  if [ -L "$BACKUP_LOCK_DIR" ]; then
+    safe_remove_lock_dir "$BACKUP_LOCK_DIR" 2>/dev/null || true
+    die "Lock path is a symlink after mkdir, refusing to proceed: $BACKUP_LOCK_DIR"
+  fi
+  printf '%s\n' "$$" > "$BACKUP_LOCK_DIR/LOCK_PID" || {
+    safe_remove_lock_dir "$BACKUP_LOCK_DIR" 2>/dev/null || true
+    die "Could not write lock PID"
+  }
+  printf '%s\n' "$RESTORE_TOKEN" > "$BACKUP_LOCK_DIR/LOCK_TOKEN" || {
+    safe_remove_lock_dir "$BACKUP_LOCK_DIR" 2>/dev/null || true
+    die "Could not write lock token"
+  }
+  chmod 700 "$BACKUP_LOCK_DIR" 2>/dev/null || {
+    safe_remove_lock_dir "$BACKUP_LOCK_DIR" 2>/dev/null || true
+    die "Could not set lock permissions"
+  }
+  chmod 600 "$BACKUP_LOCK_DIR/LOCK_PID" "$BACKUP_LOCK_DIR/LOCK_TOKEN" 2>/dev/null || {
+    safe_remove_lock_dir "$BACKUP_LOCK_DIR" 2>/dev/null || true
+    die "Could not set lock file permissions"
+  }
+  [ "$(cat "$BACKUP_LOCK_DIR/LOCK_PID" 2>/dev/null)" = "$$" ] || {
+    safe_remove_lock_dir "$BACKUP_LOCK_DIR" 2>/dev/null || true
+    die "Lock PID mismatch after acquisition"
+  }
+  [ "$(cat "$BACKUP_LOCK_DIR/LOCK_TOKEN" 2>/dev/null)" = "$RESTORE_TOKEN" ] || {
+    safe_remove_lock_dir "$BACKUP_LOCK_DIR" 2>/dev/null || true
+    die "Lock token mismatch after acquisition"
+  }
+  RESTORE_HOLDS_LOCK=1
+else
+  # mkdir failed — check if it's a symlink (race condition) or a stale lock
+  if [ -L "$BACKUP_LOCK_DIR" ]; then
+    die "Lock path is a symlink, refusing to proceed: $BACKUP_LOCK_DIR"
+  fi
+  if [ -d "$BACKUP_LOCK_DIR" ] && [ ! -L "$BACKUP_LOCK_DIR" ]; then
+    EXISTING_TOKEN="$(cat "$BACKUP_LOCK_DIR/LOCK_TOKEN" 2>/dev/null || echo "")"
+    EXISTING_PID="$(cat "$BACKUP_LOCK_DIR/LOCK_PID" 2>/dev/null || echo "")"
+    if [ -n "$EXISTING_PID" ] && kill -0 "$EXISTING_PID" 2>/dev/null; then
+      die "Cannot restore: a backup/restore is currently running (PID $EXISTING_PID)"
+    fi
+    if [ -z "$EXISTING_PID" ]; then
+      # A missing PID can mean another process is still initializing the lock.
+      # Fail closed instead of racing it.
+      die "Cannot restore: lock is incomplete and has no owner PID"
+    fi
+    # PID is dead → stale lock. Clean up and acquire atomically.
+    safe_remove_lock_dir "$BACKUP_LOCK_DIR" || die "Could not remove stale restore lock"
+    if ! mkdir "$BACKUP_LOCK_DIR" 2>/dev/null; then
+      die "Cannot acquire backup lock (possible race condition)"
+    fi
+    # Verify after re-acquisition
+    if [ -L "$BACKUP_LOCK_DIR" ]; then
+      safe_remove_lock_dir "$BACKUP_LOCK_DIR" 2>/dev/null || true
+      die "Lock path is a symlink after re-acquisition, refusing to proceed"
+    fi
+    printf '%s\n' "$$" > "$BACKUP_LOCK_DIR/LOCK_PID" || {
+      safe_remove_lock_dir "$BACKUP_LOCK_DIR" 2>/dev/null || true
+      die "Could not write lock PID"
+    }
+    printf '%s\n' "$RESTORE_TOKEN" > "$BACKUP_LOCK_DIR/LOCK_TOKEN" || {
+      safe_remove_lock_dir "$BACKUP_LOCK_DIR" 2>/dev/null || true
+      die "Could not write lock token"
+    }
+    chmod 700 "$BACKUP_LOCK_DIR" 2>/dev/null || {
+      safe_remove_lock_dir "$BACKUP_LOCK_DIR" 2>/dev/null || true
+      die "Could not set lock permissions"
+    }
+    chmod 600 "$BACKUP_LOCK_DIR/LOCK_PID" "$BACKUP_LOCK_DIR/LOCK_TOKEN" 2>/dev/null || {
+      safe_remove_lock_dir "$BACKUP_LOCK_DIR" 2>/dev/null || true
+      die "Could not set lock file permissions"
+    }
+    [ "$(cat "$BACKUP_LOCK_DIR/LOCK_PID" 2>/dev/null)" = "$$" ] || {
+      safe_remove_lock_dir "$BACKUP_LOCK_DIR" 2>/dev/null || true
+      die "Lock PID mismatch after acquisition"
+    }
+    [ "$(cat "$BACKUP_LOCK_DIR/LOCK_TOKEN" 2>/dev/null)" = "$RESTORE_TOKEN" ] || {
+      safe_remove_lock_dir "$BACKUP_LOCK_DIR" 2>/dev/null || true
+      die "Lock token mismatch after acquisition"
+    }
+    RESTORE_HOLDS_LOCK=1
+  else
+    die "Cannot acquire backup lock (unsafe lock path or race condition)"
+  fi
+fi
+
+# Release restore lock on exit — only if we own it (token match).
+restore_cleanup() {
+  local rc=$?
+  if [ "${RESTORE_HOLDS_LOCK:-0}" -eq 1 ] && [ -d "$BACKUP_LOCK_DIR" ] && [ ! -L "$BACKUP_LOCK_DIR" ]; then
+    local lock_token
+    lock_token="$(cat "$BACKUP_LOCK_DIR/LOCK_TOKEN" 2>/dev/null || echo "")"
+    if [ "$lock_token" = "$RESTORE_TOKEN" ]; then
+      safe_remove_lock_dir "$BACKUP_LOCK_DIR" 2>/dev/null || \
+        err "Could not release restore lock: $BACKUP_LOCK_DIR"
+    fi
+  fi
+  exit "$rc"
+}
+trap restore_cleanup EXIT INT TERM
 
 # ===========================================================================
 # Phase C: destructive restore
@@ -512,12 +800,41 @@ STORAGE_ROOT="/storage"
 STAGE="$STORAGE_ROOT/.restore-staging"
 SWAP="$STORAGE_ROOT/.restore-swap"
 
-# Clean up any leftover dirs from a previous interrupted restore
-rm -rf "$STAGE" "$SWAP"
+safe_remove_dir() {
+  path="$1"
+  [ -e "$path" ] || [ -L "$path" ] || return 0
+  if [ -L "$path" ] || [ ! -d "$path" ]; then
+    echo "STORAGE_RESTORE_FAIL: unsafe path refused: $path" >&2
+    return 1
+  fi
+  find -P "$path" -depth -type f -exec rm -f {} + 2>/dev/null || return 1
+  find -P "$path" -depth -type l -exec rm -f {} + 2>/dev/null || return 1
+  find -P "$path" -depth -type d -exec rmdir {} + 2>/dev/null || return 1
+  [ ! -e "$path" ] && [ ! -L "$path" ] || return 1
+}
+
+# Validate predictable staging paths before creating or removing them.
+for cleanup_path in "$STAGE" "$SWAP"; do
+  if [ -L "$cleanup_path" ]; then
+    echo "STORAGE_RESTORE_FAIL: unsafe restore path (symlink): $cleanup_path" >&2
+    exit 1
+  fi
+  if [ -e "$cleanup_path" ] && [ ! -d "$cleanup_path" ]; then
+    echo "STORAGE_RESTORE_FAIL: unsafe restore path (not directory): $cleanup_path" >&2
+    exit 1
+  fi
+done
+safe_remove_dir "$STAGE" || exit 1
+safe_remove_dir "$SWAP" || exit 1
 
 # --- 1. Prepare: extract to staging ---
 mkdir -p "$STAGE"
 tar -xzf - -C "$STAGE"
+if [ "$(find "$STAGE" -type l | wc -l)" -ne 0 ]; then
+  echo "STORAGE_RESTORE_FAIL: symlink created during extraction" >&2
+  safe_remove_dir "$STAGE" || true
+  exit 1
+fi
 
 # --- 2. Validate: verify staging file count matches metadata ---
 STAGE_COUNT=$(find "$STAGE" -type f | wc -l)
@@ -525,7 +842,7 @@ EXPECTED="${EXPECTED_FILE_COUNT:-0}"
 if [ "$EXPECTED" != "0" ]; then
   ACTUAL=$((STAGE_COUNT))
   if [ "$ACTUAL" -lt "$EXPECTED" ]; then
-    rm -rf "$STAGE"
+    safe_remove_dir "$STAGE" || true
     echo "STORAGE_RESTORE_FAIL: staging file count mismatch (expected >= $EXPECTED, got $ACTUAL)"
     exit 1
   fi
@@ -544,31 +861,44 @@ find "$STORAGE_ROOT" -mindepth 1 -maxdepth 1 \
   -not -name ".restore-staging" \
   -not -name ".restore-swap" \
   -not -name ".tmp" \
-  -exec mv -f {} "$SWAP/" + 2>/dev/null || true
+  -exec mv -f {} "$SWAP/" +
 
 # --- 4. Switch: move staging contents to root (atomic rename on same FS) ---
-find "$STAGE" -mindepth 1 -maxdepth 1 -exec mv -f {} "$STORAGE_ROOT/" + 2>/dev/null || true
-rmdir "$STAGE" 2>/dev/null || rm -rf "$STAGE"
+find "$STAGE" -mindepth 1 -maxdepth 1 -exec mv -f {} "$STORAGE_ROOT/" +
+safe_remove_dir "$STAGE" || {
+  echo "STORAGE_RESTORE_FAIL: could not remove empty staging directory" >&2
+  exit 1
+}
 
 # --- 5. Verify: root now contains the restored data ---
 ROOT_TOTAL=$(find "$STORAGE_ROOT" -type f -not -path "*/.tmp/*" -not -path "*/.restore-swap/*" | wc -l)
 if [ "$EXPECTED" != "0" ]; then
   if [ "$((ROOT_TOTAL))" -lt "$EXPECTED" ]; then
-    # ROLLBACK: clear partial content from root, move swap back
+    # ROLLBACK: remove only the newly switched entries, then restore old data.
     echo "  post-switch verification FAILED; rolling back..." >&2
-    find "$STORAGE_ROOT" -mindepth 1 -maxdepth 1 \
-      -not -name ".restore-swap" \
-      -not -name ".tmp" \
-      -exec rm -rf {} + 2>/dev/null || true
-    find "$SWAP" -mindepth 1 -maxdepth 1 -exec mv -f {} "$STORAGE_ROOT/" + 2>/dev/null || true
-    rm -rf "$SWAP"
+    for entry in "$STORAGE_ROOT"/* "$STORAGE_ROOT"/.[!.]* "$STORAGE_ROOT"/..?*; do
+      base="${entry##*/}"
+      case "$base" in
+        .restore-swap|.tmp) continue ;;
+      esac
+      [ -e "$entry" ] || [ -L "$entry" ] || continue
+      safe_remove_dir "$entry" || {
+        echo "STORAGE_RESTORE_FAIL: could not remove partial entry during rollback: $entry" >&2
+        exit 1
+      }
+    done
+    find "$SWAP" -mindepth 1 -maxdepth 1 -exec mv -f {} "$STORAGE_ROOT/" +
+    safe_remove_dir "$SWAP" || true
     echo "STORAGE_RESTORE_FAIL: post-switch verification failed; rollback complete"
     exit 1
   fi
 fi
 
 # --- 6. Cleanup: remove old data (already superseded by new) ---
-rm -rf "$SWAP"
+safe_remove_dir "$SWAP" || {
+  echo "STORAGE_RESTORE_FAIL: could not remove superseded swap data" >&2
+  exit 1
+}
 
 # --- 7. Ensure .tmp exists ---
 mkdir -p "$STORAGE_ROOT/.tmp"

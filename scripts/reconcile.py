@@ -26,6 +26,25 @@ WARNING_ISSUES = "WARNING"
 OK = "OK"
 
 
+def validate_storage_path(rel_path):
+    """Reject paths that can escape the storage root."""
+    if not isinstance(rel_path, str) or not rel_path or rel_path in {".", "/storage"}:
+        return False
+    if rel_path.startswith("/") or "\\" in rel_path:
+        return False
+    parts = rel_path.split("/")
+    if any(part == ".." for part in parts):
+        return False
+    return True
+
+
+def sanitize_storage_path(rel_path):
+    """Validate and return storage path, or None if invalid."""
+    if validate_storage_path(rel_path):
+        return rel_path
+    return None
+
+
 def psql(query, db_user, db_name):
     """Run a SQL query against the DB container via docker compose."""
     cmd = [
@@ -63,6 +82,9 @@ def list_storage_files(storage_vol, backend_image):
             rel_path = rel_path[len("/storage/"):]
         elif rel_path == "/storage":
             continue
+        # Validate the path before including
+        if not validate_storage_path(rel_path):
+            continue
         try:
             files[rel_path] = int(size_str)
         except ValueError:
@@ -72,10 +94,17 @@ def list_storage_files(storage_vol, backend_image):
 
 def get_file_size(storage_vol, backend_image, rel_path):
     """Get the size of a single file in the storage volume."""
+    if not validate_storage_path(rel_path):
+        return 0
+    # Use Python to avoid shell interpolation of rel_path
     cmd = [
         "docker", "run", "--rm", "-v", f"{storage_vol}:/storage",
-        backend_image, "sh", "-c",
-        f'stat -c%s "/storage/{rel_path}" 2>/dev/null || stat -f%z "/storage/{rel_path}" 2>/dev/null || echo 0',
+        backend_image, "python3", "-c",
+        "import os, sys; p = sys.argv[1]; "
+        "full = '/storage/' + p if not p.startswith('/') else p; "
+        "try: print(os.path.getsize(full)) if os.path.isfile(full) else print(0) "
+        "except Exception: print(0)",
+        rel_path,
     ]
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
     try:
@@ -118,7 +147,11 @@ def main():
                 continue
             parts = line.split("|")
             if len(parts) >= 3:
-                path = parts[0]
+                raw_path = parts[0]
+                path = sanitize_storage_path(raw_path)
+                if path is None:
+                    warnings.append(f"  INVALID_PATH: DB row has invalid storagePath '{raw_path}' — skipping")
+                    continue
                 size_str = parts[1]
                 uid_str = parts[2]
                 try:
