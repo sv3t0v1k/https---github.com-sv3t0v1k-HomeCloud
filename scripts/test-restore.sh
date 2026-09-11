@@ -276,12 +276,18 @@ done
 # Reconciliation check
 echo ""
 echo "  Reconciliation:"
+RECONCILE_RC=0
 python3 "$SCRIPT_DIR/reconcile.py" \
   --db-user "$DB_USER" \
   --db-name "$DB_NAME" \
   --storage-volume "$STOR_VOL_NAME" \
   --backend-image "$BACKEND_IMAGE" \
-  2>/dev/null || echo "  (reconciliation skipped or found issues)"
+  2>/dev/null || RECONCILE_RC=$?
+if [ "$RECONCILE_RC" -ne 0 ]; then
+  echo "  FAILED: reconciliation found critical discrepancies (exit code $RECONCILE_RC)"
+  exit 1
+fi
+echo "  Reconciliation: OK (no critical discrepancies)"
 
 echo ""
 echo "=== Isolated Restore Test PASSED ==="
