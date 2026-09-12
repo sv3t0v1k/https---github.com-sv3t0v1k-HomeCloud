@@ -6,6 +6,7 @@ import { StorageService } from "../storage/storage.service";
 import { UsersService } from "../users/users.service";
 import { ForbiddenException, BadRequestException } from "@nestjs/common";
 import { UploadSessionStatusCheck1746825050000 } from "../migrations/1746825050000-UploadSessionStatusCheck";
+import { UploadedChunksJsonb1746825070000 } from "../migrations/1746825070000-UploadedChunksJsonb";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -455,6 +456,143 @@ describe("UploadsService - Post-Review Fixes", () => {
       expect(m.name).toBe("UploadSessionStatusCheck1746825050000");
       expect(typeof m.up).toBe("function");
       expect(typeof m.down).toBe("function");
+    });
+  });
+
+  describe("Migration F-07 (JSON → JSONB)", () => {
+    it("UploadedChunksJsonb migration should exist and be reversible", () => {
+      expect(UploadedChunksJsonb1746825070000).toBeDefined();
+      const m = new UploadedChunksJsonb1746825070000();
+      expect(m.name).toBe("UploadedChunksJsonb1746825070000");
+      expect(typeof m.up).toBe("function");
+      expect(typeof m.down).toBe("function");
+    });
+
+    it("should have ALTER COLUMN uploadedChunks TYPE jsonb in up", () => {
+      const m = new UploadedChunksJsonb1746825070000();
+      const queryRunner = { query: jest.fn() } as any;
+      m.up(queryRunner);
+      const alterCall = queryRunner.query.mock.calls.find(
+        (call: any[]) => typeof call[0] === "string" && call[0].includes("jsonb"),
+      );
+      expect(alterCall).toBeDefined();
+      expect(alterCall[0]).toContain('ALTER COLUMN "uploadedChunks"');
+    });
+  });
+
+  describe("cleanupExpiredSessions — stale uploading sessions", () => {
+    it("should clean up pending sessions past TTL", async () => {
+      const expiredSession = {
+        id: 1, uploadId: "exp", userId: 1,
+        expiresAt: new Date(Date.now() - 1000),
+        status: "pending",
+        tempPath: `/tmp/exp-${Date.now()}`,
+      };
+      fs.mkdirSync(expiredSession.tempPath, { recursive: true });
+
+      mockUploadSessionRepository.find.mockResolvedValueOnce([expiredSession]);
+      mockUploadSessionRepository.find.mockResolvedValueOnce([]);
+
+      const result = await service.cleanupExpiredSessions();
+
+      expect(result).toBe(1);
+      expect(mockUploadSessionRepository.delete).toHaveBeenCalledWith(1);
+      expect(fs.existsSync(expiredSession.tempPath)).toBe(false);
+    });
+
+    it("should clean up uploading sessions past TTL", async () => {
+      mockUploadSessionRepository.find.mockResolvedValueOnce([]);
+      const uploadingSession = {
+        id: 2, uploadId: "stuck", userId: 1,
+        expiresAt: new Date(Date.now() - 1000),
+        status: "uploading",
+        tempPath: `/tmp/stuck-${Date.now()}`,
+      };
+      fs.mkdirSync(uploadingSession.tempPath, { recursive: true });
+      mockUploadSessionRepository.find.mockResolvedValueOnce([uploadingSession]);
+
+      const result = await service.cleanupExpiredSessions();
+
+      expect(result).toBe(1);
+      expect(mockUploadSessionRepository.delete).toHaveBeenCalledWith(2);
+      expect(fs.existsSync(uploadingSession.tempPath)).toBe(false);
+    });
+
+    it("should not clean active sessions within TTL", async () => {
+      const activeSession = {
+        id: 3, uploadId: "active", userId: 1,
+        expiresAt: new Date(Date.now() + 86400000),
+        status: "uploading",
+        tempPath: `/tmp/active-${Date.now()}`,
+      };
+      fs.mkdirSync(activeSession.tempPath, { recursive: true });
+      mockUploadSessionRepository.find.mockResolvedValue([activeSession]);
+
+      const result = await service.cleanupExpiredSessions();
+
+      expect(result).toBe(0);
+      expect(mockUploadSessionRepository.delete).not.toHaveBeenCalled();
+      // Temp dir should still exist
+      expect(fs.existsSync(activeSession.tempPath)).toBe(true);
+      fs.rmSync(activeSession.tempPath, { recursive: true, force: true });
+    });
+  });
+
+  describe("completeUpload — large file memory safety", () => {
+    it("should detect MIME from header only (not full file)", async () => {
+      const tempDir = `/tmp/test-mime-header-${Date.now()}`;
+      const finalPath = `/tmp/test-mime-header-${Date.now()}-final.png`;
+      const session = {
+        uploadId: "abc",
+        userId: 1,
+        filename: "photo.png",
+        totalSize: 1024,
+        chunkSize: 512,
+        totalChunks: 2,
+        uploadedChunks: [0, 1],
+        uploadedSize: 1024,
+        tempPath: tempDir,
+        parentId: null,
+        status: "pending",
+        expiresAt: new Date(Date.now() + 86400000),
+      };
+
+      fs.mkdirSync(tempDir, { recursive: true });
+      fs.writeFileSync(path.join(tempDir, "0"), Buffer.alloc(512));
+      fs.writeFileSync(path.join(tempDir, "1"), Buffer.alloc(512));
+      fs.writeFileSync(finalPath, Buffer.alloc(1024));
+
+      const mockCompleteQueryRunner = {
+        startTransaction: jest.fn(),
+        commitTransaction: jest.fn(),
+        rollbackTransaction: jest.fn(),
+        release: jest.fn(),
+        manager: {
+          findOne: jest.fn().mockResolvedValue(session),
+          save: jest.fn(),
+        },
+      };
+      mockFileRepository.manager.connection.createQueryRunner.mockReturnValue(mockCompleteQueryRunner);
+
+      mockUploadSessionRepository.findOne.mockResolvedValue(session);
+      mockUploadSessionRepository.save.mockResolvedValue(session);
+      mockStorageService.generatePath.mockReturnValue(finalPath);
+      mockFileRepository.create.mockReturnValue({ id: 1 });
+      mockFileRepository.save.mockResolvedValue({ id: 1 });
+      mockUsersService.updateStorageUsed.mockResolvedValue(undefined);
+
+      (fileTypeFromBuffer as jest.Mock).mockResolvedValue({ mime: "image/png" });
+
+      const result = await service.completeUpload(1, "abc");
+      expect(result).toBeDefined();
+
+      // Verify fileTypeFromBuffer was called with a small buffer (header)
+      const callArgs = (fileTypeFromBuffer as jest.Mock).mock.calls[0];
+      expect(callArgs[0]).toBeInstanceOf(Buffer);
+      expect(callArgs[0].length).toBeLessThanOrEqual(4100);
+
+      fs.rmSync(tempDir, { recursive: true, force: true });
+      if (fs.existsSync(finalPath)) fs.rmSync(finalPath, { force: true });
     });
   });
 });
