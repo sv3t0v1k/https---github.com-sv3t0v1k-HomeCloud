@@ -184,6 +184,41 @@ All commit messages in Russian. No unrelated changes.
 
 ---
 
+## Phase 6.3 — Final DB Hardening
+
+**Status**: COMPLETE
+
+### Findings Closed
+
+| Finding | Method | Evidence |
+|---------|--------|----------|
+| F-04 (share_links.token UNIQUE) | UNIQUE index `idx_share_links_token` | `CREATE UNIQUE INDEX` verified; duplicate token rejected by PostgreSQL |
+| F-06 (upload_sessions.status CHECK) | CHECK constraint `upload_session_status` | Valid statuses accepted; invalid status rejected by CHECK |
+| F-16 (entity index consistency) | `@Index(["token"], { unique: true })` on ShareLinkEntity | Entity matches DB: one UNIQUE index, no duplication |
+
+### Migrations
+
+| Migration | Description |
+|-----------|-------------|
+| ShareLinksTokenUnique1746825040000 | Drops old non-unique `idx_share_links_token`, creates UNIQUE index. Pre-validates no duplicates. Reversible (down). |
+| UploadSessionStatusCheck1746825050000 | Adds CHECK on status IN (pending, uploading, completed, aborted). Pre-validates no invalid values. Reversible (down). |
+
+### Tests Added
+
+- sharing.service.spec.ts: F-04 token uniqueness, F-04 lookup by token, F-04/F-16 migration existence
+- uploads.service.spec.ts: F-06 status lifecycle (4 valid statuses), F-06 invalid status rejection, F-06 migration existence
+
+### DB Enforcement Verified
+
+- F-04: `ERROR: duplicate key value violates unique constraint "idx_share_links_token"` ✓
+- F-06: `ERROR: new row for relation "upload_sessions" violates check constraint "upload_session_status"` ✓
+
+### Deferred Findings (unchanged)
+
+- F-07, F-08, F-09, F-13 — all remain DEFERRED, not touched
+
+---
+
 ## Definition of Done Status
 
 - [x] F-01 закрыт и подтверждён
