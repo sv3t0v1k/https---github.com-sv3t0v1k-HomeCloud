@@ -112,6 +112,10 @@ export class FilesService {
     mimeType: string,
     parentId?: number,
   ) {
+    if (!name || !name.trim()) {
+      throw new BadRequestException("File name must not be empty");
+    }
+
     const safeName = this.storageService.generateSafeFilename(name);
     const user = await this.usersService.findById(userId);
     if (!user) {
@@ -120,47 +124,77 @@ export class FilesService {
 
     await this.assertFolderOwnership(userId, parentId);
 
-    const file = this.fileRepository.create({
-      name: safeName,
-      storagePath: this.storageService.generatePath(userId, safeName),
-      size,
-      mimeType,
-      isFolder: false,
-      parentId,
-      userId,
-      user,
-    });
+    const queryRunner = this.fileRepository.manager.connection.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    await this.fileRepository.save(file);
-    await this.usersService.updateStorageUsed(userId, size);
+    try {
+      const file = queryRunner.manager.create(FileEntity, {
+        name: safeName,
+        storagePath: this.storageService.generatePath(userId, safeName),
+        size,
+        mimeType,
+        isFolder: false,
+        parentId,
+        userId,
+        user,
+      });
 
-    return file;
+      await queryRunner.manager.save(file);
+      await this.usersService.updateStorageUsed(userId, size, queryRunner.manager);
+
+      await queryRunner.commitTransaction();
+
+      return file;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async createFolder(userId: number, name: string, parentId?: number) {
+    if (!name || !name.trim()) {
+      throw new BadRequestException("Folder name must not be empty");
+    }
+
     await this.assertFolderOwnership(userId, parentId);
 
-    const folder = this.folderRepository.create({
-      name,
-      isDeleted: false,
-      parentId,
-      userId,
-    });
+    const queryRunner = this.folderRepository.manager.connection.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    await this.folderRepository.save(folder);
+    try {
+      const folder = queryRunner.manager.create(FolderEntity, {
+        name,
+        isDeleted: false,
+        parentId,
+        userId,
+      });
 
-    const file = this.fileRepository.create({
-      name,
-      isFolder: true,
-      isDeleted: false,
-      parentId,
-      userId,
-      version: 1,
-    });
+      await queryRunner.manager.save(folder);
 
-    await this.fileRepository.save(file);
+      const file = queryRunner.manager.create(FileEntity, {
+        name,
+        isFolder: true,
+        isDeleted: false,
+        parentId,
+        userId,
+        version: 1,
+      });
 
-    return file;
+      await queryRunner.manager.save(file);
+
+      await queryRunner.commitTransaction();
+
+      return file;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async updateFile(
@@ -204,6 +238,9 @@ export class FilesService {
     const file = await this.fileRepository.findOne({ where: { id, userId } });
 
     if (data.name) {
+      if (!data.name.trim()) {
+        throw new BadRequestException("Folder name must not be empty");
+      }
       folder.name = data.name;
       if (file) {
         file.name = data.name;
@@ -212,6 +249,12 @@ export class FilesService {
 
     if (data.parentId !== undefined) {
       await this.assertFolderOwnership(userId, data.parentId);
+
+      // Prevent folder cycle: target parent must not be a descendant
+      if (data.parentId !== null) {
+        await this.assertNoCycle(id, data.parentId);
+      }
+
       folder.parentId = data.parentId ?? null;
       if (file) {
         file.parentId = data.parentId ?? null;
@@ -224,6 +267,23 @@ export class FilesService {
     }
 
     return file;
+  }
+
+  async assertNoCycle(folderId: number, targetParentId: number): Promise<void> {
+    const descendantRows: { id: number }[] = await this.folderRepository.query(`
+      WITH RECURSIVE descendants AS (
+        SELECT id FROM folders WHERE id = $1 AND "userId" = (SELECT "userId" FROM folders WHERE id = $1)
+        UNION ALL
+        SELECT f.id FROM folders f
+        INNER JOIN descendants d ON f."parentId" = d.id
+      )
+      SELECT id FROM descendants
+    `, [folderId]);
+
+    const descendantIds = new Set(descendantRows.map(r => r.id));
+    if (descendantIds.has(targetParentId)) {
+      throw new BadRequestException("Cannot move folder into its own subtree");
+    }
   }
 
   async removeFile(userId: number, id: number) {
@@ -287,6 +347,8 @@ export class FilesService {
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
+    let fileToDelete: FileEntity | null = null;
+
     try {
       const file = await queryRunner.manager.findOne(FileEntity, {
         where: { id, userId },
@@ -296,16 +358,21 @@ export class FilesService {
         throw new NotFoundException("File not found");
       }
 
-      const filePath = file.storagePath;
-
-      if (this.storageService.fileExists(filePath)) {
-        this.storageService.deleteFile(filePath);
-      }
+      fileToDelete = file;
 
       await this.usersService.decrementStorageUsed(userId, file.size, queryRunner.manager);
       await queryRunner.manager.delete(FileEntity, id);
 
       await queryRunner.commitTransaction();
+
+      // Physical deletion AFTER successful commit — safe from rollback
+      if (fileToDelete.storagePath) {
+        try {
+          this.storageService.deleteFile(fileToDelete.storagePath);
+        } catch (error) {
+          this.logger.error(`Failed to delete physical file ${fileToDelete.storagePath}`, error);
+        }
+      }
 
       return { message: "File deleted permanently" };
     } catch (error) {
@@ -320,6 +387,9 @@ export class FilesService {
     const queryRunner = this.folderRepository.manager.connection.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
+
+    let allFilesToDelete: FileEntity[] = [];
+    let folderIdsToDelete: number[] = [];
 
     try {
       const folder = await queryRunner.manager.findOne(FolderEntity, {
@@ -342,13 +412,13 @@ export class FilesService {
         SELECT id FROM descendants
       `, [id, userId]);
 
-      const folderIds = descendantFolderRows.map(r => r.id);
+      folderIdsToDelete = descendantFolderRows.map(r => r.id);
 
       // Collect all files in the subtree (excluding folder mirror records)
       const descendantFiles = await queryRunner.manager.find(FileEntity, {
         where: {
           userId,
-          parentId: In(folderIds),
+          parentId: In(folderIdsToDelete),
           isFolder: false,
         },
       });
@@ -357,17 +427,30 @@ export class FilesService {
       const folderMirrorFiles = await queryRunner.manager.find(FileEntity, {
         where: {
           userId,
-          id: In(folderIds),
+          id: In(folderIdsToDelete),
           isFolder: true,
         },
       });
 
-      const allFilesToDelete = [...descendantFiles, ...folderMirrorFiles];
+      allFilesToDelete = [...descendantFiles, ...folderMirrorFiles];
       const totalSize = allFilesToDelete.reduce((sum, f) => sum + f.size, 0);
 
-      // Delete physical files first (outside DB transaction but tracked)
+      // Atomic quota decrement (inside transaction)
+      await this.usersService.decrementStorageUsed(userId, totalSize, queryRunner.manager);
+
+      // Bulk delete all records (inside transaction)
+      if (folderIdsToDelete.length > 0) {
+        await queryRunner.manager.delete(FolderEntity, folderIdsToDelete);
+      }
+      if (allFilesToDelete.length > 0) {
+        await queryRunner.manager.delete(FileEntity, allFilesToDelete.map(f => f.id));
+      }
+
+      await queryRunner.commitTransaction();
+
+      // Physical deletion AFTER successful commit — safe from rollback
       for (const file of allFilesToDelete) {
-        if (file.storagePath && this.storageService.fileExists(file.storagePath)) {
+        if (file.storagePath) {
           try {
             this.storageService.deleteFile(file.storagePath);
           } catch (error) {
@@ -375,19 +458,6 @@ export class FilesService {
           }
         }
       }
-
-      // Atomic quota decrement
-      await this.usersService.decrementStorageUsed(userId, totalSize, queryRunner.manager);
-
-      // Bulk delete all records
-      if (folderIds.length > 0) {
-        await queryRunner.manager.delete(FolderEntity, folderIds);
-      }
-      if (allFilesToDelete.length > 0) {
-        await queryRunner.manager.delete(FileEntity, allFilesToDelete.map(f => f.id));
-      }
-
-      await queryRunner.commitTransaction();
 
       return { message: "Folder deleted permanently" };
     } catch (error) {
@@ -417,6 +487,8 @@ export class FilesService {
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
+    let trashedFiles: any[] = [];
+
     try {
       const files = await queryRunner.manager.find(FileEntity, {
         where: { userId, isDeleted: true, isFolder: false },
@@ -425,19 +497,14 @@ export class FilesService {
         where: { userId, isDeleted: true },
       });
 
+      trashedFiles = files;
+
       const totalSize = files.reduce((sum, f) => sum + f.size, 0);
 
-      // Delete physical files first (abort if any fail)
-      for (const file of files) {
-        if (file.storagePath && this.storageService.fileExists(file.storagePath)) {
-          this.storageService.deleteFile(file.storagePath);
-        }
-      }
-
-      // Atomic quota decrement
+      // Atomic quota decrement (inside transaction)
       await this.usersService.decrementStorageUsed(userId, totalSize, queryRunner.manager);
 
-      // Bulk delete all records
+      // Bulk delete all records (inside transaction)
       const fileIds = files.map(f => f.id);
       const folderIds = folders.map(f => f.id);
       if (fileIds.length > 0) {
@@ -448,6 +515,17 @@ export class FilesService {
       }
 
       await queryRunner.commitTransaction();
+
+      // Physical deletion AFTER successful commit — safe from rollback
+      for (const file of trashedFiles) {
+        if (file.storagePath) {
+          try {
+            this.storageService.deleteFile(file.storagePath);
+          } catch (error) {
+            this.logger.error(`Failed to delete physical file ${file.storagePath}`, error);
+          }
+        }
+      }
 
       return { message: "Trash emptied" };
     } catch (error) {
