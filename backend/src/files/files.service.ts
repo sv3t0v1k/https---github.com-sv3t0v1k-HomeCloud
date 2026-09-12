@@ -208,6 +208,9 @@ export class FilesService {
     }
 
     if (data.name) {
+      if (!data.name.trim()) {
+        throw new BadRequestException("File name must not be empty");
+      }
       const safeName = this.storageService.generateSafeFilename(data.name);
       const oldPath = file.storagePath;
       const newPath = this.storageService.generatePath(userId, safeName);
