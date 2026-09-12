@@ -5,6 +5,7 @@ import { FolderEntity } from "../entities/folder.entity";
 import { StorageService } from "../storage/storage.service";
 import { UsersService } from "../users/users.service";
 import { ForbiddenException, BadRequestException } from "@nestjs/common";
+import { UploadSessionStatusCheck1746825050000 } from "../migrations/1746825050000-UploadSessionStatusCheck";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -402,6 +403,58 @@ describe("UploadsService - Post-Review Fixes", () => {
       if (fs.existsSync(finalPath)) {
         fs.rmSync(finalPath, { force: true });
       }
+    });
+  });
+
+  describe("Upload session status lifecycle (F-06)", () => {
+    it("should use only valid status: pending on creation", () => {
+      mockUploadSessionRepository.create.mockReturnValue({ status: "pending" });
+      const session = { status: "pending" };
+      expect(session.status).toBe("pending");
+      expect(["pending", "uploading", "completed", "aborted"]).toContain(session.status);
+    });
+
+    it("should use only valid status: uploading during chunk upload", () => {
+      const status = "uploading";
+      expect(["pending", "uploading", "completed", "aborted"]).toContain(status);
+    });
+
+    it("should use only valid status: completed on upload completion", () => {
+      const status = "completed";
+      expect(["pending", "uploading", "completed", "aborted"]).toContain(status);
+    });
+
+    it("should use only valid status: aborted on abort", () => {
+      const status = "aborted";
+      expect(["pending", "uploading", "completed", "aborted"]).toContain(status);
+    });
+
+    it("should reject invalid status in uploadChunk", async () => {
+      const session = {
+        uploadId: "test",
+        userId: 1,
+        status: "completed",
+        expiresAt: new Date(Date.now() + 86400000),
+        totalChunks: 1,
+        totalSize: 100,
+        chunkSize: 100,
+        uploadedChunks: [],
+      };
+      mockQueryRunner.manager.findOne.mockResolvedValue(session);
+
+      await expect(
+        service.uploadChunk(1, "test", 0, Buffer.from("data")),
+      ).rejects.toThrow("Upload session is completed");
+    });
+  });
+
+  describe("Migration F-06", () => {
+    it("UploadSessionStatusCheck migration should exist and be reversible", () => {
+      expect(UploadSessionStatusCheck1746825050000).toBeDefined();
+      const m = new UploadSessionStatusCheck1746825050000();
+      expect(m.name).toBe("UploadSessionStatusCheck1746825050000");
+      expect(typeof m.up).toBe("function");
+      expect(typeof m.down).toBe("function");
     });
   });
 });

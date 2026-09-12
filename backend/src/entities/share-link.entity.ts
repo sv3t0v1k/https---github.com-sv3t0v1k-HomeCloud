@@ -14,6 +14,7 @@ import { FileEntity } from "./file.entity";
 @Entity("share_links")
 @Index(["userId"])
 @Index(["fileId"])
+@Index(["token"], { unique: true })
 export class ShareLinkEntity {
   @PrimaryGeneratedColumn()
   id!: number;

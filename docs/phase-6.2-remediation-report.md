@@ -135,12 +135,23 @@ After Phase 6.2:
 
 ## Issues Intentionally Out of Scope
 
-- **F-03** (upload_sessions.parentId FK): Added as part of the FK migration since it was identified in Phase 6.1 as needing a parentId constraint. Added for completeness with SET NULL semantics.
-- **F-04** (share_links.token UNIQUE): Separate HIGH priority issue, not directly related to critical findings. Defer to future phase.
-- **F-06** (upload_sessions.status CHECK): Separate HIGH priority issue, not related to critical findings. Defer to future phase.
-- **F-08, F-09** (createFile/createFolder not transactional): MEDIUM priority, separate from critical findings.
-- **F-13** (name non-empty CHECK): LOW priority.
-- **F-16** (entity/migration index inconsistency): MEDIUM priority.
+The following findings were deferred in Phase 6.2 and have been revalidated
+in Phase 6.3 hardening:
+
+| Finding | Phase 6.2 | Phase 6.3 |
+|---------|-----------|-----------|
+| F-04 (UNIQUE token) | DEFERRED | CLOSED |
+| F-06 (status CHECK) | DEFERRED | CLOSED |
+| F-16 (entity index) | DEFERRED | CLOSED |
+| F-07 (JSON→JSONB) | DEFERRED | DEFERRED |
+| F-08 (createFile tx) | DEFERRED | DEFERRED |
+| F-09 (createFolder tx) | DEFERRED | DEFERRED |
+| F-13 (name length CHECK) | DEFERRED | DEFERRED |
+
+**Note**: F-04, F-06, F-16 were closed in Phase 6.3 DB hardening via:
+- Migration `ShareLinksTokenUnique1746825040000`: UNIQUE index on `share_links.token`
+- Migration `UploadSessionStatusCheck1746825050000`: CHECK on `upload_sessions.status`
+- Entity `ShareLinkEntity`: `@Index(["token"], { unique: true })`
 
 ---
 
