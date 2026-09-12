@@ -505,4 +505,19 @@ describe("FilesService - Critical Findings (F-01, F-02, MISS-01, MISS-02, MISS-0
       await expect(service.updateFolder(1, 1, { parentId: 2 })).rejects.toThrow(ForbiddenException);
     });
   });
+
+  // ============================================================
+  // Phase 7: Non-empty name validation (F-13)
+  // ============================================================
+  describe("Non-empty name validation (F-13)", () => {
+    it("should throw BadRequestException for empty file name in updateFile", async () => {
+      const file = {
+        id: 1, userId: 1, isFolder: false, name: "test.txt", storagePath: "/s/test.txt",
+      };
+      mockFileRepository.findOne.mockResolvedValue(file);
+      mockFolderRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.updateFile(1, 1, { name: "   " })).rejects.toThrow(BadRequestException);
+    });
+  });
 });
