@@ -291,9 +291,15 @@ export class UploadsService {
       writeStream.on("error", (err) => reject(err));
     });
 
-    const buffer = fs.readFileSync(finalPath);
+    const HEADER_SIZE = 4100;
+    const stats = fs.statSync(finalPath);
+    const headerSize = Math.min(stats.size, HEADER_SIZE);
+    const fd = fs.openSync(finalPath, "r");
+    const headerBuffer = Buffer.alloc(headerSize);
+    fs.readSync(fd, headerBuffer, 0, headerSize, null);
+    fs.closeSync(fd);
     const { fileTypeFromBuffer } = await import("file-type");
-    const detected = await fileTypeFromBuffer(buffer);
+    const detected = await fileTypeFromBuffer(headerBuffer);
     const mimeType = detected?.mime || "application/octet-stream";
 
     if (!this.allowedMimeTypes.includes(mimeType)) {
@@ -377,21 +383,23 @@ export class UploadsService {
       where: {
         userId,
         status: "pending",
-      } as unknown as { userId: number; status: string },
+      },
       order: { createdAt: "DESC" },
     });
   }
 
   async cleanupExpiredSessions(): Promise<number> {
     const now = new Date();
-    const expired = await this.uploadSessionRepository.find({
-      where: {
-        status: "pending",
-      } as unknown as { status: string },
+    const pendingExpired = await this.uploadSessionRepository.find({
+      where: { status: "pending" },
+    });
+
+    const uploadingExpired = await this.uploadSessionRepository.find({
+      where: { status: "uploading" },
     });
 
     let cleaned = 0;
-    for (const session of expired) {
+    for (const session of [...pendingExpired, ...uploadingExpired]) {
       if (session.expiresAt && session.expiresAt < now) {
         this.deleteTempFiles(session.tempPath);
         await this.uploadSessionRepository.delete(session.id);
