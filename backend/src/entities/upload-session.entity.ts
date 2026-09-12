@@ -32,7 +32,7 @@ export class UploadSessionEntity {
   @Column({ type: "int", default: 0, name: "totalChunks" })
   totalChunks!: number;
 
-  @Column({ type: "json", default: "[]", name: "uploadedChunks" })
+  @Column({ type: "jsonb", default: "[]", name: "uploadedChunks" })
   uploadedChunks!: number[];
 
   @Column({ length: 500, name: "tempPath" })
