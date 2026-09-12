@@ -3,7 +3,7 @@ import { FileEntity } from "../entities/file.entity";
 import { FolderEntity } from "../entities/folder.entity";
 import { StorageService } from "../storage/storage.service";
 import { UsersService } from "../users/users.service";
-import { NotFoundException, ForbiddenException } from "@nestjs/common";
+import { NotFoundException, ForbiddenException, BadRequestException } from "@nestjs/common";
 
 describe("FilesService - Critical Findings (F-01, F-02, MISS-01, MISS-02, MISS-03, MISS-04, F-10)", () => {
   let service: FilesService;
@@ -12,78 +12,79 @@ describe("FilesService - Critical Findings (F-01, F-02, MISS-01, MISS-02, MISS-0
   let mockStorageService: any;
   let mockUsersService: any;
 
-  const createMockQueryRunner = () => ({
-    connect: jest.fn(),
-    startTransaction: jest.fn(),
-    commitTransaction: jest.fn(),
-    rollbackTransaction: jest.fn(),
-    release: jest.fn(),
-    manager: {
-      findOne: jest.fn(),
-      find: jest.fn(),
-      delete: jest.fn(),
-      query: jest.fn(),
-      save: jest.fn(),
-    },
-  });
-
-  beforeEach(() => {
-    const mockQueryRunner = createMockQueryRunner();
-
-    mockFileRepository = {
-      findOne: jest.fn(),
-      find: jest.fn(),
-      count: jest.fn(),
-      create: jest.fn(),
-      save: jest.fn(),
-      delete: jest.fn(),
-      update: jest.fn(),
+    const createMockQueryRunner = () => ({
+      connect: jest.fn(),
+      startTransaction: jest.fn(),
+      commitTransaction: jest.fn(),
+      rollbackTransaction: jest.fn(),
+      release: jest.fn(),
       manager: {
-        connection: {
-          createQueryRunner: jest.fn(() => mockQueryRunner),
-        },
+        findOne: jest.fn(),
+        find: jest.fn(),
+        delete: jest.fn(),
+        query: jest.fn(),
+        save: jest.fn(),
+        create: jest.fn(),
       },
-    };
+    });
 
-    mockFolderRepository = {
-      findOne: jest.fn(),
-      find: jest.fn(),
-      count: jest.fn(),
-      create: jest.fn(),
-      save: jest.fn(),
-      delete: jest.fn(),
-      manager: {
-        connection: {
-          createQueryRunner: jest.fn(() => mockQueryRunner),
+    beforeEach(() => {
+      const mockQueryRunner = createMockQueryRunner();
+
+      mockFileRepository = {
+        findOne: jest.fn(),
+        find: jest.fn(),
+        count: jest.fn(),
+        create: jest.fn(),
+        save: jest.fn(),
+        delete: jest.fn(),
+        update: jest.fn(),
+        manager: {
+          connection: {
+            createQueryRunner: jest.fn(() => mockQueryRunner),
+          },
         },
-      },
-    };
+      };
 
-    mockStorageService = {
-      generateSafeFilename: jest.fn((name) => name),
-      generatePath: jest.fn((userId, filename) => `/storage/${userId}/${filename}`),
-      fileExists: jest.fn(() => true),
-      deleteFile: jest.fn(),
-      getStoragePath: jest.fn(() => "/storage"),
-    };
+      mockFolderRepository = {
+        findOne: jest.fn(),
+        find: jest.fn(),
+        count: jest.fn(),
+        create: jest.fn(),
+        save: jest.fn(),
+        delete: jest.fn(),
+        manager: {
+          connection: {
+            createQueryRunner: jest.fn(() => mockQueryRunner),
+          },
+        },
+      };
 
-    mockUsersService = {
-      findById: jest.fn(),
-      updateStorageUsed: jest.fn(),
-      decrementStorageUsed: jest.fn(),
-    };
+      mockStorageService = {
+        generateSafeFilename: jest.fn((name) => name),
+        generatePath: jest.fn((userId, filename) => `/storage/${userId}/${filename}`),
+        fileExists: jest.fn(() => true),
+        deleteFile: jest.fn(),
+        getStoragePath: jest.fn(() => "/storage"),
+      };
 
-    service = new FilesService(
-      mockFileRepository,
-      mockFolderRepository,
-      mockStorageService,
-      mockUsersService,
-    );
-  });
+      mockUsersService = {
+        findById: jest.fn(),
+        updateStorageUsed: jest.fn(),
+        decrementStorageUsed: jest.fn(),
+      };
 
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
+      service = new FilesService(
+        mockFileRepository,
+        mockFolderRepository,
+        mockStorageService,
+        mockUsersService,
+      );
+    });
+
+    afterEach(() => {
+      jest.clearAllMocks();
+    });
 
   // ============================================================
   // Permanent Folder Deletion (MISS-01, MISS-02)
@@ -287,6 +288,183 @@ describe("FilesService - Critical Findings (F-01, F-02, MISS-01, MISS-02, MISS-0
 
       expect(mockUsersService.decrementStorageUsed).toHaveBeenCalledWith(1, 0, qr.manager);
       expect(qr.manager.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  // ============================================================
+  // Phase 7: Transactional createFile (F-08)
+  // ============================================================
+  describe("createFile - transactional (F-08)", () => {
+    it("should use queryRunner transaction for createFile", async () => {
+      mockUsersService.findById.mockResolvedValue({ id: 1, storageQuota: 1000, storageUsed: 0 });
+      mockFolderRepository.findOne.mockResolvedValue({ id: 1, userId: 1 });
+      const qr = mockFileRepository.manager.connection.createQueryRunner();
+      qr.manager.create.mockReturnValue({ id: 1, name: "test.txt" });
+      qr.manager.save.mockResolvedValue({ id: 1, name: "test.txt" });
+
+      await service.createFile(1, "test.txt", 100, "text/plain");
+
+      expect(qr.connect).toHaveBeenCalled();
+      expect(qr.startTransaction).toHaveBeenCalled();
+      expect(qr.manager.create).toHaveBeenCalledWith(FileEntity, expect.objectContaining({
+        name: "test.txt",
+        isFolder: false,
+        userId: 1,
+      }));
+      expect(qr.manager.save).toHaveBeenCalled();
+      expect(mockUsersService.updateStorageUsed).toHaveBeenCalledWith(1, 100, qr.manager);
+      expect(qr.commitTransaction).toHaveBeenCalled();
+    });
+
+    it("should rollback transaction on quota failure in createFile", async () => {
+      mockUsersService.findById.mockResolvedValue({ id: 1, storageQuota: 1000, storageUsed: 0 });
+      mockFolderRepository.findOne.mockResolvedValue({ id: 1, userId: 1 });
+      const qr = mockFileRepository.manager.connection.createQueryRunner();
+      qr.manager.create.mockReturnValue({ id: 1, name: "test.txt" });
+      qr.manager.save.mockResolvedValue({ id: 1, name: "test.txt" });
+      mockUsersService.updateStorageUsed.mockRejectedValue(new ForbiddenException("Quota exceeded"));
+
+      await expect(service.createFile(1, "test.txt", 100, "text/plain")).rejects.toThrow("Quota exceeded");
+
+      expect(qr.rollbackTransaction).toHaveBeenCalled();
+      expect(qr.commitTransaction).not.toHaveBeenCalled();
+    });
+
+    it("should throw BadRequestException for empty file name", async () => {
+      await expect(service.createFile(1, "", 100, "text/plain")).rejects.toThrow(BadRequestException);
+      await expect(service.createFile(1, "   ", 100, "text/plain")).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // ============================================================
+  // Phase 7: Transactional createFolder (F-09)
+  // ============================================================
+  describe("createFolder - transactional (F-09)", () => {
+    it("should use queryRunner transaction for createFolder", async () => {
+      mockFolderRepository.findOne.mockResolvedValue({ id: 1, userId: 1 });
+      const qr = mockFolderRepository.manager.connection.createQueryRunner();
+      qr.manager.create.mockReturnValue({ id: 1, name: "New Folder" });
+      qr.manager.save.mockResolvedValue({ id: 1, name: "New Folder" });
+
+      await service.createFolder(1, "New Folder");
+
+      expect(qr.connect).toHaveBeenCalled();
+      expect(qr.startTransaction).toHaveBeenCalled();
+      expect(qr.manager.create).toHaveBeenCalledWith(FolderEntity, expect.objectContaining({
+        name: "New Folder",
+        isDeleted: false,
+        userId: 1,
+      }));
+      expect(qr.manager.save).toHaveBeenCalled();
+      expect(qr.commitTransaction).toHaveBeenCalled();
+    });
+
+    it("should rollback transaction on failure in createFolder", async () => {
+      mockFolderRepository.findOne.mockResolvedValue({ id: 1, userId: 1 });
+      const qr = mockFolderRepository.manager.connection.createQueryRunner();
+      qr.manager.create.mockReturnValue({ id: 1, name: "New Folder" });
+      qr.manager.save.mockRejectedValue(new Error("DB error"));
+
+      await expect(service.createFolder(1, "New Folder")).rejects.toThrow("DB error");
+
+      expect(qr.rollbackTransaction).toHaveBeenCalled();
+      expect(qr.commitTransaction).not.toHaveBeenCalled();
+    });
+
+    it("should throw BadRequestException for empty folder name", async () => {
+      await expect(service.createFolder(1, "")).rejects.toThrow(BadRequestException);
+      await expect(service.createFolder(1, "   ")).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // ============================================================
+  // Phase 7: Folder cycle detection (updateFolder)
+  // ============================================================
+  describe("updateFolder - cycle detection", () => {
+    it("should throw BadRequestException when moving folder into its own subtree", async () => {
+      const folder = { id: 1, userId: 1, name: "Documents" };
+      const file = { id: 1, userId: 1, name: "Documents" };
+      mockFolderRepository.findOne.mockImplementation(({ where }: any) => {
+        if (where.userId === 1) return Promise.resolve(folder);
+        return Promise.resolve(null);
+      });
+      mockFileRepository.findOne.mockResolvedValue(file);
+      (service as any).assertNoCycle = jest.fn().mockRejectedValue(new BadRequestException("Cannot move folder into its own subtree"));
+
+      await expect(service.updateFolder(1, 1, { parentId: 2 })).rejects.toThrow(BadRequestException);
+    });
+
+    it("should allow moving folder to valid target", async () => {
+      const folder = { id: 1, userId: 1, name: "Documents" };
+      const file = { id: 1, userId: 1, name: "Documents" };
+      mockFolderRepository.findOne.mockImplementation(({ where }: any) => {
+        if (where.userId === 1) return Promise.resolve(folder);
+        return Promise.resolve(null);
+      });
+      mockFileRepository.findOne.mockResolvedValue(file);
+      (service as any).assertNoCycle = jest.fn().mockResolvedValue(undefined);
+
+      const result = await service.updateFolder(1, 1, { parentId: 3 });
+      expect(result).toBeDefined();
+    });
+  });
+
+  // ============================================================
+  // Phase 7: Physical delete after commit (roadmap finding)
+  // ============================================================
+  describe("Physical deletion timing (roadmap finding)", () => {
+    it("deleteFilePermanently should delete physical file AFTER commit", async () => {
+      const qr = mockFileRepository.manager.connection.createQueryRunner();
+      qr.manager.findOne.mockResolvedValue({
+        id: 1, userId: 1, name: "test.txt", size: 1024, storagePath: "/s/test.txt",
+      });
+
+      await service.deleteFilePermanently(1, 1);
+
+      expect(qr.commitTransaction).toHaveBeenCalled();
+      // Physical deletion happens after commit — check it was called
+      expect(mockStorageService.deleteFile).toHaveBeenCalledWith("/s/test.txt");
+    });
+
+    it("deleteFolderPermanently should delete physical files AFTER commit", async () => {
+      const qr = mockFolderRepository.manager.connection.createQueryRunner();
+      qr.manager.findOne.mockResolvedValue({ id: 1, userId: 1, name: "Root" });
+      qr.manager.query.mockResolvedValue([{ id: 1 }]);
+      qr.manager.find.mockResolvedValueOnce([
+        { id: 10, userId: 1, parentId: 1, isFolder: false, size: 100, storagePath: "/s/1/a.txt" },
+      ]);
+      qr.manager.find.mockResolvedValueOnce([]);
+
+      await service.deleteFolderPermanently(1, 1);
+
+      expect(qr.commitTransaction).toHaveBeenCalled();
+      expect(mockStorageService.deleteFile).toHaveBeenCalledWith("/s/1/a.txt");
+    });
+
+    it("emptyTrash should delete physical files AFTER commit", async () => {
+      const qr = mockFileRepository.manager.connection.createQueryRunner();
+      qr.manager.find.mockResolvedValueOnce([
+        { id: 1, userId: 1, isDeleted: true, isFolder: false, size: 100, storagePath: "/s/a.txt" },
+      ]);
+      qr.manager.find.mockResolvedValueOnce([]);
+
+      await service.emptyTrash(1);
+
+      expect(qr.commitTransaction).toHaveBeenCalled();
+      expect(mockStorageService.deleteFile).toHaveBeenCalledWith("/s/a.txt");
+    });
+
+    it("deleteFilePermanently should NOT delete physical file on rollback", async () => {
+      const qr = mockFileRepository.manager.connection.createQueryRunner();
+      qr.manager.findOne.mockResolvedValue({
+        id: 1, userId: 1, name: "test.txt", size: 100, storagePath: "/s/test.txt",
+      });
+      qr.manager.delete.mockRejectedValue(new Error("DB error"));
+
+      await expect(service.deleteFilePermanently(1, 1)).rejects.toThrow("DB error");
+
+      expect(qr.rollbackTransaction).toHaveBeenCalled();
+      expect(mockStorageService.deleteFile).not.toHaveBeenCalled();
     });
   });
 
