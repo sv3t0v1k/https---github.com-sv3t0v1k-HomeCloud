@@ -320,8 +320,8 @@ describe("UploadsService - Post-Review Fixes", () => {
       };
 
       fs.mkdirSync(tempDir, { recursive: true });
-      fs.writeFileSync(path.join(tempDir, "0"), Buffer.from("MZ\x00\x00\x00\x00\x00\x00\x00\x00"));
-      fs.writeFileSync(finalPath, Buffer.from("MZ\x00\x00\x00\x00\x00\x00\x00\x00"));
+      fs.writeFileSync(path.join(tempDir, "0"), Buffer.from("MZ\x00\x00\x00\x00\x00\x00"));
+      fs.writeFileSync(finalPath, Buffer.from("MZ\x00\x00\x00\x00\x00\x00"));
 
       mockUploadSessionRepository.findOne.mockResolvedValue(session);
       mockUploadSessionRepository.save.mockResolvedValue(session);
