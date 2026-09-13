@@ -24,6 +24,7 @@ export class UploadsService {
   private readonly maxChunkSize: number;
   private readonly sessionTtlMs: number;
   private readonly allowedMimeTypes: string[];
+  private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     @InjectRepository(UploadSessionEntity)

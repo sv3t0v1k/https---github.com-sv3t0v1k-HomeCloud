@@ -55,6 +55,9 @@ export class FileEntity {
   @Column({ default: 0, name: "version", type: "bigint" })
   version!: number;
 
+  @Column({ type: "varchar", length: 255, nullable: true, name: "uploadId" })
+  uploadId!: string | null;
+
   @CreateDateColumn()
   createdAt!: Date;
 
