@@ -51,6 +51,30 @@ export class StorageService {
     return this.ensureWithinStorageRoot(fullPath);
   }
 
+  /**
+   * Generate a deterministic final path keyed by uploadId.
+   * Retries of the same completeUpload reuse this path instead of
+   * creating duplicate files (O-09).
+   */
+  generateFinalPath(
+    userId: number,
+    uploadId: string,
+    filename: string,
+  ): string {
+    const userDir = path.join(this.storagePath, String(userId));
+    if (!fs.existsSync(userDir)) {
+      fs.mkdirSync(userDir, { recursive: true });
+    }
+    const ext = path.extname(filename);
+    const baseName = path.basename(filename, ext);
+    const safeBase = baseName.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const fullPath = path.join(
+      userDir,
+      `${safeBase}_${uploadId}${ext.toLowerCase()}`,
+    );
+    return this.ensureWithinStorageRoot(fullPath);
+  }
+
   ensureWithinStorageRoot(targetPath: string): string {
     const resolved = path.resolve(targetPath);
     const root = path.resolve(this.storagePath);

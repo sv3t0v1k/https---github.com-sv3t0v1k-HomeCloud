@@ -49,8 +49,10 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       STORAGE_PATH: /storage
-      MAX_FILE_SIZE: 0
-      CHUNK_SIZE: 10485760
+      MAX_FILE_SIZE: ${MAX_FILE_SIZE:-1073741824}
+      MAX_TOTAL_SIZE: ${MAX_TOTAL_SIZE:-10737418240}
+      CHUNK_SIZE: ${CHUNK_SIZE:-10485760}
+      MAX_CHUNK_SIZE: ${MAX_CHUNK_SIZE:-52428800}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
     volumes:
       - storage_data:/storage
