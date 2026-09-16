@@ -2,7 +2,7 @@
 
 > **Источник истины:** этот документ описывает подтверждённое состояние проекта и утверждённую последовательность дальнейших фаз. Детальная реализация каждой фазы определяется отдельным промптом.
 >
-> **Текущий checkpoint:** `edf1d14` (`main`), 2026-09-12.
+> **Текущий checkpoint:** `dce7ad9` (`main`), 2026-09-16.
 >
 > **Важно:** создание этого roadmap не является разрешением на запуск Phase 7 или любой другой будущей фазы.
 
@@ -159,31 +159,53 @@ F-04, F-06 и F-16 закрыты в Phase 6.3 и не входят в deferred 
 - `completeUpload`: MIME-детекция читает только заголовок (4100 байт) вместо всего файла — безопасно для больших файлов.
 - `cleanupExpiredSessions`: теперь очищает и `uploading` сессии, просроченные по TTL (не только `pending`).
 
+**Remediation B (post-Completion review):**
+- `withTransaction` helper: единый паттерн транзакций для всех операций uploads.
+- `createUploadSession`: транзакция + `pessimistic_write` lock на пользователя, суммирование active sessions для quota, создание temp dir ТОЛЬКО после коммита (O-15).
+- `uploadChunk`: chunk reconciliation (DB ↔ disk), idempotency (same chunk accepted, different content rejected), атомарная запись `.tmp` → rename.
+- `completeUpload`: idempotency (existing file on duplicate completion), детерминированный final path по `uploadId`, проверка actual size, проверка chunk size, cleanup temp dir после commit, orphan cleanup on failure.
+- `abortUpload`: транзакция с `pessimistic_write` lock.
+- `onModuleInit/onModuleDestroy`: startup cleanup orphaned temp dirs + expired sessions, периодический cleanup (1h).
+- `parseSizeEnv/parseTtlEnv`: строгая валидация env vars (safe integer, > 0, `MAX_TOTAL_SIZE`).
+- `storage.service.ts generateFinalPath`: детерминированный путь файла по `uploadId` (O-09).
+- Миграция `1746825080000-AddFileUploadId`: nullable `uploadId` + частичный индекс на `files` для idempotency (O-09).
+
 **Результаты проверок:**
 | Check | Result |
 |-------|--------|
-| Full test suite | 90/90 PASS (6 новых тестов Phase 8) |
+| Full test suite | 96/96 PASS (18 новых тестов Remediation B) |
 | Lint | PASS |
 | Build | PASS |
-| 1 миграция Phase 8 | Применена (проверена синтаксис) |
+| Targeted audit (Remediation B) | 26/26 CLOSED, 0 OPEN/PARTIAL |
+| 2 миграции Phase 8 | Применены (проверены синтаксис) |
 | JSONB migration | Восстановима (down) |
+| Upload idempotency | Покрыто тестами |
+| Chunk reconciliation | Покрыто тестами |
+| Temp dir lifecycle | Покрыто тестами |
 | Stale uploading cleanup | Покрыто тестами |
 | Large file memory safety | Покрыто тестами |
 | Git history | Чистая, сообщения на русском |
 
 **Закрытые findings:** F-07
+**Закрытые Remediation B observations:** O-06, O-07, O-08, O-09, O-10, O-11, O-15, O-16, O-17, O-20, O-21 (26/26 targeted, 0 OPEN/PARTIAL)
 
 **Изменённые файлы:**
-- `backend/src/uploads/uploads.service.ts` (MIME header read, stale uploading cleanup)
-- `backend/src/uploads/uploads.service.spec.ts` (6 новых тестов: F-07 migration, stale cleanup, memory safety)
+- `backend/src/uploads/uploads.service.ts` (транзакции, idempotency, chunk reconciliation, quota lock, env parsing, lifecycle hooks)
+- `backend/src/uploads/uploads.service.spec.ts` (24 новых тестов: F-07, stale cleanup, memory safety + 18 Remediation B)
+- `backend/src/storage/storage.service.ts` (generateFinalPath для idempotency)
 - `backend/src/entities/upload-session.entity.ts` (json → jsonb)
 - `backend/src/migrations/1746825070000-UploadedChunksJsonb.ts` (new)
+- `backend/src/migrations/1746825080000-AddFileUploadId.ts` (new)
+- `.env.example` (MAX_TOTAL_SIZE, MAX_CHUNK_SIZE)
+- `docker-compose.yml` (env var defaults)
 
 **Git commits:**
 - `f9dcdba` Phase 8: миграция uploadedChunks JSON → JSONB (F-07)
 - `cb082e8` Phase 8: обновить entity uploadedChunks на jsonb (F-07)
 - `00f767e` Phase 8: потоковая MIME-детекция, очистка stale-uploads
 - `f1d0205` Phase 8: добавить тесты F-07, stale-upload, memory safety
+- `3d9c5f6` Remediation B: исправления uploads service (транзакции, idempotency, quota, chunk reconciliation)
+- `dce7ad9` Миграция 1746825080000-AddFileUploadId: добавить uploadId на files
 
 ## Phase 9 — Authentication & Sessions
 
