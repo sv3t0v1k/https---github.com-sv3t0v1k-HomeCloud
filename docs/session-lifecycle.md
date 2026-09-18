@@ -52,7 +52,8 @@ ISSUED ──(revoked=false, replacedBy=null)──► ACTIVE
  ACTIVE ──(rotation)──► REVOKED (replacedBy=<new hash>)
  ACTIVE ──(logout)──► REVOKED (replacedBy=null)
  ACTIVE ──(change-password / reuse)──► REVOKED (replacedBy=null or hash)
- EXPIRED ──(never cleaned up)──► remains EXPIRED in the table forever
+ EXPIRED ──(expiresAt in the past)──► cleaned up by
+   `cleanupExpiredTokens()` (hourly)
 ```
 
 - **ISSUED**: `revoked = false`, `replacedBy = null`, `expiresAt` in the
@@ -61,8 +62,10 @@ ISSUED ──(revoked=false, replacedBy=null)──► ACTIVE
 - **REVOKED**: `revoked = true`, `revokedAt` set. Terminal state; any later
   refresh attempt with the corresponding raw token triggers reuse handling.
 - **EXPIRED**: `expiresAt` in the past but `revoked = false`. Not usable
-  (refresh rejects it with "Refresh token expired"), but the row is **never
-  removed**. See §9.
+  (refresh rejects it with "Refresh token expired"). Rows with
+  `expiresAt` in the past are periodically cleaned up by
+  `cleanupExpiredTokens()` (on startup and hourly interval).
+  See §11.1.
 
 There is no "pending", "suspended", "frozen" or any other state in the code.
 
@@ -184,14 +187,15 @@ it remains valid until its 15-minute expiry or until the user is deactivated.
 
 ## 11. Not implemented — explicit gaps
 
-### 11.1 Automatic cleanup of expired tokens — NOT IMPLEMENTED
+### 11.1 Automatic cleanup of expired tokens — IMPLEMENTED
 
-- No scheduler, cron, `onModuleInit`, or background job deletes expired
-  `refresh_tokens` rows. Expiry is checked only reactively at refresh time.
-- Expired rows (`revoked = false`, `expiresAt` in the past) remain in the
-  table indefinitely, accumulating with every login and rotation.
-- This is a known, unfixed gap: the table grows without bound and backups
-  carry dead token hashes.
+- `AuthService.cleanupExpiredTokens()` deletes all
+  `refresh_tokens` rows where `expiresAt < now()` via
+  TypeORM `LessThan(new Date())`.
+- Called on `onModuleInit` (startup) and on a 1-hour `setInterval`.
+- `onModuleDestroy` clears the interval on app shutdown.
+- Idempotent: repeated calls only delete already-expired rows;
+  no side effects on active or non-expired tokens.
 
 ### 11.2 Session enumeration — NOT IMPLEMENTED
 

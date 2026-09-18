@@ -16,7 +16,6 @@ It is derived from the current source code only:
 - `backend/src/entities/refresh-token.entity.ts`
 - `backend/src/entities/user.entity.ts`
 - `backend/src/migrations/1746825000000-CreateRefreshTokensTable.ts`
-- `backend/src/common/guards/rate-limit.guard.ts`
 - `backend/src/main.ts`
 - `backend/src/common/startup-validation.service.ts`
 - `frontend/src/api/client.ts`
@@ -191,17 +190,11 @@ After the transaction, the controller maps `{ reused: true }` to
 
 ### 6.1 Rate limiting
 
-Two layers exist, and they are **different mechanisms**:
+`express-rate-limit` middleware in `main.ts`:
+- Global on `/api/v1`: 100 requests / 60 s.
+- Dedicated on `/api/v1/auth`: **10 requests / 60 s** (per IP).
 
-1. `express-rate-limit` middleware in `main.ts`:
-   - Global on `/api/v1`: 100 requests / 60 s.
-   - Dedicated on `/api/v1/auth`: **10 requests / 60 s** (per IP).
-2. `RateLimitGuard` (`common/guards/rate-limit.guard.ts`):
-   - In-memory `Map<string, number[]>`, 100 requests / 60 s per IP.
-   - **Declared in `CommonModule` but never applied to any controller or
-     route.** It is dead code with respect to the auth flow.
-
-The effective brute-force protection on auth endpoints is therefore the
+The effective brute-force protection on auth endpoints is the
 `express-rate-limit` 10/60 s per-IP rule. It is IP-based; shared or
 proxied IPs are not distinguished, and there is no per-user or per-email
 counter.
@@ -235,7 +228,7 @@ counter.
 | DB compromise (token table) | Partially mitigated | Hashes are reversible only with the JWT secret + bcrypt work; no raw tokens |
 | CSRF | **Not mitigated** | See §8 |
 | Token theft via XSS (frontend) | **Not mitigated** | See §8 |
-| Expired-token accumulation | **Not mitigated** | See §8 |
+| Expired-token accumulation | Mitigated | §8.3
 | Per-session enumeration/revocation | **Not mitigated** | See §8 |
 | Secret rotation | **Not mitigated** | See §8 |
 | Email verification | **Not mitigated** | See §8 |
@@ -260,13 +253,18 @@ implemented; the bullets describe what is missing and the residual risk.
   exists. There is no reset-token entity, no email dispatch, and no expiry.
 - Risk: a user who forgets their password has no supported recovery path.
 
-### 8.3 Expired refresh-token cleanup — NOT IMPLEMENTED
+### 8.3 Expired refresh-token cleanup — IMPLEMENTED
 
-- `refresh_tokens` rows are never deleted by any scheduler or background job.
-  Expiry is only checked at refresh time (`storedToken.expiresAt < new Date()`
-  → "Refresh token expired"). Expired rows remain in the table indefinitely.
-- Risk: unbounded table growth; forensic `replacedBy`/`revokedAt` data
-  accumulates; a DB backup carries stale token hashes.
+- `AuthService.cleanupExpiredTokens()` deletes all
+  `refresh_tokens` rows where `expiresAt < now()` (TypeORM
+  `LessThan(new Date())`).
+- Called on `onModuleInit` (startup) and on a 1-hour `setInterval`.
+- `onModuleDestroy` clears the interval to prevent leaks on app
+  shutdown.
+- Idempotent: re-running the cleanup never deletes rows that are
+  already gone; only expired rows are removed regardless of `revoked`
+  status (expired tokens are rejected by the expiry check in
+  `refresh()` before reuse detection runs).
 
 ### 8.4 Session enumeration / per-session revocation — NOT IMPLEMENTED
 
@@ -319,7 +317,8 @@ implemented; the bullets describe what is missing and the residual risk.
 4. **CSRF** on state-changing auth endpoints (no CSRF token; credentialed
    CORS).
 5. **XSS** → both tokens live in `localStorage`.
-6. **Unbounded `refresh_tokens` growth** — no cleanup.
+6. **Unbounded `refresh_tokens` growth** — mitigated (hourly cleanup
+   via `cleanupExpiredTokens`, startup + periodic interval).
 7. **No account recovery** — no password reset; no email verification.
 8. **No secret rotation** — a secret compromise is unrecoverable without a
    forced global logout.
