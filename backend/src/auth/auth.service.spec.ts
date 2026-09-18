@@ -485,6 +485,33 @@ describe("AuthService - Phase 3", () => {
       expect(harness.records).toHaveLength(3);
       expect(harness.records[1].replacedBy).toBe(harness.records[2].tokenHash);
     });
+
+    it("should reject expired token with 'Refresh token expired'", async () => {
+      const oldHash = await bcrypt.hash("token-a", 10);
+      const harness = useTransaction([
+        {
+          id: 1,
+          tokenHash: oldHash,
+          userId: 1,
+          revoked: false,
+          expiresAt: new Date(Date.now() - 1000),
+        },
+      ]);
+
+      await expect(service.refresh(1, "token-a")).rejects.toThrow(
+        "Refresh token expired",
+      );
+      expect(harness.update).not.toHaveBeenCalled();
+      expect(harness.revokeAllExecute).not.toHaveBeenCalled();
+    });
+
+    it("should reject unknown token with 'Invalid refresh token'", async () => {
+      useTransaction([]);
+
+      await expect(service.refresh(1, "unknown-token")).rejects.toThrow(
+        "Invalid refresh token",
+      );
+    });
   });
 
   describe("logout", () => {
