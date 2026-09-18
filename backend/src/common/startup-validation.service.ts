@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, INestApplication } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 
 @Injectable()
@@ -82,4 +82,14 @@ export class StartupValidationService {
 
     this.logger.log("JWT secrets validation passed.");
   }
+}
+
+export async function validateStartupConfiguration(
+  app: INestApplication,
+): Promise<ConfigService> {
+  const configService = app.get(ConfigService);
+  const startupValidation = app.get(StartupValidationService);
+  await startupValidation.validateDatabaseCredentials();
+  await startupValidation.validateJwtSecrets();
+  return configService;
 }
