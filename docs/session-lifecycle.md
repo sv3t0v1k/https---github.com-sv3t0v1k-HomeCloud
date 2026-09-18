@@ -1,0 +1,224 @@
+# Session & Refresh-Token Lifecycle — HomeCloud Phase 9
+
+## 1. Scope and source of truth
+
+This document describes the **actually implemented** lifecycle of sessions and
+refresh tokens in HomeCloud at the Phase 9 baseline.
+
+Source of truth is the current code only:
+
+- `backend/src/auth/auth.service.ts`
+- `backend/src/auth/auth.controller.ts`
+- `backend/src/entities/refresh-token.entity.ts`
+- `backend/src/migrations/1746825000000-CreateRefreshTokensTable.ts`
+
+The word "session" in this document refers exclusively to a
+`refresh_tokens` row plus its paired access JWT. There is **no** server-side
+session object, no session store (Redis is configured but not used for
+sessions), and no session enumeration API.
+
+Aspirational behaviour mentioned in `README.md` or `docs/ROADMAP.md` (for
+example `httpOnly cookie` storage) is **not** implemented and is called out as
+such.
+
+## 2. The `refresh_tokens` table
+
+Schema (from migration `1746825000000-CreateRefreshTokensTable` and the
+entity):
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `SERIAL` PK | Auto-increment integer |
+| `token_hash` | `VARCHAR(255)` NOT NULL | bcrypt hash (cost 10) of the raw refresh JWT. `UNIQUE` index `idx_refresh_tokens_token_hash` |
+| `replaced_by` | `TEXT` nullable | Hash of the token that replaced this one; write-only audit trail |
+| `revoked` | `BOOLEAN` NOT NULL, default `false` | |
+| `expires_at` | `TIMESTAMP` NOT NULL | Absolute expiry |
+| `revoked_at` | `TIMESTAMP` nullable | Set when `revoked` becomes `true` |
+| `created_at` | `TIMESTAMP` NOT NULL, default `now()` | |
+| `user_id` | `INTEGER` NOT NULL | FK → `users(id)` `ON DELETE CASCADE` |
+
+Indexes: `UNIQUE (token_hash)`, `INDEX (user_id)`, entity also declares
+`INDEX (user_id, revoked)`.
+
+A "session" in the current implementation is exactly one row of this table
+plus the access JWT returned alongside it.
+
+## 3. Lifecycle states
+
+A refresh-token row moves through these states:
+
+```
+ISSUED ──(revoked=false, replacedBy=null)──► ACTIVE
+ ACTIVE ──(rotation)──► REVOKED (replacedBy=<new hash>)
+ ACTIVE ──(logout)──► REVOKED (replacedBy=null)
+ ACTIVE ──(change-password / reuse)──► REVOKED (replacedBy=null or hash)
+ EXPIRED ──(never cleaned up)──► remains EXPIRED in the table forever
+```
+
+- **ISSUED**: `revoked = false`, `replacedBy = null`, `expiresAt` in the
+  future. Created by `storeRefreshToken` (login/register) and by rotation.
+- **ACTIVE**: the same row, usable for refresh.
+- **REVOKED**: `revoked = true`, `revokedAt` set. Terminal state; any later
+  refresh attempt with the corresponding raw token triggers reuse handling.
+- **EXPIRED**: `expiresAt` in the past but `revoked = false`. Not usable
+  (refresh rejects it with "Refresh token expired"), but the row is **never
+  removed**. See §9.
+
+There is no "pending", "suspended", "frozen" or any other state in the code.
+
+## 4. Login / register — issue
+
+`AuthService.generateTokens(userId, email)`:
+
+1. Signs an access JWT: `{ sub, email }`, secret `JWT_SECRET`, expiry
+   `JWT_EXPIRES_IN || "15m"`. No `jti`.
+2. Signs a refresh JWT: `{ jti: randomUUID(), sub, email }`, secret
+   `JWT_REFRESH_SECRET`, expiry `JWT_REFRESH_EXPIRES_IN || "7d"`.
+3. Calls `storeRefreshToken(userId, refreshToken)`:
+   - `tokenHash = bcrypt.hash(refreshToken, 10)`
+   - `expiresAt` computed from `JWT_REFRESH_EXPIRES_IN` (regex `(\d+)([smhd])`,
+     default 7d)
+   - inserts `{ tokenHash, expiresAt, userId }`; `revoked` defaults `false`,
+     `replacedBy` is `null`.
+4. Returns `{ accessToken, refreshToken }`.
+
+Both `register` and `login` go through this path, so every authentication
+event issues a **new** session and does not reuse an old one. There is no
+"remember me" / extended session path.
+
+## 5. Refresh and rotation
+
+`POST /api/v1/auth/refresh` (unauthenticated, body `{ refreshToken }`):
+
+1. `verifyRefreshToken(token)` verifies the JWT signature with
+   `JWT_REFRESH_SECRET`; failure → `UnauthorizedException`.
+2. `AuthService.refresh(payload.sub, token)` runs inside
+   `refreshTokenRepository.manager.transaction(...)`:
+   - loads user, validates active
+   - `findAndLockRefreshToken` — scans all user rows, `bcrypt.compare`s, then
+     `findOne(..., lock: { mode: "pessimistic_write" })` on the matched row
+   - rejects unknown / expired / revoked token
+   - on a **revoked** token → `revokeAllUserTokensInTransaction` + returns
+     `{ reused: true }`
+   - signs a **new** refresh JWT with a fresh `jti`, hashes it
+   - updates the old row: `revoked = true`, `revokedAt = now`,
+     `replacedBy = <hash of new token>` (guarded by `where { id, revoked:
+     false }`; `affected === 0` triggers the same reuse path)
+   - creates the new row (`revoked = false`, `replacedBy = null`)
+   - signs a new access JWT
+   - returns `{ reused: false, tokens }`
+3. `{ reused: true }` → `UnauthorizedException("Refresh token was reused")`.
+
+### 5.1 `jti`
+
+- A UUID v4 generated by Node `crypto.randomUUID()` at **every** refresh-token
+  issuance: login, register, and every rotation.
+- It is present in the refresh JWT payload but is **not** stored in the DB and
+  is **not** used for any lookup or decision. It is carried in the token only.
+- The access JWT does **not** carry a `jti`.
+
+### 5.2 `replacedBy`
+
+- Set on the **old** row to the bcrypt hash of the **new** token at rotation.
+- Never read by any code path. Purely forensic.
+
+## 6. Concurrency
+
+- A `pessimistic_write` row lock is taken on the matched token row before any
+  state change, so two concurrent refreshes with the **same** token cannot
+  both proceed: one rotates the row, the second sees `revoked = true` (or the
+  update's `affected === 0`) and triggers reuse → revoke-all.
+- Two refreshes with **different** valid tokens of the same user lock
+  **different** rows and can proceed in parallel.
+- The rotate-revoke-insert sequence is inside one transaction.
+
+## 7. Reuse detection and revoke-all
+
+Reuse is detected in two places inside the refresh transaction:
+
+1. `storedToken.revoked === true` — the submitted token was already rotated or
+   explicitly revoked.
+2. `updateResult.affected === 0` — the guarded update
+   (`where { id: storedToken.id, revoked: false }`) matched no row, i.e. the
+   row was revoked by a concurrent refresh between lock and update.
+
+Both paths call `revokeAllUserTokensInTransaction(manager, userId)` and return
+`{ reused: true }`, which the controller turns into
+`UnauthorizedException("Refresh token was reused")`.
+
+`revokeAllUserTokensInTransaction` sets `revoked = true, revokedAt = now` on
+**every** non-revoked row of that user. The consequence of reuse is a full
+session invalidation for the user — all of their sessions are terminated, not
+just the abused one.
+
+## 8. Logout
+
+`POST /api/v1/auth/logout` (`JwtGuard`):
+
+- `AuthService.logout(userId, refreshToken)`:
+  - no-op if `refreshToken` is falsy
+  - `bcrypt.hash(refreshToken, 10)` → `findOne({ where: { tokenHash, userId } })`
+  - if found and `!revoked`, set `revoked = true, revokedAt = now`.
+
+Logout revokes **only** the submitted refresh token. Other sessions of the
+same user remain active. The access JWT is **not** invalidated server-side —
+it remains valid until its 15-minute expiry or until the user is deactivated.
+
+## 9. Change password
+
+`POST /api/v1/auth/change-password` (`JwtGuard`):
+
+- Verifies old password, re-hashes new (cost 12), saves the user.
+- Calls public `revokeAllUserTokens(userId)` — **all** refresh tokens of the
+  user are revoked (non-transactional builder update).
+- Effect: the user is force-logged-out on **every** device/session. There is
+  no way to keep the current session alive after a password change.
+
+## 10. Expiry
+
+- Refresh-token lifetime is `JWT_REFRESH_EXPIRES_IN` (default `7d`), computed
+  into an absolute `expiresAt` at issuance.
+- At refresh, `storedToken.expiresAt < new Date()` → "Refresh token expired".
+- Access-token lifetime is `JWT_EXPIRES_IN` (default `15m`).
+- Expiry is enforced only at use time; there is no proactive invalidation.
+
+## 11. Not implemented — explicit gaps
+
+### 11.1 Automatic cleanup of expired tokens — NOT IMPLEMENTED
+
+- No scheduler, cron, `onModuleInit`, or background job deletes expired
+  `refresh_tokens` rows. Expiry is checked only reactively at refresh time.
+- Expired rows (`revoked = false`, `expiresAt` in the past) remain in the
+  table indefinitely, accumulating with every login and rotation.
+- This is a known, unfixed gap: the table grows without bound and backups
+  carry dead token hashes.
+
+### 11.2 Session enumeration — NOT IMPLEMENTED
+
+- There is no endpoint that returns the list of a user's active sessions, no
+  per-session metadata (device, IP, user-agent), and no per-session revocation
+  API.
+- `revokeAllUserTokens` is the only revocation primitive and it is
+  **all-or-nothing per user**.
+
+### 11.3 Per-session revocation — NOT IMPLEMENTED
+
+- A single refresh token can be revoked individually only via `logout`, which
+  requires the client to submit that exact token. There is no server-side way
+  to revoke a session by id, by device, or from an admin surface.
+- The only way to invalidate a leaked refresh token without the token itself
+  is `changePassword`, which logs out **all** sessions.
+
+### 11.4 Session store — NOT IMPLEMENTED
+
+- Redis is declared in `docker-compose.yml` and its password is validated at
+  startup, but it is **not used** for sessions or tokens. There is no
+  server-side session store.
+
+### 11.5 httpOnly cookie transport — NOT IMPLEMENTED
+
+- The frontend (`frontend/src/api/client.ts`) stores `access_token` and
+  `refresh_token` in `localStorage` and sends the access token as a `Bearer`
+  header. The refresh token is posted in the request body.
+- Mentions of `httpOnly cookie` in `README.md` and in the Frontend roadmap
+  (`docs/ROADMAP.md` F2) describe **future** behaviour, not the current one.
