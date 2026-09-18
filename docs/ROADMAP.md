@@ -49,6 +49,7 @@
 - Backup/restore реализованы как отдельные fail-closed скрипты с проверкой checksum, metadata sidecar, safe storage switch, reconciliation, retention и health check.
 - Текущий backup локальный: шифрование at-rest, offsite replication и incremental backup не реализованы и явно отложены документацией Phase 5.
 - Security baseline подтверждён commits серии Phase 1–4: startup validation secrets/credentials, JWT/refresh-token rotation, rate limiting, validation, CORS/Helmet, container hardening и healthchecks.
+- Remediation A+B+C — COMPLETE: auth transaction safety (SELECT FOR UPDATE, replacedBy fix, jti, bcrypt compare), expired refresh-token cleanup, удаление RateLimitGuard.
 - Известные подтверждённые разрывы документации: README заявляет Socket.IO и resumable upload, тогда как в текущей архитектуре нет gateway/module и сквозного resume API; `uploads_data` не используется; health endpoint не проверяет зависимости.
 
 ## Deferred findings
