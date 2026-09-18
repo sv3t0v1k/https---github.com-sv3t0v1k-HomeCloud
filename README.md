@@ -5,18 +5,17 @@
 ![Backend](https://img.shields.io/badge/Backend-NestJS_10-red)
 ![Frontend](https://img.shields.io/badge/Frontend-React_18%2B_Vite%2B_Tailwind-blue)
 ![Database](https://img.shields.io/badge/Database-PostgreSQL_16-blue)
-![Cache](https://img.shields.io/badge/Cache-Redis_7-red)
+![Redis](https://img.shields.io/badge/Redis-7-blue)
 
 ## Возможности
 
 ### Управление файлами
-- Загрузка файлов любого размера через chunked upload (разбивка на части)
-- Возобновляемую загрузку при обрыве соединения
+- Загрузка файлов через chunked upload (разбивка на части) с настраиваемыми лимитами размера чанка и файла
+- Chunk-session API допускает повторную отправку уже принятых чанков в существующей сессии; отдельного resume endpoint нет
 - Создание, переименование, перемещение и копирование файлов
 - Древовидная структура папок
 - Корзина с восстановлением и окончательным удалением
 - Поиск файлов по имени
-- Drag & drop загрузка в веб-интерфейсе
 
 ### Безопасность
 - JWT аутентификация с access/refresh токенами
@@ -59,10 +58,9 @@
 - **Language**: TypeScript 5.5
 - **ORM**: TypeORM 0.3
 - **Database**: PostgreSQL 16
-- **Cache**: Redis 7
+- **Redis**: Redis 7 (объявлен в Docker Compose; backend пока не использует для кэша/сессий)
 - **Auth**: JWT (passport-jwt), bcrypt
 - **File processing**: Sharp (thumbnails), file-type
-- **Real-time**: Socket.IO (подключён)
 - **Security**: Helmet, CORS, express-rate-limit, class-validator
 - **Storage**: Нативная файловая система с streaming
 
@@ -159,7 +157,7 @@ curl -X POST http://localhost:3000/api/v1/auth/register \
 |--------|-----|----------|
 | Frontend | http://localhost | Веб-интерфейс |
 | Backend API | http://localhost:3000/api/v1 | REST API |
-| Health check | http://localhost:3000/api/v1/health | Статус сервисов |
+| Health check | http://localhost:3000/api/v1/health | Статус приложения |
 
 ## Структура проекта
 
@@ -225,8 +223,7 @@ HomeCloud/
 │       │   ├── interceptors/
 │       │   │   ├── transform.interceptor.ts
 │       │   │   └── logging.interceptor.ts
-│       │   └── guards/
-│       │       └── rate-limit.guard.ts
+│       │   └── security.config.ts # Helmet, CORS, rate limiting
 │       └── entities/           # Сущности TypeORM
 │           ├── user.entity.ts
 │           ├── file.entity.ts
@@ -300,7 +297,7 @@ HomeCloud/
 | POST | `/api/v1/uploads/session/:uploadId/chunk` | Загрузить чанк |
 | POST | `/api/v1/uploads/session/:uploadId/complete` | Завершить загрузку |
 | DELETE | `/api/v1/uploads/session/:uploadId` | Отменить загрузку |
-| GET | `/api/v1/uploads/sessions` | Список активных сессий |
+| GET | `/api/v1/uploads/sessions` | Список ожидающих сессий загрузки |
 
 ### Sharing
 

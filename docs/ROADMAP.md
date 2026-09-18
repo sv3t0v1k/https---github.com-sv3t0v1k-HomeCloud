@@ -2,7 +2,7 @@
 
 > **Источник истины:** этот документ описывает подтверждённое состояние проекта и утверждённую последовательность дальнейших фаз. Детальная реализация каждой фазы определяется отдельным промптом.
 >
-> **Текущий checkpoint:** `dce7ad9` (`main`), 2026-09-16.
+> **Текущий checkpoint:** `HEAD` ветки `main` по состоянию на 2026-09-18.
 >
 > **Важно:** создание этого roadmap не является разрешением на запуск Phase 7 или любой другой будущей фазы.
 
@@ -50,7 +50,7 @@
 - Текущий backup локальный: шифрование at-rest, offsite replication и incremental backup не реализованы и явно отложены документацией Phase 5.
 - Security baseline подтверждён commits серии Phase 1–4: startup validation secrets/credentials, JWT/refresh-token rotation, rate limiting, validation, CORS/Helmet, container hardening и healthchecks.
 - Remediation A+B+C — COMPLETE: auth transaction safety (SELECT FOR UPDATE, replacedBy fix, jti, bcrypt compare), expired refresh-token cleanup, удаление RateLimitGuard.
-- Известные подтверждённые разрывы документации: README заявляет Socket.IO и resumable upload, тогда как в текущей архитектуре нет gateway/module и сквозного resume API; `uploads_data` не используется; health endpoint не проверяет зависимости.
+- Известные подтверждённые разрывы документации: `uploads_data` не используется; health endpoint не проверяет зависимости.
 
 ## Deferred findings
 
@@ -210,7 +210,7 @@ F-04, F-06 и F-16 закрыты в Phase 6.3 и не входят в deferred 
 
 ## Phase 9 — Authentication & Sessions
 
-**Статус:** `PLANNED`
+**Статус:** `COMPLETE`
 
 **Цель:** привести жизненный цикл identity/session к явному безопасному контракту и подтвердить его тестами.
 
@@ -230,6 +230,8 @@ F-04, F-06 и F-16 закрыты в Phase 6.3 и не входят в deferred 
 - Refresh reuse/revocation/concurrency сценарии покрыты тестами.
 - Секреты, CORS/rate limits и token lifecycle проверены в production-like конфигурации.
 - README/API reference не заявляют нереализованные возможности; ROADMAP обновлён подтверждающим commit.
+
+**Evidence Phase 9.4:** README/API reference синхронизированы с фактическим backend/API контрактом; поддерживающий commit — commit этой Phase 9.4 правки (см. историю `main`).
 
 ## Phase 10 — Sharing & Access Control
 
@@ -267,7 +269,7 @@ F-04, F-06 и F-16 закрыты в Phase 6.3 и не входят в deferred 
 - Удалить или документировать неиспользуемые возможности и зависимости (включая `uploads_data` и Socket.IO claims).
 - Синхронизировать README/API reference с фактическим контрактом; добавить regression tests для security-sensitive routes.
 
-**Исходные проблемы/findings:** audit `TD-2`, `TD-3`; README заявляет Socket.IO/resumable upload, но gateway/module и resume endpoint не подтверждены; health endpoint возвращает только `ok`; frontend не имеет healthcheck.
+**Исходные проблемы/findings:** audit `TD-2`, `TD-3`; health endpoint возвращает только `ok`; frontend не имеет healthcheck.
 
 **Зависимости:** Phase 9 (auth/session policy); Phase 10 (sharing access policy); Phase 6 (migration/test baseline).
 
