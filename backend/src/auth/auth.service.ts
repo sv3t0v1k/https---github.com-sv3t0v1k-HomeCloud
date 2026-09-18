@@ -3,24 +3,31 @@ import {
   UnauthorizedException,
   ConflictException,
   Logger,
+  OnModuleInit,
+  OnModuleDestroy,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { Repository, EntityManager, LessThan } from "typeorm";
 import { UserEntity } from "../entities/user.entity";
 import { RefreshTokenEntity } from "../entities/refresh-token.entity";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcryptjs";
+import { randomUUID } from "crypto";
 import { ConfigService } from "@nestjs/config";
 
 export interface JwtPayload {
   sub: number;
   email: string;
+  jti?: string;
 }
 
 export interface Tokens {
   accessToken: string;
   refreshToken: string;
 }
+
+type RefreshTransactionResult =
+  { reused: true } | { reused: false; tokens: Tokens };
 
 const WEAK_SECRETS = new Set([
   "changeme",
@@ -34,8 +41,10 @@ const WEAK_SECRETS = new Set([
 ]);
 
 @Injectable()
-export class AuthService {
+export class AuthService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(AuthService.name);
+
+  private cleanupInterval?: ReturnType<typeof setInterval>;
 
   constructor(
     @InjectRepository(UserEntity)
@@ -45,6 +54,24 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
   ) {}
+
+  onModuleInit(): void {
+    this.cleanupExpiredTokens().catch((error) => {
+      this.logger.error(`Initial expired token cleanup failed: ${error.message}`);
+    });
+    this.cleanupInterval = setInterval(() => {
+      this.cleanupExpiredTokens().catch((error) => {
+        this.logger.error(`Periodic expired token cleanup failed: ${error.message}`);
+      });
+    }, 3600_000);
+  }
+
+  onModuleDestroy(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = undefined;
+    }
+  }
 
   async register(
     email: string,
@@ -82,40 +109,116 @@ export class AuthService {
   }
 
   async refresh(userId: number, refreshToken: string): Promise<Tokens> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-    if (!user || !user.isActive) {
-      throw new UnauthorizedException("Invalid user");
-    }
+    const result = await this.refreshTokenRepository.manager.transaction(
+      async (manager: EntityManager): Promise<RefreshTransactionResult> => {
+        const user = await manager.findOne(UserEntity, {
+          where: { id: userId },
+        });
+        if (!user || !user.isActive) {
+          throw new UnauthorizedException("Invalid user");
+        }
 
-    if (!refreshToken) {
-      throw new UnauthorizedException("Invalid refresh token");
-    }
+        if (!refreshToken) {
+          throw new UnauthorizedException("Invalid refresh token");
+        }
 
-    const tokenHash = await bcrypt.hash(refreshToken, 10);
-    const storedToken = await this.refreshTokenRepository.findOne({
-      where: { tokenHash, userId },
-    });
+        const storedToken = await this.findAndLockRefreshToken(
+          manager,
+          userId,
+          refreshToken,
+        );
 
-    if (!storedToken) {
-      throw new UnauthorizedException("Invalid refresh token");
-    }
+        if (!storedToken) {
+          throw new UnauthorizedException("Invalid refresh token");
+        }
 
-    if (storedToken.expiresAt < new Date()) {
-      throw new UnauthorizedException("Refresh token expired");
-    }
+        if (storedToken.expiresAt < new Date()) {
+          throw new UnauthorizedException("Refresh token expired");
+        }
 
-    if (storedToken.revoked) {
-      await this.revokeAllUserTokens(userId);
+        if (storedToken.revoked) {
+          await this.revokeAllUserTokensInTransaction(manager, userId);
+          return { reused: true };
+        }
+
+        const payload: JwtPayload = { sub: user.id, email: user.email };
+        const refreshPayload: JwtPayload & { jti: string } = {
+          jti: randomUUID(),
+          sub: user.id,
+          email: user.email,
+        };
+        const newRefreshToken = this.jwtService.sign(refreshPayload, {
+          secret: this.configService.get("JWT_REFRESH_SECRET"),
+          expiresIn: this.configService.get("JWT_REFRESH_EXPIRES_IN") || "7d",
+        });
+        const newTokenHash = await bcrypt.hash(newRefreshToken, 10);
+
+        const updateResult = await manager.update(
+          RefreshTokenEntity,
+          { id: storedToken.id, revoked: false },
+          {
+            revoked: true,
+            revokedAt: new Date(),
+            replacedBy: newTokenHash,
+          },
+        );
+
+        if (updateResult.affected === 0) {
+          await this.revokeAllUserTokensInTransaction(manager, userId);
+          return { reused: true };
+        }
+
+        const expiresIn =
+          this.configService.get("JWT_REFRESH_EXPIRES_IN") || "7d";
+        const expiresAt = new Date();
+        const match = expiresIn.match(/(\d+)([smhd])/);
+        if (match) {
+          const value = parseInt(match[1], 10);
+          const unit = match[2];
+          switch (unit) {
+            case "s":
+              expiresAt.setSeconds(expiresAt.getSeconds() + value);
+              break;
+            case "m":
+              expiresAt.setMinutes(expiresAt.getMinutes() + value);
+              break;
+            case "h":
+              expiresAt.setHours(expiresAt.getHours() + value);
+              break;
+            case "d":
+              expiresAt.setDate(expiresAt.getDate() + value);
+              break;
+            default:
+              expiresAt.setDate(expiresAt.getDate() + 7);
+          }
+        } else {
+          expiresAt.setDate(expiresAt.getDate() + 7);
+        }
+
+        const newTokenEntity = manager.create(RefreshTokenEntity, {
+          tokenHash: newTokenHash,
+          expiresAt,
+          userId,
+        });
+        await manager.save(newTokenEntity);
+
+        const accessToken = this.jwtService.sign(payload, {
+          secret: this.configService.get("JWT_SECRET"),
+          expiresIn: this.configService.get("JWT_EXPIRES_IN") || "15m",
+        });
+
+        return {
+          reused: false,
+          tokens: { accessToken, refreshToken: newRefreshToken },
+        };
+      },
+    );
+
+    if (result.reused) {
       throw new UnauthorizedException("Refresh token was reused");
     }
 
-    await this.refreshTokenRepository.update(storedToken.id, {
-      revoked: true,
-      revokedAt: new Date(),
-      replacedBy: storedToken.tokenHash,
-    });
-
-    return this.generateTokens(user.id, user.email);
+    return result.tokens;
   }
 
   async logout(userId: number, refreshToken: string): Promise<void> {
@@ -138,6 +241,39 @@ export class AuthService {
     await this.refreshTokenRepository
       .createQueryBuilder()
       .update()
+      .set({ revoked: true, revokedAt: new Date() })
+      .where("userId = :userId AND revoked = false", { userId })
+      .execute();
+  }
+
+  private async findAndLockRefreshToken(
+    manager: EntityManager,
+    userId: number,
+    refreshToken: string,
+  ): Promise<RefreshTokenEntity | null> {
+    const candidates = await manager.find(RefreshTokenEntity, {
+      where: { userId },
+    });
+
+    for (const candidate of candidates) {
+      if (await bcrypt.compare(refreshToken, candidate.tokenHash)) {
+        return manager.findOne(RefreshTokenEntity, {
+          where: { id: candidate.id },
+          lock: { mode: "pessimistic_write" },
+        });
+      }
+    }
+
+    return null;
+  }
+
+  private async revokeAllUserTokensInTransaction(
+    manager: EntityManager,
+    userId: number,
+  ): Promise<void> {
+    await manager
+      .createQueryBuilder()
+      .update(RefreshTokenEntity)
       .set({ revoked: true, revokedAt: new Date() })
       .where("userId = :userId AND revoked = false", { userId })
       .execute();
@@ -194,8 +330,7 @@ export class AuthService {
   }
 
   async validateRefreshSecret(): Promise<{ valid: boolean; message: string }> {
-    const secret =
-      this.configService.get("JWT_REFRESH_SECRET") || "";
+    const secret = this.configService.get("JWT_REFRESH_SECRET") || "";
     if (WEAK_SECRETS.has(secret.trim().toLowerCase())) {
       return {
         valid: false,
@@ -206,8 +341,7 @@ export class AuthService {
     if (secret.length < 32) {
       return {
         valid: false,
-        message:
-          "JWT_REFRESH_SECRET must be at least 32 characters.",
+        message: "JWT_REFRESH_SECRET must be at least 32 characters.",
       };
     }
     return { valid: true, message: "JWT_REFRESH_SECRET is strong." };
@@ -218,8 +352,7 @@ export class AuthService {
     refreshToken: string,
   ): Promise<void> {
     const tokenHash = await bcrypt.hash(refreshToken, 10);
-    const expiresIn =
-      this.configService.get("JWT_REFRESH_EXPIRES_IN") || "7d";
+    const expiresIn = this.configService.get("JWT_REFRESH_EXPIRES_IN") || "7d";
     const expiresAt = new Date();
     const match = expiresIn.match(/(\d+)([smhd])/);
     if (match) {
@@ -262,7 +395,11 @@ export class AuthService {
       expiresIn: this.configService.get("JWT_EXPIRES_IN") || "15m",
     });
 
-    const refreshToken = this.jwtService.sign(payload, {
+    const refreshTokenPayload: JwtPayload & { jti: string } = {
+      jti: randomUUID(),
+      ...payload,
+    };
+    const refreshToken = this.jwtService.sign(refreshTokenPayload, {
       secret: this.configService.get("JWT_REFRESH_SECRET"),
       expiresIn: this.configService.get("JWT_REFRESH_EXPIRES_IN") || "7d",
     });
@@ -280,6 +417,15 @@ export class AuthService {
       return payload as JwtPayload;
     } catch {
       throw new UnauthorizedException("Invalid refresh token");
+    }
+  }
+
+  async cleanupExpiredTokens(): Promise<void> {
+    const result = await this.refreshTokenRepository.delete({
+      expiresAt: LessThan(new Date()),
+    });
+    if (result.affected && result.affected > 0) {
+      this.logger.log(`Cleaned up ${result.affected} expired refresh token(s)`);
     }
   }
 
