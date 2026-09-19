@@ -73,6 +73,28 @@ export function getPublicSharingAttemptRateLimitOptions() {
 }
 
 /**
+ * Per-token attempt limiter (verify + download): 10/min per token, shared across
+ * verify and download endpoints. Keyed by SHA-256 digest — raw token never used
+ * as key, stored, or logged. Same query-string-safe extraction as the metadata
+ * per-token limiter. Missing token → IP fallback (fail-safe).
+ */
+export function getPublicSharingAttemptTokenRateLimitOptions() {
+  return {
+    windowMs: 60 * 1000,
+    max: 10,
+    message: { statusCode: 429, message: "Too many requests for this share" },
+    keyGenerator: (req: Request) => {
+      const url = (req.originalUrl || req.url || "").split("?")[0];
+      const match = /sharing\/public\/([^/]+)/.exec(url);
+      if (match) {
+        return `tok:${crypto.createHash("sha256").update(match[1]).digest("hex")}`;
+      }
+      return `ip:${req.ip || "unknown"}`;
+    },
+  };
+}
+
+/**
  * Per-token limiter: defends a single share link from multi-IP abuse.
  * Keyed by SHA-256 digest of the token segment — raw token is never used as a
  * key, stored in the rate-limit store, or logged. Malformed/missing tokens
@@ -145,5 +167,15 @@ export function applySecurityMiddleware(
       "/api/v1/sharing/public/:token/download",
     ],
     rateLimit(getPublicSharingAttemptRateLimitOptions()),
+  );
+  // Per-token attempt limiter: 10/min per token across verify+download,
+  // independent of IP. Prevents multi-IP abuse of a single share link's
+  // password/quota. Applied AFTER the IP attempt limiter — both must pass.
+  app.use(
+    [
+      "/api/v1/sharing/public/:token/verify",
+      "/api/v1/sharing/public/:token/download",
+    ],
+    rateLimit(getPublicSharingAttemptTokenRateLimitOptions()),
   );
 }
