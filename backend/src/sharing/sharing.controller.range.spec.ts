@@ -298,4 +298,24 @@ describe("SharingController download — HTTP Range (integration)", () => {
       fs.rmSync(file, { force: true });
     }
   });
+
+  it("maxDownloads exhausted -> 404 on Range request, no file streamed (no bypass)", async () => {
+    const file = makeFile(Buffer.from("0123456789ABCDEF"));
+    try {
+      shareFor(file, Buffer.from("0123456789ABCDEF"));
+      // incrementDownloadCount is evaluated before range parsing / streaming,
+      // so an exhausted limit rejects range requests just like full downloads.
+      mockService.incrementDownloadCount.mockRejectedValue(
+        new NotFoundException("Share link not found or expired"),
+      );
+      const res = await doRequest("bytes=0-3");
+      expect(res.status).toBe(404);
+      // The limit was evaluated even on a Range request; the file bytes are
+      // NOT streamed (the 404 body is the JSON error envelope).
+      expect(JSON.parse(res.body.toString()).statusCode).toBe(404);
+      expect(mockService.incrementDownloadCount).toHaveBeenCalledWith(TOKEN);
+    } finally {
+      fs.rmSync(file, { force: true });
+    }
+  });
 });

@@ -19,6 +19,7 @@ describe("SharingService - Authorization Boundary", () => {
       find: jest.fn(),
       create: jest.fn(),
       save: jest.fn(),
+      createQueryBuilder: jest.fn(),
     };
     mockFileRepository = {
       findOne: jest.fn(),
@@ -46,6 +47,23 @@ describe("SharingService - Authorization Boundary", () => {
   afterEach(() => {
     jest.clearAllMocks();
   });
+
+  // Builds a chainable TypeORM query-builder mock whose `.execute()` resolves
+  // to `{ raw }` — mirrors the atomic UPDATE ... RETURNING used by
+  // `incrementDownloadCount`. `raw` length 0 simulates a rejected (no-row) UPDATE.
+  function makeQb(raw: Array<Record<string, unknown>> = []) {
+    const execute = jest.fn().mockResolvedValue({ raw });
+    const builder: Record<string, any> = {
+      update: jest.fn().mockReturnThis(),
+      set: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      returning: jest.fn().mockReturnThis(),
+      execute,
+    };
+    mockShareLinkRepository.createQueryBuilder.mockReturnValue(builder);
+    return builder;
+  }
 
   describe("createShareLink", () => {
     it("should create share link when file belongs to user", async () => {
@@ -214,35 +232,85 @@ describe("SharingService - Authorization Boundary", () => {
     });
   });
 
-  describe("incrementDownloadCount expiry (null = never, C1)", () => {
+  describe("incrementDownloadCount — expiry (null = never, C1)", () => {
     it("should allow increment when expiresAt is null", async () => {
-      const share = {
-        token: "tok",
-        isActive: true,
-        expiresAt: null,
-        downloadCount: 0,
-      };
-      mockShareLinkRepository.findOne.mockResolvedValue(share);
-      mockShareLinkRepository.save.mockResolvedValue({ ...share, downloadCount: 1 });
+      makeQb([{ downloadCount: 1 }]);
 
       const result = await service.incrementDownloadCount("tok");
 
       expect(result.downloadCount).toBe(1);
-      expect(mockShareLinkRepository.save).toHaveBeenCalled();
+      expect(mockShareLinkRepository.createQueryBuilder).toHaveBeenCalled();
     });
 
     it("should reject expired share before incrementing", async () => {
-      mockShareLinkRepository.findOne.mockResolvedValue({
-        token: "tok",
-        isActive: true,
-        expiresAt: new Date(Date.now() - 1000),
-        downloadCount: 0,
-      });
+      // Atomic UPDATE excludes expired rows → 0 returned rows.
+      makeQb([]);
 
       await expect(service.incrementDownloadCount("tok")).rejects.toThrow(
         NotFoundException,
       );
-      expect(mockShareLinkRepository.save).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("incrementDownloadCount — maxDownloads download limit (atomic, C2)", () => {
+    it("maxDownloads=null => unlimited: allows increment and advances counter", async () => {
+      // maxDownloads IS NULL always matches (subject to active+expiry), so the
+      // UPDATE returns the incremented row.
+      const qb = makeQb([{ downloadCount: 1 }]);
+
+      const result = await service.incrementDownloadCount("tok");
+
+      expect(result.downloadCount).toBe(1);
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        `"maxDownloads" IS NULL OR "downloadCount" < "maxDownloads"`,
+      );
+    });
+
+    it("count below limit => allowed + increment", async () => {
+      const qb = makeQb([{ downloadCount: 3 }]); // was 2, now 3
+      const result = await service.incrementDownloadCount("tok");
+      expect(result.downloadCount).toBe(3);
+      expect(qb.execute).toHaveBeenCalled();
+    });
+
+    it("count equal to limit => rejected, no increment", async () => {
+      // downloadCount == maxDownloads => `downloadCount < maxDownloads` is false
+      // and maxDownloads is not NULL => UPDATE matches 0 rows.
+      makeQb([]);
+
+      await expect(service.incrementDownloadCount("tok")).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("count above limit => rejected, no increment", async () => {
+      makeQb([]);
+
+      await expect(service.incrementDownloadCount("tok")).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("last allowed download is permitted then the limit holds", async () => {
+      // Boundary: current count == max-1 => allowed (count < max true), advances
+      // to max. Next attempt with count == max => rejected (count < max false).
+      const allowed = makeQb([{ downloadCount: 2 }]); // max=2, allowed: 1->2
+      await expect(service.incrementDownloadCount("tok")).resolves.toEqual(
+        expect.objectContaining({ downloadCount: 2 }),
+      );
+      expect(allowed.execute).toHaveBeenCalledTimes(1);
+
+      makeQb([]); // now count==max => rejected
+      await expect(service.incrementDownloadCount("tok")).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("expired share is rejected even when maxDownloads allows more (regression)", async () => {
+      makeQb([]);
+      await expect(service.incrementDownloadCount("tok")).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 

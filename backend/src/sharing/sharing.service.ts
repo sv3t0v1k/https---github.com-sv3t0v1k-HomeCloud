@@ -50,7 +50,12 @@ export class SharingService {
   async createShareLink(
     userId: number,
     fileId: number,
-    options: { password?: string; expiresInDays?: number; isFolder?: boolean },
+    options: {
+      password?: string;
+      expiresInDays?: number;
+      maxDownloads?: number | null; // null/undefined = unlimited
+      isFolder?: boolean;
+    },
   ) {
     const file = await this.fileRepository.findOne({
       where: { id: fileId, userId },
@@ -97,6 +102,7 @@ export class SharingService {
       isFolder: options.isFolder ?? file.isFolder,
       isActive: true,
       downloadCount: 0,
+      maxDownloads: options.maxDownloads ?? null,
       fileId,
       userId,
       user,
@@ -146,23 +152,44 @@ export class SharingService {
     return true;
   }
 
-  async incrementDownloadCount(token: string) {
-    const share = await this.shareLinkRepository.findOne({
-      where: { token, isActive: true },
-    });
+  /**
+   * Atomically check the download policy and increment the counter.
+   *
+   * A single `UPDATE ... RETURNING` enforces, under the row's lock, all of:
+   *  - link active
+   *  - not expired (`expiresAt` NULL = never expires)
+   *  - download limit not yet reached (`maxDownloads` NULL = unlimited)
+   *
+   * Exactly one row is returned when the download is allowed (counter advanced
+   * by 1); zero rows when it must be rejected (not found / revoked / expired /
+   * limit exhausted). Because the check and the increment run in one statement,
+   * concurrent downloaders can never push `downloadCount` past `maxDownloads`,
+   * and repeated HTTP Range requests on the same link each consume the single
+   * shared counter (no bypass via Range/resume).
+   */
+  async incrementDownloadCount(token: string): Promise<{
+    downloadCount: number;
+  }> {
+    const result = await this.shareLinkRepository
+      .createQueryBuilder("share")
+      .update()
+      .set({
+        downloadCount: () => `"downloadCount" + 1`,
+        updatedAt: () => `NOW()`,
+      })
+      .where(
+        `"token" = :token AND "isActive" = true AND ("expiresAt" IS NULL OR "expiresAt" > NOW())`,
+        { token },
+      )
+      .andWhere(`"maxDownloads" IS NULL OR "downloadCount" < "maxDownloads"`)
+      .returning(["downloadCount"])
+      .execute();
 
-    if (!share) {
-      throw new NotFoundException("Share link not found");
+    if (!result?.raw?.length) {
+      throw new NotFoundException("Share link not found or expired");
     }
 
-    if (share.expiresAt && share.expiresAt < new Date()) {
-      throw new NotFoundException("Share link has expired");
-    }
-
-    share.downloadCount += 1;
-    await this.shareLinkRepository.save(share);
-
-    return share;
+    return result.raw[0] as { downloadCount: number };
   }
 
   async revokeShare(userId: number, shareId: number) {

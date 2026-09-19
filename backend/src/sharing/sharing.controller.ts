@@ -107,6 +107,7 @@ export class SharingController {
     return this.sharingService.createShareLink(userId, dto.fileId, {
       password: dto.password,
       expiresInDays: dto.expiresInDays,
+      maxDownloads: dto.maxDownloads,
       isFolder: dto.isFolder,
     });
   }

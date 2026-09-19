@@ -34,6 +34,9 @@ export class ShareLinkEntity {
   @Column({ type: "bigint", default: 0, name: "downloadCount" })
   downloadCount!: number;
 
+  @Column({ type: "bigint", nullable: true, name: "maxDownloads" })
+  maxDownloads?: number | null;
+
   @Column({ default: false, name: "isFolder" })
   isFolder!: boolean;
 

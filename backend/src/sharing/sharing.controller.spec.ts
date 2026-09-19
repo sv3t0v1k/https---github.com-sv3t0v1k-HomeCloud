@@ -101,4 +101,23 @@ describe("SharingController - streaming code verification", () => {
 
     fs.rmSync(tempFile, { force: true });
   });
+
+  it("should forward maxDownloads from DTO to the sharing service", async () => {
+    const mockService = {
+      createShareLink: jest.fn().mockResolvedValue({ token: "tok" }),
+    };
+    const controller = new SharingController(mockService as any, {} as any);
+
+    await controller.createShareLink(
+      { user: { userId: 1 } } as any,
+      { fileId: 7, maxDownloads: 3, isFolder: false } as any,
+    );
+
+    expect(mockService.createShareLink).toHaveBeenCalledWith(1, 7, {
+      password: undefined,
+      expiresInDays: undefined,
+      maxDownloads: 3,
+      isFolder: false,
+    });
+  });
 });
