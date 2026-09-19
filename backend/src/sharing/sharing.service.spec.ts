@@ -160,6 +160,30 @@ describe("SharingService - Authorization Boundary", () => {
     });
   });
 
+  describe("verifySharePassword", () => {
+    it("should reject expired password-protected share regardless of password (F-04)", async () => {
+      const pastDate = new Date(Date.now() - 1000);
+      mockShareLinkRepository.findOne.mockResolvedValue({
+        token: "tok",
+        isActive: true,
+        expiresAt: pastDate,
+        password: "hashed-password",
+      });
+
+      await expect(
+        service.verifySharePassword("tok", "any-password"),
+      ).rejects.toThrow(NotFoundException);
+
+      await expect(
+        service.verifySharePassword("tok", "correct-password"),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(mockShareLinkRepository.findOne).toHaveBeenCalledWith({
+        where: { token: "tok", isActive: true },
+      });
+    });
+  });
+
   describe("Migration F-04 + F-16", () => {
     it("ShareLinksTokenUnique migration should exist and be reversible", () => {
       expect(ShareLinksTokenUnique1746825040000).toBeDefined();

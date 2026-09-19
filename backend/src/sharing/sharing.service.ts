@@ -130,6 +130,10 @@ export class SharingService {
       throw new NotFoundException("Share link not found");
     }
 
+    if (share.expiresAt && share.expiresAt < new Date()) {
+      throw new NotFoundException("Share link not found or expired");
+    }
+
     if (!share.password) {
       throw new ForbiddenException("Password not required for this share link");
     }
