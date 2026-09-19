@@ -181,7 +181,7 @@ export class SharingService {
         `"token" = :token AND "isActive" = true AND ("expiresAt" IS NULL OR "expiresAt" > NOW())`,
         { token },
       )
-      .andWhere(`"maxDownloads" IS NULL OR "downloadCount" < "maxDownloads"`)
+      .andWhere(`("maxDownloads" IS NULL OR "downloadCount" < "maxDownloads")`)
       .returning(["downloadCount"])
       .execute();
 

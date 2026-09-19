@@ -262,7 +262,7 @@ describe("SharingService - Authorization Boundary", () => {
 
       expect(result.downloadCount).toBe(1);
       expect(qb.andWhere).toHaveBeenCalledWith(
-        `"maxDownloads" IS NULL OR "downloadCount" < "maxDownloads"`,
+        `("maxDownloads" IS NULL OR "downloadCount" < "maxDownloads")`,
       );
     });
 
