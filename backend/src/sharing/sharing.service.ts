@@ -114,7 +114,7 @@ export class SharingService {
       relations: ["file", "user"],
     });
 
-    if (!share || share.expiresAt < new Date()) {
+    if (!share || (share.expiresAt && share.expiresAt < new Date())) {
       throw new NotFoundException("Share link not found or expired");
     }
 
@@ -155,7 +155,7 @@ export class SharingService {
       throw new NotFoundException("Share link not found");
     }
 
-    if (share.expiresAt < new Date()) {
+    if (share.expiresAt && share.expiresAt < new Date()) {
       throw new NotFoundException("Share link has expired");
     }
 

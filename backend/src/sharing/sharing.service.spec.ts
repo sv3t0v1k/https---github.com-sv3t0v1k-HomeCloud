@@ -184,6 +184,68 @@ describe("SharingService - Authorization Boundary", () => {
     });
   });
 
+  describe("findShareByToken expiry (null = never, C1)", () => {
+    it("should allow share when expiresAt is null (never expires)", async () => {
+      mockShareLinkRepository.findOne.mockResolvedValue({
+        token: "tok",
+        isActive: true,
+        expiresAt: null,
+        file: {},
+        user: {},
+      });
+
+      const result = await service.findShareByToken("tok");
+
+      expect(result).toEqual(
+        expect.objectContaining({ token: "tok", isActive: true, expiresAt: null }),
+      );
+    });
+
+    it("should reject expired share", async () => {
+      mockShareLinkRepository.findOne.mockResolvedValue({
+        token: "tok",
+        isActive: true,
+        expiresAt: new Date(Date.now() - 1000),
+      });
+
+      await expect(service.findShareByToken("tok")).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe("incrementDownloadCount expiry (null = never, C1)", () => {
+    it("should allow increment when expiresAt is null", async () => {
+      const share = {
+        token: "tok",
+        isActive: true,
+        expiresAt: null,
+        downloadCount: 0,
+      };
+      mockShareLinkRepository.findOne.mockResolvedValue(share);
+      mockShareLinkRepository.save.mockResolvedValue({ ...share, downloadCount: 1 });
+
+      const result = await service.incrementDownloadCount("tok");
+
+      expect(result.downloadCount).toBe(1);
+      expect(mockShareLinkRepository.save).toHaveBeenCalled();
+    });
+
+    it("should reject expired share before incrementing", async () => {
+      mockShareLinkRepository.findOne.mockResolvedValue({
+        token: "tok",
+        isActive: true,
+        expiresAt: new Date(Date.now() - 1000),
+        downloadCount: 0,
+      });
+
+      await expect(service.incrementDownloadCount("tok")).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockShareLinkRepository.save).not.toHaveBeenCalled();
+    });
+  });
+
   describe("Migration F-04 + F-16", () => {
     it("ShareLinksTokenUnique migration should exist and be reversible", () => {
       expect(ShareLinksTokenUnique1746825040000).toBeDefined();
