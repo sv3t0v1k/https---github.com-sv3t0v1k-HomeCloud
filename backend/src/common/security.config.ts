@@ -4,6 +4,7 @@ import cors from "cors";
 import rateLimit from "express-rate-limit";
 import { ConfigService } from "@nestjs/config";
 import { NextFunction, Request, Response } from "express";
+import * as crypto from "crypto";
 
 export function buildCorsOptions(configService: ConfigService) {
   const frontendUrl = configService.get("FRONTEND_URL");
@@ -71,6 +72,28 @@ export function getPublicSharingAttemptRateLimitOptions() {
   };
 }
 
+/**
+ * Per-token limiter: defends a single share link from multi-IP abuse.
+ * Keyed by SHA-256 digest of the token segment — raw token is never used as a
+ * key, stored in the rate-limit store, or logged. Malformed/missing tokens
+ * fall back to IP-based key so protection is never bypassed.
+ */
+export function getPublicSharingTokenRateLimitOptions() {
+  return {
+    windowMs: 60 * 1000,
+    max: 30,
+    message: { statusCode: 429, message: "Too many requests for this share" },
+    keyGenerator: (req: Request) => {
+      const url = (req.originalUrl || req.url || "").split("?")[0];
+      const match = /sharing\/public\/([^/]+)/.exec(url);
+      if (match) {
+        return `tok:${crypto.createHash("sha256").update(match[1]).digest("hex")}`;
+      }
+      return `ip:${req.ip || "unknown"}`;
+    },
+  };
+}
+
 export function applySecurityMiddleware(
   app: INestApplication,
   configService: ConfigService,
@@ -106,6 +129,13 @@ export function applySecurityMiddleware(
   app.use(
     "/api/v1/sharing/public",
     rateLimit(getPublicSharingRateLimitOptions()),
+  );
+  // Per-token limiter: same IP can't exhaust one token across many IPs, and
+  // many IPs can't exhaust one token. Raw token is SHA-256 digested — never
+  // stored as key. Applied AFTER the IP limiter so both protections hold.
+  app.use(
+    "/api/v1/sharing/public",
+    rateLimit(getPublicSharingTokenRateLimitOptions()),
   );
   // Download also verifies passwords. Share one budget across both routes and
   // all tokens, including passwordless downloads, before body parsing occurs.
