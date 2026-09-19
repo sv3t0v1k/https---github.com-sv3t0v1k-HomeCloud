@@ -24,7 +24,10 @@ describe("SharingController - streaming code verification", () => {
       },
     });
 
-    const controller = new SharingController(mockService as any);
+    const controller = new SharingController(
+      mockService as any,
+      { ensureWithinStorageRoot: (p: string) => p } as any,
+    );
     const result = await controller.downloadShare(
       "tok",
       { password: "" },
@@ -77,7 +80,10 @@ describe("SharingController - streaming code verification", () => {
     });
     mockService.incrementDownloadCount.mockResolvedValue({});
 
-    const controller = new SharingController(mockService as any);
+    const controller = new SharingController(
+      mockService as any,
+      { ensureWithinStorageRoot: (p: string) => p } as any,
+    );
     const promise = controller.downloadShare("tok", { password: "" }, mockRes);
 
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -87,6 +93,8 @@ describe("SharingController - streaming code verification", () => {
     expect(setMock).toHaveBeenCalledWith({
       "Content-Type": "application/pdf",
       "Content-Disposition": 'attachment; filename="report.pdf"',
+      "Accept-Ranges": "bytes",
+      "Content-Length": "8",
     });
     expect(writeCalls.length).toBeGreaterThan(0);
     expect(Buffer.concat(writeCalls).toString()).toBe("PDF data");
