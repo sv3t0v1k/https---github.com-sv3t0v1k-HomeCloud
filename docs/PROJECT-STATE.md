@@ -30,13 +30,11 @@ Redis присутствует в runtime-конфигурации, но не я
 - **Phase 7 — Storage & Filesystem Integrity.** Завершены транзакционные операции файлового дерева, проверки имён/циклов и безопасный порядок DB/filesystem изменений.
 - **Phase 8 — Uploads & Large Files.** Завершены JSONB-учёт чанков, лимиты, idempotency, quota locking, reconciliation и очистка временных данных.
 - **Phase 9 — Authentication & Sessions.** Завершены документирование модели угроз и жизненного цикла сессий, усиление refresh rotation/reuse/revocation и regression tests. Авторитетные документы: [`auth-threat-model.md`](./auth-threat-model.md) и [`session-lifecycle.md`](./session-lifecycle.md).
-- **Phase 10.1–10.4 — подтверждённая часть Sharing & Access Control.** Зафиксированы access-control/folder semantics, fail-closed expiry checks, HTTP Range streaming и confinement пути хранилища.
+- **Phase 10.1–10.5 — подтверждённая часть Sharing & Access Control.** Зафиксированы access-control/folder semantics, fail-closed expiry checks, HTTP Range streaming, confinement пути хранилища и атомарный лимит скачиваний после исправлений приёмки.
 
 ## Стабильный checkpoint
 
-Стабильный принятый checkpoint для продолжения работ — `f45a00a` (`Phase 10.4: HTTP Range streaming и path confinement для SharingController.downloadShare`).
-
-Коммит `9753c97` с изменениями Phase 10.5 появился во время актуализации документации, но до отдельного подтверждения handoff не включается в завершённое состояние и не меняет стабильный checkpoint.
+Стабильный принятый checkpoint — `951cb2f`: исправления и приёмка Phase 10.5 поверх коммита Kilo `9753c97`. Исходный коммит Kilo содержал блокеры; их исправление и результаты проверки описаны в [`PHASE-10.5-REVIEW.md`](./PHASE-10.5-REVIEW.md).
 
 ## Phase 10 — текущее состояние
 
@@ -48,12 +46,13 @@ Redis присутствует в runtime-конфигурации, но не я
 - **10.2:** fail-closed expiry check в password verification, commit `d23f793`.
 - **10.3:** null-safe expiry enforcement в lookup и download count, commit `a51ff17`.
 - **10.4:** single-range HTTP streaming и path confinement, commit `f45a00a`.
+- **10.5:** атомарный лимит скачиваний и HTTP validation, исходный commit Kilo `9753c97`, исправления и приёмка `951cb2f`.
 
 Phase 10 в целом остаётся активной до закрытия оставшегося backlog и выполнения общего Definition of Done из [`ROADMAP.md`](./ROADMAP.md).
 
 ## Активная работа
 
-**Phase 10.5 (`maxDownloads`) выполняется Kilo.** Её файлы и коммиты нельзя изменять, переоформлять или включать в completed state до подтверждённого handoff. Текущий кандидат-коммит: `9753c97`; его наличие само по себе не является приёмкой результата.
+**Phase 10 остаётся активной.** Работа Kilo по `maxDownloads` принята после исправлений и независимого review. Следующий участок — единая политика public access и запрет выдачи удалённых объектов. Пользователь разрешил движение по согласованному плану: завершение sharing, Backend/API hardening, рабочий frontend-сценарий, затем эксплуатационная готовность. Это не разрешение на публикацию или production deployment.
 
 ## Известный deferred backlog
 

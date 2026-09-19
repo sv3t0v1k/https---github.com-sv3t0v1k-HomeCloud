@@ -21,7 +21,7 @@
 | Phase 7 — Storage & Filesystem Integrity | `COMPLETE` | commits серии Phase 7, итог зафиксирован в `c877829` |
 | Phase 8 — Uploads & Large Files | `COMPLETE` | commits серии Phase 8 и Remediation B, итог зафиксирован в `c877829` |
 | Phase 9 — Authentication & Sessions | `COMPLETE` | `83adfa1`, `11b27f2`, `744b27c`, `09dea37` |
-| Phase 10 — Sharing & Access Control | `ACTIVE` | 10.1–10.4 подтверждены; 10.5 ожидает handoff |
+| Phase 10 — Sharing & Access Control | `ACTIVE` | 10.1–10.5 подтверждены; приёмка 10.5 — `951cb2f` |
 
 ## Completed
 
@@ -93,7 +93,9 @@ Acceptance criteria: lifecycle и threat model документированы; e
 - **10.3:** null-safe expiry enforcement в public lookup и download count — `a51ff17`.
 - **10.4:** HTTP single-range streaming, ответы 200/206/416 и confinement storage path — `f45a00a`.
 
-Стабильный checkpoint Phase 10: `f45a00a`.
+- **10.5:** `maxDownloads` — работа Kilo `9753c97`, исправления и приёмка `951cb2f`; [`отчёт`](./PHASE-10.5-REVIEW.md). 217 backend tests PASS, включая реальную PostgreSQL concurrency и migration up/down; lint/build PASS.
+
+Стабильный checkpoint Phase 10: `951cb2f`.
 
 ## Active
 
@@ -101,7 +103,7 @@ Acceptance criteria: lifecycle и threat model документированы; e
 
 **Цель:** управляемый публичный доступ к файлам и папкам с явной политикой owner/token/password/expiry/revocation/download и безопасной выдачей содержимого.
 
-**Phase 10.5 (`maxDownloads`) выполняется Kilo.** Изменения не входят в completed state до подтверждённого handoff. Во время актуализации документации появился кандидат-коммит `9753c97`; он не считается принятым автоматически.
+**Phase 10.5 принята после исправлений.** Следующий участок — единый public access-policy слой и запрет выдачи удалённых объектов. Пользователь разрешил последовательную работу по плану: завершить Phase 10, укрепить Backend/API boundary, реализовать рабочий frontend-сценарий, затем наблюдаемость и эксплуатацию. Каждое завершение фиксируется отдельными проверками, документацией и русскоязычным commit; production deployment требует отдельного разрешения.
 
 Общий acceptance criteria Phase 10:
 
@@ -116,7 +118,7 @@ Acceptance criteria: lifecycle и threat model документированы; e
 
 Backlog намеренно не получает искусственных номеров:
 
-- принять или вернуть на доработку результат `maxDownloads` после handoff;
+- уточнить семантику счётчика: сейчас учитываются попытки до проверки storage/Range, включая последующие ошибки;
 - реализовать единый public access-policy слой;
 - запретить выдачу soft-deleted shared objects и определить 404/410 semantics;
 - реализовать folder child listing и безопасный scoped download потомков;
