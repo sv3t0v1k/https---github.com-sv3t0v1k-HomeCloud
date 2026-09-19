@@ -60,7 +60,7 @@ export class SharingService {
     const file = await this.fileRepository.findOne({
       where: { id: fileId, userId },
     });
-    if (!file) {
+    if (!file || file.isDeleted !== false || file.userId !== userId) {
       throw new NotFoundException("File not found");
     }
 
@@ -81,7 +81,7 @@ export class SharingService {
     }
 
     const user = await this.userRepository.findOne({ where: { id: userId } });
-    if (!user) {
+    if (!user || !user.isActive || user.id !== userId) {
       throw new NotFoundException("User not found");
     }
 
@@ -120,7 +120,18 @@ export class SharingService {
       relations: ["file", "user"],
     });
 
-    if (!share || (share.expiresAt && share.expiresAt < new Date())) {
+    if (
+      !share ||
+      !share.isActive ||
+      (share.expiresAt && share.expiresAt.getTime() <= Date.now()) ||
+      !share.file ||
+      share.file.isDeleted !== false ||
+      share.file.id !== share.fileId ||
+      share.file.userId !== share.userId ||
+      !share.user ||
+      !share.user.isActive ||
+      share.user.id !== share.userId
+    ) {
       throw new NotFoundException("Share link not found or expired");
     }
 
@@ -128,17 +139,7 @@ export class SharingService {
   }
 
   async verifySharePassword(token: string, password: string) {
-    const share = await this.shareLinkRepository.findOne({
-      where: { token, isActive: true },
-    });
-
-    if (!share) {
-      throw new NotFoundException("Share link not found");
-    }
-
-    if (share.expiresAt && share.expiresAt < new Date()) {
-      throw new NotFoundException("Share link not found or expired");
-    }
+    const share = await this.findShareByToken(token);
 
     if (!share.password) {
       throw new ForbiddenException("Password not required for this share link");

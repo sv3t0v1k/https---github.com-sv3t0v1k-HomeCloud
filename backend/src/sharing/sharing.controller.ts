@@ -16,12 +16,16 @@ import {
 } from "@nestjs/common";
 import { Request as ExpressRequest, Response } from "express";
 import * as fs from "fs";
+import { IsOptional, IsString, MaxLength } from "class-validator";
 import { JwtGuard } from "../auth/guards/jwt.guard";
 import { SharingService } from "./sharing.service";
 import { StorageService } from "../storage/storage.service";
 import { CreateShareDto } from "./dtos/create-share.dto";
 
 class VerifyPasswordDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(1024)
   password: string = "";
 }
 
@@ -177,18 +181,8 @@ export class SharingController {
       await this.sharingService.verifySharePassword(token, dto.password);
     }
 
-    await this.sharingService.incrementDownloadCount(token);
-
     if (share.file.isFolder) {
-      return {
-        file: {
-          id: share.file.id,
-          name: share.file.name,
-          mimeType: share.file.mimeType,
-          size: share.file.size,
-          isFolder: share.file.isFolder,
-        },
-      };
+      throw new BadRequestException("Folder archive download is not available");
     }
 
     const filePath = share.file.storagePath;
@@ -200,65 +194,89 @@ export class SharingController {
     let safePath: string;
     try {
       safePath = this.storageService.ensureWithinStorageRoot(filePath);
+      safePath = this.storageService.ensureWithinStorageRoot(
+        fs.realpathSync(safePath),
+      );
     } catch {
       throw new NotFoundException("File not found on storage");
     }
 
-    if (!fs.existsSync(safePath)) {
+    let fd: number;
+    try {
+      fd = fs.openSync(
+        safePath,
+        fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
+      );
+    } catch {
       throw new NotFoundException("File not found on storage");
     }
+    let streamOwnsDescriptor = false;
+    try {
+      const stat = fs.fstatSync(fd);
+      if (!stat.isFile())
+        throw new NotFoundException("File not found on storage");
+      const fileSize = stat.size;
+      const fileName = share.file.name || "download";
+      const safeFileName = fileName.replace(/[^\x20-\x7e]|["\\]/g, "_");
+      const mimeType = share.file.mimeType || "application/octet-stream";
 
-    const stat = fs.statSync(safePath);
-    const fileSize = stat.size;
-    const fileName = share.file.name || "download";
-    const safeFileName = fileName.replace(/"/g, '\\"');
-    const mimeType = share.file.mimeType || "application/octet-stream";
+      const rangeHeader = req?.headers?.range as string | undefined;
+      const parsed = parseRangeHeader(rangeHeader, fileSize);
 
-    const rangeHeader = req?.headers?.range as string | undefined;
-    const parsed = parseRangeHeader(rangeHeader, fileSize);
+      if (parsed.type === "unsatisfiable") {
+        res.status(416).set({
+          "Content-Type": mimeType,
+          "Content-Disposition": `attachment; filename="${safeFileName}"`,
+          "Accept-Ranges": "bytes",
+          "Content-Range": `bytes */${fileSize}`,
+        });
+        res.end();
+        return;
+      }
 
-    if (parsed.type === "unsatisfiable") {
-      res.status(416).set({
+      const baseHeaders = {
         "Content-Type": mimeType,
         "Content-Disposition": `attachment; filename="${safeFileName}"`,
         "Accept-Ranges": "bytes",
-        "Content-Range": `bytes */${fileSize}`,
+      };
+
+      // Списываем допуск только после успешного открытия файла и проверки Range.
+      // Отмена клиентом после допуска не возвращает слот: иначе лимит обходится abort.
+      await this.sharingService.incrementDownloadCount(token);
+
+      if (parsed.type === "none") {
+        res.set({ ...baseHeaders, "Content-Length": String(fileSize) });
+        this.streamFile(safePath, res, fd);
+        streamOwnsDescriptor = true;
+        return;
+      }
+
+      const { start, end } = parsed;
+      const length = end - start + 1;
+      res.status(206).set({
+        ...baseHeaders,
+        "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+        "Content-Length": String(length),
       });
-      res.end();
-      return;
+      this.streamFile(safePath, res, fd, start, end);
+      streamOwnsDescriptor = true;
+    } finally {
+      if (!streamOwnsDescriptor) fs.closeSync(fd);
     }
-
-    const baseHeaders = {
-      "Content-Type": mimeType,
-      "Content-Disposition": `attachment; filename="${safeFileName}"`,
-      "Accept-Ranges": "bytes",
-    };
-
-    if (parsed.type === "none") {
-      res.set({ ...baseHeaders, "Content-Length": String(fileSize) });
-      this.streamFile(safePath, res);
-      return;
-    }
-
-    const { start, end } = parsed;
-    const length = end - start + 1;
-    res.status(206).set({
-      ...baseHeaders,
-      "Content-Range": `bytes ${start}-${end}/${fileSize}`,
-      "Content-Length": String(length),
-    });
-    this.streamFile(safePath, res, start, end);
   }
 
   private streamFile(
     filePath: string,
     res: Response,
+    fd: number,
     start?: number,
     end?: number,
   ): void {
     const stream = fs.createReadStream(
       filePath,
-      start !== undefined ? { start, end } : undefined,
+      start !== undefined
+        ? { fd, autoClose: true, start, end }
+        : { fd, autoClose: true },
     );
 
     stream.on("error", () => {

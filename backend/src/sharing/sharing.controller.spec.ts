@@ -5,7 +5,7 @@ import * as path from "path";
 import { Writable } from "stream";
 
 describe("SharingController - streaming code verification", () => {
-  it("should return folder metadata for folder share", async () => {
+  it("rejects unsupported folder archives without consuming a download", async () => {
     const mockService = {
       findShareByToken: jest.fn(),
       verifySharePassword: jest.fn(),
@@ -28,21 +28,10 @@ describe("SharingController - streaming code verification", () => {
       mockService as any,
       { ensureWithinStorageRoot: (p: string) => p } as any,
     );
-    const result = await controller.downloadShare(
-      "tok",
-      { password: "" },
-      {} as any,
-    );
-
-    expect(result).toEqual({
-      file: {
-        id: 1,
-        name: "MyFolder",
-        mimeType: "application/zip",
-        size: 0,
-        isFolder: true,
-      },
-    });
+    await expect(
+      controller.downloadShare("tok", { password: "" }, {} as any),
+    ).rejects.toThrow(BadRequestException);
+    expect(mockService.incrementDownloadCount).not.toHaveBeenCalled();
   });
 
   it("should stream file data for valid public share", async () => {

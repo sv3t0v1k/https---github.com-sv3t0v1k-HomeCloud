@@ -1,5 +1,5 @@
 import { Test } from "@nestjs/testing";
-import { INestApplication } from "@nestjs/common";
+import { INestApplication, ValidationPipe } from "@nestjs/common";
 import * as http from "http";
 import { AddressInfo } from "net";
 import * as fs from "fs";
@@ -66,6 +66,7 @@ describe("SharingController download — HTTP Range (integration)", () => {
       .compile();
 
     app = moduleRef.createNestApplication();
+    app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
     app.setGlobalPrefix("api/v1");
     await app.init();
 
@@ -233,6 +234,7 @@ describe("SharingController download — HTTP Range (integration)", () => {
     expect(res.status).toBe(416);
     expect(res.headers["content-range"]).toBe("bytes */16");
     expect(res.body.length).toBe(0);
+    expect(mockService.incrementDownloadCount).not.toHaveBeenCalled();
   });
 
   it("416 bytes=5-3 (start>end)", async () => {
@@ -303,7 +305,7 @@ describe("SharingController download — HTTP Range (integration)", () => {
     const file = makeFile(Buffer.from("0123456789ABCDEF"));
     try {
       shareFor(file, Buffer.from("0123456789ABCDEF"));
-      // incrementDownloadCount is evaluated before range parsing / streaming,
+      // incrementDownloadCount is evaluated after range parsing, before streaming,
       // so an exhausted limit rejects range requests just like full downloads.
       mockService.incrementDownloadCount.mockRejectedValue(
         new NotFoundException("Share link not found or expired"),
@@ -316,6 +318,47 @@ describe("SharingController download — HTTP Range (integration)", () => {
       expect(mockService.incrementDownloadCount).toHaveBeenCalledWith(TOKEN);
     } finally {
       fs.rmSync(file, { force: true });
+    }
+  });
+
+  it("missing storage returns 404 without consuming a slot", async () => {
+    shareFor(path.join(os.tmpdir(), `missing-${Date.now()}`), Buffer.from("x"));
+    expect((await doRequest()).status).toBe(404);
+    expect(mockService.incrementDownloadCount).not.toHaveBeenCalled();
+  });
+
+  it("a directory is not streamed and consumes no slot", async () => {
+    shareFor(os.tmpdir(), Buffer.from("x"));
+    expect((await doRequest()).status).toBe(404);
+    expect(mockService.incrementDownloadCount).not.toHaveBeenCalled();
+  });
+
+  it("folder archives fail explicitly instead of leaving the HTTP request open", async () => {
+    const share = buildShare({ id: 1, name: "Folder", size: 0,
+      storagePath: "", isFolder: true, mimeType: "application/zip" });
+    mockService.findShareByToken.mockResolvedValue(share);
+    expect((await doRequest()).status).toBe(400);
+    expect(mockService.incrementDownloadCount).not.toHaveBeenCalled();
+  });
+
+  it("rejects symlinks resolving outside the allowed storage root", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "hc-symlink-"));
+    const target = makeFile(Buffer.from("secret"));
+    const link = path.join(root, "link");
+    fs.symlinkSync(target, link);
+    const confinement = jest.spyOn(mockStorage, "ensureWithinStorageRoot").mockImplementation((p) => {
+      if (!p.startsWith(root + path.sep)) throw new Error("outside root");
+      return p;
+    });
+    try {
+      shareFor(link, Buffer.from("secret"));
+      expect((await doRequest()).status).toBe(404);
+      expect(mockService.incrementDownloadCount).not.toHaveBeenCalled();
+    } finally {
+      confinement.mockRestore();
+      fs.unlinkSync(link);
+      fs.rmdirSync(root);
+      fs.unlinkSync(target);
     }
   });
 });

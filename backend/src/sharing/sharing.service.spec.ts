@@ -5,6 +5,7 @@ import { UserEntity } from "../entities/user.entity";
 import { NotFoundException, BadRequestException } from "@nestjs/common";
 import { UploadSessionStatusCheck1746825050000 } from "../migrations/1746825050000-UploadSessionStatusCheck";
 import { ShareLinksTokenUnique1746825040000 } from "../migrations/1746825040000-ShareLinksTokenUnique";
+import * as bcrypt from "bcryptjs";
 
 describe("SharingService - Authorization Boundary", () => {
   let service: SharingService;
@@ -65,7 +66,64 @@ describe("SharingService - Authorization Boundary", () => {
     return builder;
   }
 
+  function validShare(): ShareLinkEntity {
+    return Object.assign(new ShareLinkEntity(), {
+      token: "tok", isActive: true, expiresAt: null, fileId: 1, userId: 1,
+      file: Object.assign(new FileEntity(), { id: 1, userId: 1, isDeleted: false }),
+      user: Object.assign(new UserEntity(), { id: 1, isActive: true }),
+    });
+  }
+
+  describe("public access policy", () => {
+    it.each([
+      ["missing share", () => null],
+      ["revoked", () => ({ ...validShare(), isActive: false })],
+      ["expired", () => ({ ...validShare(), expiresAt: new Date(0) })],
+      ["expiry boundary", () => ({ ...validShare(), expiresAt: new Date(Date.now()) })],
+      ["missing file", () => ({ ...validShare(), file: null })],
+      ["deleted file", () => ({ ...validShare(), file: { id: 1, userId: 1, isDeleted: true } })],
+      ["foreign file", () => ({ ...validShare(), file: { id: 1, userId: 2, isDeleted: false } })],
+      ["wrong file relation", () => ({ ...validShare(), fileId: 2 })],
+      ["missing owner", () => ({ ...validShare(), user: null })],
+      ["inactive owner", () => ({ ...validShare(), user: { id: 1, isActive: false } })],
+      ["wrong owner relation", () => ({ ...validShare(), user: { id: 2, isActive: true } })],
+    ])("rejects %s in lookup and password verification", async (_name, fixture) => {
+      mockShareLinkRepository.findOne.mockResolvedValue(fixture());
+      await expect(service.findShareByToken("tok")).rejects.toThrow(NotFoundException);
+      await expect(service.verifySharePassword("tok", "secret")).rejects.toThrow(NotFoundException);
+    });
+
+    it("allows a live share with an active owner and verifies its password", async () => {
+      const share = validShare();
+      share.expiresAt = new Date(Date.now() + 60_000);
+      share.password = await bcrypt.hash("secret", 4);
+      mockShareLinkRepository.findOne.mockResolvedValue(share);
+      await expect(service.findShareByToken("tok")).resolves.toBe(share);
+      await expect(service.verifySharePassword("tok", "secret")).resolves.toBe(true);
+      await expect(service.verifySharePassword("tok", "wrong")).rejects.toThrow("Invalid password");
+    });
+  });
+
   describe("createShareLink", () => {
+    it.each([
+      ["deleted file", { id: 1, userId: 1, isDeleted: true }],
+      ["foreign file", { id: 1, userId: 2, isDeleted: false }],
+    ])("rejects %s without creating a link", async (_name, file) => {
+      mockFileRepository.findOne.mockResolvedValue(file);
+      await expect(service.createShareLink(1, 1, {})).rejects.toThrow(NotFoundException);
+      expect(mockShareLinkRepository.save).not.toHaveBeenCalled();
+    });
+
+    it.each([null, { id: 1, isActive: false }, { id: 2, isActive: true }])(
+      "rejects missing, inactive or mismatching owner: %s", async (user) => {
+        mockFileRepository.findOne.mockResolvedValue({
+          id: 1, userId: 1, isDeleted: false, isFolder: false, size: 1, mimeType: "image/png",
+        });
+        mockUserRepository.findOne.mockResolvedValue(user);
+        await expect(service.createShareLink(1, 1, {})).rejects.toThrow(NotFoundException);
+        expect(mockShareLinkRepository.save).not.toHaveBeenCalled();
+      },
+    );
     it("should create share link when file belongs to user", async () => {
       const file = {
         id: 1,
@@ -74,8 +132,9 @@ describe("SharingService - Authorization Boundary", () => {
         mimeType: "image/png",
         size: 100,
         isFolder: false,
+        isDeleted: false,
       };
-      const user = { id: 1, email: "user@example.com" };
+      const user = { id: 1, email: "user@example.com", isActive: true };
       mockFileRepository.findOne.mockResolvedValue(file);
       mockUserRepository.findOne.mockResolvedValue(user);
       mockShareLinkRepository.create.mockReturnValue({});
@@ -116,6 +175,7 @@ describe("SharingService - Authorization Boundary", () => {
         userId: 1,
         name: "test.exe",
         mimeType: "application/x-msdownload",
+        isDeleted: false,
         size: 100,
         isFolder: false,
       };
@@ -131,6 +191,7 @@ describe("SharingService - Authorization Boundary", () => {
         id: 1,
         userId: 1,
         name: "large.png",
+        isDeleted: false,
         mimeType: "image/png",
         size: 200 * 1024 * 1024,
         isFolder: false,
@@ -144,9 +205,9 @@ describe("SharingService - Authorization Boundary", () => {
 
     it("should generate unique tokens for different share links (F-04)", async () => {
       const file = {
-        id: 1, userId: 1, name: "test.png", mimeType: "image/png", size: 100, isFolder: false,
+        id: 1, userId: 1, name: "test.png", mimeType: "image/png", size: 100, isFolder: false, isDeleted: false,
       };
-      const user = { id: 1, email: "user@example.com" };
+      const user = { id: 1, email: "user@example.com", isActive: true };
       mockFileRepository.findOne.mockResolvedValue(file);
       mockUserRepository.findOne.mockResolvedValue(user);
       mockShareLinkRepository.create.mockReturnValue({});
@@ -167,7 +228,7 @@ describe("SharingService - Authorization Boundary", () => {
     });
 
     it("should look up share link by token with isActive filter (F-04)", async () => {
-      mockShareLinkRepository.findOne.mockResolvedValue({ token: "test-token", isActive: true });
+      mockShareLinkRepository.findOne.mockResolvedValue({ ...validShare(), token: "test-token" });
 
       await service.findShareByToken("test-token");
 
@@ -198,6 +259,7 @@ describe("SharingService - Authorization Boundary", () => {
 
       expect(mockShareLinkRepository.findOne).toHaveBeenCalledWith({
         where: { token: "tok", isActive: true },
+        relations: ["file", "user"],
       });
     });
   });
@@ -208,8 +270,10 @@ describe("SharingService - Authorization Boundary", () => {
         token: "tok",
         isActive: true,
         expiresAt: null,
-        file: {},
-        user: {},
+        fileId: 1,
+        userId: 1,
+        file: { id: 1, userId: 1, isDeleted: false },
+        user: { id: 1, isActive: true },
       });
 
       const result = await service.findShareByToken("tok");
