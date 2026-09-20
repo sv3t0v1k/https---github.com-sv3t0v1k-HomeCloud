@@ -1,5 +1,7 @@
 # Phase 10.1 — Access-Control Matrix & Folder-Sharing Semantics
 
+> **Исторический baseline:** разделы `CURRENT` фиксируют состояние на commit `09dea37` и не обновляются задним числом. Фактический статус реализации и активный backlog находятся в [`PROJECT-STATE.md`](./PROJECT-STATE.md) и [`ROADMAP.md`](./ROADMAP.md); HTTP-контракт — в корневом [`README.md`](../README.md).
+
 > **Scope:** docs-only mini-stage. Текущий `HEAD`: `09dea37` (`main`).
 > **Не изменяет:** код, тесты, БД, миграции. `maxDownloads`, Range/resume и dedicated rate limiting намеренно отложены на последующие mini-stage-и Phase 10 (см. §7).
 

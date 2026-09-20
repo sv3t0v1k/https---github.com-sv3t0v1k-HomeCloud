@@ -30,11 +30,12 @@ Redis присутствует в runtime-конфигурации, но не я
 - **Phase 7 — Storage & Filesystem Integrity.** Завершены транзакционные операции файлового дерева, проверки имён/циклов и безопасный порядок DB/filesystem изменений.
 - **Phase 8 — Uploads & Large Files.** Завершены JSONB-учёт чанков, лимиты, idempotency, quota locking, reconciliation и очистка временных данных.
 - **Phase 9 — Authentication & Sessions.** Завершены документирование модели угроз и жизненного цикла сессий, усиление refresh rotation/reuse/revocation и regression tests. Авторитетные документы: [`auth-threat-model.md`](./auth-threat-model.md) и [`session-lifecycle.md`](./session-lifecycle.md).
-- **Phase 10.1–10.5 — подтверждённая часть Sharing & Access Control.** Зафиксированы access-control/folder semantics, fail-closed expiry checks, HTTP Range streaming, confinement пути хранилища и атомарный лимит скачиваний после исправлений приёмки.
+- **Phase 10.1–10.5 и последующий hardening Sharing & Access Control.** Помимо исходных этапов подтверждены единая fail-closed проверка public share, запрет выдачи soft-deleted объектов, безопасный streaming, `Cache-Control: no-store`, отдельные IP/token/attempt rate limits и блокировка перебора пароля.
+- **Целостность папок и их файловых представлений.** `FileEntity` связан с `FolderEntity` через `folderId`; rename/move/soft-delete/restore/permanent-delete и очистка корзины синхронизируют обе сущности транзакционно и не предполагают равенство их ID.
 
 ## Стабильный checkpoint
 
-Стабильный принятый checkpoint — `951cb2f`: исправления и приёмка Phase 10.5 поверх коммита Kilo `9753c97`. Исходный коммит Kilo содержал блокеры; их исправление и результаты проверки описаны в [`PHASE-10.5-REVIEW.md`](./PHASE-10.5-REVIEW.md).
+Стабильный проверенный checkpoint — `9962192`. Он включает приёмку Phase 10.5 (`951cb2f`), public-sharing hardening (`1b09424`–`5257de9`) и транзакционную целостность папок/зеркал (`4b4801f`–`9962192`). Результаты приёмки исходной работы Kilo описаны в [`PHASE-10.5-REVIEW.md`](./PHASE-10.5-REVIEW.md).
 
 ## Phase 10 — текущее состояние
 
@@ -47,19 +48,19 @@ Redis присутствует в runtime-конфигурации, но не я
 - **10.3:** null-safe expiry enforcement в lookup и download count, commit `a51ff17`.
 - **10.4:** single-range HTTP streaming и path confinement, commit `f45a00a`.
 - **10.5:** атомарный лимит скачиваний и HTTP validation, исходный commit Kilo `9753c97`, исправления и приёмка `951cb2f`.
+- **Последующий hardening без новых номеров Phase:** единая public policy и soft-delete enforcement (`1b09424`), `no-store` и dedicated IP/token throttling (`1b09424`, `635985a`, `13ea42e`), password-attempt lockout (`5257de9`).
+- **Связанный integrity prerequisite:** явная связь folder mirror через `folderId` (`4b4801f`), транзакционная синхронизация (`dc1d341`) и рекурсивное permanent-delete/empty-trash с PostgreSQL regression coverage (`9962192`).
 
 Phase 10 в целом остаётся активной до закрытия оставшегося backlog и выполнения общего Definition of Done из [`ROADMAP.md`](./ROADMAP.md).
 
 ## Активная работа
 
-**Phase 10 остаётся активной.** Работа Kilo по `maxDownloads` принята после исправлений и независимого review. Следующий участок — единая политика public access и запрет выдачи удалённых объектов. Пользователь разрешил движение по согласованному плану: завершение sharing, Backend/API hardening, рабочий frontend-сценарий, затем эксплуатационная готовность. Это не разрешение на публикацию или production deployment.
+**Phase 10 остаётся активной.** Работа Kilo по `maxDownloads`, последующий security/integrity hardening и реализация folder child listing со scoped download приняты. Текущий следующий участок — решение по streaming ZIP для папки (явный отказ до отдельного решения) и уточнение долгосрочной семантики счётчика. Это не разрешение на публикацию или production deployment.
 
 ## Известный deferred backlog
 
-- Полная folder-sharing реализация: listing потомков, scoped download и решение по recursive ZIP.
-- Dedicated rate limiting public sharing и защита password verification от перебора.
-- Политика soft-delete/revocation и гарантия, что удалённый объект никогда не выдаётся.
-- `Cache-Control: no-store` и единый public access-policy слой.
+- Folder-sharing: решение по recursive ZIP (listing потомков и scoped download реализованы).
+- Автоматический retry для serialization/deadlock конфликтов в транзакционных folder operations, если появится эксплуатационная необходимость.
 - Dependency-aware readiness/liveness для PostgreSQL, Redis и storage.
 - Наблюдаемость, performance/load baseline и failure/security testing.
 - Полноценный frontend и его автоматические тесты.
