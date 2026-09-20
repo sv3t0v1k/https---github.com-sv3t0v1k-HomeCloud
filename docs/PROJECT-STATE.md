@@ -35,9 +35,9 @@ Redis присутствует в runtime-конфигурации, но не я
 
 ## Стабильный checkpoint
 
-Стабильный проверенный checkpoint — `9962192`. Он включает приёмку Phase 10.5 (`951cb2f`), public-sharing hardening (`1b09424`–`5257de9`) и транзакционную целостность папок/зеркал (`4b4801f`–`9962192`). Результаты приёмки исходной работы Kilo описаны в [`PHASE-10.5-REVIEW.md`](./PHASE-10.5-REVIEW.md).
+Стабильный проверенный checkpoint — `08ea21f`. Он включает приёмку Phase 10.5 (`951cb2f`), public-sharing hardening (`1b09424`–`5257de9`), транзакционную целостность папок/зеркал (`4b4801f`–`9962192`), публичный просмотр папок и scoped download (`60ac7bd`) и потоковое ZIP-скачивание папки (`08ea21f`). Результаты приёмки исходной работы Kilo описаны в [`PHASE-10.5-REVIEW.md`](./PHASE-10.5-REVIEW.md).
 
-## Phase 10 — текущее состояние
+## Phase 10 — завершена
 
 Цель Phase 10 — сделать публичные ссылки управляемой границей доступа с явной политикой владельца, token/password, срока действия, отзыва, скачивания и folder semantics.
 
@@ -51,15 +51,15 @@ Redis присутствует в runtime-конфигурации, но не я
 - **Последующий hardening без новых номеров Phase:** единая public policy и soft-delete enforcement (`1b09424`), `no-store` и dedicated IP/token throttling (`1b09424`, `635985a`, `13ea42e`), password-attempt lockout (`5257de9`).
 - **Связанный integrity prerequisite:** явная связь folder mirror через `folderId` (`4b4801f`), транзакционная синхронизация (`dc1d341`) и рекурсивное permanent-delete/empty-trash с PostgreSQL regression coverage (`9962192`).
 
-Phase 10 в целом остаётся активной до закрытия оставшегося backlog и выполнения общего Definition of Done из [`ROADMAP.md`](./ROADMAP.md).
+- **10.6:** публичный просмотр потомков общей папки — `60ac7bd`;
+- **10.7:** безопасный scoped download потомка по `fileId` — `60ac7bd`;
+- **10.8:** потоковое ZIP-скачивание папки, один слот на архив — `08ea21f`;
 
-## Активная работа
-
-**Phase 10 остаётся активной.** Работа Kilo по `maxDownloads`, последующий security/integrity hardening и реализация folder child listing со scoped download приняты. Текущий следующий участок — решение по streaming ZIP для папки (явный отказ до отдельного решения) и уточнение долгосрочной семантики счётчика. Это не разрешение на публикацию или production deployment.
+Phase 10 завершена: все активные участники (listing, scoped download, ZIP) реализованы и проверены. Текущий следующий участок — изначальные направления из [`ROADMAP.md`](./ROADMAP.md): Backend/API hardening, performance & scalability, observability & operations, failure & security testing, frontend foundation и production readiness. Это не разрешение на публикацию или production deployment.
 
 ## Известный deferred backlog
 
-- Folder-sharing: решение по recursive ZIP (listing потомков и scoped download реализованы).
+- Folder-sharing: потоковое ZIP-скачивание папки реализовано (`08ea21f`); listing потомков и scoped download также реализованы.
 - Автоматический retry для serialization/deadlock конфликтов в транзакционных folder operations, если появится эксплуатационная необходимость.
 - Dependency-aware readiness/liveness для PostgreSQL, Redis и storage.
 - Наблюдаемость, performance/load baseline и failure/security testing.

@@ -21,7 +21,7 @@
 | Phase 7 — Storage & Filesystem Integrity | `COMPLETE` | commits серии Phase 7, итог зафиксирован в `c877829` |
 | Phase 8 — Uploads & Large Files | `COMPLETE` | commits серии Phase 8 и Remediation B, итог зафиксирован в `c877829` |
 | Phase 9 — Authentication & Sessions | `COMPLETE` | `83adfa1`, `11b27f2`, `744b27c`, `09dea37` |
-| Phase 10 — Sharing & Access Control | `ACTIVE` | 10.1–10.5 и последующий hardening подтверждены; checkpoint `60ac7bd` |
+| Phase 10 — Sharing & Access Control | `COMPLETE` | 10.1–10.8 подтверждены; checkpoint `08ea21f` |
 
 ## Completed
 
@@ -95,24 +95,16 @@ Acceptance criteria: lifecycle и threat model документированы; e
 
 - **10.5:** `maxDownloads` — работа Kilo `9753c97`, исправления и приёмка `951cb2f`; [`отчёт`](./PHASE-10.5-REVIEW.md). 217 backend tests PASS, включая реальную PostgreSQL concurrency и migration up/down; lint/build PASS.
 
-После Phase 10.5 также завершены и проверены ненумерованные участки:
-
-- единая fail-closed public policy, soft-delete enforcement, безопасный streaming и явный отказ от folder archive download — `1b09424`;
+- **10.6:** публичный просмотр потомков общей папки — `60ac7bd`;
+- **10.7:** безопасное scoped download потомка по `fileId` — `60ac7bd`;
+- **10.8:** потоковое ZIP-скачивание папки, один слот на архив — `08ea21f`;
 - dedicated IP/token/attempt rate limiting — `1b09424`, `635985a`, `13ea42e`;
 - атомарная блокировка перебора password-protected share — `5257de9`;
 - явная связь folder mirror через `folderId` и транзакционная синхронизация жизненного цикла папок — `4b4801f`, `dc1d341`, `9962192`.
 
-Стабильный checkpoint активной работы: `60ac7bd`.
+Стабильный checkpoint активной работы: `08ea21f`.
 
-## Active
-
-### Phase 10 — Sharing & Access Control
-
-**Цель:** управляемый публичный доступ к файлам и папкам с явной политикой owner/token/password/expiry/revocation/download и безопасной выдачей содержимого.
-
-**Phase 10.5 и последующий public/integrity hardening и folder child listing со scoped download приняты.** Активный следующий участок — решение по streaming ZIP для папки (явный отказ до отдельного решения) и уточнение долгосрочной семантики счётчика. Пользователь разрешил последовательную работу по текущему roadmap: завершить Phase 10, укрепить Backend/API boundary, реализовать рабочий frontend-сценарий, затем наблюдаемость и эксплуатацию. Каждое завершение фиксируется отдельными проверками, документацией и русскоязычным commit; production deployment требует отдельного разрешения.
-
-Общий acceptance criteria Phase 10:
+Общий acceptance criteria Phase 10 — все пункты соблюдены и подтверждены commit `08ea21f`:
 
 - access-control matrix и folder semantics документированы;
 - все public endpoints применяют согласованную проверку состояния ссылки, password, expiry, ownership и file/folder policy;
@@ -120,15 +112,6 @@ Acceptance criteria: lifecycle и threat model документированы; e
 - удалённый или недоступный объект не выдаёт содержимое;
 - README/API reference соответствуют фактической реализации;
 - итоговый commit проверен и roadmap обновлён.
-
-### Оставшийся backlog Phase 10
-
-Backlog намеренно не получает искусственных номеров:
-
-- folder child listing и безопасный scoped download потомков — реализовано (`60ac7bd`);
-- принять решение: streaming ZIP для папки или явный отказ;
-- уточнить долгосрочную семантику счётчика: сейчас слот списывается после успешного открытия storage и проверки Range, но не возвращается при последующем abort/ошибке stream;
-- синхронизировать README/API reference и закрыть общий Phase 10 acceptance.
 
 ## Planned
 
