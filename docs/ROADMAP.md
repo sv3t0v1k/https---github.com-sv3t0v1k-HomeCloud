@@ -22,7 +22,7 @@
 | Phase 8 — Uploads & Large Files | `COMPLETE` | commits серии Phase 8 и Remediation B, итог зафиксирован в `c877829` |
 | Phase 9 — Authentication & Sessions | `COMPLETE` | `83adfa1`, `11b27f2`, `744b27c`, `09dea37` |
 | Phase 10 — Sharing & Access Control | `COMPLETE` | 10.1–10.8 подтверждены; checkpoint `08ea21f` |
-| Phase 11 — Backend/API Hardening | `IN PROGRESS` | 11.1 COMPLETE; 11.2 Validation & Error Contracts COMPLETE; 11.3–11.5 PLANNED |
+| Phase 11 — Backend/API Hardening | `IN PROGRESS` | 11.1–11.3 COMPLETE; 11.4–11.5 PLANNED |
 
 ## Completed
 
@@ -129,11 +129,9 @@ Acceptance criteria: lifecycle и threat model документированы; e
 - Input bounds: `CreateShareDto.password` ≤1024, `CreateSessionDto.filename` ≤255, `UpdateProfileDto.avatar` ≤255; at-limit accepted, above-limit rejected (`f79666b`).
 Regression: `auth.validation.spec.ts`, `users.controller.contract.spec.ts`, `dto-input-bounds.spec.ts`; `tsc --noEmit` clean.
 
-11.3 HTTP Cache Boundary — PLANNED
-Scope:
-- correct authenticated thumbnail cache policy;
-- focused regression tests.
-Exclude preview redesign.
+11.3 HTTP Cache Boundary — COMPLETE
+- Authenticated `GET /previews/:id/thumbnail` (JwtGuard) now serves `Cache-Control: private, max-age=86400` + `Vary: Authorization`; `public` directive removed (`259148b`). Preview generation/storage and public-sharing no-store policy unchanged.
+- Regression: `previews.controller.spec.ts` asserts private policy, absent `public`, `Vary: Authorization`, and unauthenticated → 403 without reaching the service; `previews.service.spec.ts` unchanged.
 
 11.4 Health Readiness Contract — PLANNED
 Scope:
