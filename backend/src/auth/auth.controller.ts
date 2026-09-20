@@ -9,6 +9,7 @@ import {
   Request as NestRequest,
 } from "@nestjs/common";
 import { Request as ExpressRequest } from "express";
+import { IsString, IsNotEmpty, MaxLength } from "class-validator";
 import { AuthService } from "./auth.service";
 import { RegisterDto } from "./dtos/register.dto";
 import { LoginDto } from "./dtos/login.dto";
@@ -16,10 +17,16 @@ import { ChangePasswordDto } from "./dtos/change-password.dto";
 import { JwtGuard } from "./guards/jwt.guard";
 
 class RefreshTokenDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(1024)
   refreshToken!: string;
 }
 
 class LogoutDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(1024)
   refreshToken!: string;
 }
 
