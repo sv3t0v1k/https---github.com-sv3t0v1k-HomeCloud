@@ -11,6 +11,7 @@ import { AddMissingIndexes1746825010000 } from "../migrations/1746825010000-AddM
 import { AddShareFailedAttempts1746825100000 } from "../migrations/1746825100000-AddShareFailedAttempts";
 import { AddShareMaxDownloads1746825090000 } from "../migrations/1746825090000-AddShareMaxDownloads";
 import { AddFileUploadId1746825080000 } from "../migrations/1746825080000-AddFileUploadId";
+import { AddFileFolderIdMirrorLink1746825110000 } from "../migrations/1746825110000-AddFileFolderIdMirrorLink";
 import { CreateFilesTable1746824920000 } from "../migrations/1746824920000-CreateFilesTable";
 import { CreateFoldersTable1746824910000 } from "../migrations/1746824910000-CreateFoldersTable";
 import { CreateRefreshTokensTable1746825000000 } from "../migrations/1746825000000-CreateRefreshTokensTable";
@@ -50,7 +51,7 @@ describePostgres("SharingService — реальный PostgreSQL", () => {
         FolderEntity,
         RefreshTokenEntity,
       ],
-      extra: { max: 10 },
+      extra: { max: 10, options: `-c search_path=${schema}` },
     });
     await dataSource.initialize();
     await dataSource.query(`CREATE SCHEMA "${schema}"`);
@@ -63,6 +64,7 @@ describePostgres("SharingService — реальный PostgreSQL", () => {
     await new CreateFoldersTable1746824910000().up(migrationRunner);
     await new CreateFilesTable1746824920000().up(migrationRunner);
     await new AddFileUploadId1746825080000().up(migrationRunner);
+    await new AddFileFolderIdMirrorLink1746825110000().up(migrationRunner);
     await new CreateRefreshTokensTable1746825000000().up(migrationRunner);
     await new CreateShareLinksTable1746824930000().up(migrationRunner);
     await new AddMissingIndexes1746825010000().up(migrationRunner);
@@ -179,6 +181,86 @@ describePostgres("SharingService — реальный PostgreSQL", () => {
       ),
     );
     expect(await counters()).toEqual({ unlimited: 20 });
+  });
+
+  it("ограничивает folder share поддеревом и повторно проверяет scope при admission", async () => {
+    await dataSource.query(
+      `INSERT INTO "${schema}"."folders" (id, name, "parentId", "userId", "isDeleted") VALUES
+       (200, 'Root', NULL, $1, false),
+       (201, 'Nested', 200, $1, false),
+       (202, 'Sibling', NULL, $1, false)`,
+      [testUserId],
+    );
+    await dataSource.query(
+      `INSERT INTO "${schema}"."files"
+       (id, name, "mimeType", size, "isFolder", "isDeleted", "userId", "parentId", "folderId") VALUES
+       (1200, 'Root', 'application/zip', 0, true, false, $1, NULL, 200),
+       (1201, 'Nested', 'application/zip', 0, true, false, $1, 200, 201),
+       (1202, 'Sibling', 'application/zip', 0, true, false, $1, NULL, 202),
+       (1300, 'inside.txt', 'text/plain', 5, false, false, $1, 201, NULL),
+       (1301, 'outside.txt', 'text/plain', 5, false, false, $1, 202, NULL)`,
+      [testUserId],
+    );
+    await dataSource.query(
+      `INSERT INTO ${table} (token, "maxDownloads", "downloadCount", "isActive", "userId", "fileId", "isFolder")
+       VALUES ('folder-scope', 2, 0, true, $1, 1200, true)`,
+      [testUserId],
+    );
+
+    const root = await service.listSharedChildren("folder-scope", { limit: 50, offset: 0 });
+    expect(root.items.map((item: { id: number; kind: string }) => [item.id, item.kind]))
+      .toEqual([[201, "folder"]]);
+    const nested = await service.listSharedChildren(
+      "folder-scope",
+      { parentId: 201, limit: 50, offset: 0 },
+    );
+    expect(nested.items.map((item: { id: number; kind: string }) => [item.id, item.kind]))
+      .toEqual([[1300, "file"]]);
+    await expect(service.resolveSharedFolderFile(await service.findShareByToken("folder-scope"), 1301))
+      .rejects.toBeInstanceOf(NotFoundException);
+
+    await expect(service.incrementFolderDownloadCount("folder-scope", 1300))
+      .resolves.toEqual({ downloadCount: "1" });
+    await dataSource.query(
+      `UPDATE "${schema}"."files" SET "parentId" = 202 WHERE id = 1300`,
+    );
+    await expect(service.incrementFolderDownloadCount("folder-scope", 1300))
+      .rejects.toBeInstanceOf(NotFoundException);
+    expect((await counters())["folder-scope"]).toBe(1);
+
+    await dataSource.query(
+      `UPDATE "${schema}"."files" SET "parentId" = 201 WHERE id = 1300`,
+    );
+    const concurrent = await Promise.allSettled(
+      Array.from({ length: 5 }, () =>
+        service.incrementFolderDownloadCount("folder-scope", 1300),
+      ),
+    );
+    expect(concurrent.filter(result => result.status === "fulfilled")).toHaveLength(1);
+    expect((await counters())["folder-scope"]).toBe(2);
+
+    await dataSource.query(
+      `INSERT INTO "${schema}"."folders" (id, name, "parentId", "userId", "isDeleted")
+       VALUES (199, 'Deleted ancestor', NULL, $1, true)`,
+      [testUserId],
+    );
+    await dataSource.query(
+      `INSERT INTO "${schema}"."files"
+       (id, name, "mimeType", size, "isFolder", "isDeleted", "userId", "parentId", "folderId")
+       VALUES (1199, 'Deleted ancestor', 'application/zip', 0, true, true, $1, NULL, 199)`,
+      [testUserId],
+    );
+    await dataSource.query(
+      `UPDATE "${schema}"."folders" SET "parentId" = 199 WHERE id = 200`,
+    );
+    await expect(service.listSharedChildren("folder-scope", { limit: 50, offset: 0 }))
+      .rejects.toBeInstanceOf(NotFoundException);
+    await dataSource.query(
+      `UPDATE ${table} SET "downloadCount" = 0 WHERE token = 'folder-scope'`,
+    );
+    await expect(service.incrementFolderDownloadCount("folder-scope", 1300))
+      .rejects.toBeInstanceOf(NotFoundException);
+    expect((await counters())["folder-scope"]).toBe(0);
   });
 
   it("миграция up сохраняет старые строки с null, а down удаляет только maxDownloads", async () => {

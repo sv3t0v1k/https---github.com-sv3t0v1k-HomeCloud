@@ -13,6 +13,8 @@ import {
   BadRequestException,
   Res,
   NotFoundException,
+  Query,
+  Headers,
 } from "@nestjs/common";
 import { Request as ExpressRequest, Response } from "express";
 import * as fs from "fs";
@@ -21,6 +23,7 @@ import { JwtGuard } from "../auth/guards/jwt.guard";
 import { SharingService } from "./sharing.service";
 import { StorageService } from "../storage/storage.service";
 import { CreateShareDto } from "./dtos/create-share.dto";
+import { DownloadShareDto, SharedChildrenQueryDto } from "./dtos/public-share.dto";
 
 class VerifyPasswordDto {
   @IsOptional()
@@ -167,7 +170,7 @@ export class SharingController {
   @HttpCode(HttpStatus.OK)
   async downloadShare(
     @Param("token") token: string,
-    @Body() dto: VerifyPasswordDto,
+    @Body() dto: DownloadShareDto,
     @Res() res: Response,
     @Req() req?: ExpressRequest,
   ) {
@@ -181,11 +184,20 @@ export class SharingController {
       await this.sharingService.verifySharePassword(token, dto.password);
     }
 
+    let downloadFile = share.file;
     if (share.file.isFolder) {
-      throw new BadRequestException("Folder archive download is not available");
+      if (!dto.fileId) {
+        throw new BadRequestException("Folder archive download is not available");
+      }
+      downloadFile = await this.sharingService.resolveSharedFolderFile(
+        share,
+        dto.fileId,
+      );
+    } else if (dto.fileId !== undefined && dto.fileId !== share.file.id) {
+      throw new NotFoundException("Shared file not found");
     }
 
-    const filePath = share.file.storagePath;
+    const filePath = downloadFile.storagePath;
     if (!filePath) {
       throw new NotFoundException("File not found on storage");
     }
@@ -216,9 +228,9 @@ export class SharingController {
       if (!stat.isFile())
         throw new NotFoundException("File not found on storage");
       const fileSize = stat.size;
-      const fileName = share.file.name || "download";
+      const fileName = downloadFile.name || "download";
       const safeFileName = fileName.replace(/[^\x20-\x7e]|["\\]/g, "_");
-      const mimeType = share.file.mimeType || "application/octet-stream";
+      const mimeType = downloadFile.mimeType || "application/octet-stream";
 
       const rangeHeader = req?.headers?.range as string | undefined;
       const parsed = parseRangeHeader(rangeHeader, fileSize);
@@ -242,7 +254,11 @@ export class SharingController {
 
       // Списываем допуск только после успешного открытия файла и проверки Range.
       // Отмена клиентом после допуска не возвращает слот: иначе лимит обходится abort.
-      await this.sharingService.incrementDownloadCount(token);
+      if (share.file.isFolder) {
+        await this.sharingService.incrementFolderDownloadCount(token, downloadFile.id);
+      } else {
+        await this.sharingService.incrementDownloadCount(token);
+      }
 
       if (parsed.type === "none") {
         res.set({ ...baseHeaders, "Content-Length": String(fileSize) });
@@ -263,6 +279,15 @@ export class SharingController {
     } finally {
       if (!streamOwnsDescriptor) fs.closeSync(fd);
     }
+  }
+
+  @Get("public/:token/children")
+  async listSharedChildren(
+    @Param("token") token: string,
+    @Query() query: SharedChildrenQueryDto,
+    @Headers("x-share-password") password?: string,
+  ) {
+    return this.sharingService.listSharedChildren(token, query, password);
   }
 
   private streamFile(

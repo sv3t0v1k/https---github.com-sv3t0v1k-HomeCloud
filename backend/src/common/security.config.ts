@@ -28,6 +28,7 @@ export function buildCorsOptions(configService: ConfigService) {
       "Content-Type",
       "Authorization",
       "X-Requested-With",
+      "X-Share-Password",
       "Range",
     ],
     exposedHeaders: [
@@ -159,22 +160,24 @@ export function applySecurityMiddleware(
     "/api/v1/sharing/public",
     rateLimit(getPublicSharingTokenRateLimitOptions()),
   );
-  // Download also verifies passwords. Share one budget across both routes and
+  // Children and download also verify passwords. Share one budget across all routes and
   // all tokens, including passwordless downloads, before body parsing occurs.
   app.use(
     [
       "/api/v1/sharing/public/:token/verify",
       "/api/v1/sharing/public/:token/download",
+      "/api/v1/sharing/public/:token/children",
     ],
     rateLimit(getPublicSharingAttemptRateLimitOptions()),
   );
-  // Per-token attempt limiter: 10/min per token across verify+download,
+  // Per-token attempt limiter: 10/min per token across verify/download/children,
   // independent of IP. Prevents multi-IP abuse of a single share link's
   // password/quota. Applied AFTER the IP attempt limiter — both must pass.
   app.use(
     [
       "/api/v1/sharing/public/:token/verify",
       "/api/v1/sharing/public/:token/download",
+      "/api/v1/sharing/public/:token/children",
     ],
     rateLimit(getPublicSharingAttemptTokenRateLimitOptions()),
   );

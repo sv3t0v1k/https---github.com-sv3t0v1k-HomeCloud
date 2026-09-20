@@ -13,6 +13,7 @@ import { ConfigService } from "@nestjs/config";
 import { ShareLinkEntity } from "../entities/share-link.entity";
 import { FileEntity } from "../entities/file.entity";
 import { UserEntity } from "../entities/user.entity";
+import { SharedChildrenQueryDto } from "./dtos/public-share.dto";
 
 @Injectable()
 export class SharingService {
@@ -235,6 +236,216 @@ export class SharingService {
     }
 
     return result.raw[0] as { downloadCount: number };
+  }
+
+  private async verifyPublicPassword(
+    share: ShareLinkEntity,
+    token: string,
+    password?: string,
+  ): Promise<void> {
+    if (!share.password) return;
+    if (!password || password.length > 1024) {
+      throw new BadRequestException("Password is required or invalid");
+    }
+    await this.verifySharePassword(token, password);
+  }
+
+  private folderSubtreeSql(): string {
+    return `
+      WITH RECURSIVE ancestors AS (
+        SELECT id, "parentId", "userId", "isDeleted"
+        FROM folders WHERE id = $1
+        UNION
+        SELECT parent.id, parent."parentId", parent."userId", parent."isDeleted"
+        FROM folders parent
+        JOIN ancestors child ON parent.id = child."parentId"
+      ), valid_root AS (
+        SELECT $1::integer AS id
+        WHERE EXISTS (SELECT 1 FROM ancestors WHERE id = $1)
+          AND EXISTS (SELECT 1 FROM ancestors WHERE "parentId" IS NULL)
+          AND NOT EXISTS (
+            SELECT 1 FROM ancestors ancestor
+            LEFT JOIN files mirror ON mirror."folderId" = ancestor.id
+              AND mirror."userId" = $2 AND mirror."isFolder" = true
+              AND mirror."isDeleted" = false
+            WHERE ancestor."userId" <> $2 OR ancestor."isDeleted" = true
+              OR mirror.id IS NULL
+          )
+      ), subtree AS (
+        SELECT f.id
+        FROM folders f
+        JOIN valid_root root ON root.id = f.id
+        JOIN files mirror ON mirror."folderId" = f.id
+          AND mirror."userId" = $2 AND mirror."isFolder" = true
+          AND mirror."isDeleted" = false
+        WHERE f.id = $1 AND f."userId" = $2 AND f."isDeleted" = false
+        UNION
+        SELECT child.id
+        FROM folders child
+        JOIN subtree parent ON child."parentId" = parent.id
+        JOIN files mirror ON mirror."folderId" = child.id
+          AND mirror."userId" = $2 AND mirror."isFolder" = true
+          AND mirror."isDeleted" = false
+        WHERE child."userId" = $2 AND child."isDeleted" = false
+      )`;
+  }
+
+  async listSharedChildren(
+    token: string,
+    query: SharedChildrenQueryDto,
+    password?: string,
+  ) {
+    const share = await this.findShareByToken(token);
+    await this.verifyPublicPassword(share, token, password);
+    if (!share.file.isFolder || !share.file.folderId) {
+      throw new BadRequestException("Share link does not reference a folder");
+    }
+
+    const parentId = query.parentId ?? share.file.folderId;
+    const limit = query.limit ?? 50;
+    const offset = query.offset ?? 0;
+    const rows = await this.fileRepository.query(
+      `${this.folderSubtreeSql()}, live_share AS (
+        SELECT 1 FROM share_links share
+        JOIN users owner ON owner.id = share."userId" AND owner."isActive" = true
+        JOIN files root_mirror ON root_mirror.id = share."fileId"
+          AND root_mirror."folderId" = $1 AND root_mirror."userId" = $2
+          AND root_mirror."isFolder" = true AND root_mirror."isDeleted" = false
+        WHERE share.token = $6 AND share."userId" = $2 AND share."isActive" = true
+          AND (share."expiresAt" IS NULL OR share."expiresAt" > NOW())
+      ), allowed_parent AS (
+        SELECT id FROM subtree WHERE id = $3 AND EXISTS (SELECT 1 FROM live_share)
+      ), children AS (
+        SELECT folder.id, folder.name, 'folder'::text AS kind,
+          NULL::bigint AS size, NULL::varchar AS "mimeType", folder."createdAt"
+        FROM folders folder
+        JOIN allowed_parent parent ON folder."parentId" = parent.id
+        JOIN files mirror ON mirror."folderId" = folder.id
+          AND mirror."userId" = $2 AND mirror."isFolder" = true
+          AND mirror."isDeleted" = false
+        WHERE folder."userId" = $2 AND folder."isDeleted" = false
+        UNION ALL
+        SELECT file.id, file.name, 'file'::text AS kind,
+          file.size, file."mimeType", file."createdAt"
+        FROM files file
+        JOIN allowed_parent parent ON file."parentId" = parent.id
+        WHERE file."userId" = $2 AND file."isDeleted" = false
+          AND file."isFolder" = false
+      )
+      SELECT child.*, parent.id AS "__parentAllowed"
+      FROM allowed_parent parent
+      LEFT JOIN LATERAL (
+        SELECT * FROM children
+        ORDER BY kind DESC, name ASC, id ASC
+        LIMIT $4 OFFSET $5
+      ) child ON true`,
+      [share.file.folderId, share.userId, parentId, limit + 1, offset, token],
+    );
+    if (!rows.length) {
+      throw new NotFoundException("Shared folder not found");
+    }
+    const items = rows
+      .filter((row: { id: number | null }) => row.id !== null)
+      .map((row: Record<string, unknown>) => {
+        const item = { ...row };
+        delete item.__parentAllowed;
+        return item;
+      });
+
+    return {
+      parentId,
+      items: items.slice(0, limit),
+      limit,
+      offset,
+      hasMore: items.length > limit,
+    };
+  }
+
+  async resolveSharedFolderFile(share: ShareLinkEntity, fileId: number): Promise<FileEntity> {
+    if (!share.file.isFolder || !share.file.folderId) {
+      throw new NotFoundException("Shared file not found");
+    }
+    const file = await this.fileRepository.findOne({
+      where: { id: fileId, userId: share.userId, isDeleted: false, isFolder: false },
+    });
+    if (!file) throw new NotFoundException("Shared file not found");
+    const allowed = await this.fileRepository.query(
+      `${this.folderSubtreeSql()}
+       SELECT 1 FROM files file
+       JOIN subtree parent ON file."parentId" = parent.id
+       WHERE file.id = $3 AND file."userId" = $2
+         AND file."isDeleted" = false AND file."isFolder" = false
+       LIMIT 1`,
+      [share.file.folderId, share.userId, fileId],
+    );
+    if (allowed.length !== 1) throw new NotFoundException("Shared file not found");
+    return file;
+  }
+
+  async incrementFolderDownloadCount(token: string, fileId: number): Promise<{ downloadCount: number }> {
+    const rows = await this.shareLinkRepository.query(
+      `WITH RECURSIVE share_context AS (
+        SELECT share."userId", root_mirror."folderId" AS "rootId"
+        FROM share_links share
+        JOIN files root_mirror ON root_mirror.id = share."fileId"
+          AND root_mirror."folderId" IS NOT NULL
+          AND root_mirror."userId" = share."userId"
+          AND root_mirror."isFolder" = true AND root_mirror."isDeleted" = false
+        JOIN users owner ON owner.id = share."userId" AND owner."isActive" = true
+        WHERE share.token = $1 AND share."isActive" = true
+          AND (share."expiresAt" IS NULL OR share."expiresAt" > NOW())
+      ), ancestors AS (
+        SELECT folder.id, folder."parentId", folder."userId", folder."isDeleted"
+        FROM folders folder
+        JOIN share_context context ON context."rootId" = folder.id
+        UNION
+        SELECT parent.id, parent."parentId", parent."userId", parent."isDeleted"
+        FROM folders parent
+        JOIN ancestors child ON parent.id = child."parentId"
+      ), valid_root AS (
+        SELECT context."rootId", context."userId"
+        FROM share_context context
+        WHERE EXISTS (SELECT 1 FROM ancestors WHERE id = context."rootId")
+          AND EXISTS (SELECT 1 FROM ancestors WHERE "parentId" IS NULL)
+          AND NOT EXISTS (
+            SELECT 1 FROM ancestors ancestor
+            LEFT JOIN files mirror ON mirror."folderId" = ancestor.id
+              AND mirror."userId" = context."userId" AND mirror."isFolder" = true
+              AND mirror."isDeleted" = false
+            WHERE ancestor."userId" <> context."userId" OR ancestor."isDeleted" = true
+              OR mirror.id IS NULL
+          )
+      ), subtree AS (
+        SELECT root."rootId" AS id FROM valid_root root
+        UNION
+        SELECT child.id FROM folders child
+        JOIN subtree parent ON child."parentId" = parent.id
+        JOIN valid_root root ON true
+        JOIN files mirror ON mirror."folderId" = child.id
+          AND mirror."userId" = root."userId" AND mirror."isFolder" = true
+          AND mirror."isDeleted" = false
+        WHERE child."userId" = root."userId" AND child."isDeleted" = false
+      ), allowed AS (
+        SELECT 1 FROM files file
+        JOIN subtree parent ON file."parentId" = parent.id
+        JOIN share_links share ON share.token = $1
+        WHERE file.id = $2 AND file."userId" = share."userId"
+          AND file."isDeleted" = false AND file."isFolder" = false
+      )
+      UPDATE share_links
+      SET "downloadCount" = "downloadCount" + 1, "updatedAt" = NOW()
+      WHERE token = $1 AND "isActive" = true
+        AND ("expiresAt" IS NULL OR "expiresAt" > NOW())
+        AND ("maxDownloads" IS NULL OR "downloadCount" < "maxDownloads")
+        AND EXISTS (SELECT 1 FROM allowed)
+      RETURNING "downloadCount"`,
+      [token, fileId],
+    );
+    const returnedRows = Array.isArray(rows[0]) ? rows[0] : rows;
+    if (!returnedRows.length) {
+      throw new NotFoundException("Share link not found or expired");
+    }
+    return returnedRows[0] as { downloadCount: number };
   }
 
   async revokeShare(userId: number, shareId: number) {

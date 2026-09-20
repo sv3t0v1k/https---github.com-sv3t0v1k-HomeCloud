@@ -38,9 +38,10 @@ describe("Public sharing security middleware (HTTP)", () => {
       .options("/api/v1/sharing/public/token/download")
       .set("Origin", "http://localhost:5173")
       .set("Access-Control-Request-Method", "POST")
-      .set("Access-Control-Request-Headers", "range,content-type")
+      .set("Access-Control-Request-Headers", "range,content-type,x-share-password")
       .expect("Cache-Control", "no-store")
       .expect("Access-Control-Allow-Headers", /Range/)
+      .expect("Access-Control-Allow-Headers", /X-Share-Password/)
       .expect(204);
   });
 
@@ -222,7 +223,7 @@ describe("per-token rate limiting", () => {
   });
 });
 
-describe("per-token attempt rate limiting (verify/download)", () => {
+describe("per-token attempt rate limiting (verify/download/children)", () => {
   let app: INestApplication;
 
   beforeEach(async () => {
@@ -266,6 +267,28 @@ describe("per-token attempt rate limiting (verify/download)", () => {
       .post(`/api/v1/sharing/public/${TOKEN_A}/verify`)
       .set("X-Forwarded-For", "10.0.0.1")
       .send({ password: "x" })
+      .expect(429);
+  });
+
+  it("children shares the same strict attempt bucket", async () => {
+    for (let i = 0; i < 5; i++) {
+      await request(app.getHttpServer())
+        .post(`/api/v1/sharing/public/${TOKEN_A}/verify`)
+        .set("X-Forwarded-For", `10.5.${i}.1`)
+        .send({ password: "x" })
+        .expect(404);
+    }
+    for (let i = 0; i < 5; i++) {
+      await request(app.getHttpServer())
+        .get(`/api/v1/sharing/public/${TOKEN_A}/children`)
+        .set("X-Forwarded-For", `10.6.${i}.1`)
+        .set("X-Share-Password", "x")
+        .expect(404);
+    }
+    await request(app.getHttpServer())
+      .get(`/api/v1/sharing/public/${TOKEN_A}/children`)
+      .set("X-Forwarded-For", "10.7.1.1")
+      .set("X-Share-Password", "x")
       .expect(429);
   });
 
