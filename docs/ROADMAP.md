@@ -22,7 +22,7 @@
 | Phase 8 — Uploads & Large Files | `COMPLETE` | commits серии Phase 8 и Remediation B, итог зафиксирован в `c877829` |
 | Phase 9 — Authentication & Sessions | `COMPLETE` | `83adfa1`, `11b27f2`, `744b27c`, `09dea37` |
 | Phase 10 — Sharing & Access Control | `COMPLETE` | 10.1–10.8 подтверждены; checkpoint `08ea21f` |
-| Phase 11 — Backend/API Hardening | `COMPLETE` | 11.1–11.4 COMPLETE; 11.5 FINAL GATE |
+| Phase 11 — Backend/API Hardening | `COMPLETE` | 11.1–11.5 COMPLETE |
 
 ## Completed
 
@@ -114,7 +114,7 @@ Acceptance criteria: lifecycle и threat model документированы; e
 - README/API reference соответствуют фактической реализации;
 - итоговый commit проверен и roadmap обновлён.
 
-## Phase 11 — Backend/API Hardening — IN PROGRESS
+## Phase 11 — Backend/API Hardening — COMPLETE
 
 11.1 API Boundary Inventory — COMPLETE
 - auth/users/health;
@@ -139,16 +139,24 @@ Regression: `auth.validation.spec.ts`, `users.controller.contract.spec.ts`, `dto
 - 11.4C orchestration alignment: backend Docker healthcheck switched from liveness `/api/v1/health` to readiness `/api/v1/ready` (interval 10s, timeout 5s, retries 5, start_period 30s). No startup cycle introduced — DB already `depends_on service_healthy` before the healthcheck runs; `storage_data` volume mounted before healthcheck executes. Redis removed from backend `depends_on` — zero runtime consumers; Redis service itself stays in compose (deferred separately). Frontend depends only on backend.
 - Smoke verification (Docker available): rebuilt image `homecloud-backend:11.4b`; container on `homecloud_app_network` with `storage_data` mounted and `homeredis` **exited** → `/health` 200, `/health/ready` 200 `{"checks":{"database":"ok","storage":"ok"}}`. DB-unreachable container exits fail-closed during TypeORM bootstrap (expected). Smoke containers removed; production stack intact.
 - Tests: `backend/src/common/health.controller.spec.ts` 7/7 — liveness unchanged/no-probe; ready→200; DB fail→503; storage missing→503; not-directory→503; not-writable→503; error/path/credential non-exposure. `tsc --noEmit` clean.
-- Commit: `6d065f2` (11.4B), `b7f1a3e` (11.4C compose).
+- Commit: `6d065f2` (11.4B), `919de64` (11.4C compose).
 
-11.5 Final Gate & Documentation — FINAL GATE
-- focused regressions;
-- full backend suite;
-- tsc;
-- lint;
-- build;
-- documentation reconciliation;
-- final Phase 11 checkpoint.
+11.5 Final Gate & Documentation — COMPLETE
+- focused regressions: `health.controller.spec` 7/7;
+- full backend suite: 354 passed, 10 skipped, 0 failed (2 suites skipped — real-Postgres, gated by `HOMECLOUD_TEST_DATABASE_URL`);
+- tsc: clean;
+- lint: 0 errors (15 pre-existing warnings in `security.config.spec.ts`, outside Phase 11 scope);
+- build: `nest build` clean, `dist/` gitignored;
+- documentation reconciliation: roadmap updated, Phase 11 marked COMPLETE.
+- Final Phase 11 checkpoint: `919de64`, `6d065f2`, `2c56709` chain verified; `git diff` scoped to Phase 11 only.
+
+Phase 11 acceptance:
+1. confirmed boundary validation gaps closed;
+2. users error contracts normalized;
+3. authenticated thumbnail cannot be publicly cached;
+4. approved readiness contract implemented and tested;
+5. no authz/IDOR or Phase 10 sharing regression;
+6. full final gate PASS.
 
 Explicitly deferred / not Phase 11 defects:
 - dedicated per-user upload-chunk rate limiting pending evidence/policy;
@@ -158,14 +166,6 @@ Explicitly deferred / not Phase 11 defects:
 - frontend;
 - production deployment/TLS/secrets;
 - Phase 10 sharing redesign.
-
-Phase 11 acceptance:
-1. confirmed boundary validation gaps closed;
-2. users error contracts normalized;
-3. authenticated thumbnail cannot be publicly cached;
-4. approved readiness contract implemented and tested;
-5. no authz/IDOR or Phase 10 sharing regression;
-6. full final gate PASS.
 
 ## Planned
 

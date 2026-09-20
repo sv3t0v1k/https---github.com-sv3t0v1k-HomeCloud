@@ -2,6 +2,9 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { INestApplication } from "@nestjs/common";
 import { DataSource } from "typeorm";
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
 import request from "supertest";
 import { HealthController } from "./health.controller";
 
@@ -113,9 +116,6 @@ describe("HealthController", () => {
   });
 
   it("GET /health/ready returns 503 when storage root is not a directory", async () => {
-    const fs = require("fs");
-    const os = require("os");
-    const path = require("path");
     const filePath = path.join(os.tmpdir(), `hc-ready-file-${Date.now()}`);
     fs.writeFileSync(filePath, "x");
     try {
@@ -135,9 +135,6 @@ describe("HealthController", () => {
   });
 
   it("GET /health/ready returns 503 when storage root is not writable", async () => {
-    const fs = require("fs");
-    const os = require("os");
-    const path = require("path");
     const dirPath = path.join(os.tmpdir(), `hc-ready-ro-${Date.now()}`);
     fs.mkdirSync(dirPath, { recursive: true });
     fs.chmodSync(dirPath, 0o555);
