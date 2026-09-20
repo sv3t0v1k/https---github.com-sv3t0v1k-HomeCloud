@@ -23,6 +23,7 @@
 | Phase 9 — Authentication & Sessions | `COMPLETE` | `83adfa1`, `11b27f2`, `744b27c`, `09dea37` |
 | Phase 10 — Sharing & Access Control | `COMPLETE` | 10.1–10.8 подтверждены; checkpoint `08ea21f` |
 | Phase 11 — Backend/API Hardening | `COMPLETE` | 11.1–11.5 COMPLETE |
+| Phase 12 — Performance & Scalability | `IN PROGRESS` | 12.1–12.6 PLANNED |
 
 ## Completed
 
@@ -167,12 +168,65 @@ Explicitly deferred / not Phase 11 defects:
 - production deployment/TLS/secrets;
 - Phase 10 sharing redesign.
 
+## Phase 12 — Performance & Scalability — IN PROGRESS
+
+Goal: establish measurable backend performance characteristics, identify evidence-backed bottlenecks, remediate only confirmed critical issues, and verify improvements without weakening correctness/security guarantees.
+
+12.1 Performance Baseline & Hot-Path Inventory — PLANNED
+- reproducible baseline scenarios and measurement methodology;
+- DB/query hot-path inventory;
+- filesystem/streaming hot-path inventory;
+- uploads/downloads/listing/search/previews/sharing/ZIP;
+- distinguish structural risks from measurement candidates;
+- no optimization during inventory.
+
+12.2 Database Query Performance — PLANNED
+- investigate query paths justified by 12.1;
+- query shape, N+1, pagination and indexes;
+- PostgreSQL query-plan evidence where appropriate;
+- no speculative indexes;
+- leading-wildcard ILIKE/full-text remains deferred unless evidence justifies remediation.
+
+12.3 Filesystem & Streaming Performance — PLANNED
+- synchronous filesystem operations on actual request hot paths;
+- streaming/memory behavior for upload/download/Range/preview/ZIP;
+- remediate only confirmed critical request-path bottlenecks;
+- startup/maintenance sync I/O is not automatically a defect.
+
+12.4 Large-file & Concurrency Baseline — PLANNED
+- controlled large-file/concurrent scenarios;
+- upload/download/Range/ZIP and relevant DB/quota contention;
+- establish limits/degradation/failure behavior using reproducible methodology.
+
+12.5 Evidence-based Remediation — PLANNED
+- scope determined ONLY by confirmed 12.1–12.4 findings;
+- no predetermined optimizations;
+- preserve security/integrity/transaction/access-control contracts;
+- focused regression/performance verification required.
+
+12.6 Performance Regression & Final Gate — PLANNED
+- repeat relevant baseline after remediation;
+- before/after evidence;
+- focused regressions;
+- full backend suite;
+- tsc, lint, build;
+- documentation reconciliation;
+- final Phase 12 checkpoint.
+
+OUT OF SCOPE:
+- observability/metrics infrastructure;
+- broad security/failure injection;
+- frontend performance;
+- production deployment/TLS/secrets;
+- backup performance redesign;
+- Redis redesign/removal;
+- unrelated refactoring.
+
 ## Planned
 
 Эти направления подтверждены как необходимая будущая работа, но новые номера Phase им не назначены:
 
 - **Backend/API hardening:** inventory endpoints/guards/DTO/errors, validation, authorization, CORS/headers/rate limits, dependency-aware health.
-- **Performance & scalability:** измеримый baseline, query plans, large-file/concurrency/load tests и устранение критичных synchronous filesystem paths.
 - **Observability & operations:** structured logs, correlation context, metrics, readiness/liveness и operational runbooks.
 - **Failure & security testing:** failure injection, restore drill, IDOR/token/password/rate-limit abuse cases и dependency/container checks.
 - **Frontend foundation и функции:** архитектура клиента, auth, file browser, uploads, sharing, previews, UX/accessibility, resilience и tests.
