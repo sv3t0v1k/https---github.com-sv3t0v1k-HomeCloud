@@ -23,7 +23,7 @@
 | Phase 9 — Authentication & Sessions | `COMPLETE` | `83adfa1`, `11b27f2`, `744b27c`, `09dea37` |
 | Phase 10 — Sharing & Access Control | `COMPLETE` | 10.1–10.8 подтверждены; checkpoint `08ea21f` |
 | Phase 11 — Backend/API Hardening | `COMPLETE` | 11.1–11.5 COMPLETE |
-| Phase 12 — Performance & Scalability | `IN PROGRESS` | 12.1–12.6 PLANNED |
+| Phase 12 — Performance & Scalability | `IN PROGRESS` | 12.1 COMPLETE; 12.2–12.6 PLANNED |
 
 ## Completed
 
@@ -172,13 +172,37 @@ Explicitly deferred / not Phase 11 defects:
 
 Goal: establish measurable backend performance characteristics, identify evidence-backed bottlenecks, remediate only confirmed critical issues, and verify improvements without weakening correctness/security guarantees.
 
-12.1 Performance Baseline & Hot-Path Inventory — PLANNED
+12.1 Performance Baseline & Hot-Path Inventory — COMPLETE
 - reproducible baseline scenarios and measurement methodology;
 - DB/query hot-path inventory;
 - filesystem/streaming hot-path inventory;
 - uploads/downloads/listing/search/previews/sharing/ZIP;
 - distinguish structural risks from measurement candidates;
 - no optimization during inventory.
+
+Accepted DB/query structural risks:
+- unbounded list/search/trash/upload-session/share result sets;
+- `cleanupExpiredSessions` materializes all active sessions globally then filters in JS;
+- `cleanupOrphanedTempDirs` performs one DB lookup per temp directory (N+1).
+
+Accepted filesystem/request-path structural risks:
+- `completeUpload` whole-chunk synchronous `readFileSync`, bounded by configured chunk size;
+- `uploadChunk`/`completeUpload` run O(totalChunks) synchronous `existsSync`/`statSync` reconciliation loops;
+- thumbnail/image preview synchronous whole-file read, bounded to 5 MB;
+- `StorageService` synchronous `existsSync`/`mkdirSync` on file-creation paths.
+
+Already-streaming paths (no whole-file or archive buffering confirmed):
+- public download/Range streams via `createReadStream` → `pipe(res)`;
+- folder ZIP streams via `archiver` → `res`, members streamed individually.
+
+Accepted measurement contract:
+12.2: listing/search scaling; cleanup DB query count/timing; PostgreSQL query plans where justified.
+12.3: upload reconciliation/assembly scaling; preview latency vs bounded input size; download/Range/ZIP baseline verification.
+12.4: concurrent upload/locking behavior.
+
+Methodology: fixed/reproducible environment; comparative before/after evidence; no invented production SLOs or arbitrary universal thresholds.
+
+Policy: structural evidence may justify placement in remediation backlog; when practical, obtain baseline BEFORE implementation so 12.5 can verify before/after effect; indexes, full-text/trigram and lock redesign require measurement evidence; already-streaming download/Range/ZIP must not be redesigned without evidence.
 
 12.2 Database Query Performance — PLANNED
 - investigate query paths justified by 12.1;
