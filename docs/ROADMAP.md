@@ -22,7 +22,7 @@
 | Phase 8 — Uploads & Large Files | `COMPLETE` | commits серии Phase 8 и Remediation B, итог зафиксирован в `c877829` |
 | Phase 9 — Authentication & Sessions | `COMPLETE` | `83adfa1`, `11b27f2`, `744b27c`, `09dea37` |
 | Phase 10 — Sharing & Access Control | `COMPLETE` | 10.1–10.8 подтверждены; checkpoint `08ea21f` |
-| Phase 11 — Backend/API Hardening | `IN PROGRESS` | 11.1–11.3 COMPLETE; 11.4–11.5 PLANNED |
+| Phase 11 — Backend/API Hardening | `COMPLETE` | 11.1–11.4 COMPLETE; 11.5 FINAL GATE |
 
 ## Completed
 
@@ -133,14 +133,15 @@ Regression: `auth.validation.spec.ts`, `users.controller.contract.spec.ts`, `dto
 - Authenticated `GET /previews/:id/thumbnail` (JwtGuard) now serves `Cache-Control: private, max-age=86400` + `Vary: Authorization`; `public` directive removed (`259148b`). Preview generation/storage and public-sharing no-store policy unchanged.
 - Regression: `previews.controller.spec.ts` asserts private policy, absent `public`, `Vary: Authorization`, and unauthenticated → 403 without reaching the service; `previews.service.spec.ts` unchanged.
 
-11.4 Health Readiness Contract — PLANNED
-Scope:
-- define required readiness dependencies before implementation;
-- PostgreSQL/storage/Redis semantics must reflect actual runtime dependency, not compose presence;
-- implement only the approved dependency-aware contract.
-Exclude observability/metrics/deployment work.
+11.4 Health Readiness Contract — COMPLETE
+- 11.4A inventory: PostgreSQL required at startup (TypeOrmModule pool), storage root required (StorageService constructor `ensureDirectories`), Redis UNUSED (no client/import/consumer in `src/`).
+- 11.4B implementation: `GET /api/v1/health` unchanged as process liveness; new `GET /api/v1/health/ready` returns 200 only when PostgreSQL `SELECT 1` succeeds **and** storage root exists + is directory + process has `W_OK`; otherwise 503 with `{ status:"not_ready", checks:{ database, storage } }`. No raw errors, credentials, filesystem paths or stack traces exposed. Redis not instantiated, not queried, not in readiness result.
+- 11.4C orchestration alignment: backend Docker healthcheck switched from liveness `/api/v1/health` to readiness `/api/v1/ready` (interval 10s, timeout 5s, retries 5, start_period 30s). No startup cycle introduced — DB already `depends_on service_healthy` before the healthcheck runs; `storage_data` volume mounted before healthcheck executes. Redis removed from backend `depends_on` — zero runtime consumers; Redis service itself stays in compose (deferred separately). Frontend depends only on backend.
+- Smoke verification (Docker available): rebuilt image `homecloud-backend:11.4b`; container on `homecloud_app_network` with `storage_data` mounted and `homeredis` **exited** → `/health` 200, `/health/ready` 200 `{"checks":{"database":"ok","storage":"ok"}}`. DB-unreachable container exits fail-closed during TypeORM bootstrap (expected). Smoke containers removed; production stack intact.
+- Tests: `backend/src/common/health.controller.spec.ts` 7/7 — liveness unchanged/no-probe; ready→200; DB fail→503; storage missing→503; not-directory→503; not-writable→503; error/path/credential non-exposure. `tsc --noEmit` clean.
+- Commit: `6d065f2` (11.4B), `b7f1a3e` (11.4C compose).
 
-11.5 Final Gate & Documentation — PLANNED
+11.5 Final Gate & Documentation — FINAL GATE
 - focused regressions;
 - full backend suite;
 - tsc;
