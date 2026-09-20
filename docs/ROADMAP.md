@@ -22,6 +22,7 @@
 | Phase 8 — Uploads & Large Files | `COMPLETE` | commits серии Phase 8 и Remediation B, итог зафиксирован в `c877829` |
 | Phase 9 — Authentication & Sessions | `COMPLETE` | `83adfa1`, `11b27f2`, `744b27c`, `09dea37` |
 | Phase 10 — Sharing & Access Control | `COMPLETE` | 10.1–10.8 подтверждены; checkpoint `08ea21f` |
+| Phase 11 — Backend/API Hardening | `IN PROGRESS` | 11.1 API Boundary Inventory завершён и проверен владельцем; 11.2–11.5 запланированы |
 
 ## Completed
 
@@ -112,6 +113,62 @@ Acceptance criteria: lifecycle и threat model документированы; e
 - удалённый или недоступный объект не выдаёт содержимое;
 - README/API reference соответствуют фактической реализации;
 - итоговый commit проверен и roadmap обновлён.
+
+## Phase 11 — Backend/API Hardening — IN PROGRESS
+
+11.1 API Boundary Inventory — COMPLETE
+- auth/users/health;
+- files/folders/uploads/previews;
+- sharing boundary;
+- no confirmed authz/IDOR defects;
+- no Phase 10 sharing regression.
+
+11.2 Validation & Error Contracts — PLANNED
+Scope:
+- verify actual RefreshTokenDto/LogoutDto behavior under global ValidationPipe before changing it;
+- fix confirmed auth DTO validation gap if reproduced;
+- bounded input constraints for share password, upload filename, profile avatar where contractually appropriate;
+- normalize users not-found/updateProfile HTTP error semantics.
+Exclude unrelated DTO/refactor work.
+
+11.3 HTTP Cache Boundary — PLANNED
+Scope:
+- correct authenticated thumbnail cache policy;
+- focused regression tests.
+Exclude preview redesign.
+
+11.4 Health Readiness Contract — PLANNED
+Scope:
+- define required readiness dependencies before implementation;
+- PostgreSQL/storage/Redis semantics must reflect actual runtime dependency, not compose presence;
+- implement only the approved dependency-aware contract.
+Exclude observability/metrics/deployment work.
+
+11.5 Final Gate & Documentation — PLANNED
+- focused regressions;
+- full backend suite;
+- tsc;
+- lint;
+- build;
+- documentation reconciliation;
+- final Phase 11 checkpoint.
+
+Explicitly deferred / not Phase 11 defects:
+- dedicated per-user upload-chunk rate limiting pending evidence/policy;
+- broad rate-limit redesign;
+- performance/load testing;
+- observability;
+- frontend;
+- production deployment/TLS/secrets;
+- Phase 10 sharing redesign.
+
+Phase 11 acceptance:
+1. confirmed boundary validation gaps closed;
+2. users error contracts normalized;
+3. authenticated thumbnail cannot be publicly cached;
+4. approved readiness contract implemented and tested;
+5. no authz/IDOR or Phase 10 sharing regression;
+6. full final gate PASS.
 
 ## Planned
 
