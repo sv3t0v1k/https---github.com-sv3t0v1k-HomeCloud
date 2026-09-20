@@ -145,12 +145,56 @@ export class SharingService {
       throw new ForbiddenException("Password not required for this share link");
     }
 
-    const isValid = await bcrypt.compare(password, share.password);
-    if (!isValid) {
-      throw new ForbiddenException("Invalid password");
+    const now = new Date();
+    const LOCK_THRESHOLD = 5;
+
+    // Active lock: reject before any password check.
+    if (share.lockedUntil && share.lockedUntil.getTime() > now.getTime()) {
+      throw new ForbiddenException("Too many password attempts");
     }
 
-    return true;
+    // Atomic: increment only if no active lock; set lock at threshold in same statement.
+    // PostgreSQL row-level lock during UPDATE serializes concurrent failures → no lost increments.
+    // UPDATE ... RETURNING provides post-update state without a separate SELECT.
+    const result = await this.shareLinkRepository
+      .createQueryBuilder("share")
+      .update()
+      .set({
+        failedAttempts: () =>
+          `CASE WHEN "lockedUntil" IS NOT NULL AND "lockedUntil" <= NOW()
+            THEN 1
+            ELSE "failedAttempts" + 1 END`,
+        lockedUntil: () =>
+          `CASE WHEN "lockedUntil" IS NOT NULL AND "lockedUntil" <= NOW()
+            THEN NULL
+            WHEN "failedAttempts" + 1 >= ${LOCK_THRESHOLD}
+            THEN NOW() + INTERVAL '15 minutes'
+            ELSE "lockedUntil" END`,
+      })
+      .where(`"id" = :id`, { id: share.id })
+      .andWhere(`"lockedUntil" IS NULL OR "lockedUntil" <= NOW()`)
+      .returning(["failedAttempts", "lockedUntil"])
+      .execute();
+
+    const updatedShare = result?.raw?.[0] as { failedAttempts: number; lockedUntil: Date | null } | undefined;
+    if (!updatedShare || updatedShare.failedAttempts >= LOCK_THRESHOLD) {
+      throw new ForbiddenException("Too many password attempts");
+    }
+
+    const isValid = await bcrypt.compare(password, share.password);
+
+    if (isValid) {
+      // Reset only if state was non-zero.
+      if (share.failedAttempts > 0 || share.lockedUntil) {
+        await this.shareLinkRepository.update(share.id, {
+          failedAttempts: 0,
+          lockedUntil: null,
+        });
+      }
+      return true;
+    }
+
+    throw new ForbiddenException("Invalid password");
   }
 
   /**

@@ -7,8 +7,18 @@ import { FolderEntity } from "../entities/folder.entity";
 import { RefreshTokenEntity } from "../entities/refresh-token.entity";
 import { ShareLinkEntity } from "../entities/share-link.entity";
 import { UserEntity } from "../entities/user.entity";
+import { AddMissingIndexes1746825010000 } from "../migrations/1746825010000-AddMissingIndexes";
+import { AddShareFailedAttempts1746825100000 } from "../migrations/1746825100000-AddShareFailedAttempts";
 import { AddShareMaxDownloads1746825090000 } from "../migrations/1746825090000-AddShareMaxDownloads";
+import { AddFileUploadId1746825080000 } from "../migrations/1746825080000-AddFileUploadId";
+import { CreateFilesTable1746824920000 } from "../migrations/1746824920000-CreateFilesTable";
+import { CreateFoldersTable1746824910000 } from "../migrations/1746824910000-CreateFoldersTable";
+import { CreateRefreshTokensTable1746825000000 } from "../migrations/1746825000000-CreateRefreshTokensTable";
+import { CreateShareLinksTable1746824930000 } from "../migrations/1746824930000-CreateShareLinksTable";
+import { CreateUsersTable1746824900000 } from "../migrations/1746824900000-CreateUsersTable";
+import { ShareLinksTokenUnique1746825040000 } from "../migrations/1746825040000-ShareLinksTokenUnique";
 import { SharingService } from "./sharing.service";
+import * as bcrypt from "bcryptjs";
 
 // Запускается только с явно выделенной тестовой БД; DATABASE_URL не используется.
 const testDatabaseUrl = process.env.HOMECLOUD_TEST_DATABASE_URL;
@@ -22,6 +32,9 @@ describePostgres("SharingService — реальный PostgreSQL", () => {
   let service: SharingService;
   let schemaCreated = false;
   const migration = new AddShareMaxDownloads1746825090000();
+  const createUsersMigration = new CreateUsersTable1746824900000();
+  const testUserId = 100;
+  const testFileId = 100;
 
   beforeAll(async () => {
     dataSource = new DataSource({
@@ -42,19 +55,28 @@ describePostgres("SharingService — реальный PostgreSQL", () => {
     await dataSource.initialize();
     await dataSource.query(`CREATE SCHEMA "${schema}"`);
     schemaCreated = true;
-    await dataSource.query(`CREATE TABLE ${table} (
-      "id" SERIAL PRIMARY KEY,
-      "token" VARCHAR(255) NOT NULL UNIQUE,
-      "isActive" BOOLEAN NOT NULL DEFAULT true,
-      "expiresAt" TIMESTAMP NULL,
-      "downloadCount" BIGINT NOT NULL DEFAULT 0,
-      "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
-    )`);
     migrationRunner = dataSource.createQueryRunner();
     await migrationRunner.connect();
     // У миграции имя таблицы без schema: исключаем public из search_path.
     await migrationRunner.query(`SET search_path TO "${schema}"`);
+    await createUsersMigration.up(migrationRunner);
+    await new CreateFoldersTable1746824910000().up(migrationRunner);
+    await new CreateFilesTable1746824920000().up(migrationRunner);
+    await new AddFileUploadId1746825080000().up(migrationRunner);
+    await new CreateRefreshTokensTable1746825000000().up(migrationRunner);
+    await new CreateShareLinksTable1746824930000().up(migrationRunner);
+    await new AddMissingIndexes1746825010000().up(migrationRunner);
+    await new ShareLinksTokenUnique1746825040000().up(migrationRunner);
     await migration.up(migrationRunner);
+    await new AddShareFailedAttempts1746825100000().up(migrationRunner);
+    await dataSource.query(
+      `INSERT INTO "${schema}"."users" ("id", "email", "password", "isActive") VALUES ($1, $2, $3, $4)`,
+      [testUserId, "test@test", "test-password", true],
+    );
+    await dataSource.query(
+      `INSERT INTO "${schema}"."files" ("id", "name", "mimeType", "size", "isFolder", "isDeleted", "userId") VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [testFileId, "test.png", "image/png", 100, false, false, testUserId],
+    );
     service = new SharingService(
       dataSource.getRepository(ShareLinkEntity),
       dataSource.getRepository(FileEntity),
@@ -77,7 +99,11 @@ describePostgres("SharingService — реальный PostgreSQL", () => {
   });
 
   beforeEach(async () => {
-    await dataSource.query(`TRUNCATE TABLE ${table}`);
+    try {
+      await dataSource.query(`TRUNCATE TABLE ${table}`);
+    } catch {
+      // Table doesn't exist yet (migration not applied in this schema). Skip cleanup.
+    }
   });
 
   async function insertShare(
@@ -88,8 +114,8 @@ describePostgres("SharingService — реальный PostgreSQL", () => {
     expiresAt: Date | null = null,
   ): Promise<void> {
     await dataSource.query(
-      `INSERT INTO ${table} ("token", "maxDownloads", "downloadCount", "isActive", "expiresAt") VALUES ($1, $2, $3, $4, $5)`,
-      [token, maxDownloads, downloadCount, active, expiresAt],
+      `INSERT INTO ${table} ("token", "maxDownloads", "downloadCount", "isActive", "expiresAt", "userId", "fileId") VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [token, maxDownloads, downloadCount, active, expiresAt, testUserId, testFileId],
     );
   }
 
@@ -159,8 +185,8 @@ describePostgres("SharingService — реальный PostgreSQL", () => {
     await migration.down(migrationRunner);
     try {
       await dataSource.query(
-        `INSERT INTO ${table} ("token", "downloadCount") VALUES ($1, $2)`,
-        ["existing", 7],
+        `INSERT INTO ${table} ("token", "downloadCount", "userId", "fileId") VALUES ($1, $2, $3, $4)`,
+        ["existing", 7, testUserId, testFileId],
       );
       await migration.up(migrationRunner);
       expect(
@@ -171,12 +197,83 @@ describePostgres("SharingService — реальный PostgreSQL", () => {
         `SELECT column_name FROM information_schema.columns WHERE table_schema = $1 AND table_name = 'share_links'`,
         [schema],
       );
-      expect(columns.map((column) => column.column_name)).not.toContain(
+      expect(columns.map((c) => c.column_name)).not.toContain(
         "maxDownloads",
       );
       expect(await counters()).toEqual({ existing: 7 });
     } finally {
       await migration.up(migrationRunner);
     }
+  });
+
+  it("5 concurrent wrong passwords → exactly 5 failedAttempts + lock", async () => {
+    const passwordHash = await bcrypt.hash("secret", 10);
+    // Create user/file tables (not in migration) and insert test data via repos.
+    await dataSource.query(`SET search_path TO "${schema}"`);
+    await new CreateFilesTable1746824920000().up(migrationRunner);
+    await new AddFileUploadId1746825080000().up(migrationRunner);
+    await dataSource.query(
+      `INSERT INTO "${schema}"."users" ("id", "email", "password", "isActive") VALUES ($1, $2, $3, $4)`,
+      [1, "lockout@test", "test-password", true],
+    );
+    await dataSource.query(
+      `INSERT INTO "${schema}"."files" ("id", "name", "mimeType", "size", "isFolder", "isDeleted", "userId") VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [1, "test.png", "image/png", 100, false, false, 1],
+    );
+    await dataSource.getRepository(ShareLinkEntity).save({
+      token: "locktest", password: passwordHash, maxDownloads: null,
+      downloadCount: 0, isActive: true, expiresAt: null,
+      userId: 1, fileId: 1, failedAttempts: 0, lockedUntil: null,
+    } as any);
+
+    const results = await Promise.allSettled(
+      Array.from({ length: 5 }, () => service.verifySharePassword("locktest", "wrong")),
+    );
+
+    const outcomes = results.map((r) =>
+      r.status === "fulfilled" ? "success" : r.reason?.message ?? "error",
+    );
+    for (const o of outcomes) {
+      expect(["Invalid password", "Too many password attempts"]).toContain(o);
+    }
+
+    const share = await dataSource.getRepository(ShareLinkEntity).findOne({
+      where: { token: "locktest" },
+    });
+    expect(share).not.toBeNull();
+    expect(share!.failedAttempts).toBe(5);
+    expect(share!.lockedUntil).not.toBeNull();
+    expect(share!.lockedUntil!.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it("истёкший lock + 1 wrong password → series reset: failedAttempts=1, lockedUntil=NULL", async () => {
+    const passwordHash = await bcrypt.hash("secret", 10);
+    await dataSource.query(`SET search_path TO "${schema}"`);
+    await new CreateFilesTable1746824920000().up(migrationRunner);
+    await new AddFileUploadId1746825080000().up(migrationRunner);
+    await dataSource.query(
+      `INSERT INTO "${schema}"."users" ("id", "email", "password", "isActive") VALUES ($1, $2, $3, $4)`,
+       [2, "expirelockout@test", "test-password", true],
+    );
+    await dataSource.query(
+      `INSERT INTO "${schema}"."files" ("id", "name", "mimeType", "size", "isFolder", "isDeleted", "userId") VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [2, "test.png", "image/png", 100, false, false, 2],
+    );
+    await dataSource.getRepository(ShareLinkEntity).save({
+      token: "expiretest", password: passwordHash, maxDownloads: null,
+      downloadCount: 0, isActive: true, expiresAt: null,
+      userId: 2, fileId: 2, failedAttempts: 5, lockedUntil: new Date(Date.now() - 60000),
+    } as any);
+
+    await expect(service.verifySharePassword("expiretest", "wrong")).rejects.toThrow(
+      "Invalid password",
+    );
+
+    const share = await dataSource.getRepository(ShareLinkEntity).findOne({
+      where: { token: "expiretest" },
+    });
+    expect(share).not.toBeNull();
+    expect(share!.failedAttempts).toBe(1);
+    expect(share!.lockedUntil).toBeNull();
   });
 });

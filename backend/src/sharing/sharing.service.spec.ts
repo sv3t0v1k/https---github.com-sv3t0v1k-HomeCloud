@@ -20,6 +20,7 @@ describe("SharingService - Authorization Boundary", () => {
       find: jest.fn(),
       create: jest.fn(),
       save: jest.fn(),
+      update: jest.fn(),
       createQueryBuilder: jest.fn(),
     };
     mockFileRepository = {
@@ -99,6 +100,8 @@ describe("SharingService - Authorization Boundary", () => {
       share.password = await bcrypt.hash("secret", 4);
       mockShareLinkRepository.findOne.mockResolvedValue(share);
       await expect(service.findShareByToken("tok")).resolves.toBe(share);
+      makeQb([{ failedAttempts: 0, lockedUntil: null }]);
+      makeQb([{ failedAttempts: 0, lockedUntil: null }]);
       await expect(service.verifySharePassword("tok", "secret")).resolves.toBe(true);
       await expect(service.verifySharePassword("tok", "wrong")).rejects.toThrow("Invalid password");
     });
@@ -261,6 +264,120 @@ describe("SharingService - Authorization Boundary", () => {
         where: { token: "tok", isActive: true },
         relations: ["file", "user"],
       });
+    });
+  });
+
+  describe("verifySharePassword — lockout policy", () => {
+    it("attempts 1–4: wrong password → Invalid password", async () => {
+      const share = validShare();
+      share.password = await bcrypt.hash("secret", 4);
+      share.failedAttempts = 0;
+      share.lockedUntil = null;
+      mockShareLinkRepository.findOne.mockResolvedValue(share);
+
+      for (let i = 0; i < 4; i++) {
+        const qb = makeQb([{ failedAttempts: i + 1, lockedUntil: null }]);
+        await expect(service.verifySharePassword("tok", "wrong")).rejects.toThrow(
+          "Invalid password",
+        );
+        expect(qb.execute).toHaveBeenCalled();
+      }
+    });
+
+    it("attempt #5: threshold set + Too many password attempts", async () => {
+      const share = validShare();
+      share.password = await bcrypt.hash("secret", 4);
+      share.failedAttempts = 4;
+      share.lockedUntil = null;
+      mockShareLinkRepository.findOne.mockResolvedValue(share);
+
+      const qb = makeQb([{ failedAttempts: 5, lockedUntil: new Date(Date.now() + 900_000) }]);
+      await expect(service.verifySharePassword("tok", "wrong")).rejects.toThrow(
+        "Too many password attempts",
+      );
+      expect(qb.execute).toHaveBeenCalled();
+    });
+
+    it("active lock: createQueryBuilder NOT called", async () => {
+      const share = validShare();
+      share.password = await bcrypt.hash("secret", 4);
+      share.failedAttempts = 5;
+      share.lockedUntil = new Date(Date.now() + 900_000);
+      mockShareLinkRepository.findOne.mockResolvedValue(share);
+
+      await expect(service.verifySharePassword("tok", "wrong")).rejects.toThrow(
+        "Too many password attempts",
+      );
+      expect(mockShareLinkRepository.createQueryBuilder).not.toHaveBeenCalled();
+    });
+
+    it("correct password: success + state reset to 0 / NULL", async () => {
+      const share = validShare();
+      share.password = await bcrypt.hash("secret", 4);
+      share.failedAttempts = 3;
+      share.lockedUntil = null;
+      mockShareLinkRepository.findOne.mockResolvedValue(share);
+      makeQb([{ failedAttempts: 3, lockedUntil: null }]);
+
+      await expect(service.verifySharePassword("tok", "secret")).resolves.toBe(true);
+
+      expect(mockShareLinkRepository.update).toHaveBeenCalledWith(share.id, {
+        failedAttempts: 0,
+        lockedUntil: null,
+      });
+    });
+
+    it("expired lock + wrong password: new series starts at attempt #1", async () => {
+      const share = validShare();
+      share.password = await bcrypt.hash("secret", 4);
+      share.failedAttempts = 5;
+      share.lockedUntil = new Date(Date.now() - 1000); // expired
+      mockShareLinkRepository.findOne.mockResolvedValue(share);
+
+      const qb = makeQb([{ failedAttempts: 1, lockedUntil: null }]);
+
+      await expect(service.verifySharePassword("tok", "wrong")).rejects.toThrow(
+        "Invalid password",
+      );
+      expect(qb.execute).toHaveBeenCalled();
+    });
+
+    it("expired lock + wrong password: atomic UPDATE resets to failedAttempts=1, lockedUntil=NULL (regression)", async () => {
+      const share = validShare();
+      share.password = await bcrypt.hash("secret", 4);
+      share.failedAttempts = 5;
+      share.lockedUntil = new Date(Date.now() - 1000); // expired
+      mockShareLinkRepository.findOne.mockResolvedValue(share);
+
+      const qb = makeQb([{ failedAttempts: 1, lockedUntil: null }]);
+
+      await expect(service.verifySharePassword("tok", "wrong")).rejects.toThrow(
+        "Invalid password",
+      );
+      expect(qb.execute).toHaveBeenCalled();
+
+      // Regression guard: expired branch MUST null-out lockedUntil in the atomic
+      // UPDATE (NOT re-lock using the stale pre-reset failedAttempts).
+      const setArg = qb.set.mock.calls[0][0];
+      const norm = (s: string) => s.replace(/\s+/g, " ").trim();
+      const failedAttemptsSql = norm(setArg.failedAttempts());
+      const lockedUntilSql = norm(setArg.lockedUntil());
+
+      expect(failedAttemptsSql).toContain(
+        `CASE WHEN "lockedUntil" IS NOT NULL AND "lockedUntil" <= NOW() THEN 1 ELSE "failedAttempts" + 1 END`,
+      );
+      expect(lockedUntilSql).toContain(
+        `CASE WHEN "lockedUntil" IS NOT NULL AND "lockedUntil" <= NOW() THEN NULL WHEN "failedAttempts" + 1 >= 5 THEN NOW() + INTERVAL '15 minutes' ELSE "lockedUntil" END`,
+      );
+    });
+
+    it("invalid share: lockout state NOT changed", async () => {
+      mockShareLinkRepository.findOne.mockResolvedValue(null);
+      await expect(service.verifySharePassword("tok", "wrong")).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockShareLinkRepository.createQueryBuilder).not.toHaveBeenCalled();
+      expect(mockShareLinkRepository.update).not.toHaveBeenCalled();
     });
   });
 

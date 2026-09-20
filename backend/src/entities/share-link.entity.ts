@@ -28,8 +28,14 @@ export class ShareLinkEntity {
   @Column({ nullable: true, name: "expiresAt" })
   expiresAt!: Date;
 
+  @Column({ type: "timestamp", nullable: true, name: "lockedUntil" })
+  lockedUntil!: Date | null;
+
   @Column({ default: true, name: "isActive" })
   isActive!: boolean;
+
+  @Column({ type: "smallint", default: 0, name: "failedAttempts" })
+  failedAttempts!: number;
 
   @Column({ type: "bigint", default: 0, name: "downloadCount" })
   downloadCount!: number;
