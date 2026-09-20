@@ -1,7 +1,8 @@
-import { IsString, IsNumber, IsOptional, Min } from "class-validator";
+import { IsString, IsNumber, IsOptional, MaxLength, Min } from "class-validator";
 
 export class CreateSessionDto {
   @IsString()
+  @MaxLength(255)
   filename!: string;
 
   @IsNumber()

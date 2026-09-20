@@ -8,5 +8,6 @@ export class UpdateProfileDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   avatar?: string;
 }
