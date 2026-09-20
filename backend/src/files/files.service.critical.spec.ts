@@ -90,6 +90,25 @@ describe("FilesService - Critical Findings (F-01, F-02, MISS-01, MISS-02, MISS-0
   // Permanent Folder Deletion (MISS-01, MISS-02)
   // ============================================================
   describe("deleteFolderPermanently — MISS-01 (quota) + MISS-02 (subtree)", () => {
+    const setSubtree = (
+      qr: any,
+      folderIds: number[],
+      files: any[] = [],
+      mirrors: any[] = folderIds.map((folderId, index) => ({
+        id: 1000 + index,
+        folderId,
+        userId: 1,
+        isFolder: true,
+        size: 0,
+      })),
+    ) => {
+      qr.manager.query.mockResolvedValue(folderIds.map(id => ({ id })));
+      qr.manager.find
+        .mockResolvedValueOnce(folderIds.map(id => ({ id, userId: 1 })))
+        .mockResolvedValueOnce(files)
+        .mockResolvedValueOnce(mirrors);
+    };
+
     it("should throw NotFoundException when folder does not exist", async () => {
       const qr = mockFolderRepository.manager.connection.createQueryRunner();
       qr.manager.findOne.mockResolvedValue(null);
@@ -101,9 +120,7 @@ describe("FilesService - Critical Findings (F-01, F-02, MISS-01, MISS-02, MISS-0
       const qr = mockFolderRepository.manager.connection.createQueryRunner();
 
       qr.manager.findOne.mockResolvedValue({ id: 1, userId: 1, name: "Empty" });
-      qr.manager.query.mockResolvedValue([{ id: 1 }]);
-      qr.manager.find.mockResolvedValue([]);
-      qr.manager.find.mockResolvedValue([]);
+      setSubtree(qr, [1]);
 
       await service.deleteFolderPermanently(1, 1);
 
@@ -117,12 +134,9 @@ describe("FilesService - Critical Findings (F-01, F-02, MISS-01, MISS-02, MISS-0
       const qr = mockFolderRepository.manager.connection.createQueryRunner();
 
       qr.manager.findOne.mockResolvedValue({ id: 1, userId: 1, name: "Docs" });
-      qr.manager.query.mockResolvedValue([{ id: 1 }]);
-      // Use mockResolvedValueOnce for the two find calls (descendant files + folder mirrors)
-      qr.manager.find.mockResolvedValueOnce([
-        { id: 10, userId: 1, parentId: 1, isFolder: false, size: 1024, storagePath: "/storage/1/file.txt" },
+      setSubtree(qr, [1], [
+        { id: 10, userId: 1, parentId: 1, isFolder: false, size: "1024", storagePath: "/storage/1/file.txt" },
       ]);
-      qr.manager.find.mockResolvedValueOnce([]);
 
       await service.deleteFolderPermanently(1, 1);
 
@@ -131,20 +145,31 @@ describe("FilesService - Critical Findings (F-01, F-02, MISS-01, MISS-02, MISS-0
       expect(qr.commitTransaction).toHaveBeenCalled();
     });
 
+    it("rolls back on unsafe file size metadata", async () => {
+      const qr = mockFolderRepository.manager.connection.createQueryRunner();
+      qr.manager.findOne.mockResolvedValue({ id: 1, userId: 1 });
+      setSubtree(qr, [1], [
+        { id: 10, userId: 1, parentId: 1, isFolder: false, size: "invalid" },
+      ]);
+
+      await expect(service.deleteFolderPermanently(1, 1)).rejects.toThrow(
+        "Invalid file size metadata",
+      );
+      expect(qr.manager.delete).not.toHaveBeenCalled();
+      expect(qr.rollbackTransaction).toHaveBeenCalledTimes(1);
+      expect(qr.commitTransaction).not.toHaveBeenCalled();
+    });
+
     it("should collect and delete all files in nested subtree", async () => {
       const qr = mockFolderRepository.manager.connection.createQueryRunner();
 
       qr.manager.findOne.mockResolvedValue({ id: 1, userId: 1, name: "Root" });
       // CTE returns 2 folders (root + child)
-      qr.manager.query.mockResolvedValue([{ id: 1 }, { id: 2 }]);
-      // First find: descendant files (isFolder: false)
-      qr.manager.find.mockResolvedValueOnce([
+      setSubtree(qr, [1, 2], [
         { id: 10, userId: 1, parentId: 1, isFolder: false, size: 100, storagePath: "/s/1/a.txt" },
         { id: 20, userId: 1, parentId: 1, isFolder: false, size: 200, storagePath: "/s/1/b.txt" },
         { id: 30, userId: 1, parentId: 2, isFolder: false, size: 300, storagePath: "/s/2/c.txt" },
       ]);
-      // Second find: folder mirror files (isFolder: true) - none in this case
-      qr.manager.find.mockResolvedValueOnce([]);
 
       await service.deleteFolderPermanently(1, 1);
 
@@ -158,9 +183,7 @@ describe("FilesService - Critical Findings (F-01, F-02, MISS-01, MISS-02, MISS-0
       const qr = mockFolderRepository.manager.connection.createQueryRunner();
 
       qr.manager.findOne.mockResolvedValue({ id: 1, userId: 1, name: "Root" });
-      qr.manager.query.mockResolvedValue([{ id: 1 }, { id: 2 }]);
-      qr.manager.find.mockResolvedValueOnce([]);
-      qr.manager.find.mockResolvedValueOnce([]);
+      setSubtree(qr, [1, 2]);
 
       await service.deleteFolderPermanently(1, 1);
 
@@ -170,11 +193,9 @@ describe("FilesService - Critical Findings (F-01, F-02, MISS-01, MISS-02, MISS-0
     it("should not fail on missing storagePath", async () => {
       const qr = mockFolderRepository.manager.connection.createQueryRunner();
       qr.manager.findOne.mockResolvedValue({ id: 1, userId: 1, name: "Root" });
-      qr.manager.query.mockResolvedValue([{ id: 1 }]);
-      qr.manager.find.mockResolvedValueOnce([
+      setSubtree(qr, [1], [
         { id: 10, parentId: 1, isFolder: false, size: 50, storagePath: null },
       ]);
-      qr.manager.find.mockResolvedValueOnce([]);
 
       await service.deleteFolderPermanently(1, 1);
 
@@ -184,15 +205,82 @@ describe("FilesService - Critical Findings (F-01, F-02, MISS-01, MISS-02, MISS-0
     it("should rollback transaction on error", async () => {
       const qr = mockFolderRepository.manager.connection.createQueryRunner();
       qr.manager.findOne.mockResolvedValue({ id: 1, userId: 1, name: "Root" });
-      qr.manager.query.mockResolvedValue([{ id: 1 }]);
-      qr.manager.find.mockResolvedValueOnce([]);
-      qr.manager.find.mockResolvedValueOnce([]);
+      setSubtree(qr, [1]);
       qr.manager.delete.mockRejectedValue(new Error("DB error"));
 
       await expect(service.deleteFolderPermanently(1, 1)).rejects.toThrow("DB error");
 
       expect(qr.rollbackTransaction).toHaveBeenCalled();
       expect(qr.commitTransaction).not.toHaveBeenCalled();
+    });
+
+    it("finds differently-id mirrors by folderId and deletes files before folders", async () => {
+      const qr = mockFolderRepository.manager.connection.createQueryRunner();
+      qr.manager.findOne.mockResolvedValue({ id: 4, userId: 1 });
+      const mirrors = [
+        { id: 901, folderId: 4, userId: 1, isFolder: true, size: 0 },
+        { id: 902, folderId: 5, userId: 1, isFolder: true, size: 0 },
+      ];
+      setSubtree(qr, [4, 5], [], mirrors);
+
+      await service.deleteFolderPermanently(1, 4);
+
+      expect(qr.startTransaction).toHaveBeenCalledWith("SERIALIZABLE");
+      expect(qr.manager.find).toHaveBeenNthCalledWith(3, FileEntity, {
+        where: { userId: 1, folderId: expect.anything(), isFolder: true },
+        lock: { mode: "pessimistic_write" },
+      });
+      expect(qr.manager.delete).toHaveBeenNthCalledWith(1, FileEntity, [901, 902]);
+      expect(qr.manager.delete).toHaveBeenNthCalledWith(2, FolderEntity, [4, 5]);
+      expect(qr.manager.delete.mock.invocationCallOrder[1]).toBeLessThan(
+        qr.commitTransaction.mock.invocationCallOrder[0],
+      );
+      expect(qr.release).toHaveBeenCalledTimes(1);
+    });
+
+    it("fails closed and rolls back when any subtree mirror is missing", async () => {
+      const qr = mockFolderRepository.manager.connection.createQueryRunner();
+      qr.manager.findOne.mockResolvedValue({ id: 4, userId: 1 });
+      setSubtree(qr, [4, 5], [], [
+        { id: 901, folderId: 4, userId: 1, isFolder: true },
+      ]);
+
+      await expect(service.deleteFolderPermanently(1, 4)).rejects.toThrow(
+        "Folder mirror not found",
+      );
+      expect(mockUsersService.decrementStorageUsed).not.toHaveBeenCalled();
+      expect(qr.manager.delete).not.toHaveBeenCalled();
+      expect(qr.commitTransaction).not.toHaveBeenCalled();
+      expect(qr.rollbackTransaction).toHaveBeenCalledTimes(1);
+      expect(qr.release).toHaveBeenCalledTimes(1);
+    });
+
+    it("rolls back without physical deletion when folder delete fails", async () => {
+      const qr = mockFolderRepository.manager.connection.createQueryRunner();
+      qr.manager.findOne.mockResolvedValue({ id: 4, userId: 1 });
+      setSubtree(qr, [4], [
+        { id: 20, userId: 1, parentId: 4, isFolder: false, size: 5, storagePath: "/s/a" },
+      ]);
+      qr.manager.delete
+        .mockResolvedValueOnce({ affected: 2 })
+        .mockRejectedValueOnce(new Error("folder delete failed"));
+
+      await expect(service.deleteFolderPermanently(1, 4)).rejects.toThrow(
+        "folder delete failed",
+      );
+      expect(qr.rollbackTransaction).toHaveBeenCalledTimes(1);
+      expect(qr.commitTransaction).not.toHaveBeenCalled();
+      expect(mockStorageService.deleteFile).not.toHaveBeenCalled();
+      expect(qr.release).toHaveBeenCalledTimes(1);
+    });
+
+    it("releases query runner when transaction start fails", async () => {
+      const qr = mockFolderRepository.manager.connection.createQueryRunner();
+      qr.startTransaction.mockRejectedValue(new Error("start failed"));
+
+      await expect(service.deleteFolderPermanently(1, 4)).rejects.toThrow("start failed");
+      expect(qr.rollbackTransaction).not.toHaveBeenCalled();
+      expect(qr.release).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -252,14 +340,19 @@ describe("FilesService - Critical Findings (F-01, F-02, MISS-01, MISS-02, MISS-0
     it("should decrement total size and delete all trashed items in transaction", async () => {
       const qr = mockFileRepository.manager.connection.createQueryRunner();
 
-      qr.manager.find.mockResolvedValueOnce([
-        { id: 1, userId: 1, isDeleted: true, isFolder: false, size: 100, storagePath: "/s/a.txt" },
-        { id: 2, userId: 1, isDeleted: true, isFolder: false, size: 200, storagePath: "/s/b.txt" },
-      ]);
-      qr.manager.find.mockResolvedValueOnce([{ id: 10, userId: 1, isDeleted: true }]);
+      qr.manager.query.mockResolvedValue([{ id: 10 }]);
+      qr.manager.find
+        .mockResolvedValueOnce([{ id: 10, userId: 1, isDeleted: true }])
+        .mockResolvedValueOnce([
+          { id: 1, userId: 1, isDeleted: true, isFolder: false, size: 100, storagePath: "/s/a.txt" },
+          { id: 2, userId: 1, isDeleted: true, isFolder: false, size: 200, storagePath: "/s/b.txt" },
+        ])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ id: 501, folderId: 10, userId: 1, isFolder: true }]);
 
       await service.emptyTrash(1);
 
+      expect(qr.startTransaction).toHaveBeenCalledWith("SERIALIZABLE");
       // Total size: 100 + 200 = 300
       expect(mockUsersService.decrementStorageUsed).toHaveBeenCalledWith(1, 300, qr.manager);
       expect(mockStorageService.deleteFile).toHaveBeenCalledTimes(2);
@@ -272,7 +365,7 @@ describe("FilesService - Critical Findings (F-01, F-02, MISS-01, MISS-02, MISS-0
       qr.manager.find.mockResolvedValueOnce([
         { id: 1, userId: 1, isDeleted: true, isFolder: false, size: 50, storagePath: "/s/a.txt" },
       ]);
-      qr.manager.find.mockResolvedValueOnce([]);
+      qr.manager.query.mockResolvedValue([]);
       qr.manager.delete.mockRejectedValue(new Error("DB error"));
 
       await expect(service.emptyTrash(1)).rejects.toThrow("DB error");
@@ -282,12 +375,62 @@ describe("FilesService - Critical Findings (F-01, F-02, MISS-01, MISS-02, MISS-0
     it("should handle empty trash gracefully", async () => {
       const qr = mockFileRepository.manager.connection.createQueryRunner();
       qr.manager.find.mockResolvedValueOnce([]);
-      qr.manager.find.mockResolvedValueOnce([]);
+      qr.manager.query.mockResolvedValue([]);
 
       await service.emptyTrash(1);
 
       expect(mockUsersService.decrementStorageUsed).toHaveBeenCalledWith(1, 0, qr.manager);
       expect(qr.manager.delete).not.toHaveBeenCalled();
+    });
+
+    it("recursively deletes folder contents and mirrors without double-counting quota", async () => {
+      const qr = mockFileRepository.manager.connection.createQueryRunner();
+      const duplicate = { id: 20, userId: 1, isDeleted: true, isFolder: false, size: 200, storagePath: "/s/a" };
+      qr.manager.query.mockResolvedValue([{ id: 10 }, { id: 11 }]);
+      qr.manager.find
+        .mockResolvedValueOnce([{ id: 10, userId: 1 }, { id: 11, userId: 1 }])
+        .mockResolvedValueOnce([duplicate])
+        .mockResolvedValueOnce([
+          duplicate,
+          { id: 21, userId: 1, isFolder: false, size: 300, storagePath: "/s/b" },
+        ])
+        .mockResolvedValueOnce([
+          { id: 701, folderId: 10, userId: 1, isFolder: true },
+          { id: 702, folderId: 11, userId: 1, isFolder: true },
+        ]);
+
+      await service.emptyTrash(1);
+
+      expect(mockUsersService.decrementStorageUsed).toHaveBeenCalledWith(1, 500, qr.manager);
+      expect(qr.manager.delete).toHaveBeenNthCalledWith(1, FileEntity, [20, 21, 701, 702]);
+      expect(qr.manager.delete).toHaveBeenNthCalledWith(2, FolderEntity, [10, 11]);
+      expect(mockStorageService.deleteFile).toHaveBeenCalledTimes(2);
+      expect(qr.commitTransaction).toHaveBeenCalledTimes(1);
+    });
+
+    it("rolls back all trash when a folder mirror is missing", async () => {
+      const qr = mockFileRepository.manager.connection.createQueryRunner();
+      qr.manager.query.mockResolvedValue([{ id: 10 }]);
+      qr.manager.find
+        .mockResolvedValueOnce([{ id: 10, userId: 1 }])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+
+      await expect(service.emptyTrash(1)).rejects.toThrow("Folder mirror not found");
+      expect(qr.manager.delete).not.toHaveBeenCalled();
+      expect(qr.commitTransaction).not.toHaveBeenCalled();
+      expect(qr.rollbackTransaction).toHaveBeenCalledTimes(1);
+      expect(qr.release).toHaveBeenCalledTimes(1);
+    });
+
+    it("releases query runner when transaction start fails", async () => {
+      const qr = mockFileRepository.manager.connection.createQueryRunner();
+      qr.startTransaction.mockRejectedValue(new Error("start failed"));
+
+      await expect(service.emptyTrash(1)).rejects.toThrow("start failed");
+      expect(qr.rollbackTransaction).not.toHaveBeenCalled();
+      expect(qr.release).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -439,10 +582,12 @@ describe("FilesService - Critical Findings (F-01, F-02, MISS-01, MISS-02, MISS-0
       const qr = mockFolderRepository.manager.connection.createQueryRunner();
       qr.manager.findOne.mockResolvedValue({ id: 1, userId: 1, name: "Root" });
       qr.manager.query.mockResolvedValue([{ id: 1 }]);
-      qr.manager.find.mockResolvedValueOnce([
-        { id: 10, userId: 1, parentId: 1, isFolder: false, size: 100, storagePath: "/s/1/a.txt" },
-      ]);
-      qr.manager.find.mockResolvedValueOnce([]);
+      qr.manager.find
+        .mockResolvedValueOnce([{ id: 1, userId: 1 }])
+        .mockResolvedValueOnce([
+          { id: 10, userId: 1, parentId: 1, isFolder: false, size: 100, storagePath: "/s/1/a.txt" },
+        ])
+        .mockResolvedValueOnce([{ id: 101, folderId: 1, userId: 1, isFolder: true }]);
 
       await service.deleteFolderPermanently(1, 1);
 
@@ -455,7 +600,7 @@ describe("FilesService - Critical Findings (F-01, F-02, MISS-01, MISS-02, MISS-0
       qr.manager.find.mockResolvedValueOnce([
         { id: 1, userId: 1, isDeleted: true, isFolder: false, size: 100, storagePath: "/s/a.txt" },
       ]);
-      qr.manager.find.mockResolvedValueOnce([]);
+      qr.manager.query.mockResolvedValue([]);
 
       await service.emptyTrash(1);
 

@@ -26,6 +26,17 @@ export class FilesService {
     private usersService: UsersService,
   ) {}
 
+  private sumFileSizes(files: FileEntity[]): number {
+    return files.reduce((total, file) => {
+      const size = Number(file.size);
+      const nextTotal = total + size;
+      if (!Number.isSafeInteger(size) || size < 0 || !Number.isSafeInteger(nextTotal)) {
+        throw new BadRequestException("Invalid file size metadata");
+      }
+      return nextTotal;
+    }, 0);
+  }
+
   async findAll(
     userId: number,
     parentId?: number,
@@ -461,15 +472,16 @@ export class FilesService {
 
   async deleteFolderPermanently(userId: number, id: number) {
     const queryRunner = this.folderRepository.manager.connection.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
-    let allFilesToDelete: FileEntity[] = [];
-    let folderIdsToDelete: number[] = [];
+    let transactionStarted = false;
+    let physicalFilesToDelete: FileEntity[] = [];
 
     try {
+      await queryRunner.connect();
+      await queryRunner.startTransaction("SERIALIZABLE");
+      transactionStarted = true;
       const folder = await queryRunner.manager.findOne(FolderEntity, {
         where: { id, userId },
+        lock: { mode: "pessimistic_write" },
       });
 
       if (!folder) {
@@ -480,7 +492,7 @@ export class FilesService {
       const descendantFolderRows: { id: number }[] = await queryRunner.manager.query(`
         WITH RECURSIVE descendants AS (
           SELECT id FROM folders WHERE id = $1 AND "userId" = $2
-          UNION ALL
+          UNION
           SELECT f.id FROM folders f
           INNER JOIN descendants d ON f."parentId" = d.id
           WHERE f."userId" = $2
@@ -488,7 +500,14 @@ export class FilesService {
         SELECT id FROM descendants
       `, [id, userId]);
 
-      folderIdsToDelete = descendantFolderRows.map(r => r.id);
+      const folderIdsToDelete = descendantFolderRows.map(r => r.id);
+      const lockedFolders = await queryRunner.manager.find(FolderEntity, {
+        where: { id: In(folderIdsToDelete), userId },
+        lock: { mode: "pessimistic_write" },
+      });
+      if (lockedFolders.length !== folderIdsToDelete.length) {
+        throw new NotFoundException("Folder subtree is inconsistent");
+      }
 
       // Collect all files in the subtree (excluding folder mirror records)
       const descendantFiles = await queryRunner.manager.find(FileEntity, {
@@ -497,35 +516,45 @@ export class FilesService {
           parentId: In(folderIdsToDelete),
           isFolder: false,
         },
+        lock: { mode: "pessimistic_write" },
       });
 
       // Collect all folder mirror files (records where isFolder=true in subtree)
       const folderMirrorFiles = await queryRunner.manager.find(FileEntity, {
         where: {
           userId,
-          id: In(folderIdsToDelete),
+          folderId: In(folderIdsToDelete),
           isFolder: true,
         },
+        lock: { mode: "pessimistic_write" },
       });
+      const mirroredFolderIds = new Set(folderMirrorFiles.map(file => file.folderId));
+      if (
+        folderMirrorFiles.length !== folderIdsToDelete.length ||
+        folderIdsToDelete.some(folderId => !mirroredFolderIds.has(folderId))
+      ) {
+        throw new NotFoundException("Folder mirror not found");
+      }
 
-      allFilesToDelete = [...descendantFiles, ...folderMirrorFiles];
-      const totalSize = allFilesToDelete.reduce((sum, f) => sum + f.size, 0);
+      physicalFilesToDelete = descendantFiles;
+      const allFileRecords = [...descendantFiles, ...folderMirrorFiles];
+      const totalSize = this.sumFileSizes(descendantFiles);
 
       // Atomic quota decrement (inside transaction)
       await this.usersService.decrementStorageUsed(userId, totalSize, queryRunner.manager);
 
       // Bulk delete all records (inside transaction)
+      if (allFileRecords.length > 0) {
+        await queryRunner.manager.delete(FileEntity, allFileRecords.map(f => f.id));
+      }
       if (folderIdsToDelete.length > 0) {
         await queryRunner.manager.delete(FolderEntity, folderIdsToDelete);
-      }
-      if (allFilesToDelete.length > 0) {
-        await queryRunner.manager.delete(FileEntity, allFilesToDelete.map(f => f.id));
       }
 
       await queryRunner.commitTransaction();
 
       // Physical deletion AFTER successful commit — safe from rollback
-      for (const file of allFilesToDelete) {
+      for (const file of physicalFilesToDelete) {
         if (file.storagePath) {
           try {
             this.storageService.deleteFile(file.storagePath);
@@ -537,7 +566,9 @@ export class FilesService {
 
       return { message: "Folder deleted permanently" };
     } catch (error) {
-      await queryRunner.rollbackTransaction();
+      if (transactionStarted) {
+        await queryRunner.rollbackTransaction();
+      }
       throw error;
     } finally {
       await queryRunner.release();
@@ -560,29 +591,72 @@ export class FilesService {
 
   async emptyTrash(userId: number) {
     const queryRunner = this.fileRepository.manager.connection.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
-    let trashedFiles: any[] = [];
+    let transactionStarted = false;
+    let physicalFilesToDelete: FileEntity[] = [];
 
     try {
-      const files = await queryRunner.manager.find(FileEntity, {
+      await queryRunner.connect();
+      await queryRunner.startTransaction("SERIALIZABLE");
+      transactionStarted = true;
+      const folderRows: { id: number }[] = await queryRunner.manager.query(`
+        WITH RECURSIVE trash_folders AS (
+          SELECT id FROM folders WHERE "userId" = $1 AND "isDeleted" = true
+          UNION
+          SELECT f.id FROM folders f
+          INNER JOIN trash_folders t ON f."parentId" = t.id
+          WHERE f."userId" = $1
+        )
+        SELECT id FROM trash_folders
+      `, [userId]);
+      const folderIds = folderRows.map(row => row.id);
+
+      let folderFiles: FileEntity[] = [];
+      let folderMirrors: FileEntity[] = [];
+      if (folderIds.length > 0) {
+        const lockedFolders = await queryRunner.manager.find(FolderEntity, {
+          where: { id: In(folderIds), userId },
+          lock: { mode: "pessimistic_write" },
+        });
+        if (lockedFolders.length !== folderIds.length) {
+          throw new NotFoundException("Trash folder subtree is inconsistent");
+        }
+      }
+
+      const directlyTrashedFiles = await queryRunner.manager.find(FileEntity, {
         where: { userId, isDeleted: true, isFolder: false },
+        lock: { mode: "pessimistic_write" },
       });
-      const folders = await queryRunner.manager.find(FolderEntity, {
-        where: { userId, isDeleted: true },
-      });
+      if (folderIds.length > 0) {
+        folderFiles = await queryRunner.manager.find(FileEntity, {
+          where: { userId, parentId: In(folderIds), isFolder: false },
+          lock: { mode: "pessimistic_write" },
+        });
+        folderMirrors = await queryRunner.manager.find(FileEntity, {
+          where: { userId, folderId: In(folderIds), isFolder: true },
+          lock: { mode: "pessimistic_write" },
+        });
+        const mirroredFolderIds = new Set(folderMirrors.map(file => file.folderId));
+        if (
+          folderMirrors.length !== folderIds.length ||
+          folderIds.some(folderId => !mirroredFolderIds.has(folderId))
+        ) {
+          throw new NotFoundException("Folder mirror not found");
+        }
+      }
 
-      trashedFiles = files;
-
-      const totalSize = files.reduce((sum, f) => sum + f.size, 0);
+      const ordinaryFiles = new Map<number, FileEntity>();
+      for (const file of [...directlyTrashedFiles, ...folderFiles]) {
+        ordinaryFiles.set(file.id, file);
+      }
+      physicalFilesToDelete = [...ordinaryFiles.values()];
+      const allFileRecords = [...physicalFilesToDelete, ...folderMirrors];
+      const totalSize = this.sumFileSizes(physicalFilesToDelete);
 
       // Atomic quota decrement (inside transaction)
       await this.usersService.decrementStorageUsed(userId, totalSize, queryRunner.manager);
 
       // Bulk delete all records (inside transaction)
-      const fileIds = files.map(f => f.id);
-      const folderIds = folders.map(f => f.id);
+      const fileIds = allFileRecords.map(f => f.id);
       if (fileIds.length > 0) {
         await queryRunner.manager.delete(FileEntity, fileIds);
       }
@@ -593,7 +667,7 @@ export class FilesService {
       await queryRunner.commitTransaction();
 
       // Physical deletion AFTER successful commit — safe from rollback
-      for (const file of trashedFiles) {
+      for (const file of physicalFilesToDelete) {
         if (file.storagePath) {
           try {
             this.storageService.deleteFile(file.storagePath);
@@ -605,7 +679,9 @@ export class FilesService {
 
       return { message: "Trash emptied" };
     } catch (error) {
-      await queryRunner.rollbackTransaction();
+      if (transactionStarted) {
+        await queryRunner.rollbackTransaction();
+      }
       throw error;
     } finally {
       await queryRunner.release();
