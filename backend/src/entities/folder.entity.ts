@@ -56,4 +56,7 @@ export class FolderEntity {
 
   @OneToMany(() => FileEntity, (file) => file.parent)
   files!: FileEntity[];
+
+  @OneToMany(() => FileEntity, (file) => file.folder)
+  mirrorFiles!: FileEntity[];
 }

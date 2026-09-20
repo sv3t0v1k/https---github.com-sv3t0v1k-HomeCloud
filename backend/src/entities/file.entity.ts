@@ -52,6 +52,9 @@ export class FileEntity {
   @Column({ nullable: true, name: "parentId" })
   parentId!: number | null;
 
+  @Column({ nullable: true, name: "folderId" })
+  folderId!: number | null;
+
   @Column({ default: 0, name: "version", type: "bigint" })
   version!: number;
 
@@ -77,6 +80,13 @@ export class FileEntity {
   })
   @JoinColumn({ name: "parentId" })
   parent!: FolderEntity;
+
+  @ManyToOne(() => FolderEntity, (folder) => folder.mirrorFiles, {
+    nullable: true,
+    onDelete: "SET NULL",
+  })
+  @JoinColumn({ name: "folderId" })
+  folder!: FolderEntity;
 
   @OneToMany(() => ShareLinkEntity, (share) => share.file)
   shares!: ShareLinkEntity[];

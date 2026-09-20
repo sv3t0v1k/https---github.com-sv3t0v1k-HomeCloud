@@ -180,6 +180,7 @@ export class FilesService {
         isFolder: true,
         isDeleted: false,
         parentId,
+        folderId: folder.id,
         userId,
         version: 1,
       });
