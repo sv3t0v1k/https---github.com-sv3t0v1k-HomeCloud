@@ -1,19 +1,18 @@
-import {
-  Injectable,
-  NotFoundException,
-  ForbiddenException,
-  BadRequestException,
-  Logger,
-} from "@nestjs/common";
+import { Writable } from "stream";
+import * as fs from "fs";
+import * as path from "path";
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import * as bcrypt from "bcryptjs";
 import { v4 as uuidv4 } from "uuid";
 import { ConfigService } from "@nestjs/config";
+import archiver from "archiver";
 import { ShareLinkEntity } from "../entities/share-link.entity";
 import { FileEntity } from "../entities/file.entity";
 import { UserEntity } from "../entities/user.entity";
 import { SharedChildrenQueryDto } from "./dtos/public-share.dto";
+import { StorageService } from "../storage/storage.service";
 
 @Injectable()
 export class SharingService {
@@ -29,6 +28,7 @@ export class SharingService {
     @InjectRepository(UserEntity)
     private userRepository: Repository<UserEntity>,
     private configService: ConfigService,
+    private storageService: StorageService,
   ) {
     const rawMaxSize = configService.get("MAX_SHARE_SIZE");
     this.maxShareSize = rawMaxSize ? Number(rawMaxSize) : 100 * 1024 * 1024;
@@ -248,6 +248,126 @@ export class SharingService {
       throw new BadRequestException("Password is required or invalid");
     }
     await this.verifySharePassword(token, password);
+  }
+
+  /**
+   * Returns every live member of a shared folder subtree that would belong to a
+   * folder archive, together with its logical archive path.
+   *
+   * Scope rules are identical to `listSharedChildren` / `resolveSharedFolderFile`:
+   *  - root must be a live folder mirror (`folderId` NOT NULL);
+   *  - every ancestor must be owned by the same active user and not soft-deleted;
+   *  - every folder in the subtree must have a live mirror row;
+   *  - soft-deleted files/folders are excluded;
+   *  - legacy `folderId = NULL` mirrors fail closed (no backfill).
+   *
+   * Archive entry names are logical paths only and never contain absolute
+   * filesystem paths or `..` traversal (see `safeArchivePath`).
+   */
+  async listArchiveMembers(
+    share: ShareLinkEntity,
+  ): Promise<
+    Array<{
+      folderId: number;
+      name: string;
+      logicalPath: string;
+      isFolder: boolean;
+      storagePath: string | null;
+      size: number;
+    }>
+  > {
+    if (!share.file.isFolder || !share.file.folderId) {
+      throw new BadRequestException("Share link does not reference a folder");
+    }
+
+    const rows = await this.fileRepository.query(
+      `${this.folderSubtreeSql()}
+       SELECT folder.id AS "folderId", folder.name AS "name", true AS "isFolder",
+         NULL::varchar AS "storagePath", NULL::bigint AS "size",
+         folder."parentId" AS "parentId"
+       FROM folders folder
+       JOIN subtree parent ON folder."parentId" = parent.id
+       JOIN files mirror ON mirror."folderId" = folder.id
+         AND mirror."userId" = $2 AND mirror."isFolder" = true AND mirror."isDeleted" = false
+       WHERE folder."userId" = $2 AND folder."isDeleted" = false
+       UNION ALL
+       SELECT folder.id AS "folderId", folder.name AS "name", true AS "isFolder",
+         NULL::varchar AS "storagePath", NULL::bigint AS "size",
+         folder."parentId" AS "parentId"
+       FROM folders folder
+       JOIN subtree root ON root.id = $1
+       JOIN files mirror ON mirror."folderId" = folder.id
+         AND mirror."userId" = $2 AND mirror."isFolder" = true AND mirror."isDeleted" = false
+       WHERE folder.id = $1 AND folder."userId" = $2 AND folder."isDeleted" = false
+       UNION ALL
+       SELECT file.id AS "folderId", file.name AS "name", false AS "isFolder",
+         file."storagePath", file."size",
+         file."parentId" AS "parentId"
+       FROM files file
+       JOIN subtree parent ON file."parentId" = parent.id
+       WHERE file."userId" = $2 AND file."isDeleted" = false AND file."isFolder" = false`,
+      [share.file.folderId, share.userId],
+    );
+
+    const folderRows = rows.filter((r: any) => r.isFolder);
+    const folderPathMap = new Map<number, string>();
+    folderPathMap.set(share.file.folderId, "");
+
+    const orderedFolders = folderRows.sort(
+      (a: any, b: any) => {
+        const depthA = a.parentId ? (folderPathMap.get(a.parentId) ?? "") : "";
+        const depthB = b.parentId ? (folderPathMap.get(b.parentId) ?? "") : "";
+        return depthA.length - depthB.length;
+      },
+    );
+    for (const row of orderedFolders) {
+      if (row.folderId === share.file.folderId) continue;
+      const parentPath = row.parentId ? folderPathMap.get(row.parentId) ?? "" : "";
+      folderPathMap.set(row.folderId, parentPath ? `${parentPath}/${row.name}` : row.name);
+    }
+
+    return rows.map((row: any) => {
+      const parentPath = row.parentId ? folderPathMap.get(row.parentId) ?? "" : "";
+      const logicalPath = row.isFolder
+        ? folderPathMap.get(row.folderId) ?? row.name
+        : parentPath
+          ? `${parentPath}/${row.name}`
+          : row.name;
+      return {
+        folderId: row.folderId,
+        name: row.name,
+        logicalPath,
+        isFolder: row.isFolder,
+        storagePath: row.storagePath as string | null,
+        size: Number(row.size ?? 0),
+      };
+    });
+  }
+
+  /**
+   * Build a logical archive entry name from a relative path.
+   * Rejects absolute paths, `..` segments and platform-specific escape
+   * sequences. The result is used only as a ZIP entry name — it never maps a
+   * storage filesystem path.
+   */
+  static safeArchivePath(relativePath: string): string {
+    if (!relativePath) return "";
+    if (path.isAbsolute(relativePath)) {
+      throw new BadRequestException("Invalid archive path");
+    }
+    const normalized = relativePath.replace(/\\/g, "/").split("/");
+    const parts: string[] = [];
+    for (const part of normalized) {
+      if (part === "" || part === ".") continue;
+      if (part === "..") {
+        throw new BadRequestException("Invalid archive path");
+      }
+      parts.push(part);
+    }
+    if (parts.length === 0) {
+      throw new BadRequestException("Invalid archive path");
+    }
+    return parts.join("/");
   }
 
   private folderSubtreeSql(): string {
@@ -484,5 +604,120 @@ export class SharingService {
     }
 
     return share;
+  }
+
+  /**
+   * Stream a ZIP archive of every live member inside a shared folder subtree.
+   *
+   * Memory model: bounded. Member file contents are never read into memory as a
+   * whole — each member is opened with the same symlink-safe, storage-root
+   * confined pattern used by `downloadShare` (`storageService.ensureWithinStorageRoot`
+   * → `realpathSync` → `openSync(O_RDONLY | O_NOFOLLOW)` → `fstat` isFile) and
+   * piped into the archive through `archiver`. Only metadata and entry names
+   * are held in memory.
+   *
+   * Archive entry names are logical relative paths produced by
+   * `safeArchivePath` and never contain absolute filesystem paths or `..`
+   * traversal. Empty live folders are included as directory entries.
+   *
+   * This method is infrastructure-only: it does NOT touch the download counter
+   * or maxDownloads. Callers decide admission timing.
+   */
+  async streamFolderArchive(
+    share: ShareLinkEntity,
+    destination: Writable,
+  ): Promise<void> {
+    const members = await this.listArchiveMembers(share);
+    const archive = archiver("zip", { zlib: { level: 0 } });
+
+    return new Promise<void>((resolve, reject) => {
+      let settled = false;
+
+      const finish = (err?: Error | null) => {
+        if (settled) return;
+        settled = true;
+        archive.off("error", onError);
+        if (err) reject(err);
+        else resolve();
+      };
+
+      const onError = (err: Error) => finish(err);
+      archive.on("error", onError);
+
+      archive.on("end", () => finish());
+      archive.on("finish", () => finish());
+
+      archive.pipe(destination);
+
+      let cancelled = false;
+      destination.on("close", () => {
+        cancelled = true;
+        finish();
+      });
+      destination.on("error", (err: Error) => finish(err));
+
+      (async () => {
+        try {
+          for (const member of members) {
+            if (cancelled) break;
+
+            const entryName = SharingService.safeArchivePath(member.logicalPath) || member.name;
+
+            if (member.isFolder) {
+              // Record an empty directory entry without triggering readdir-glob
+              // (which pulls in lazystream/readable-stream and is incompatible
+              // with the project's Node 20 runtime).
+              archive.append(Buffer.alloc(0), {
+                name: entryName === member.name ? "./" : `${entryName}/`,
+                type: "directory",
+              } as any);
+              continue;
+            }
+
+            if (!member.storagePath) {
+              throw new BadRequestException(
+                `Archive member ${member.name} has no storage path`,
+              );
+            }
+
+            const safePath = this.storageService.ensureWithinStorageRoot(member.storagePath);
+            const realPath = this.storageService.ensureWithinStorageRoot(
+              fs.realpathSync(safePath),
+            );
+            const fd = fs.openSync(realPath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+
+            try {
+              const stat = fs.fstatSync(fd);
+              if (!stat.isFile()) {
+                fs.closeSync(fd);
+                throw new NotFoundException("File not found on storage");
+              }
+              // Stream the member through archiver without buffering it.
+              // fs.createReadStream closes the fd when the stream ends, so the
+              // fd lifecycle is owned by the stream from here.
+              const memberStream = fs.createReadStream(realPath, {
+                fd,
+                autoClose: true,
+              });
+              archive.append(memberStream, {
+                name: entryName,
+                stats: stat,
+              });
+            } catch (err) {
+              try {
+                fs.closeSync(fd);
+              } catch {
+                /* fd may already be closed */
+              }
+              throw err;
+            }
+          }
+
+          await archive.finalize();
+        } catch (err) {
+          finish(err as Error);
+        }
+      })();
+    });
   }
 }

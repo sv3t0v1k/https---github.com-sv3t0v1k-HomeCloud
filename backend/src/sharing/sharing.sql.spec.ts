@@ -48,6 +48,7 @@ describe("SharingService — SQL ограничения скачиваний", (
       dataSource.getRepository(FileEntity),
       dataSource.getRepository(UserEntity),
       new ConfigService(),
+      { ensureWithinStorageRoot: (p: string) => p } as any,
     );
     const token = "token-with-'quote";
 

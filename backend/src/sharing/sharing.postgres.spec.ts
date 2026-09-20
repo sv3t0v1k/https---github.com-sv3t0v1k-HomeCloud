@@ -19,6 +19,7 @@ import { CreateShareLinksTable1746824930000 } from "../migrations/1746824930000-
 import { CreateUsersTable1746824900000 } from "../migrations/1746824900000-CreateUsersTable";
 import { ShareLinksTokenUnique1746825040000 } from "../migrations/1746825040000-ShareLinksTokenUnique";
 import { SharingService } from "./sharing.service";
+import { StorageService } from "../storage/storage.service";
 import * as bcrypt from "bcryptjs";
 
 // Запускается только с явно выделенной тестовой БД; DATABASE_URL не используется.
@@ -84,6 +85,7 @@ describePostgres("SharingService — реальный PostgreSQL", () => {
       dataSource.getRepository(FileEntity),
       dataSource.getRepository(UserEntity),
       new ConfigService(),
+      { ensureWithinStorageRoot: (p: string) => p } as unknown as StorageService,
     );
   }, 30000);
 

@@ -43,6 +43,7 @@ describe("SharingService - Authorization Boundary", () => {
       mockFileRepository,
       mockUserRepository,
       mockConfigService,
+      { ensureWithinStorageRoot: (p: string) => p } as any,
     );
   });
 

@@ -26,6 +26,7 @@
     "@nestjs/terminus": "^10.2.0",
     "@nestjs/typeorm": "^10.0.2",
     "@nestjs/websockets": "^10.4.0",
+    "archiver": "^5.3.1",
     "bcryptjs": "^2.4.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
@@ -49,6 +50,7 @@
   "devDependencies": {
     "@nestjs/cli": "^10.4.0",
     "@nestjs/testing": "^10.0.1",
+    "@types/archiver": "^5.3.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",

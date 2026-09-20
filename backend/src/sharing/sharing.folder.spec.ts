@@ -31,7 +31,7 @@ describe("SharingService — scoped folder sharing", () => {
   beforeEach(() => {
     shares = { findOne: jest.fn(), query: jest.fn(), createQueryBuilder: jest.fn() };
     files = { findOne: jest.fn(), query: jest.fn() };
-    service = new SharingService(shares, files, { findOne: jest.fn() } as any, new ConfigService());
+    service = new SharingService(shares, files, { findOne: jest.fn() } as any, new ConfigService(), { ensureWithinStorageRoot: (p: string) => p } as any);
     shares.findOne.mockResolvedValue(folderShare());
   });
 
