@@ -319,15 +319,20 @@ describe("FilesService - Authorization Boundary", () => {
   });
 
   describe("updateFolder", () => {
+    let qr: any;
+
+    beforeEach(() => {
+      qr = createMockQueryRunner();
+      mockFolderRepository.manager.connection.createQueryRunner.mockReturnValue(qr);
+    });
+
     it("should throw ForbiddenException when moving folder to folder owned by another user", async () => {
       const folder = { id: 1, userId: 1, name: "Documents" };
-      const file = { id: 1, userId: 1, name: "Documents" };
       mockFolderRepository.findOne.mockImplementation(({ where }: any) => {
         if (where.id === 1 && where.userId === 1)
           return Promise.resolve(folder);
         return Promise.resolve(null);
       });
-      mockFileRepository.findOne.mockResolvedValue(file);
 
       await expect(service.updateFolder(1, 1, { parentId: 2 })).rejects.toThrow(
         ForbiddenException,
@@ -335,6 +340,135 @@ describe("FilesService - Authorization Boundary", () => {
       expect(mockFolderRepository.findOne).toHaveBeenCalledWith({
         where: { id: 2, userId: 1 },
       });
+      expect(qr.startTransaction).not.toHaveBeenCalled();
+    });
+
+    it("synchronizes rename and move when folder and mirror ids differ", async () => {
+      const folder = { id: 7, userId: 1, name: "Old", parentId: null };
+      const mirror = { id: 900, folderId: 7, userId: 1, isFolder: true, name: "Old", parentId: null };
+      mockFolderRepository.findOne.mockResolvedValue({ id: 12, userId: 1 });
+      jest.spyOn(service, "assertNoCycle").mockResolvedValue();
+      qr.manager.findOne.mockImplementation((entity: any) =>
+        Promise.resolve(entity === FolderEntity ? folder : mirror),
+      );
+      qr.manager.save.mockImplementation((entity: any) => Promise.resolve(entity));
+
+      const result = await service.updateFolder(1, 7, { name: "New", parentId: 12 });
+
+      expect(qr.manager.findOne).toHaveBeenNthCalledWith(2, FileEntity, {
+        where: { folderId: 7, userId: 1, isFolder: true },
+        lock: { mode: "pessimistic_write" },
+      });
+      expect(folder).toMatchObject({ name: "New", parentId: 12 });
+      expect(mirror).toMatchObject({ id: 900, folderId: 7, name: "New", parentId: 12 });
+      expect(result).toBe(mirror);
+      expect(qr.manager.save).toHaveBeenNthCalledWith(1, folder);
+      expect(qr.manager.save).toHaveBeenNthCalledWith(2, mirror);
+      expect(qr.manager.save.mock.invocationCallOrder[1]).toBeLessThan(
+        qr.commitTransaction.mock.invocationCallOrder[0],
+      );
+      expect(qr.rollbackTransaction).not.toHaveBeenCalled();
+      expect(qr.release).toHaveBeenCalledTimes(1);
+    });
+
+    it("fails closed when mirror is missing", async () => {
+      qr.manager.findOne.mockResolvedValueOnce({ id: 7, userId: 1 }).mockResolvedValueOnce(null);
+
+      await expect(service.updateFolder(1, 7, { name: "New" })).rejects.toThrow(
+        "Folder mirror not found",
+      );
+      expect(qr.manager.save).not.toHaveBeenCalled();
+      expect(qr.commitTransaction).not.toHaveBeenCalled();
+      expect(qr.rollbackTransaction).toHaveBeenCalledTimes(1);
+      expect(qr.release).toHaveBeenCalledTimes(1);
+    });
+
+    it("rolls back when the mirror save fails", async () => {
+      qr.manager.findOne
+        .mockResolvedValueOnce({ id: 7, userId: 1, name: "Old" })
+        .mockResolvedValueOnce({ id: 900, folderId: 7, userId: 1, isFolder: true });
+      qr.manager.save.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error("mirror save failed"));
+
+      await expect(service.updateFolder(1, 7, { name: "New" })).rejects.toThrow(
+        "mirror save failed",
+      );
+      expect(qr.commitTransaction).not.toHaveBeenCalled();
+      expect(qr.rollbackTransaction).toHaveBeenCalledTimes(1);
+      expect(qr.release).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("folder mirror transactional lifecycle", () => {
+    let qr: any;
+    const folder = { id: 41, userId: 3, isDeleted: false, deletedAt: null };
+    const mirror = { id: 812, folderId: 41, userId: 3, isFolder: true, isDeleted: false, deletedAt: null };
+
+    beforeEach(() => {
+      qr = createMockQueryRunner();
+      mockFolderRepository.manager.connection.createQueryRunner.mockReturnValue(qr);
+      qr.manager.findOne.mockImplementation((entity: any) =>
+        Promise.resolve(entity === FolderEntity ? { ...folder } : { ...mirror }),
+      );
+      qr.manager.save.mockImplementation((entity: any) => Promise.resolve(entity));
+    });
+
+    it.each([
+      ["removeFolder", (svc: FilesService) => svc.removeFolder(3, 41), true],
+      ["restoreFolder", (svc: FilesService) => svc.restoreFolder(3, 41), false],
+    ])("%s synchronizes folder and differently-id mirror", async (_name, operation, deleted) => {
+      await operation(service);
+
+      expect(qr.manager.findOne).toHaveBeenNthCalledWith(2, FileEntity, {
+        where: { folderId: 41, userId: 3, isFolder: true },
+        lock: { mode: "pessimistic_write" },
+      });
+      const [savedFolder, savedMirror] = qr.manager.save.mock.calls.map((call: any[]) => call[0]);
+      expect(savedFolder.isDeleted).toBe(deleted);
+      expect(savedMirror).toMatchObject({ id: 812, folderId: 41, isDeleted: deleted });
+      expect(savedMirror.deletedAt).toBe(savedFolder.deletedAt);
+      expect(qr.manager.save.mock.invocationCallOrder[1]).toBeLessThan(
+        qr.commitTransaction.mock.invocationCallOrder[0],
+      );
+      expect(qr.rollbackTransaction).not.toHaveBeenCalled();
+      expect(qr.release).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      ["removeFolder", (svc: FilesService) => svc.removeFolder(3, 41)],
+      ["restoreFolder", (svc: FilesService) => svc.restoreFolder(3, 41)],
+    ])("%s fails closed without a mirror", async (_name, operation) => {
+      qr.manager.findOne.mockResolvedValueOnce({ ...folder }).mockResolvedValueOnce(null);
+
+      await expect(operation(service)).rejects.toThrow("Folder mirror not found");
+      expect(qr.manager.save).not.toHaveBeenCalled();
+      expect(qr.commitTransaction).not.toHaveBeenCalled();
+      expect(qr.rollbackTransaction).toHaveBeenCalledTimes(1);
+      expect(qr.release).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      ["removeFolder", (svc: FilesService) => svc.removeFolder(3, 41)],
+      ["restoreFolder", (svc: FilesService) => svc.restoreFolder(3, 41)],
+    ])("%s rolls back when the mirror save fails", async (_name, operation) => {
+      qr.manager.save.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error("mirror save failed"));
+
+      await expect(operation(service)).rejects.toThrow("mirror save failed");
+      expect(qr.commitTransaction).not.toHaveBeenCalled();
+      expect(qr.rollbackTransaction).toHaveBeenCalledTimes(1);
+      expect(qr.release).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      ["updateFolder", (svc: FilesService) => svc.updateFolder(3, 41, { name: "New" })],
+      ["removeFolder", (svc: FilesService) => svc.removeFolder(3, 41)],
+      ["restoreFolder", (svc: FilesService) => svc.restoreFolder(3, 41)],
+    ])("%s releases after transaction start failure", async (_name, operation) => {
+      qr.startTransaction.mockRejectedValue(new Error("start failed"));
+
+      await expect(operation(service)).rejects.toThrow("start failed");
+      expect(qr.rollbackTransaction).not.toHaveBeenCalled();
+      expect(qr.commitTransaction).not.toHaveBeenCalled();
+      expect(qr.release).toHaveBeenCalledTimes(1);
     });
   });
 

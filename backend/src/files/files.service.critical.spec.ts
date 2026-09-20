@@ -396,16 +396,25 @@ describe("FilesService - Critical Findings (F-01, F-02, MISS-01, MISS-02, MISS-0
 
     it("should allow moving folder to valid target", async () => {
       const folder = { id: 1, userId: 1, name: "Documents" };
-      const file = { id: 1, userId: 1, name: "Documents" };
+      const mirror = { id: 77, folderId: 1, userId: 1, isFolder: true, name: "Documents" };
       mockFolderRepository.findOne.mockImplementation(({ where }: any) => {
         if (where.userId === 1) return Promise.resolve(folder);
         return Promise.resolve(null);
       });
-      mockFileRepository.findOne.mockResolvedValue(file);
+      const qr = mockFolderRepository.manager.connection.createQueryRunner();
+      qr.manager.findOne.mockImplementation((entity: any) =>
+        Promise.resolve(entity === FolderEntity ? folder : mirror),
+      );
+      qr.manager.save.mockImplementation((entity: any) => Promise.resolve(entity));
       (service as any).assertNoCycle = jest.fn().mockResolvedValue(undefined);
 
       const result = await service.updateFolder(1, 1, { parentId: 3 });
-      expect(result).toBeDefined();
+      expect(result).toBe(mirror);
+      expect(qr.manager.findOne).toHaveBeenCalledWith(FileEntity, {
+        where: { folderId: 1, userId: 1, isFolder: true },
+        lock: { mode: "pessimistic_write" },
+      });
+      expect(qr.commitTransaction).toHaveBeenCalled();
     });
   });
 

@@ -238,39 +238,62 @@ export class FilesService {
     id: number,
     data: { name?: string; parentId?: number | null },
   ) {
-    const folder = await this.findFolder(userId, id);
-    const file = await this.fileRepository.findOne({ where: { id, userId } });
-
-    if (data.name) {
-      if (!data.name.trim()) {
-        throw new BadRequestException("Folder name must not be empty");
-      }
-      folder.name = data.name;
-      if (file) {
-        file.name = data.name;
-      }
+    if (data.name !== undefined && data.name !== null && !data.name.trim()) {
+      throw new BadRequestException("Folder name must not be empty");
     }
-
     if (data.parentId !== undefined) {
       await this.assertFolderOwnership(userId, data.parentId);
-
-      // Prevent folder cycle: target parent must not be a descendant
       if (data.parentId !== null) {
         await this.assertNoCycle(id, data.parentId);
       }
+    }
 
-      folder.parentId = data.parentId ?? null;
-      if (file) {
-        file.parentId = data.parentId ?? null;
+    const queryRunner = this.folderRepository.manager.connection.createQueryRunner();
+    let transactionStarted = false;
+
+    try {
+      await queryRunner.connect();
+      await queryRunner.startTransaction();
+      transactionStarted = true;
+
+      const folder = await queryRunner.manager.findOne(FolderEntity, {
+        where: { id, userId },
+        lock: { mode: "pessimistic_write" },
+      });
+      if (!folder) {
+        throw new NotFoundException("Folder not found");
       }
-    }
 
-    await this.folderRepository.save(folder);
-    if (file) {
-      await this.fileRepository.save(file);
-    }
+      const mirror = await queryRunner.manager.findOne(FileEntity, {
+        where: { folderId: id, userId, isFolder: true },
+        lock: { mode: "pessimistic_write" },
+      });
+      if (!mirror) {
+        throw new NotFoundException("Folder mirror not found");
+      }
 
-    return file;
+      if (data.name && data.name.trim()) {
+        folder.name = data.name;
+        mirror.name = data.name;
+      }
+
+      if (data.parentId !== undefined) {
+        folder.parentId = data.parentId ?? null;
+        mirror.parentId = data.parentId ?? null;
+      }
+
+      await queryRunner.manager.save(folder);
+      await queryRunner.manager.save(mirror);
+      await queryRunner.commitTransaction();
+      return mirror;
+    } catch (error) {
+      if (transactionStarted) {
+        await queryRunner.rollbackTransaction();
+      }
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async assertNoCycle(folderId: number, targetParentId: number): Promise<void> {
@@ -304,20 +327,45 @@ export class FilesService {
   }
 
   async removeFolder(userId: number, id: number) {
-    const folder = await this.findFolder(userId, id);
-    const file = await this.fileRepository.findOne({ where: { id, userId } });
+    const queryRunner = this.folderRepository.manager.connection.createQueryRunner();
+    let transactionStarted = false;
 
-    folder.isDeleted = true;
-    folder.deletedAt = new Date();
-    await this.folderRepository.save(folder);
+    try {
+      await queryRunner.connect();
+      await queryRunner.startTransaction();
+      transactionStarted = true;
+      const folder = await queryRunner.manager.findOne(FolderEntity, {
+        where: { id, userId },
+        lock: { mode: "pessimistic_write" },
+      });
+      if (!folder) {
+        throw new NotFoundException("Folder not found");
+      }
+      const mirror = await queryRunner.manager.findOne(FileEntity, {
+        where: { folderId: id, userId, isFolder: true },
+        lock: { mode: "pessimistic_write" },
+      });
+      if (!mirror) {
+        throw new NotFoundException("Folder mirror not found");
+      }
 
-    if (file) {
-      file.isDeleted = true;
-      file.deletedAt = new Date();
-      await this.fileRepository.save(file);
+      const now = new Date();
+      folder.isDeleted = true;
+      folder.deletedAt = now;
+      mirror.isDeleted = true;
+      mirror.deletedAt = now;
+      await queryRunner.manager.save(folder);
+      await queryRunner.manager.save(mirror);
+      await queryRunner.commitTransaction();
+      return { message: "Folder moved to trash" };
+    } catch (error) {
+      if (transactionStarted) {
+        await queryRunner.rollbackTransaction();
+      }
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
-
-    return { message: "Folder moved to trash" };
   }
 
   async restoreFile(userId: number, id: number) {
@@ -330,20 +378,44 @@ export class FilesService {
   }
 
   async restoreFolder(userId: number, id: number) {
-    const folder = await this.findFolder(userId, id);
-    const file = await this.fileRepository.findOne({ where: { id, userId } });
+    const queryRunner = this.folderRepository.manager.connection.createQueryRunner();
+    let transactionStarted = false;
 
-    folder.isDeleted = false;
-    folder.deletedAt = null;
-    await this.folderRepository.save(folder);
+    try {
+      await queryRunner.connect();
+      await queryRunner.startTransaction();
+      transactionStarted = true;
+      const folder = await queryRunner.manager.findOne(FolderEntity, {
+        where: { id, userId },
+        lock: { mode: "pessimistic_write" },
+      });
+      if (!folder) {
+        throw new NotFoundException("Folder not found");
+      }
+      const mirror = await queryRunner.manager.findOne(FileEntity, {
+        where: { folderId: id, userId, isFolder: true },
+        lock: { mode: "pessimistic_write" },
+      });
+      if (!mirror) {
+        throw new NotFoundException("Folder mirror not found");
+      }
 
-    if (file) {
-      file.isDeleted = false;
-      file.deletedAt = null;
-      await this.fileRepository.save(file);
+      folder.isDeleted = false;
+      folder.deletedAt = null;
+      mirror.isDeleted = false;
+      mirror.deletedAt = null;
+      await queryRunner.manager.save(folder);
+      await queryRunner.manager.save(mirror);
+      await queryRunner.commitTransaction();
+      return { message: "Folder restored" };
+    } catch (error) {
+      if (transactionStarted) {
+        await queryRunner.rollbackTransaction();
+      }
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
-
-    return { message: "Folder restored" };
   }
 
   async deleteFilePermanently(userId: number, id: number) {
