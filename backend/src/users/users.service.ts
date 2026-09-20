@@ -26,7 +26,7 @@ export class UsersService {
   ): Promise<UserEntity> {
     await this.userRepository.update(id, data);
     const user = await this.findById(id);
-    if (!user) throw new Error("User not found");
+    if (!user) throw new NotFoundException("User not found");
     return user;
   }
 

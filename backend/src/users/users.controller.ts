@@ -5,6 +5,7 @@ import {
   Body,
   UseGuards,
   Request as NestRequest,
+  NotFoundException,
 } from "@nestjs/common";
 import { Request as ExpressRequest } from "express";
 import { UsersService } from "./users.service";
@@ -22,7 +23,7 @@ export class UsersController {
   ) {
     const user = await this.usersService.findById(req.user.userId);
     if (!user) {
-      return { error: "User not found" };
+      throw new NotFoundException("User not found");
     }
     const { password: _password, ...safeUser } = user; // eslint-disable-line @typescript-eslint/no-unused-vars
     return safeUser;
