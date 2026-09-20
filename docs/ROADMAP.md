@@ -22,7 +22,7 @@
 | Phase 8 — Uploads & Large Files | `COMPLETE` | commits серии Phase 8 и Remediation B, итог зафиксирован в `c877829` |
 | Phase 9 — Authentication & Sessions | `COMPLETE` | `83adfa1`, `11b27f2`, `744b27c`, `09dea37` |
 | Phase 10 — Sharing & Access Control | `COMPLETE` | 10.1–10.8 подтверждены; checkpoint `08ea21f` |
-| Phase 11 — Backend/API Hardening | `IN PROGRESS` | 11.1 API Boundary Inventory завершён и проверен владельцем; 11.2–11.5 запланированы |
+| Phase 11 — Backend/API Hardening | `IN PROGRESS` | 11.1 COMPLETE; 11.2 Validation & Error Contracts COMPLETE; 11.3–11.5 PLANNED |
 
 ## Completed
 
@@ -123,13 +123,11 @@ Acceptance criteria: lifecycle и threat model документированы; e
 - no confirmed authz/IDOR defects;
 - no Phase 10 sharing regression.
 
-11.2 Validation & Error Contracts — PLANNED
-Scope:
-- verify actual RefreshTokenDto/LogoutDto behavior under global ValidationPipe before changing it;
-- fix confirmed auth DTO validation gap if reproduced;
-- bounded input constraints for share password, upload filename, profile avatar where contractually appropriate;
-- normalize users not-found/updateProfile HTTP error semantics.
-Exclude unrelated DTO/refactor work.
+11.2 Validation & Error Contracts — COMPLETE
+- Auth: RefreshTokenDto/LogoutDto gained `@IsString`+`@IsNotEmpty`+`@MaxLength(1024)` (`abdc9f3`); valid `refreshToken` reaches handler → 200; missing/non-string/empty/over-limit/unknown → 400; global ValidationPipe unchanged (behavior verified empirically).
+- Users: GET/PATCH `/users/me`, authenticated-but-absent, now `404` via `NotFoundException` instead of HTTP 200 `{error}` / 500; successful responses still strip `password` (`b258056`).
+- Input bounds: `CreateShareDto.password` ≤1024, `CreateSessionDto.filename` ≤255, `UpdateProfileDto.avatar` ≤255; at-limit accepted, above-limit rejected (`f79666b`).
+Regression: `auth.validation.spec.ts`, `users.controller.contract.spec.ts`, `dto-input-bounds.spec.ts`; `tsc --noEmit` clean.
 
 11.3 HTTP Cache Boundary — PLANNED
 Scope:
