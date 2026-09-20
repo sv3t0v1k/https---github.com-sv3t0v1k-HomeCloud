@@ -22,6 +22,7 @@ import { IsOptional, IsString, MaxLength } from "class-validator";
 import { JwtGuard } from "../auth/guards/jwt.guard";
 import { SharingService } from "./sharing.service";
 import { StorageService } from "../storage/storage.service";
+import { ShareLinkEntity } from "../entities/share-link.entity";
 import { CreateShareDto } from "./dtos/create-share.dto";
 import { DownloadShareDto, SharedChildrenQueryDto } from "./dtos/public-share.dto";
 
@@ -186,13 +187,16 @@ export class SharingController {
 
     let downloadFile = share.file;
     if (share.file.isFolder) {
-      if (!dto.fileId) {
-        throw new BadRequestException("Folder archive download is not available");
+      if (dto.fileId) {
+        downloadFile = await this.sharingService.resolveSharedFolderFile(
+          share,
+          dto.fileId,
+        );
+      } else {
+        // Folder share without fileId → stream a ZIP of the whole shared
+        // subtree. Admission is atomic: exactly one slot per archive request.
+        return this.streamFolderArchive(token, share, dto, res);
       }
-      downloadFile = await this.sharingService.resolveSharedFolderFile(
-        share,
-        dto.fileId,
-      );
     } else if (dto.fileId !== undefined && dto.fileId !== share.file.id) {
       throw new NotFoundException("Shared file not found");
     }
@@ -281,6 +285,45 @@ export class SharingController {
     }
   }
 
+  /**
+   * Stream a ZIP archive of a shared folder subtree.
+   *
+   * Admission is atomic: exactly ONE download slot is consumed for the whole
+   * archive request, regardless of how many members it contains. Failures
+   * before admission consume zero slots; after admission the slot is final
+   * and is never returned on archive, stream or client-abort failure.
+   */
+  private async streamFolderArchive(
+    token: string,
+    share: ShareLinkEntity,
+    dto: DownloadShareDto,
+    res: Response,
+  ) {
+    // Validate the archive plan before admission: any scope/integrity
+    // failure here must consume zero slots.
+    await this.sharingService.listArchiveMembers(share);
+
+    // Atomic admission: one slot for the whole archive.
+    await this.sharingService.incrementFolderArchiveDownloadCount(token);
+
+    const rootName = (share.file.name || "folder").replace(/[^\x20-\x7e]|["\\]/g, "_");
+    res.set({
+      "Content-Type": "application/zip",
+      "Content-Disposition": `attachment; filename="${rootName}.zip"`,
+      "Cache-Control": "no-store",
+      "Accept-Ranges": "bytes",
+    });
+
+    try {
+      await this.sharingService.streamFolderArchive(share, res);
+    } catch {
+      if (!res.headersSent) {
+        res.status(500).end();
+      } else {
+        res.end();
+      }
+    }
+  }
   @Get("public/:token/children")
   async listSharedChildren(
     @Param("token") token: string,

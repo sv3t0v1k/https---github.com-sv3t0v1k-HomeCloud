@@ -65,6 +65,9 @@ describe("SharingController — scoped descendant download streaming", () => {
       }),
       incrementFolderDownloadCount: jest.fn().mockResolvedValue({ downloadCount: 1 }),
       incrementDownloadCount: jest.fn().mockResolvedValue({ downloadCount: 1 }),
+      listArchiveMembers: jest.fn().mockResolvedValue([]),
+      streamFolderArchive: jest.fn().mockResolvedValue(undefined),
+      incrementFolderArchiveDownloadCount: jest.fn().mockResolvedValue({ downloadCount: 1 }),
     };
   }
 
@@ -192,18 +195,23 @@ describe("SharingController — scoped descendant download streaming", () => {
     expect(service.incrementDownloadCount).not.toHaveBeenCalled();
   });
 
-  it("rejects folder archive download without fileId and consumes nothing", async () => {
+  it("streams a ZIP archive for a folder share without fileId and consumes one slot", async () => {
     const { res } = makeRes();
     const service = makeService();
+    service.listArchiveMembers.mockResolvedValue([
+      { folderId: 900, name: "Root", logicalPath: "", isFolder: true, storagePath: null, size: 0 },
+    ]);
+    service.incrementFolderArchiveDownloadCount.mockResolvedValue({ downloadCount: 1 });
+    service.streamFolderArchive.mockResolvedValue(undefined);
     const controller = new SharingController(
       service as any,
       { ensureWithinStorageRoot: (p: string) => p } as any,
     );
 
-    await expect(
-      controller.downloadShare("tok", { password: "" }, res, undefined),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    await controller.downloadShare("tok", { password: "" }, res, undefined);
 
+    expect(service.listArchiveMembers).toHaveBeenCalled();
+    expect(service.incrementFolderArchiveDownloadCount).toHaveBeenCalledWith("tok");
     expect(service.resolveSharedFolderFile).not.toHaveBeenCalled();
     expect(service.incrementFolderDownloadCount).not.toHaveBeenCalled();
     expect(service.incrementDownloadCount).not.toHaveBeenCalled();

@@ -15,6 +15,9 @@ describe("SharingController — folder sharing HTTP boundary", () => {
     resolveSharedFolderFile: jest.fn(),
     incrementFolderDownloadCount: jest.fn(),
     incrementDownloadCount: jest.fn(),
+    listArchiveMembers: jest.fn(),
+    streamFolderArchive: jest.fn(),
+    incrementFolderArchiveDownloadCount: jest.fn(),
   };
 
   beforeAll(async () => {
@@ -22,7 +25,10 @@ describe("SharingController — folder sharing HTTP boundary", () => {
       controllers: [SharingController],
       providers: [
         { provide: SharingService, useValue: sharing },
-        { provide: StorageService, useValue: {} },
+        {
+          provide: StorageService,
+          useValue: { ensureWithinStorageRoot: (p: string) => p },
+        },
       ],
     })
       .overrideGuard(JwtGuard)

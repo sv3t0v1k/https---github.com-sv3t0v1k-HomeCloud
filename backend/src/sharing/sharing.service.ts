@@ -568,6 +568,69 @@ export class SharingService {
     return returnedRows[0] as { downloadCount: number };
   }
 
+  /**
+   * Atomic admission for a whole-folder ZIP archive request.
+   *
+   * Semantics match `incrementFolderDownloadCount` but the scope predicate is
+   * the shared folder root itself (not a specific descendant file): one ZIP
+   * request consumes exactly ONE slot, regardless of how many members the
+   * archive contains. The slot is final — it is never returned on archive,
+   * stream or client-abort failure.
+   */
+  async incrementFolderArchiveDownloadCount(
+    token: string,
+  ): Promise<{ downloadCount: number }> {
+    const rows = await this.shareLinkRepository.query(
+      `WITH RECURSIVE share_context AS (
+        SELECT share."userId", root_mirror."folderId" AS "rootId"
+        FROM share_links share
+        JOIN files root_mirror ON root_mirror.id = share."fileId"
+          AND root_mirror."folderId" IS NOT NULL
+          AND root_mirror."userId" = share."userId"
+          AND root_mirror."isFolder" = true AND root_mirror."isDeleted" = false
+        JOIN users owner ON owner.id = share."userId" AND owner."isActive" = true
+        WHERE share.token = $1 AND share."isActive" = true
+          AND (share."expiresAt" IS NULL OR share."expiresAt" > NOW())
+      ), ancestors AS (
+        SELECT folder.id, folder."parentId", folder."userId", folder."isDeleted"
+        FROM folders folder
+        JOIN share_context context ON context."rootId" = folder.id
+        UNION
+        SELECT parent.id, parent."parentId", parent."userId", parent."isDeleted"
+        FROM folders parent
+        JOIN ancestors child ON parent.id = child."parentId"
+      ), valid_root AS (
+        SELECT context."rootId", context."userId"
+        FROM share_context context
+        WHERE EXISTS (SELECT 1 FROM ancestors WHERE id = context."rootId")
+          AND EXISTS (SELECT 1 FROM ancestors WHERE "parentId" IS NULL)
+          AND NOT EXISTS (
+            SELECT 1 FROM ancestors ancestor
+            LEFT JOIN files mirror ON mirror."folderId" = ancestor.id
+              AND mirror."userId" = context."userId" AND mirror."isFolder" = true
+              AND mirror."isDeleted" = false
+            WHERE ancestor."userId" <> context."userId" OR ancestor."isDeleted" = true
+              OR mirror.id IS NULL
+          )
+      ), allowed AS (
+        SELECT 1 FROM valid_root
+      )
+      UPDATE share_links
+      SET "downloadCount" = "downloadCount" + 1, "updatedAt" = NOW()
+      WHERE token = $1 AND "isActive" = true
+        AND ("expiresAt" IS NULL OR "expiresAt" > NOW())
+        AND ("maxDownloads" IS NULL OR "downloadCount" < "maxDownloads")
+        AND EXISTS (SELECT 1 FROM allowed)
+      RETURNING "downloadCount"`,
+      [token],
+    );
+    const returnedRows = Array.isArray(rows[0]) ? rows[0] : rows;
+    if (!returnedRows.length) {
+      throw new NotFoundException("Share link not found or expired");
+    }
+    return returnedRows[0] as { downloadCount: number };
+  }
+
   async revokeShare(userId: number, shareId: number) {
     const share = await this.shareLinkRepository.findOne({
       where: { id: shareId, userId },

@@ -40,6 +40,9 @@ const mockService = {
   findShareByToken: jest.fn(),
   verifySharePassword: jest.fn(),
   incrementDownloadCount: jest.fn(),
+  listArchiveMembers: jest.fn(),
+  streamFolderArchive: jest.fn(),
+  incrementFolderArchiveDownloadCount: jest.fn(),
 };
 
 const mockStorage = {
@@ -333,11 +336,22 @@ describe("SharingController download — HTTP Range (integration)", () => {
     expect(mockService.incrementDownloadCount).not.toHaveBeenCalled();
   });
 
-  it("folder archives fail explicitly instead of leaving the HTTP request open", async () => {
+  it("folder archives stream a ZIP instead of leaving the HTTP request open", async () => {
     const share = buildShare({ id: 1, name: "Folder", size: 0,
       storagePath: "", isFolder: true, mimeType: "application/zip" });
     mockService.findShareByToken.mockResolvedValue(share);
-    expect((await doRequest()).status).toBe(400);
+    mockService.listArchiveMembers.mockResolvedValue([
+      { folderId: 1, name: "Folder", logicalPath: "", isFolder: true, storagePath: null, size: 0 },
+    ]);
+    mockService.incrementFolderArchiveDownloadCount.mockResolvedValue({ downloadCount: 1 });
+    mockService.streamFolderArchive.mockImplementation(async (_share: any, res: any) => {
+      res.set({ "Content-Type": "application/zip", "Cache-Control": "no-store" });
+      res.end(Buffer.from("PK\x03\x04zip"));
+    });
+    const res = await doRequest();
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toContain("application/zip");
+    expect(mockService.incrementFolderArchiveDownloadCount).toHaveBeenCalledWith(TOKEN);
     expect(mockService.incrementDownloadCount).not.toHaveBeenCalled();
   });
 

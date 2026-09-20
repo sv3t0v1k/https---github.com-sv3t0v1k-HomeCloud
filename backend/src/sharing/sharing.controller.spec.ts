@@ -5,10 +5,13 @@ import * as path from "path";
 import { Writable } from "stream";
 
 describe("SharingController - streaming code verification", () => {
-  it("rejects unsupported folder archives without consuming a download", async () => {
+  it("streams a ZIP archive for a folder share without fileId and consumes one slot", async () => {
     const mockService = {
       findShareByToken: jest.fn(),
       verifySharePassword: jest.fn(),
+      listArchiveMembers: jest.fn(),
+      streamFolderArchive: jest.fn(),
+      incrementFolderArchiveDownloadCount: jest.fn(),
       incrementDownloadCount: jest.fn(),
     };
 
@@ -21,17 +24,43 @@ describe("SharingController - streaming code verification", () => {
         mimeType: "application/zip",
         size: 0,
         isFolder: true,
+        folderId: 40,
+        storagePath: null,
       },
     });
+    mockService.listArchiveMembers.mockResolvedValue([
+      { folderId: 40, name: "MyFolder", logicalPath: "", isFolder: true, storagePath: null, size: 0 },
+    ]);
+    mockService.incrementFolderArchiveDownloadCount.mockResolvedValue({ downloadCount: 1 });
+    mockService.streamFolderArchive.mockImplementation(async (_share: any, res: any) => {
+      res.set({ "Content-Type": "application/zip" });
+      res.end(Buffer.from("PK\x03\x04zip"));
+    });
+
+    const res = new Writable({
+      write(chunk, encoding, callback) {
+        callback();
+      },
+    }) as any;
+    res.set = jest.fn();
+    res.status = jest.fn().mockReturnThis();
+    res.headersSent = false;
 
     const controller = new SharingController(
       mockService as any,
       { ensureWithinStorageRoot: (p: string) => p } as any,
     );
-    await expect(
-      controller.downloadShare("tok", { password: "" }, {} as any),
-    ).rejects.toThrow(BadRequestException);
+    await controller.downloadShare("tok", { password: "" }, res as any);
+
+    expect(mockService.listArchiveMembers).toHaveBeenCalled();
+    expect(mockService.incrementFolderArchiveDownloadCount).toHaveBeenCalledWith("tok");
     expect(mockService.incrementDownloadCount).not.toHaveBeenCalled();
+    expect(res.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        "Content-Type": "application/zip",
+        "Cache-Control": "no-store",
+      }),
+    );
   });
 
   it("should stream file data for valid public share", async () => {
