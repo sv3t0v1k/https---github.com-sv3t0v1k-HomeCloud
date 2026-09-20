@@ -15,6 +15,6 @@
     "sourceMap": true,
     "noEmit": false
   },
-  "include": ["bench/**/*.ts", "src/**/*.ts"],
+  "include": ["bench/**/*.ts", "bench/**/*.spec.ts", "src/**/*.ts"],
   "exclude": ["node_modules", "dist", "dist-bench"]
 }

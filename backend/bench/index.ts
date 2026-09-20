@@ -19,6 +19,7 @@ async function main(): Promise<void> {
         tokenFraction: 0.1,
       });
       const results = await runScale(dataSource, fixture, config, services);
+      await cleanupBenchmark(dataSource, fixture.userId);
       allResults.push(summarize(results, fixture));
     }
 
@@ -36,7 +37,6 @@ async function main(): Promise<void> {
     // eslint-disable-next-line no-console
     console.log(`[bench] report written to ${outPath}`);
   } finally {
-    await cleanupBenchmark(dataSource);
     const remaining = await countBenchmarkRows(dataSource);
     // eslint-disable-next-line no-console
     console.log(`[bench] remaining benchmark rows: ${JSON.stringify(remaining)}`);

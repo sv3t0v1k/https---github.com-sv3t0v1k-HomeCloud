@@ -44,23 +44,58 @@ function makeFolderName(index: number, token: string): string {
   return `${BENCH_USER_NAME}_folder_${token}_${index}`;
 }
 
+/**
+ * Ownership contract for the benchmark identity.
+ *
+ * The harness MUST create the benchmark user itself during the current run.
+ * Reusing a pre-existing `bench@homecloud.local` is forbidden: email equality
+ * does not prove the harness owns that row, and scoped cleanup would then
+ * delete data it did not create.
+ *
+ * Returns a discriminated result so callers cannot forget the distinction.
+ */
+export type BenchUserResolution =
+  | { ok: true; user: UserEntity; created: true }
+  | { ok: false; reason: "already-exists" };
+
+export async function resolveBenchUser(
+  repo: Repository<UserEntity>,
+): Promise<BenchUserResolution> {
+  const existing = await repo.findOne({ where: { email: BENCH_USER_EMAIL } });
+  if (existing) {
+    return {
+      ok: false,
+      reason: "already-exists",
+    };
+  }
+
+  const user = repo.create({
+    email: BENCH_USER_EMAIL,
+    password: BENCH_USER_PASSWORD,
+    name: BENCH_USER_NAME,
+    isActive: true,
+    isEmailVerified: false,
+    storageQuota: 0,
+    storageUsed: 0,
+  });
+  const saved = await repo.save(user);
+  return { ok: true, user: saved, created: true };
+}
+
 async function ensureBenchUser(
   repo: Repository<UserEntity>,
 ): Promise<UserEntity> {
-  let user = await repo.findOne({ where: { email: BENCH_USER_EMAIL } });
-  if (!user) {
-    user = repo.create({
-      email: BENCH_USER_EMAIL,
-      password: BENCH_USER_PASSWORD,
-      name: BENCH_USER_NAME,
-      isActive: true,
-      isEmailVerified: false,
-      storageQuota: 0,
-      storageUsed: 0,
-    });
-    user = await repo.save(user);
+  const resolution = await resolveBenchUser(repo);
+  if (!resolution.ok) {
+    throw new Error(
+      `Benchmark identity ${BENCH_USER_EMAIL} already exists in this database. ` +
+        "Refusing to reuse it: email equality does not prove harness ownership, " +
+        "and scoped cleanup would delete data it did not create. " +
+        "Use a clean dedicated benchmark database or remove stale benchmark " +
+        "data manually after verification, then re-run.",
+    );
   }
-  return user;
+  return resolution.user;
 }
 
 /**
@@ -197,15 +232,17 @@ for (let i = 0; i < shareCount; i++) {
 
 /**
  * Delete ONLY rows owned by the benchmark identity, in FK-safe order.
- * Idempotent — safe to call repeatedly.
+ *
+ * Ownership is proven by the exact `userId` captured when the benchmark user
+ * was created during THIS run — never by re-resolving email, which would
+ * accept a pre-existing unrelated user as proof of ownership.
+ *
+ * If no rows match, this is a safe no-op.
  */
-export async function cleanupBenchmark(dataSource: DataSource): Promise<void> {
-  const userRepo = dataSource.getRepository(UserEntity);
-  const user = await userRepo.findOne({ where: { email: BENCH_USER_EMAIL } });
-  if (!user) return;
-
-  const userId = user.id;
-
+export async function cleanupBenchmark(
+  dataSource: DataSource,
+  userId: number,
+): Promise<void> {
   await dataSource.query(
     `DELETE FROM share_links WHERE "userId" = $1`,
     [userId],
@@ -222,7 +259,7 @@ export async function cleanupBenchmark(dataSource: DataSource): Promise<void> {
     `DELETE FROM folders WHERE "userId" = $1`,
     [userId],
   );
-  await userRepo.delete(userId);
+  await dataSource.getRepository(UserEntity).delete(userId);
 }
 
 export async function countBenchmarkRows(
