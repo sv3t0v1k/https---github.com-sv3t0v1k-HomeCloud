@@ -161,8 +161,8 @@ export async function createFixtures(
 
     const fileCount = options.scale;
     const folderCount = options.scale;
-    const shareCount = Math.min(options.scale, 1000);
-    const sessionCount = Math.min(options.scale, 1000);
+    const shareCount = options.scale;
+    const sessionCount = options.scale;
     const trashCount = Math.max(1, Math.floor(options.scale / 10));
 
     const files: FileEntity[] = [];

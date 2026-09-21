@@ -28,6 +28,8 @@ async function time<T>(fn: () => Promise<T>): Promise<{ result: T; ms: number }>
   return { result, ms: Number(end - start) / 1e6 };
 }
 
+export { time };
+
 export interface TargetRun {
   name: string;
   run: (services: BenchServices, userId: number, fixture: FixtureResult) => Promise<unknown>;
