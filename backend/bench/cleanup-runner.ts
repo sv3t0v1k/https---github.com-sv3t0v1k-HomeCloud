@@ -130,10 +130,12 @@ export async function measureExpired(
   runs: number,
 ): Promise<CleanupMeasurement> {
   const uploadsService = buildUploadsService(dataSource);
+  const storageService = (uploadsService as any).storageService as StorageService;
+  const tempRoot = storageService.getTempPath();
   const fixture = await createCleanupFixtures(dataSource, {
     scale,
     expiredFraction: 0.1,
-  });
+  }, tempRoot);
 
   const timings: number[] = [];
   let cleaned = 0;
@@ -172,54 +174,71 @@ export interface OrphanMeasurement {
   timingsMs: number[];
   medianMs: number;
   queriesPerDirectory: number;
+  cleaned: number;
+  remainingSessions: number;
+  residualEntries: number;
 }
 
 /**
- * Measure the N+1 query pattern of `cleanupOrphanedTempDirs` in isolation.
+ * Measure the REAL `cleanupOrphanedTempDirs()` against fixtures located in its
+ * actual isolated benchmark temp root.
  *
- * The production method scans the application's `/storage/.tmp`, which we
- * cannot safely touch. This replicates its exact per-directory DB lookup
- * (`findOne({ where: { tempPath } })`) against benchmark-owned temp paths to
- * prove query-count scaling without touching production storage.
+ * The production method scans `storageService.getTempPath()`. Fixtures are
+ * created under that exact root, so the measured call operates on real
+ * benchmark-owned directories. The manual per-directory `findOne` loop that
+ * previously simulated the old N+1 pattern is removed from the measured path.
  */
 export async function measureOrphanPattern(
   dataSource: DataSource,
   scale: number,
   runs: number,
 ): Promise<OrphanMeasurement> {
+  const uploadsService = buildUploadsService(dataSource);
+  const storageService = (uploadsService as any).storageService as StorageService;
+  const tempRoot = storageService.getTempPath();
+
   const fixture = await createCleanupFixtures(dataSource, {
     scale,
     expiredFraction: 0.0,
-  });
+  }, tempRoot);
 
   const repo = dataSource.getRepository(UploadSessionEntity);
+  const origCreateQB = repo.createQueryBuilder.bind(repo);
+  let queryCount = 0;
+  repo.createQueryBuilder = (...args: any[]) => {
+    queryCount++;
+    return origCreateQB(...args);
+  };
+
   const timings: number[] = [];
-  let queries = 0;
+  let cleaned = 0;
+
+  // warm-up
+  await uploadsService.cleanupOrphanedTempDirs();
 
   for (let i = 0; i < runs; i++) {
+    queryCount = 0;
     const start = process.hrtime.bigint();
-    let count = 0;
-    const entries = fs.readdirSync(fixture.tempRoot);
-    for (const entry of entries) {
-      const entryPath = path.join(fixture.tempRoot, entry);
-      if (!fs.statSync(entryPath).isDirectory()) continue;
-      await repo.findOne({ where: { tempPath: entryPath } });
-      count++;
-    }
+    cleaned = await uploadsService.cleanupOrphanedTempDirs();
     const end = process.hrtime.bigint();
     timings.push(Number(end - start) / 1e6);
-    queries = count;
   }
+
+  const remainingSessions = await repo.count({ where: { userId: fixture.userId } });
+  const residualEntries = fs.existsSync(tempRoot) ? fs.readdirSync(tempRoot).length : 0;
 
   await cleanupCleanupFixtures(dataSource, fixture);
 
   return {
     scale,
     directories: fixture.totalSessions,
-    queries,
+    queries: queryCount,
     runs,
     timingsMs: timings,
     medianMs: median(timings),
-    queriesPerDirectory: queries / Math.max(1, fixture.totalSessions),
+    queriesPerDirectory: queryCount / Math.max(1, fixture.totalSessions),
+    cleaned,
+    remainingSessions,
+    residualEntries,
   };
 }

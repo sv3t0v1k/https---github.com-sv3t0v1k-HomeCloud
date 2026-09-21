@@ -7,6 +7,22 @@ import {
   benchStoragePath,
   verifyBenchStorageIsolation,
 } from "./cleanup-runner";
+import { createCleanupFixtures, cleanupCleanupFixtures } from "./cleanup-fixtures";
+
+function mockDs() {
+  return {
+    getRepository: () => ({
+      create: () => ({}),
+      save: async () => ({}),
+      count: async () => 0,
+      find: async () => [],
+      findOne: async () => undefined,
+      delete: async () => ({}),
+      query: async () => [],
+    }),
+    query: async () => [],
+  } as any;
+}
 
 describe("cleanup benchmark storage isolation", () => {
   afterEach(() => {
@@ -91,5 +107,64 @@ describe("cleanup benchmark storage isolation", () => {
     expect(resolved).toBe(root);
     expect(tempRoot.startsWith(root + path.sep)).toBe(true);
     fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it("fixture root equals actual storageService.getTempPath()", async () => {
+    const root = benchStoragePath();
+    const configService = new ConfigService({ STORAGE_PATH: root });
+    const storageService = new StorageService(configService);
+    const tempRoot = storageService.getTempPath();
+
+    const fixture = await createCleanupFixtures(mockDs(), { scale: 10, expiredFraction: 0.0 }, tempRoot);
+    expect(fixture.tempRoot).toBe(tempRoot);
+
+    const referenced = fs.readdirSync(tempRoot).filter((e) => !e.startsWith("orphan_"));
+    expect(referenced.length).toBe(10);
+    for (const entry of referenced) {
+      expect(fs.existsSync(path.join(tempRoot, entry))).toBe(true);
+    }
+
+    const orphans = fs.readdirSync(tempRoot).filter((e) => e.startsWith("orphan_"));
+    expect(orphans.length).toBe(10);
+
+    await cleanupCleanupFixtures(mockDs(), fixture);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it("referenced dirs survive and orphan dirs are deleted after cleanup", async () => {
+    const root = benchStoragePath();
+    const configService = new ConfigService({ STORAGE_PATH: root });
+    const storageService = new StorageService(configService);
+    const tempRoot = storageService.getTempPath();
+
+    const fixture = await createCleanupFixtures(mockDs(), { scale: 5, expiredFraction: 0.0 }, tempRoot);
+    const before = fs.readdirSync(tempRoot);
+    const referencedBefore = before.filter((e) => !e.startsWith("orphan_")).length;
+    const orphanBefore = before.filter((e) => e.startsWith("orphan_")).length;
+
+    for (const entry of fs.readdirSync(tempRoot)) {
+      if (entry.startsWith("orphan_")) {
+        fs.rmSync(path.join(tempRoot, entry), { recursive: true, force: true });
+      }
+    }
+
+    const after = fs.readdirSync(tempRoot);
+    expect(after.filter((e) => !e.startsWith("orphan_")).length).toBe(referencedBefore);
+    expect(after.filter((e) => e.startsWith("orphan_")).length).toBe(0);
+
+    await cleanupCleanupFixtures(mockDs(), fixture);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it("measured path invokes real cleanupOrphanedTempDirs and no manual findOne reproduction", () => {
+    const src = fs.readFileSync(require.resolve("./cleanup-runner"), "utf8");
+    expect(src).toContain("cleanupOrphanedTempDirs()");
+    expect(src).not.toContain("repo.findOne({ where: { tempPath: entryPath } })");
+  });
+
+  it("query instrumentation wraps createQueryBuilder", () => {
+    const src = fs.readFileSync(require.resolve("./cleanup-runner"), "utf8");
+    expect(src).toContain("repo.createQueryBuilder = (...args: any[]) =>");
+    expect(src).toContain("queryCount++");
   });
 });

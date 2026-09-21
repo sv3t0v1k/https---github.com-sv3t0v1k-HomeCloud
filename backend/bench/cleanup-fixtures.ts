@@ -28,6 +28,7 @@ export interface CleanupFixtureResult {
   userId: number;
   tempRoot: string;
   totalSessions: number;
+  orphanDirectories: number;
   expiredSessions: number;
   activeSessions: number;
 }
@@ -58,23 +59,26 @@ async function ensureBenchUser(
 /**
  * Create a deterministic set of upload sessions for the benchmark user.
  *
- * - `scale` total sessions
- * - `expiredFraction` are past their `expiresAt` (status pending)
- * - the remainder are active (status pending, future expiry)
+ * - `scale` referenced sessions, each with a matching directory under
+ *   `tempRoot` whose path is stored verbatim in `session.tempPath`.
+ * - `scale` additional orphan directories under the same `tempRoot` that have
+ *   NO corresponding UploadSession row, so `cleanupOrphanedTempDirs` has a
+ *   real set of orphans to delete.
  *
- * Temp directories are created on disk under a benchmark-owned temp root so
- * `cleanupOrphanedTempDirs` can scan them without touching application storage.
+ * `tempRoot` MUST be the exact root that the production method scans
+ * (`storageService.getTempPath()`). Directories are created directly under it;
+ * no directory is moved between unrelated roots.
  */
 export async function createCleanupFixtures(
   dataSource: DataSource,
   options: CleanupFixtureOptions,
+  tempRoot: string,
 ): Promise<CleanupFixtureResult> {
   const userRepo = dataSource.getRepository(UserEntity);
   const sessionRepo = dataSource.getRepository(UploadSessionEntity);
 
   const user = await ensureBenchUser(userRepo);
   const userId = user.id;
-  const tempRoot = benchTempRoot();
 
   const totalSessions = options.scale;
   const expiredSessions = Math.max(
@@ -112,10 +116,18 @@ export async function createCleanupFixtures(
     await sessionRepo.save(sessions.slice(i, i + 500));
   }
 
+  // Orphan directories: same root, no session row.
+  const orphanDirectories = totalSessions;
+  for (let i = 0; i < orphanDirectories; i++) {
+    const orphanDir = path.join(tempRoot, `orphan_${uuidv4()}`);
+    fs.mkdirSync(orphanDir, { recursive: true });
+  }
+
   return {
     userId,
     tempRoot,
     totalSessions,
+    orphanDirectories,
     expiredSessions,
     activeSessions,
   };
