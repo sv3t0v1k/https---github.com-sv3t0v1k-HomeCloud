@@ -13,7 +13,9 @@
     "test:watch": "jest --watch",
     "migration:run": "node ./node_modules/typeorm/cli.js migration:run -d dist/data-source.js",
     "migration:revert": "node ./node_modules/typeorm/cli.js migration:revert -d dist/data-source.js",
-    "migration:generate": "node ./node_modules/typeorm/cli.js migration:generate -d dist/data-source.js"
+    "migration:generate": "node ./node_modules/typeorm/cli.js migration:generate -d dist/data-source.js",
+    "bench:compile": "tsc -p tsconfig.bench.json",
+    "bench:cleanup": "npm run bench:compile && node dist-bench/bench/cleanup-index.js"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.0",
