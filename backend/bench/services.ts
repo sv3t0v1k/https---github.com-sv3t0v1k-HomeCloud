@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { DataSource } from "typeorm";
+import { RefreshTokenEntity } from "../src/entities/refresh-token.entity";
 import { FileEntity } from "../src/entities/file.entity";
 import { FolderEntity } from "../src/entities/folder.entity";
 import { UserEntity } from "../src/entities/user.entity";
@@ -42,7 +43,7 @@ export function buildServices(dataSource: DataSource): BenchServices {
     STORAGE_PATH: benchStoragePath(),
     MAX_SHARE_SIZE: 100 * 1024 * 1024,
     MAX_FILE_SIZE: 0,
-    MAX_TOTAL_SIZE: 0,
+    MAX_TOTAL_SIZE: 10 * 1024 * 1024 * 1024,
     MAX_CHUNK_SIZE: 50 * 1024 * 1024,
     UPLOAD_SESSION_TTL_HOURS: 24,
   });
@@ -93,6 +94,7 @@ export async function createDataSource(databaseUrl: string): Promise<DataSource>
       FolderEntity,
       ShareLinkEntity,
       UploadSessionEntity,
+      RefreshTokenEntity,
     ],
   });
   await ds.initialize();

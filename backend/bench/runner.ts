@@ -78,11 +78,13 @@ async function runTarget(
 export const TARGETS: TargetRun[] = [
   {
     name: "files.findAll",
-    run: (s, userId) => s.filesService.findAll(userId, undefined, undefined, false),
+    run: (s, userId, f) =>
+      s.filesService.findAll(userId, f.rootFolderId, undefined, false),
   },
   {
     name: "files.findFolders",
-    run: (s, userId) => s.filesService.findFolders(userId, undefined, false),
+    run: (s, userId, f) =>
+      s.filesService.findFolders(userId, f.rootFolderId, false),
   },
   {
     name: "files.search.all",
