@@ -9,6 +9,7 @@ import { UploadSessionStatusCheck1746825050000 } from "../migrations/17468250500
 import { UploadedChunksJsonb1746825070000 } from "../migrations/1746825070000-UploadedChunksJsonb";
 import * as fs from "fs";
 import * as path from "path";
+import * as os from "os";
 
 jest.mock("file-type", () => ({
   fileTypeFromBuffer: jest.fn(),
@@ -25,13 +26,15 @@ describe("UploadsService - Post-Review Fixes", () => {
   let mockUsersService: any;
   let mockConfigService: any;
   let mockQueryRunner: any;
+  let mockQueryBuilder: any;
 
   beforeEach(() => {
-    const mockQueryBuilder = {
+    mockQueryBuilder = {
       select: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
       getRawOne: jest.fn().mockResolvedValue({ activeTotal: "0" }),
+      getRawMany: jest.fn().mockResolvedValue([]),
     };
 
     mockQueryRunner = {
@@ -53,6 +56,7 @@ describe("UploadsService - Post-Review Fixes", () => {
       findOne: jest.fn(),
       find: jest.fn(),
       delete: jest.fn(),
+      createQueryBuilder: jest.fn(() => mockQueryBuilder),
       manager: {
         connection: {
           createQueryRunner: jest.fn(() => mockQueryRunner),
@@ -792,6 +796,107 @@ describe("UploadsService - Post-Review Fixes", () => {
       await expect(
         service.createUploadSession(1, "test.bin", 1000, 500),
       ).rejects.toThrow("DB down");
+    });
+  });
+
+  describe("cleanupOrphanedTempDirs — constant-query classification", () => {
+    let tempRoot: string;
+    let deleteSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "hc-orphan-"));
+      mockStorageService.getTempPath.mockReturnValue(tempRoot);
+      deleteSpy = jest.spyOn(service as any, "deleteTempFiles");
+    });
+
+    afterEach(() => {
+      deleteSpy.mockRestore();
+      fs.rmSync(tempRoot, { recursive: true, force: true });
+    });
+
+    it("preserves referenced temp dirs and deletes orphans", async () => {
+      const referenced = path.join(tempRoot, "kept");
+      const orphan = path.join(tempRoot, "gone");
+      fs.mkdirSync(referenced, { recursive: true });
+      fs.mkdirSync(orphan, { recursive: true });
+
+      mockQueryBuilder.getRawMany.mockResolvedValue([
+        { tempPath: referenced },
+      ]);
+
+      const cleaned = await service.cleanupOrphanedTempDirs();
+
+      expect(cleaned).toBe(1);
+      expect(fs.existsSync(referenced)).toBe(true);
+      expect(fs.existsSync(orphan)).toBe(false);
+      expect(deleteSpy).toHaveBeenCalledWith(orphan);
+      expect(deleteSpy).not.toHaveBeenCalledWith(referenced);
+    });
+
+    it("classifies mixed referenced/orphan set correctly", async () => {
+      const a = path.join(tempRoot, "a");
+      const b = path.join(tempRoot, "b");
+      const c = path.join(tempRoot, "c");
+      fs.mkdirSync(a, { recursive: true });
+      fs.mkdirSync(b, { recursive: true });
+      fs.mkdirSync(c, { recursive: true });
+
+      mockQueryBuilder.getRawMany.mockResolvedValue([
+        { tempPath: a },
+        { tempPath: c },
+      ]);
+
+      const cleaned = await service.cleanupOrphanedTempDirs();
+
+      expect(cleaned).toBe(1);
+      expect(fs.existsSync(a)).toBe(true);
+      expect(fs.existsSync(b)).toBe(false);
+      expect(fs.existsSync(c)).toBe(true);
+    });
+
+    it("performs one DB query regardless of directory count", async () => {
+      for (let i = 0; i < 100; i++) {
+        fs.mkdirSync(path.join(tempRoot, `d${i}`), { recursive: true });
+      }
+
+      mockQueryBuilder.getRawMany.mockResolvedValue([]);
+
+      await service.cleanupOrphanedTempDirs();
+
+      expect(mockUploadSessionRepository.createQueryBuilder).toHaveBeenCalledTimes(1);
+      expect(mockQueryBuilder.getRawMany).toHaveBeenCalledTimes(1);
+    });
+
+    it("behaves correctly with an empty directory list", async () => {
+      mockQueryBuilder.getRawMany.mockResolvedValue([]);
+
+      const cleaned = await service.cleanupOrphanedTempDirs();
+
+      expect(cleaned).toBe(0);
+      expect(deleteSpy).not.toHaveBeenCalled();
+    });
+
+    it("does not delete orphans when DB lookup fails", async () => {
+      const orphan = path.join(tempRoot, "unsafe");
+      fs.mkdirSync(orphan, { recursive: true });
+
+      mockQueryBuilder.getRawMany.mockRejectedValue(new Error("DB down"));
+
+      const cleaned = await service.cleanupOrphanedTempDirs();
+
+      expect(cleaned).toBe(0);
+      expect(fs.existsSync(orphan)).toBe(true);
+      expect(deleteSpy).not.toHaveBeenCalled();
+    });
+
+    it("preserves existing filesystem failure behavior", async () => {
+      const badRoot = "/nonexistent/path/for/orphan/cleanup";
+      mockStorageService.getTempPath.mockReturnValue(badRoot);
+
+      const cleaned = await service.cleanupOrphanedTempDirs();
+
+      expect(cleaned).toBe(0);
+      expect(mockUploadSessionRepository.createQueryBuilder).not.toHaveBeenCalled();
     });
   });
 });

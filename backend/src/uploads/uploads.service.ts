@@ -779,10 +779,30 @@ export class UploadsService {
   /**
    * Clean up orphaned temp directories that have no corresponding DB row.
    * Runs on startup to recover from crashes during session creation (O-15).
+   *
+   * Classification is performed with a CONSTANT number of DB queries: one
+   * `SELECT DISTINCT "tempPath"` fetches every currently referenced temp path
+   * into an in-memory Set, and each enumerated filesystem entry is then
+   * classified by exact string membership. Query count does not grow with
+   * directory count, unlike the previous per-directory `findOne` loop.
    */
   async cleanupOrphanedTempDirs(): Promise<number> {
     const tempRoot = this.storageService.getTempPath();
     if (!fs.existsSync(tempRoot)) {
+      return 0;
+    }
+
+    let referenced: Set<string>;
+    try {
+      const rows = await this.uploadSessionRepository
+        .createQueryBuilder("session")
+        .select("session.tempPath", "tempPath")
+        .getRawMany<{ tempPath: string }>();
+      referenced = new Set(rows.map((row) => row.tempPath));
+    } catch (err) {
+      this.logger.error(
+        `Orphaned temp dir cleanup failed: ${(err as Error).message}`,
+      );
       return 0;
     }
 
@@ -795,15 +815,14 @@ export class UploadsService {
           continue;
         }
 
-        // Check if a session row references this temp path.
-        const session = await this.uploadSessionRepository.findOne({
-          where: { tempPath: entryPath },
-        });
-
-        if (!session) {
-          this.deleteTempFiles(entryPath);
-          cleaned++;
+        // A directory is orphaned iff no upload_session references its exact
+        // tempPath. Exact string membership — no LIKE/prefix matching.
+        if (referenced.has(entryPath)) {
+          continue;
         }
+
+        this.deleteTempFiles(entryPath);
+        cleaned++;
       }
     } catch (err) {
       this.logger.error(
