@@ -23,7 +23,7 @@
 | Phase 9 — Authentication & Sessions | `COMPLETE` | `83adfa1`, `11b27f2`, `744b27c`, `09dea37` |
 | Phase 10 — Sharing & Access Control | `COMPLETE` | 10.1–10.8 подтверждены; checkpoint `08ea21f` |
 | Phase 11 — Backend/API Hardening | `COMPLETE` | 11.1–11.5 COMPLETE |
-| Phase 12 — Performance & Scalability | `IN PROGRESS` | 12.1 COMPLETE; 12.2–12.6 PLANNED |
+| Phase 12 — Performance & Scalability | `IN PROGRESS` | 12.1–12.2 COMPLETE; 12.3–12.6 PLANNED |
 
 ## Completed
 
@@ -172,7 +172,7 @@ Explicitly deferred / not Phase 11 defects:
 
 Goal: establish measurable backend performance characteristics, identify evidence-backed bottlenecks, remediate only confirmed critical issues, and verify improvements without weakening correctness/security guarantees.
 
-12.1 Performance Baseline & Hot-Path Inventory — COMPLETE
+### 12.1 Performance Baseline & Hot-Path Inventory — COMPLETE
 - reproducible baseline scenarios and measurement methodology;
 - DB/query hot-path inventory;
 - filesystem/streaming hot-path inventory;
@@ -204,31 +204,64 @@ Methodology: fixed/reproducible environment; comparative before/after evidence; 
 
 Policy: structural evidence may justify placement in remediation backlog; when practical, obtain baseline BEFORE implementation so 12.5 can verify before/after effect; indexes, full-text/trigram and lock redesign require measurement evidence; already-streaming download/Range/ZIP must not be redesigned without evidence.
 
-12.2 Database Query Performance — PLANNED
-- investigate query paths justified by 12.1;
-- query shape, N+1, pagination and indexes;
-- PostgreSQL query-plan evidence where appropriate;
-- no speculative indexes;
-- leading-wildcard ILIKE/full-text remains deferred unless evidence justifies remediation.
+### 12.2 Database Query Performance — COMPLETE
 
-12.3 Filesystem & Streaming Performance — PLANNED
+**Query/listing evidence**
+- trusted 1k/10k/100k measurements established proportional growth for unbounded listing/search paths;
+- search leading-wildcard `ILIKE` has confirmed scan-bound behavior;
+- `findAll` at 100k showed parallel scan/external sort, while service-level cost is strongly affected by TypeORM hydration/result volume;
+- `listUploadSessions` and `listUserShares` scale proportionally with returned cardinality.
+
+**Remediation**
+- `cleanupOrphanedTempDirs()` N+1 classification removed;
+- production now loads referenced `tempPaths` once and performs in-memory set membership;
+- DB failure remains fail-safe: delete nothing.
+
+**Trusted AFTER evidence (committed harness, isolated benchmark DB, storage guard)**
+- 1k: median 6.67 ms, 1 classification query, 900 referenced / 100 orphan / 100 deleted;
+- 10k: median 45.36 ms, 1 classification query, 9000 referenced / 1000 orphan / 1000 deleted;
+- DB/storage residual = 0;
+- benchmark isolation PASS;
+- normal resources untouched.
+- Speedup against old cleanup timings NOT calculated.
+
+**Evidence caveat**
+- old cleanup timings are NOT trusted baseline because earlier harness had storage-isolation and wiring defects;
+- old 1000/10000 query counts may be retained only as structural diagnostic evidence of the former N+1 algorithm.
+
+**Explicit deferred / no-change decisions**
+- pagination for `findAll`/`findFolders`/`listUploadSessions`/`listUserShares` deferred because it changes existing API/frontend contracts;
+- search pagination deferred for the same contract reason;
+- trigram/full-text search deferred: no evidence sufficient to justify that redesign in 12.2;
+- `cleanupExpiredSessions` unbounded materialization deferred; FS side effects prevent unsafe bulk-delete shortcut;
+- no additional DB index added because current evidence did not justify one.
+
+**Final Gate**
+- focused regressions: cleanupOrphanedTempDirs 7/7, bench cleanup 19/19;
+- full backend suite: 379 passed, 10 skipped;
+- typecheck PASS;
+- lint PASS: 0 errors, 15 pre-existing test warnings;
+- build PASS;
+- diff-check PASS.
+
+### 12.3 Filesystem & Streaming Performance — PLANNED
 - synchronous filesystem operations on actual request hot paths;
 - streaming/memory behavior for upload/download/Range/preview/ZIP;
 - remediate only confirmed critical request-path bottlenecks;
 - startup/maintenance sync I/O is not automatically a defect.
 
-12.4 Large-file & Concurrency Baseline — PLANNED
+### 12.4 Large-file & Concurrency Baseline — PLANNED
 - controlled large-file/concurrent scenarios;
 - upload/download/Range/ZIP and relevant DB/quota contention;
 - establish limits/degradation/failure behavior using reproducible methodology.
 
-12.5 Evidence-based Remediation — PLANNED
+### 12.5 Evidence-based Remediation — PLANNED
 - scope determined ONLY by confirmed 12.1–12.4 findings;
 - no predetermined optimizations;
 - preserve security/integrity/transaction/access-control contracts;
 - focused regression/performance verification required.
 
-12.6 Performance Regression & Final Gate — PLANNED
+### 12.6 Performance Regression & Final Gate — PLANNED
 - repeat relevant baseline after remediation;
 - before/after evidence;
 - focused regressions;
