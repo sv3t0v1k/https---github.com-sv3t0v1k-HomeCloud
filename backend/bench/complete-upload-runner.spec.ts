@@ -11,6 +11,7 @@ import { FileEntity } from "../src/entities/file.entity";
 import {
   measureCompleteUploadScale,
   COMPLETE_UPLOAD_SCALES,
+  COMPLETE_UPLOAD_BENCH_MIME_TYPES,
   CHUNK_SIZE,
   buildCompleteUploadServices,
   verifyIsolation,
@@ -183,6 +184,30 @@ describe("complete-upload-runner", () => {
     expect(src).toContain("uploadsService.completeUpload(");
     expect(src).not.toContain("// simulate");
     expect(src).not.toContain("Math.random");
+  });
+
+  it("allows the synthetic binary MIME only in benchmark config without env leakage", () => {
+    const previous = process.env.ALLOWED_UPLOAD_MIME_TYPES;
+    process.env.ALLOWED_UPLOAD_MIME_TYPES = "image/png";
+
+    try {
+      const { dataSource } = createMockDataSourceAndServices();
+      const services = buildCompleteUploadServices(dataSource);
+
+      expect(
+        (services.uploadsService as unknown as { allowedMimeTypes: string[] })
+          .allowedMimeTypes,
+      ).toEqual([COMPLETE_UPLOAD_BENCH_MIME_TYPES]);
+      expect(process.env.ALLOWED_UPLOAD_MIME_TYPES).toBe("image/png");
+
+      fs.rmSync(services.benchRoot, { recursive: true, force: true });
+    } finally {
+      if (previous === undefined) {
+        delete process.env.ALLOWED_UPLOAD_MIME_TYPES;
+      } else {
+        process.env.ALLOWED_UPLOAD_MIME_TYPES = previous;
+      }
+    }
   });
 
   it("isolated storage path is enforced", () => {
