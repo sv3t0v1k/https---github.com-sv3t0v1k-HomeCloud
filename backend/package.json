@@ -10,6 +10,7 @@
     "lint": "eslint \"src/**/*.ts\"",
     "format": "prettier --write \"src/**/*.ts\"",
     "test": "jest",
+    "test:file-type:compiled": "npm run build && node test/file-type-compiled-runtime.cjs",
     "test:watch": "jest --watch",
     "migration:run": "node ./node_modules/typeorm/cli.js migration:run -d dist/data-source.js",
     "migration:revert": "node ./node_modules/typeorm/cli.js migration:revert -d dist/data-source.js",

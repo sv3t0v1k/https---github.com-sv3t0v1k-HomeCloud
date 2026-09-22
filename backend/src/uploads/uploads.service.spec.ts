@@ -11,11 +11,11 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 
-jest.mock("file-type", () => ({
+jest.mock("./file-type.loader", () => ({
   fileTypeFromBuffer: jest.fn(),
-}), { virtual: true });
+}));
 
-import { fileTypeFromBuffer } from "file-type";
+import { fileTypeFromBuffer } from "./file-type.loader";
 
 describe("UploadsService - Post-Review Fixes", () => {
   let service: UploadsService;

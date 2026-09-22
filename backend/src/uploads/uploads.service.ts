@@ -9,6 +9,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import * as fs from "fs";
 import * as path from "path";
+import { fileTypeFromBuffer } from "./file-type.loader";
 import { v4 as uuidv4 } from "uuid";
 import { ConfigService } from "@nestjs/config";
 import { UploadSessionEntity } from "../entities/upload-session.entity";
@@ -655,7 +656,6 @@ export class UploadsService {
         const headerBuffer = Buffer.alloc(headerSize);
         fs.readSync(fd, headerBuffer, 0, headerSize, null);
         fs.closeSync(fd);
-        const { fileTypeFromBuffer } = await import("file-type");
         const detected = await fileTypeFromBuffer(headerBuffer);
         const mimeType = detected?.mime || "application/octet-stream";
 

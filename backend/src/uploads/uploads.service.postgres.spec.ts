@@ -15,11 +15,10 @@ import { UsersService } from "../users/users.service";
 import { UploadsService } from "./uploads.service";
 
 jest.mock(
-  "file-type",
+  "./file-type.loader",
   () => ({
     fileTypeFromBuffer: jest.fn().mockResolvedValue(undefined),
   }),
-  { virtual: true },
 );
 
 const testDatabaseUrl = process.env.HOMECLOUD_TEST_DATABASE_URL;
