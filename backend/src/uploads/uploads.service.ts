@@ -9,6 +9,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import * as fs from "fs";
 import * as path from "path";
+import { once } from "events";
 import { fileTypeFromBuffer } from "./file-type.loader";
 import { v4 as uuidv4 } from "uuid";
 import { ConfigService } from "@nestjs/config";
@@ -604,7 +605,9 @@ export class UploadsService {
             const chunkPath = path.join(session.tempPath, String(i));
             const chunkData = fs.readFileSync(chunkPath);
             actualSize += chunkData.length;
-            writeStream.write(chunkData);
+            if (!writeStream.write(chunkData)) {
+              await once(writeStream, "drain");
+            }
           }
           writeStream.end();
 

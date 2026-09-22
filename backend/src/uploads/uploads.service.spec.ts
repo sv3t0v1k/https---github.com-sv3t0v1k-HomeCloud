@@ -10,6 +10,9 @@ import { UploadedChunksJsonb1746825070000 } from "../migrations/1746825070000-Up
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import { EventEmitter } from "events";
+
+const mutableFs = jest.requireActual<typeof import("fs")>("fs");
 
 jest.mock("./file-type.loader", () => ({
   fileTypeFromBuffer: jest.fn(),
@@ -587,6 +590,145 @@ describe("UploadsService - Post-Review Fixes", () => {
 
       fs.rmSync(tempDir, { recursive: true, force: true });
       if (fs.existsSync(finalPath)) fs.rmSync(finalPath, { force: true });
+    });
+  });
+
+  describe("completeUpload — writable backpressure", () => {
+    function prepareSession(tempDir: string, finalPath: string) {
+      const session = {
+        uploadId: "abc",
+        userId: 1,
+        filename: "photo.png",
+        totalSize: 16,
+        chunkSize: 8,
+        totalChunks: 2,
+        uploadedChunks: [0, 1],
+        uploadedSize: 16,
+        tempPath: tempDir,
+        parentId: null,
+        status: "pending",
+        expiresAt: new Date(Date.now() + 86400000),
+      };
+
+      fs.mkdirSync(tempDir, { recursive: true });
+      fs.writeFileSync(path.join(tempDir, "0"), Buffer.alloc(8, 1));
+      fs.writeFileSync(path.join(tempDir, "1"), Buffer.alloc(8, 2));
+
+      mockQueryRunner.manager.findOne
+        .mockResolvedValueOnce(session)
+        .mockResolvedValueOnce(null);
+      mockQueryRunner.manager.save.mockImplementation((entity: any) =>
+        Promise.resolve(entity),
+      );
+      mockQueryRunner.manager.create.mockReturnValue({ id: 1 });
+      mockStorageService.generateFinalPath.mockReturnValue(finalPath);
+      mockUsersService.updateStorageUsed.mockResolvedValue(undefined);
+      (fileTypeFromBuffer as jest.Mock).mockResolvedValue({ mime: "image/png" });
+
+      return session;
+    }
+
+    it("does not write the next chunk until drain after write returns false", async () => {
+      const tempDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), "test-complete-backpressure-"),
+      );
+      const finalPath = `${tempDir}-final.png`;
+      prepareSession(tempDir, finalPath);
+
+      const stream = new EventEmitter() as EventEmitter & {
+        write: jest.Mock<boolean, [Buffer]>;
+        end: jest.Mock<void, []>;
+        destroy: jest.Mock<void, []>;
+      };
+      const written: Buffer[] = [];
+      let signalFirstWrite!: () => void;
+      const firstWrite = new Promise<void>((resolve) => {
+        signalFirstWrite = resolve;
+      });
+      stream.write = jest.fn((chunk: Buffer) => {
+        written.push(chunk);
+        if (written.length === 1) signalFirstWrite();
+        return written.length !== 1;
+      });
+      stream.end = jest.fn(() => {
+        fs.writeFileSync(finalPath, Buffer.concat(written));
+        queueMicrotask(() => stream.emit("finish"));
+      });
+      stream.destroy = jest.fn();
+      const originalCreateWriteStream = mutableFs.createWriteStream;
+      mutableFs.createWriteStream = jest.fn(() =>
+        stream as unknown as fs.WriteStream
+      ) as typeof fs.createWriteStream;
+
+      try {
+        const completion = service.completeUpload(1, "abc");
+        await firstWrite;
+
+        expect(stream.write).toHaveBeenCalledTimes(1);
+        expect(stream.listenerCount("drain")).toBe(1);
+        expect(stream.listenerCount("error")).toBe(1);
+        const backpressureErrorListener = stream.listeners("error")[0];
+
+        stream.emit("drain");
+        await expect(completion).resolves.toBeDefined();
+
+        expect(stream.write).toHaveBeenCalledTimes(2);
+        expect(stream.listenerCount("drain")).toBe(0);
+        expect(stream.listeners("error")).not.toContain(
+          backpressureErrorListener,
+        );
+      } finally {
+        mutableFs.createWriteStream = originalCreateWriteStream;
+        fs.rmSync(tempDir, { recursive: true, force: true });
+        fs.rmSync(finalPath, { force: true });
+      }
+    });
+
+    it("rejects and cleans listeners when the stream errors while awaiting drain", async () => {
+      const tempDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), "test-complete-backpressure-error-"),
+      );
+      const finalPath = `${tempDir}-final.png`;
+      prepareSession(tempDir, finalPath);
+
+      const stream = new EventEmitter() as EventEmitter & {
+        write: jest.Mock<boolean, [Buffer]>;
+        end: jest.Mock<void, []>;
+        destroy: jest.Mock<void, []>;
+      };
+      let signalFirstWrite!: () => void;
+      const firstWrite = new Promise<void>((resolve) => {
+        signalFirstWrite = resolve;
+      });
+      stream.write = jest.fn((_chunk: Buffer) => {
+        signalFirstWrite();
+        return false;
+      });
+      stream.end = jest.fn();
+      stream.destroy = jest.fn();
+      const originalCreateWriteStream = mutableFs.createWriteStream;
+      mutableFs.createWriteStream = jest.fn(() =>
+        stream as unknown as fs.WriteStream
+      ) as typeof fs.createWriteStream;
+
+      try {
+        const completion = service.completeUpload(1, "abc");
+        await firstWrite;
+        const streamError = new Error("write stream failed while backpressured");
+
+        stream.emit("error", streamError);
+        await expect(completion).rejects.toBe(streamError);
+
+        expect(stream.write).toHaveBeenCalledTimes(1);
+        expect(stream.end).not.toHaveBeenCalled();
+        expect(stream.destroy).toHaveBeenCalledTimes(1);
+        expect(stream.listenerCount("drain")).toBe(0);
+        expect(stream.listenerCount("error")).toBe(0);
+      } finally {
+        mutableFs.createWriteStream = originalCreateWriteStream;
+        fs.rmSync(tempDir, { recursive: true, force: true });
+        fs.rmSync(finalPath, { force: true });
+      }
     });
   });
 
