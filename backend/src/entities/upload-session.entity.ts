@@ -9,6 +9,19 @@ import {
 } from "typeorm";
 import { UserEntity } from "./user.entity";
 
+const safeBigintNumberTransformer = {
+  to: (value: number): number => value,
+  from: (value: string | number): number => {
+    const numberValue = Number(value);
+    if (!Number.isSafeInteger(numberValue)) {
+      throw new RangeError(
+        `BIGINT value is outside the safe integer range: ${value}`,
+      );
+    }
+    return numberValue;
+  },
+};
+
 @Entity("upload_sessions")
 export class UploadSessionEntity {
   @PrimaryGeneratedColumn()
@@ -20,10 +33,19 @@ export class UploadSessionEntity {
   @Column({ length: 255 })
   filename!: string;
 
-  @Column({ type: "bigint", name: "totalSize" })
+  @Column({
+    type: "bigint",
+    name: "totalSize",
+    transformer: safeBigintNumberTransformer,
+  })
   totalSize!: number;
 
-  @Column({ type: "bigint", default: 0, name: "uploadedSize" })
+  @Column({
+    type: "bigint",
+    default: 0,
+    name: "uploadedSize",
+    transformer: safeBigintNumberTransformer,
+  })
   uploadedSize!: number;
 
   @Column({ type: "int", default: 0, name: "chunkSize" })
