@@ -28,7 +28,7 @@ export class ShareLinkEntity {
   @Column({ nullable: true, name: "expiresAt" })
   expiresAt!: Date;
 
-  @Column({ type: "timestamp", nullable: true, name: "lockedUntil" })
+  @Column({ type: "timestamptz", nullable: true, name: "lockedUntil" })
   lockedUntil!: Date | null;
 
   @Column({ default: true, name: "isActive" })

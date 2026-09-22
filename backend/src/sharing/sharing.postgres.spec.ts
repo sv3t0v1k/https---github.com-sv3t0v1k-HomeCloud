@@ -18,6 +18,7 @@ import { CreateRefreshTokensTable1746825000000 } from "../migrations/17468250000
 import { CreateShareLinksTable1746824930000 } from "../migrations/1746824930000-CreateShareLinksTable";
 import { CreateUsersTable1746824900000 } from "../migrations/1746824900000-CreateUsersTable";
 import { ShareLinksTokenUnique1746825040000 } from "../migrations/1746825040000-ShareLinksTokenUnique";
+import { ShareLockedUntilTimestamptz1746825120000 } from "../migrations/1746825120000-ShareLockedUntilTimestamptz";
 import { SharingService } from "./sharing.service";
 import { StorageService } from "../storage/storage.service";
 import * as bcrypt from "bcryptjs";
@@ -52,7 +53,7 @@ describePostgres("SharingService — реальный PostgreSQL", () => {
         FolderEntity,
         RefreshTokenEntity,
       ],
-      extra: { max: 10, options: `-c search_path=${schema}` },
+      extra: { max: 10, options: `-c search_path=${schema} -c timezone=UTC` },
     });
     await dataSource.initialize();
     await dataSource.query(`CREATE SCHEMA "${schema}"`);
@@ -72,6 +73,7 @@ describePostgres("SharingService — реальный PostgreSQL", () => {
     await new ShareLinksTokenUnique1746825040000().up(migrationRunner);
     await migration.up(migrationRunner);
     await new AddShareFailedAttempts1746825100000().up(migrationRunner);
+    await new ShareLockedUntilTimestamptz1746825120000().up(migrationRunner);
     await dataSource.query(
       `INSERT INTO "${schema}"."users" ("id", "email", "password", "isActive") VALUES ($1, $2, $3, $4)`,
       [testUserId, "test@test", "test-password", true],
