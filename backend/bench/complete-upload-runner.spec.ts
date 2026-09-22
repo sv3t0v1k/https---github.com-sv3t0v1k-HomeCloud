@@ -8,15 +8,20 @@ import { UploadsService } from "../src/uploads/uploads.service";
 import { StorageService } from "../src/storage/storage.service";
 import { UploadSessionEntity } from "../src/entities/upload-session.entity";
 import { FileEntity } from "../src/entities/file.entity";
+import { UserEntity } from "../src/entities/user.entity";
+import { UsersService } from "../src/users/users.service";
 import {
   measureCompleteUploadScale,
   COMPLETE_UPLOAD_SCALES,
   COMPLETE_UPLOAD_BENCH_MIME_TYPES,
+  BENCH_QUOTA_MULTIPLIER,
   CHUNK_SIZE,
   buildCompleteUploadServices,
   verifyIsolation,
   computeExpectedSha256,
   writeChunks,
+  computeBenchStorageQuota,
+  createBenchUser,
   CompleteUploadMeasurement,
 } from "./complete-upload-runner";
 import { createWriteStreamInstrument } from "./write-stream-instrument";
@@ -89,9 +94,28 @@ function createMockDataSourceAndServices(overrides?: {
   };
 } {
   const sessionStore = new Map<string, UploadSessionEntity>();
+  let benchUser: UserEntity | undefined;
 
   const dataSource = {
     getRepository: (entity: any) => {
+      if (entity === UserEntity) {
+        return {
+          create: (value: Partial<UserEntity>) => value,
+          save: async (value: UserEntity) => {
+            benchUser = { ...value, id: 1 } as UserEntity;
+            return benchUser;
+          },
+          count: async () => 0,
+          find: async () => [],
+          findOne: async (options?: { where?: { email?: string; id?: number } }) => {
+            if (options?.where?.email) return undefined;
+            if (options?.where?.id === benchUser?.id) return benchUser;
+            return undefined;
+          },
+          delete: async () => ({}),
+          query: async () => [],
+        };
+      }
       if (entity === UploadSessionEntity) {
         return {
           create: () => ({}),
@@ -144,6 +168,7 @@ function createMockDataSourceAndServices(overrides?: {
           session.status = "completed";
           sessionStore.set(key, { ...session, updatedAt: new Date() });
         }
+        if (benchUser) benchUser.storageUsed += session?.totalSize ?? 0;
         return makeFile({ uploadId });
       },
       abortUpload: async () => {},
@@ -174,6 +199,57 @@ describe("complete-upload-runner", () => {
       10 * 1024 * 1024,
       50 * 1024 * 1024,
     ]);
+  });
+
+  it("assigns a finite safe quota above every benchmark upload size", () => {
+    for (const scaleBytes of COMPLETE_UPLOAD_SCALES) {
+      const quota = computeBenchStorageQuota(scaleBytes);
+      expect(quota).toBe(scaleBytes * BENCH_QUOTA_MULTIPLIER);
+      expect(quota).toBeGreaterThan(scaleBytes);
+      expect(Number.isSafeInteger(quota)).toBe(true);
+    }
+    expect(() => computeBenchStorageQuota(0)).toThrow(/Invalid benchmark scale/);
+    expect(() => computeBenchStorageQuota(Number.MAX_SAFE_INTEGER)).toThrow(
+      /Invalid benchmark scale/,
+    );
+  });
+
+  it("creates a benchmark user whose quota passes the production quota check", async () => {
+    const scaleBytes = COMPLETE_UPLOAD_SCALES[0];
+    let storedUser: UserEntity | undefined;
+    const repository = {
+      findOne: async () => storedUser,
+      create: (value: Partial<UserEntity>) => value,
+      save: async (value: UserEntity) => {
+        storedUser = { ...value, id: 1 } as UserEntity;
+        return storedUser;
+      },
+      createQueryBuilder: () => ({
+        update: () => ({
+          set: () => ({
+            where: () => ({
+              execute: async () => {
+                if (!storedUser || storedUser.storageUsed + scaleBytes > storedUser.storageQuota) {
+                  return { affected: 0 };
+                }
+                storedUser.storageUsed += scaleBytes;
+                return { affected: 1 };
+              },
+            }),
+          }),
+        }),
+      }),
+    };
+    const dataSource = {
+      getRepository: () => repository,
+    } as unknown as DataSource;
+
+    const userId = await createBenchUser(dataSource, scaleBytes);
+    expect(storedUser?.storageQuota).toBeGreaterThan(scaleBytes);
+
+    const usersService = new UsersService(repository as any);
+    await expect(usersService.updateStorageUsed(userId, scaleBytes)).resolves.toBeUndefined();
+    expect(storedUser?.storageUsed).toBe(scaleBytes);
   });
 
   it("production completeUpload is invoked (real method reference, no simulation)", () => {
@@ -318,6 +394,8 @@ describe("complete-upload-runner", () => {
     expect(m.expectedSha256).toBe(computeExpectedSha256(scale, chunkSize));
     expect(m.actualSha256).toBe(m.expectedSha256);
     expect(m.sessionStatus).toBe("completed");
+    expect(m.storageUsed).toBe(scale);
+    expect(m.storageQuota).toBe(computeBenchStorageQuota(scale));
     expect(m.dbResiduals).toEqual({ sessions: 0, files: 0, folders: 0, user: 0 });
     expect(m.fsResiduals).toBe(0);
   });

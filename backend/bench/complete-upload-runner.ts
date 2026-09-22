@@ -17,6 +17,7 @@ import { createRssSampler, RssSamplerHandle } from "./rss-sampler";
 export const COMPLETE_UPLOAD_SCALES = [1 * 1024 * 1024, 10 * 1024 * 1024, 50 * 1024 * 1024] as const;
 export const CHUNK_SIZE = 5 * 1024 * 1024;
 export const COMPLETE_UPLOAD_BENCH_MIME_TYPES = "application/octet-stream";
+export const BENCH_QUOTA_MULTIPLIER = 2;
 
 export interface CompleteUploadMeasurement {
   scaleBytes: number;
@@ -35,6 +36,8 @@ export interface CompleteUploadMeasurement {
   expectedSha256: string;
   actualSha256: string;
   sessionStatus: string;
+  storageUsed: number;
+  storageQuota: number;
   dbResiduals: Record<string, number>;
   fsResiduals: number;
 }
@@ -123,7 +126,18 @@ export function buildCompleteUploadServices(
   }
 }
 
-async function createBenchUser(dataSource: DataSource): Promise<number> {
+export function computeBenchStorageQuota(scaleBytes: number): number {
+  const quota = scaleBytes * BENCH_QUOTA_MULTIPLIER;
+  if (!Number.isSafeInteger(scaleBytes) || scaleBytes <= 0 || !Number.isSafeInteger(quota)) {
+    throw new Error(`Invalid benchmark scale for storage quota: ${scaleBytes}`);
+  }
+  return quota;
+}
+
+export async function createBenchUser(
+  dataSource: DataSource,
+  scaleBytes: number,
+): Promise<number> {
   const repo = dataSource.getRepository(UserEntity);
   const existing = await repo.findOne({
     where: { email: "bench-completeupload@homecloud.local" },
@@ -137,7 +151,7 @@ async function createBenchUser(dataSource: DataSource): Promise<number> {
     name: "bench-completeupload",
     isActive: true,
     isEmailVerified: false,
-    storageQuota: 0,
+    storageQuota: computeBenchStorageQuota(scaleBytes),
     storageUsed: 0,
   });
   const saved = await repo.save(user);
@@ -204,7 +218,7 @@ export async function measureCompleteUploadScale(
   const rssSampler = createRssSampler(1); // 1ms interval
 
   try {
-    userId = await createBenchUser(dataSource);
+    userId = await createBenchUser(dataSource, scaleBytes);
 
     const session = await uploadsService.createUploadSession(
       userId,
@@ -257,6 +271,20 @@ export async function measureCompleteUploadScale(
       throw new Error(`Upload session ${uploadId} not found after successful completeUpload`);
     }
     const sessionStatus = completedSession.status;
+    const completedUser = await dataSource
+      .getRepository(UserEntity)
+      .findOne({ where: { id: userId } });
+    if (!completedUser) {
+      throw new Error(`Benchmark user ${userId} not found after successful completeUpload`);
+    }
+    if (
+      completedUser.storageUsed !== scaleBytes ||
+      completedUser.storageQuota !== computeBenchStorageQuota(scaleBytes)
+    ) {
+      throw new Error(
+        `Quota accounting mismatch: used=${completedUser.storageUsed} quota=${completedUser.storageQuota}`,
+      );
+    }
 
     const measurement: CompleteUploadMeasurement = {
       scaleBytes,
@@ -275,6 +303,8 @@ export async function measureCompleteUploadScale(
       expectedSha256,
       actualSha256,
       sessionStatus,
+      storageUsed: completedUser.storageUsed,
+      storageQuota: completedUser.storageQuota,
       dbResiduals: residualRows,
       fsResiduals: residualFs,
     };
