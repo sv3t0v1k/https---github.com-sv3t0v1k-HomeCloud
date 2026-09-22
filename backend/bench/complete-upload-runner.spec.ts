@@ -12,6 +12,7 @@ import { UserEntity } from "../src/entities/user.entity";
 import { UsersService } from "../src/users/users.service";
 import {
   measureCompleteUploadScale,
+  normalizeBenchBigInt,
   COMPLETE_UPLOAD_SCALES,
   COMPLETE_UPLOAD_BENCH_MIME_TYPES,
   BENCH_QUOTA_MULTIPLIER,
@@ -211,6 +212,17 @@ describe("complete-upload-runner", () => {
     expect(() => computeBenchStorageQuota(0)).toThrow(/Invalid benchmark scale/);
     expect(() => computeBenchStorageQuota(Number.MAX_SAFE_INTEGER)).toThrow(
       /Invalid benchmark scale/,
+    );
+  });
+
+  it("normalizes PostgreSQL BIGINT quota values without losing precision", () => {
+    expect(normalizeBenchBigInt("1048576", "storageUsed")).toBe(1048576);
+    expect(normalizeBenchBigInt(2097152, "storageQuota")).toBe(2097152);
+    expect(() =>
+      normalizeBenchBigInt("9007199254740992", "storageQuota"),
+    ).toThrow(/Invalid storageQuota/);
+    expect(() => normalizeBenchBigInt("not-a-number", "storageUsed")).toThrow(
+      /Invalid storageUsed/,
     );
   });
 

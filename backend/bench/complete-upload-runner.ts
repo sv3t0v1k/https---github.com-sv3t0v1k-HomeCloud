@@ -134,6 +134,17 @@ export function computeBenchStorageQuota(scaleBytes: number): number {
   return quota;
 }
 
+export function normalizeBenchBigInt(
+  value: number | string,
+  field: string,
+): number {
+  const normalized = typeof value === "string" ? Number(value) : value;
+  if (!Number.isSafeInteger(normalized) || normalized < 0) {
+    throw new Error(`Invalid ${field} returned by benchmark database: ${value}`);
+  }
+  return normalized;
+}
+
 export async function createBenchUser(
   dataSource: DataSource,
   scaleBytes: number,
@@ -277,12 +288,20 @@ export async function measureCompleteUploadScale(
     if (!completedUser) {
       throw new Error(`Benchmark user ${userId} not found after successful completeUpload`);
     }
+    const storageUsed = normalizeBenchBigInt(
+      completedUser.storageUsed as unknown as number | string,
+      "storageUsed",
+    );
+    const storageQuota = normalizeBenchBigInt(
+      completedUser.storageQuota as unknown as number | string,
+      "storageQuota",
+    );
     if (
-      completedUser.storageUsed !== scaleBytes ||
-      completedUser.storageQuota !== computeBenchStorageQuota(scaleBytes)
+      storageUsed !== scaleBytes ||
+      storageQuota !== computeBenchStorageQuota(scaleBytes)
     ) {
       throw new Error(
-        `Quota accounting mismatch: used=${completedUser.storageUsed} quota=${completedUser.storageQuota}`,
+        `Quota accounting mismatch: used=${storageUsed} quota=${storageQuota}`,
       );
     }
 
@@ -303,8 +322,8 @@ export async function measureCompleteUploadScale(
       expectedSha256,
       actualSha256,
       sessionStatus,
-      storageUsed: completedUser.storageUsed,
-      storageQuota: completedUser.storageQuota,
+      storageUsed,
+      storageQuota,
       dbResiduals: residualRows,
       fsResiduals: residualFs,
     };
