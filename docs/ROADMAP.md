@@ -23,7 +23,7 @@
 | Phase 9 — Authentication & Sessions | `COMPLETE` | `83adfa1`, `11b27f2`, `744b27c`, `09dea37` |
 | Phase 10 — Sharing & Access Control | `COMPLETE` | 10.1–10.8 подтверждены; checkpoint `08ea21f` |
 | Phase 11 — Backend/API Hardening | `COMPLETE` | 11.1–11.5 COMPLETE |
-| Phase 12 — Performance & Scalability | `IN PROGRESS` | 12.1–12.2 COMPLETE; 12.3–12.6 PLANNED |
+| Phase 12 — Performance & Scalability | `IN PROGRESS` | 12.1–12.3 COMPLETE; 12.4–12.6 PLANNED |
 
 ## Completed
 
@@ -244,11 +244,33 @@ Policy: structural evidence may justify placement in remediation backlog; when p
 - build PASS;
 - diff-check PASS.
 
-### 12.3 Filesystem & Streaming Performance — PLANNED
-- synchronous filesystem operations on actual request hot paths;
-- streaming/memory behavior for upload/download/Range/preview/ZIP;
-- remediate only confirmed critical request-path bottlenecks;
-- startup/maintenance sync I/O is not automatically a defect.
+### 12.3 Filesystem & Streaming Performance — COMPLETE
+
+**Findings and final decisions**
+- A — `uploadChunk` reconciliation: `DEFER`. The real request path remains O(totalChunks): 100/1000/5000 chunks caused 101/1001/5001 `existsSync` calls and one `statSync`. Safe removal requires per-chunk schema/recovery and observable progress/API redesign; the current scan repairs arbitrary FS ↔ DB drift, while JSONB `uploadedChunks` remains O(N). The risk remains open.
+- B — `completeUpload` backpressure: `FIX_CONFIRMED`. Before, `write(false)` was ignored and writable buffering grew to the full upload size. Since `2cfc61a5`, assembly awaits `drain`; trusted multi-chunk evidence bounded `maxWritableLength` to one 5 MiB chunk, drains matched false writes, and correctness was preserved.
+- B-extra — `completeUpload` synchronous chunk read: `DEFER`. With the default 50 MiB `MAX_CHUNK_SIZE`, trusted one-chunk direct `readFileSync` median was 2.827 ms (range 2.733–2.998 ms), immediate delay 3.927 ms, and callback maximum about 4.073 ms. At 1 MiB the direct/immediate medians were 0.144/0.173 ms; at 5 MiB, 0.375/0.443 ms. The synchronous risk has not disappeared; it is accepted under the current cap and must be re-evaluated if the cap, storage, or runtime assumptions change (`4e612364`).
+- C1 — physical file copy: `FIX_CONFIRMED`. The 100 MiB immediate delay changed from about 47.95 ms to about 0.019 ms, callbacks before service return from 0/20 to 20/20, synchronous copy calls from 1 to 0, with one async copy attempt; SHA, metadata, and quota remained correct (`3bf48fc9`, benchmark adaptation `16572dcb`). This confirms restored event-loop responsiveness, not a faster physical copy.
+- C2 — copy metadata/quota consistency: `FIX_CONFIRMED`. The async physical copy precedes a short DB transaction; quota reservation and metadata save use the same transaction manager, with compensation and an explicit ambiguous-commit policy. In the PostgreSQL race, two 100-byte copies with quota 150 produced exactly one committed copy, `storageUsed = 100`, and consistent metadata/filesystem state (`e30536f7`).
+- D — permanent deletion: `FIX_CONFIRMED`. For 1000 files, immediate delay changed from median 36.744 ms to 0.023 ms, callbacks before service return from 0/20 to 20/20; after remediation synchronous unlink calls were 0, async attempts equalled N, and maximum in-flight unlink was 1 (`5aec6c95`, benchmark adaptation `cd16f3c3`). Event-loop responsiveness was fixed; deletion remains sequential O(N), and no claim is made that total O(N) latency disappeared.
+
+**Verified no-change streaming/preview paths**
+- public download and single-Range responses stream file contents through `createReadStream`; HTTP regressions cover 200/206/416 and range boundaries;
+- folder ZIP passes each member to `archiver` as a file stream; no whole-file or full archive payload buffering was found, although metadata, entry names, and library buffers still exist;
+- text preview is streamed and truncated using a nominal 5 MiB threshold; image preview and thumbnail generation retain known synchronous whole-file reads only after rejecting files above 5 MiB;
+- no new numeric latency, throughput, or RSS baseline is claimed for these paths. Phase 12.3 introduced no change here because inventory, code inspection, and regressions did not establish a critical remediation target.
+
+**Final Gate**
+- full backend suite, including isolated PostgreSQL tests and Phase 12.3 benchmark/harness suites: 43/43 suites, 491/491 tests passed;
+- typecheck (`tsc --noEmit`), backend build, benchmark TypeScript compile, and compiled CommonJS `file-type` runtime regression: PASS;
+- lint: 0 errors, 15 pre-existing `jest/expect-expect` warnings in `security.config.spec.ts`;
+- `git diff --check`: PASS;
+- independent review found no unresolved MUST_FIX in the agreed 12.3 scope; production code was unchanged by closure work.
+
+**Scope boundary**
+- deferred technical debt remains A and B-extra; neither is presented as fixed;
+- startup/maintenance sync I/O is not automatically a defect;
+- Phase 12 exclusions remain unchanged; Phase 12.4 work was not started.
 
 ### 12.4 Large-file & Concurrency Baseline — PLANNED
 - controlled large-file/concurrent scenarios;
