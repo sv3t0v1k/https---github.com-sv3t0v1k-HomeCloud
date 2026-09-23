@@ -697,17 +697,20 @@ export class FilesService {
 
     await this.assertFolderOwnership(userId, targetParentId);
 
+    const size = Number(source.size);
+    if (!Number.isSafeInteger(size) || size < 0) {
+      throw new BadRequestException("Invalid file size metadata");
+    }
+
     const safeName = this.storageService.generateSafeFilename(source.name);
     const targetPath = this.storageService.generatePath(userId, safeName);
 
-    if (this.storageService.fileExists(source.storagePath)) {
-      fs.copyFileSync(source.storagePath, targetPath);
-    }
+    await this.storageService.copyFile(source.storagePath, targetPath);
 
     const copy = this.fileRepository.create({
       name: safeName,
       storagePath: targetPath,
-      size: source.size,
+      size,
       mimeType: source.mimeType,
       isFolder: false,
       parentId: targetParentId,
@@ -715,8 +718,20 @@ export class FilesService {
       user,
     });
 
-    await this.fileRepository.save(copy);
-    await this.usersService.updateStorageUsed(userId, source.size);
+    try {
+      await this.fileRepository.save(copy);
+      await this.usersService.updateStorageUsed(userId, size);
+    } catch (error) {
+      try {
+        await this.storageService.deleteFile(targetPath);
+      } catch (cleanupError) {
+        this.logger.error(
+          `Failed to clean up copied file ${targetPath}`,
+          cleanupError,
+        );
+      }
+      throw error;
+    }
 
     return copy;
   }

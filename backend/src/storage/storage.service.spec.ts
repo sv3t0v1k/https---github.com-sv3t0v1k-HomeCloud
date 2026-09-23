@@ -74,3 +74,85 @@ describe("StorageService.deleteFile", () => {
     ).rejects.toBe(error);
   });
 });
+
+describe("StorageService.copyFile", () => {
+  let storagePath: string;
+  let service: StorageService;
+
+  beforeEach(() => {
+    storagePath = fs.mkdtempSync(path.join(os.tmpdir(), "homecloud-storage-"));
+    service = new StorageService({
+      get: jest.fn((key: string) =>
+        key === "STORAGE_PATH" ? storagePath : undefined,
+      ),
+    } as unknown as ConfigService);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+    fs.rmSync(storagePath, { recursive: true, force: true });
+  });
+
+  it("awaits async exclusive copy and preserves exact bytes", async () => {
+    const source = path.join(storagePath, "source.bin");
+    const destination = path.join(storagePath, "destination.bin");
+    const contents = Buffer.from([0, 1, 2, 3, 255]);
+    fs.writeFileSync(source, contents);
+    const actualCopy = fs.promises.copyFile.bind(fs.promises);
+    let allowCopy!: () => void;
+    const allowed = new Promise<void>((resolve) => {
+      allowCopy = resolve;
+    });
+    const copySpy = jest
+      .spyOn(fs.promises, "copyFile")
+      .mockImplementationOnce(async (from, to, mode) => {
+        await allowed;
+        await actualCopy(from, to, mode);
+      });
+    let settled = false;
+    const operation = service.copyFile(source, destination).then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+
+    expect(settled).toBe(false);
+    expect(copySpy).toHaveBeenCalledWith(
+      path.resolve(source),
+      path.resolve(destination),
+      fs.constants.COPYFILE_EXCL,
+    );
+    allowCopy();
+    await operation;
+
+    expect(fs.readFileSync(destination)).toEqual(contents);
+    expect(fs.readFileSync(source)).toEqual(contents);
+  });
+
+  it("does not overwrite an existing destination", async () => {
+    const source = path.join(storagePath, "source.txt");
+    const destination = path.join(storagePath, "destination.txt");
+    fs.writeFileSync(source, "source");
+    fs.writeFileSync(destination, "existing");
+
+    await expect(service.copyFile(source, destination)).rejects.toMatchObject({
+      code: "EEXIST",
+    });
+    expect(fs.readFileSync(destination, "utf8")).toBe("existing");
+    expect(fs.readFileSync(source, "utf8")).toBe("source");
+  });
+
+  it("rejects missing source and paths outside storage root", async () => {
+    await expect(
+      service.copyFile(
+        path.join(storagePath, "missing.txt"),
+        path.join(storagePath, "copy.txt"),
+      ),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(
+      service.copyFile("/outside/source.txt", path.join(storagePath, "copy.txt")),
+    ).rejects.toThrow("Path traversal detected");
+    await expect(
+      service.copyFile(path.join(storagePath, "source.txt"), "/outside/copy.txt"),
+    ).rejects.toThrow("Path traversal detected");
+  });
+});

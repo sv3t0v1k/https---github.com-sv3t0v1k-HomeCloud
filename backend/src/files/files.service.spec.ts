@@ -4,7 +4,11 @@ import { FolderEntity } from "../entities/folder.entity";
 import { UserEntity } from "../entities/user.entity";
 import { StorageService } from "../storage/storage.service";
 import { UsersService } from "../users/users.service";
-import { NotFoundException, ForbiddenException } from "@nestjs/common";
+import {
+  BadRequestException,
+  NotFoundException,
+  ForbiddenException,
+} from "@nestjs/common";
 
 describe("FilesService - Authorization Boundary", () => {
   let service: FilesService;
@@ -72,6 +76,7 @@ describe("FilesService - Authorization Boundary", () => {
         (userId, filename) => `/storage/${userId}/${filename}`,
       ),
       fileExists: jest.fn(() => true),
+      copyFile: jest.fn(),
       deleteFile: jest.fn(),
       getStoragePath: jest.fn(() => "/storage"),
     };
@@ -488,15 +493,140 @@ describe("FilesService - Authorization Boundary", () => {
   });
 
   describe("copyFile", () => {
-    it("should throw ForbiddenException when copying file to folder owned by another user", async () => {
-      const source = {
+    const source = {
+      id: 1,
+      userId: 1,
+      name: "test.txt",
+      size: 100,
+      mimeType: "text/plain",
+      storagePath: "/storage/1/source.txt",
+    };
+
+    beforeEach(() => {
+      mockFileRepository.findOne.mockResolvedValue(source);
+      mockUsersService.findById.mockResolvedValue({
         id: 1,
-        userId: 1,
-        name: "test.txt",
-        size: 100,
-        mimeType: "text/plain",
-        storagePath: "/storage/1/test.txt",
-      };
+        storageQuota: 1000,
+        storageUsed: 0,
+      });
+      mockFileRepository.create.mockImplementation((value: any) => value);
+      mockFileRepository.save.mockImplementation(async (value: any) => ({
+        id: 2,
+        ...value,
+      }));
+    });
+
+    it("awaits physical copy before creating metadata", async () => {
+      let allowCopy!: () => void;
+      const pendingCopy = new Promise<void>((resolve) => {
+        allowCopy = resolve;
+      });
+      mockStorageService.copyFile.mockReturnValueOnce(pendingCopy);
+
+      const operation = service.copyFile(1, 1);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(mockFileRepository.create).not.toHaveBeenCalled();
+      expect(mockFileRepository.save).not.toHaveBeenCalled();
+      allowCopy();
+      await operation;
+      expect(mockFileRepository.save).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not create metadata or charge quota when physical copy fails", async () => {
+      const missing = Object.assign(new Error("missing"), { code: "ENOENT" });
+      mockStorageService.copyFile.mockRejectedValueOnce(missing);
+
+      await expect(service.copyFile(1, 1)).rejects.toBe(missing);
+
+      expect(mockFileRepository.create).not.toHaveBeenCalled();
+      expect(mockFileRepository.save).not.toHaveBeenCalled();
+      expect(mockUsersService.updateStorageUsed).not.toHaveBeenCalled();
+      expect(mockStorageService.deleteFile).not.toHaveBeenCalled();
+    });
+
+    it("returns and persists exact normalized metadata on success", async () => {
+      mockFileRepository.findOne.mockResolvedValueOnce({ ...source, size: "100" });
+
+      const result = await service.copyFile(1, 1);
+
+      expect(mockStorageService.copyFile).toHaveBeenCalledWith(
+        source.storagePath,
+        "/storage/1/test.txt",
+      );
+      expect(mockFileRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "test.txt",
+          storagePath: "/storage/1/test.txt",
+          size: 100,
+          mimeType: "text/plain",
+          userId: 1,
+        }),
+      );
+      expect(mockUsersService.updateStorageUsed).toHaveBeenCalledWith(1, 100);
+      expect(result).toEqual(
+        expect.objectContaining({
+          name: "test.txt",
+          storagePath: "/storage/1/test.txt",
+          size: 100,
+        }),
+      );
+    });
+
+    it("does not remove a colliding destination or create side effects", async () => {
+      const collision = Object.assign(new Error("exists"), { code: "EEXIST" });
+      mockStorageService.copyFile.mockRejectedValueOnce(collision);
+
+      await expect(service.copyFile(1, 1)).rejects.toBe(collision);
+
+      expect(mockFileRepository.create).not.toHaveBeenCalled();
+      expect(mockFileRepository.save).not.toHaveBeenCalled();
+      expect(mockUsersService.updateStorageUsed).not.toHaveBeenCalled();
+      expect(mockStorageService.deleteFile).not.toHaveBeenCalled();
+    });
+
+    it("cleans up only the new destination when metadata persistence fails", async () => {
+      mockFileRepository.save.mockRejectedValueOnce(new Error("save failed"));
+
+      await expect(service.copyFile(1, 1)).rejects.toThrow("save failed");
+
+      expect(mockStorageService.deleteFile).toHaveBeenCalledWith(
+        "/storage/1/test.txt",
+      );
+      expect(mockStorageService.deleteFile).not.toHaveBeenCalledWith(
+        source.storagePath,
+      );
+      expect(mockUsersService.updateStorageUsed).not.toHaveBeenCalled();
+    });
+
+    it("cleans up the destination without masking a quota error", async () => {
+      const quotaError = new ForbiddenException("Storage quota exceeded");
+      mockUsersService.updateStorageUsed.mockRejectedValueOnce(quotaError);
+      mockStorageService.deleteFile.mockRejectedValueOnce(
+        new Error("cleanup failed"),
+      );
+
+      await expect(service.copyFile(1, 1)).rejects.toBe(quotaError);
+      expect(mockStorageService.deleteFile).toHaveBeenCalledWith(
+        "/storage/1/test.txt",
+      );
+      expect((service as any).logger.error).toBeDefined();
+    });
+
+    it.each([NaN, -1, 1.5, Number.MAX_SAFE_INTEGER + 1])(
+      "rejects unsafe source size metadata: %s",
+      async (size) => {
+        mockFileRepository.findOne.mockResolvedValueOnce({ ...source, size });
+
+        await expect(service.copyFile(1, 1)).rejects.toThrow(
+          BadRequestException,
+        );
+        expect(mockStorageService.copyFile).not.toHaveBeenCalled();
+      },
+    );
+
+    it("should throw ForbiddenException when copying file to folder owned by another user", async () => {
       mockFileRepository.findOne.mockResolvedValue(source);
       mockUsersService.findById.mockResolvedValue({
         id: 1,

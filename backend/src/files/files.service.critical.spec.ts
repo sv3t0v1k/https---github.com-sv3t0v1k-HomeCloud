@@ -64,6 +64,7 @@ describe("FilesService - Critical Findings (F-01, F-02, MISS-01, MISS-02, MISS-0
         generateSafeFilename: jest.fn((name) => name),
         generatePath: jest.fn((userId, filename) => `/storage/${userId}/${filename}`),
         fileExists: jest.fn(() => true),
+        copyFile: jest.fn(),
         deleteFile: jest.fn(),
         getStoragePath: jest.fn(() => "/storage"),
       };

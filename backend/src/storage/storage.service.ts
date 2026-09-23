@@ -106,6 +106,16 @@ export class StorageService {
     return fs.createReadStream(filePath);
   }
 
+  async copyFile(sourcePath: string, destinationPath: string): Promise<void> {
+    const safeSourcePath = this.ensureWithinStorageRoot(sourcePath);
+    const safeDestinationPath = this.ensureWithinStorageRoot(destinationPath);
+    await fs.promises.copyFile(
+      safeSourcePath,
+      safeDestinationPath,
+      fs.constants.COPYFILE_EXCL,
+    );
+  }
+
   async deleteFile(filePath: string): Promise<void> {
     const safePath = this.ensureWithinStorageRoot(filePath);
     try {
