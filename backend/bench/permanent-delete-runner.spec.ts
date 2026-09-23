@@ -37,7 +37,26 @@ describe("permanent-delete benchmark harness", () => {
     const sample = await instrument.settled();
     expect(sample.existsSync.calls).toBe(3);
     expect(sample.unlinkSync.calls).toBe(3);
+    expect(sample.asyncUnlink.calls).toBe(0);
     expect(sample.immediateRanBeforeServiceReturn).toBe(false);
+  });
+
+  it("observes awaited async unlink and event-loop progress", async () => {
+    for (let i = 0; i < 3; i++)
+      fs.writeFileSync(path.join(root, `${i}.bin`), "x");
+    const instrument = createPermanentDeleteInstrument();
+    instrument.start();
+    for (let i = 0; i < 3; i++) {
+      await fs.promises.unlink(path.join(root, `${i}.bin`));
+    }
+    instrument.markServiceReturned();
+    instrument.restore();
+    const sample = await instrument.settled();
+    expect(sample.existsSync.calls).toBe(0);
+    expect(sample.unlinkSync.calls).toBe(0);
+    expect(sample.asyncUnlink.calls).toBe(3);
+    expect(sample.asyncUnlink.maxInFlight).toBe(1);
+    expect(sample.immediateRanBeforeServiceReturn).toBe(true);
   });
 
   it("invokes real production emptyTrash and its physical deletion loop", async () => {
@@ -61,8 +80,8 @@ describe("permanent-delete benchmark harness", () => {
       manager: { connection: { createQueryRunner: () => queryRunner } },
     };
     const storageService = {
-      deleteFile: jest.fn((file: string) => {
-        if (fs.existsSync(file)) fs.unlinkSync(file);
+      deleteFile: jest.fn(async (file: string) => {
+        await fs.promises.unlink(file);
       }),
     };
     const usersService = { decrementStorageUsed: jest.fn() };

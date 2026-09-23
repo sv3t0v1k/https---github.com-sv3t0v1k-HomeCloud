@@ -25,6 +25,10 @@ export interface PermanentDeleteMeasurement {
   unlinkSyncCalls: number;
   unlinkSyncCumulativeMs: number;
   unlinkSyncMaxMs: number;
+  asyncUnlinkAttempts: number;
+  asyncUnlinkCumulativeMs: number;
+  asyncUnlinkMaxMs: number;
+  maxAsyncUnlinkInFlight: number;
   immediateDelayMs: number;
   immediateRanBeforeServiceReturn: boolean;
   before: { files: number; storageUsed: number; fsFiles: number };
@@ -215,6 +219,10 @@ export async function measurePermanentDeleteScale(
       unlinkSyncCalls: probe.unlinkSync.calls,
       unlinkSyncCumulativeMs: probe.unlinkSync.cumulativeMs,
       unlinkSyncMaxMs: probe.unlinkSync.maxMs,
+      asyncUnlinkAttempts: probe.asyncUnlink.calls,
+      asyncUnlinkCumulativeMs: probe.asyncUnlink.cumulativeMs,
+      asyncUnlinkMaxMs: probe.asyncUnlink.maxMs,
+      maxAsyncUnlinkInFlight: probe.asyncUnlink.maxInFlight,
       immediateDelayMs: probe.immediateDelayMs,
       immediateRanBeforeServiceReturn: probe.immediateRanBeforeServiceReturn,
       before,

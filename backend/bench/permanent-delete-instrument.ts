@@ -7,9 +7,14 @@ export interface SyncCallTiming {
   maxMs: number;
 }
 
+export interface AsyncCallTiming extends SyncCallTiming {
+  maxInFlight: number;
+}
+
 export interface PermanentDeleteProbeSample {
   existsSync: SyncCallTiming;
   unlinkSync: SyncCallTiming;
+  asyncUnlink: AsyncCallTiming;
   immediateDelayMs: number;
   immediateRanBeforeServiceReturn: boolean;
 }
@@ -24,24 +29,38 @@ export interface PermanentDeleteInstrument {
 export function createPermanentDeleteInstrument(): PermanentDeleteInstrument {
   const existsSync: SyncCallTiming = { calls: 0, cumulativeMs: 0, maxMs: 0 };
   const unlinkSync: SyncCallTiming = { calls: 0, cumulativeMs: 0, maxMs: 0 };
+  const asyncUnlink: AsyncCallTiming = {
+    calls: 0,
+    cumulativeMs: 0,
+    maxMs: 0,
+    maxInFlight: 0,
+  };
+  let asyncUnlinkInFlight = 0;
   let installed = false;
   let firstCallAt: bigint | undefined;
   let serviceReturned = false;
-  let resolveSample: ((sample: PermanentDeleteProbeSample) => void) | undefined;
-  const completion = new Promise<PermanentDeleteProbeSample>((resolve) => {
-    resolveSample = resolve;
+  let resolveProbe:
+    | ((probe: {
+        immediateDelayMs: number;
+        immediateRanBeforeServiceReturn: boolean;
+      }) => void)
+    | undefined;
+  const completion = new Promise<{
+    immediateDelayMs: number;
+    immediateRanBeforeServiceReturn: boolean;
+  }>((resolve) => {
+    resolveProbe = resolve;
   });
   let originalExistsSync: typeof fs.existsSync;
   let originalUnlinkSync: typeof fs.unlinkSync;
+  let originalAsyncUnlink: typeof fs.promises.unlink;
 
   const beginProbe = () => {
     if (firstCallAt) return;
     firstCallAt = process.hrtime.bigint();
     setImmediate(() => {
       const callbackAt = process.hrtime.bigint();
-      resolveSample?.({
-        existsSync: { ...existsSync },
-        unlinkSync: { ...unlinkSync },
+      resolveProbe?.({
         immediateDelayMs: Number(callbackAt - firstCallAt!) / 1e6,
         immediateRanBeforeServiceReturn: !serviceReturned,
       });
@@ -65,6 +84,9 @@ export function createPermanentDeleteInstrument(): PermanentDeleteInstrument {
     existsSync: typeof fs.existsSync;
     unlinkSync: typeof fs.unlinkSync;
   };
+  const mutablePromises = fs.promises as {
+    unlink: typeof fs.promises.unlink;
+  };
 
   return {
     start() {
@@ -72,6 +94,7 @@ export function createPermanentDeleteInstrument(): PermanentDeleteInstrument {
       installed = true;
       originalExistsSync = fs.existsSync;
       originalUnlinkSync = fs.unlinkSync;
+      originalAsyncUnlink = fs.promises.unlink;
       mutableFs.existsSync = ((path) =>
         time(existsSync, () =>
           originalExistsSync(path),
@@ -80,23 +103,46 @@ export function createPermanentDeleteInstrument(): PermanentDeleteInstrument {
         time(unlinkSync, () =>
           originalUnlinkSync(path),
         )) as typeof fs.unlinkSync;
+      mutablePromises.unlink = (async (path) => {
+        beginProbe();
+        const start = process.hrtime.bigint();
+        asyncUnlink.calls++;
+        asyncUnlinkInFlight++;
+        asyncUnlink.maxInFlight = Math.max(
+          asyncUnlink.maxInFlight,
+          asyncUnlinkInFlight,
+        );
+        try {
+          await originalAsyncUnlink(path);
+        } finally {
+          asyncUnlinkInFlight--;
+          const elapsed = Number(process.hrtime.bigint() - start) / 1e6;
+          asyncUnlink.cumulativeMs += elapsed;
+          asyncUnlink.maxMs = Math.max(asyncUnlink.maxMs, elapsed);
+        }
+      }) as typeof fs.promises.unlink;
     },
     markServiceReturned() {
       serviceReturned = true;
     },
-    settled() {
+    async settled() {
       if (!firstCallAt) {
-        return Promise.reject(
-          new Error("No synchronous deletion call was observed."),
-        );
+        throw new Error("No deletion call was observed.");
       }
-      return completion;
+      const probe = await completion;
+      return {
+        existsSync: { ...existsSync },
+        unlinkSync: { ...unlinkSync },
+        asyncUnlink: { ...asyncUnlink },
+        ...probe,
+      };
     },
     restore() {
       if (!installed) return;
       installed = false;
       mutableFs.existsSync = originalExistsSync;
       mutableFs.unlinkSync = originalUnlinkSync;
+      mutablePromises.unlink = originalAsyncUnlink;
     },
   };
 }
