@@ -36,17 +36,18 @@ describe("copy-file benchmark harness", () => {
     expect(hash1).toBe(hash2);
   });
 
-  it("instruments the real synchronous filesystem operation", async () => {
+  it("instruments the real asynchronous filesystem operation", async () => {
     const source = path.join(tmp, "source.bin");
     const destination = path.join(tmp, "destination.bin");
     fs.writeFileSync(source, "correctness-marker");
     const instrument = createCopyFileInstrument();
     instrument.start();
-    fs.copyFileSync(source, destination);
+    await fs.promises.copyFile(source, destination);
     instrument.restore();
     const sample = await instrument.settled();
-    expect(instrument.calls()).toBe(1);
-    expect(sample.immediateRanBeforeReturn).toBe(false);
+    expect(instrument.calls()).toBe(0);
+    expect(instrument.asyncAttempts()).toBe(1);
+    expect(sample.immediateRanBeforeReturn).toBe(true);
     expect(fs.readFileSync(destination, "utf8")).toBe("correctness-marker");
   });
 
@@ -70,7 +71,10 @@ describe("copy-file benchmark harness", () => {
     const storageService = {
       generateSafeFilename: jest.fn(() => "copy.bin"),
       generatePath: jest.fn(() => destination),
-      fileExists: jest.fn(() => true),
+      copyFile: jest.fn((from, to) =>
+        fs.promises.copyFile(from, to, fs.constants.COPYFILE_EXCL),
+      ),
+      deleteFile: jest.fn((target) => fs.promises.unlink(target)),
     };
     const usersService = {
       findById: jest.fn().mockResolvedValue({ id: 1 }),

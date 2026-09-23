@@ -27,6 +27,7 @@ export interface CopyFileMeasurement {
   immediateDelayMs: number;
   immediateRanBeforeReturn: boolean;
   copyFileSyncCalls: number;
+  asyncCopyAttempts: number;
   destinationSize: number;
   expectedSha256: string;
   actualSha256: string;
@@ -241,6 +242,7 @@ export async function measureCopyFileScale(
       immediateDelayMs: probe.immediateDelayMs,
       immediateRanBeforeReturn: probe.immediateRanBeforeReturn,
       copyFileSyncCalls: instrument.calls(),
+      asyncCopyAttempts: instrument.asyncAttempts(),
       destinationSize: fs.statSync(copy.storagePath).size,
       expectedSha256,
       actualSha256: sha256(copy.storagePath),
