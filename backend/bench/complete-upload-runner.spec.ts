@@ -27,8 +27,11 @@ import {
 } from "./complete-upload-runner";
 import { createWriteStreamInstrument } from "./write-stream-instrument";
 import { createRssSampler } from "./rss-sampler";
+import { createReadFileSyncInstrument } from "./read-file-sync-instrument";
 
-function makeUploadSession(overrides: Partial<UploadSessionEntity> = {}): UploadSessionEntity {
+function makeUploadSession(
+  overrides: Partial<UploadSessionEntity> = {},
+): UploadSessionEntity {
   const now = new Date();
   return {
     id: 1,
@@ -108,7 +111,9 @@ function createMockDataSourceAndServices(overrides?: {
           },
           count: async () => 0,
           find: async () => [],
-          findOne: async (options?: { where?: { email?: string; id?: number } }) => {
+          findOne: async (options?: {
+            where?: { email?: string; id?: number };
+          }) => {
             if (options?.where?.email) return undefined;
             if (options?.where?.id === benchUser?.id) return benchUser;
             return undefined;
@@ -127,8 +132,11 @@ function createMockDataSourceAndServices(overrides?: {
           },
           count: async () => 0,
           find: async () => [],
-          findOne: async (options: { where: { uploadId: string; userId: number } }) => {
-            if (!options?.where?.uploadId || !options?.where?.userId) return undefined;
+          findOne: async (options: {
+            where: { uploadId: string; userId: number };
+          }) => {
+            if (!options?.where?.uploadId || !options?.where?.userId)
+              return undefined;
             const key = `${options.where.uploadId}|${options.where.userId}`;
             return sessionStore.get(key);
           },
@@ -156,8 +164,18 @@ function createMockDataSourceAndServices(overrides?: {
     uploadsService: {
       createUploadSession:
         overrides?.createUploadSession ??
-        (async (userId: number, filename: string, totalSize: number, chunkSize: number) => {
-          const session = makeUploadSession({ userId, filename, totalSize, chunkSize });
+        (async (
+          userId: number,
+          filename: string,
+          totalSize: number,
+          chunkSize: number,
+        ) => {
+          const session = makeUploadSession({
+            userId,
+            filename,
+            totalSize,
+            chunkSize,
+          });
           const key = `${session.uploadId}|${session.userId}`;
           sessionStore.set(key, { ...session, status: "pending" });
           return session;
@@ -187,17 +205,19 @@ describe("complete-upload-runner", () => {
   let tmp: string;
 
   beforeEach(() => {
-    tmp = fs.mkdtempSync(path.join(os.tmpdir(), "homecloud-bench-completeupload-"));
+    tmp = fs.mkdtempSync(
+      path.join(os.tmpdir(), "homecloud-bench-completeupload-"),
+    );
   });
 
   afterEach(() => {
     fs.rmSync(tmp, { recursive: true, force: true });
   });
 
-  it("scales are exactly 1MiB, 10MiB, 50MiB", () => {
+  it("scales are exactly 1MiB, 5MiB, 50MiB", () => {
     expect(Array.from(COMPLETE_UPLOAD_SCALES)).toEqual([
       1 * 1024 * 1024,
-      10 * 1024 * 1024,
+      5 * 1024 * 1024,
       50 * 1024 * 1024,
     ]);
   });
@@ -209,7 +229,9 @@ describe("complete-upload-runner", () => {
       expect(quota).toBeGreaterThan(scaleBytes);
       expect(Number.isSafeInteger(quota)).toBe(true);
     }
-    expect(() => computeBenchStorageQuota(0)).toThrow(/Invalid benchmark scale/);
+    expect(() => computeBenchStorageQuota(0)).toThrow(
+      /Invalid benchmark scale/,
+    );
     expect(() => computeBenchStorageQuota(Number.MAX_SAFE_INTEGER)).toThrow(
       /Invalid benchmark scale/,
     );
@@ -241,7 +263,10 @@ describe("complete-upload-runner", () => {
           set: () => ({
             where: () => ({
               execute: async () => {
-                if (!storedUser || storedUser.storageUsed + scaleBytes > storedUser.storageQuota) {
+                if (
+                  !storedUser ||
+                  storedUser.storageUsed + scaleBytes > storedUser.storageQuota
+                ) {
                   return { affected: 0 };
                 }
                 storedUser.storageUsed += scaleBytes;
@@ -260,7 +285,9 @@ describe("complete-upload-runner", () => {
     expect(storedUser?.storageQuota).toBeGreaterThan(scaleBytes);
 
     const usersService = new UsersService(repository as any);
-    await expect(usersService.updateStorageUsed(userId, scaleBytes)).resolves.toBeUndefined();
+    await expect(
+      usersService.updateStorageUsed(userId, scaleBytes),
+    ).resolves.toBeUndefined();
     expect(storedUser?.storageUsed).toBe(scaleBytes);
   });
 
@@ -301,17 +328,29 @@ describe("complete-upload-runner", () => {
   it("isolated storage path is enforced", () => {
     const benchRoot = "/tmp/homecloud-bench-completeupload-failclosed";
     const configService = {
-      get: (k: string) =>
-        k === "STORAGE_PATH" ? benchRoot : undefined,
+      get: (k: string) => (k === "STORAGE_PATH" ? benchRoot : undefined),
     } as unknown as ConfigService;
     const storageService = new StorageService(configService);
-    expect(() => verifyIsolation(storageService, "/storage")).toThrow(/SAFETY_BLOCKER/);
-    expect(() => verifyIsolation(storageService, "/storage/.tmp")).toThrow(/SAFETY_BLOCKER/);
+    expect(() => verifyIsolation(storageService, "/storage")).toThrow(
+      /SAFETY_BLOCKER/,
+    );
+    expect(() => verifyIsolation(storageService, "/storage/.tmp")).toThrow(
+      /SAFETY_BLOCKER/,
+    );
     expect(() => verifyIsolation(storageService, "")).toThrow(/SAFETY_BLOCKER/);
-    expect(() => verifyIsolation(storageService, "/")).toThrow(/SAFETY_BLOCKER/);
-    expect(() => verifyIsolation(storageService, ".")).toThrow(/SAFETY_BLOCKER/);
-    const other = path.join(os.tmpdir(), `homecloud-bench-completeupload-mismatch-${process.pid}`);
-    expect(() => verifyIsolation(storageService, other)).toThrow(/SAFETY_BLOCKER/);
+    expect(() => verifyIsolation(storageService, "/")).toThrow(
+      /SAFETY_BLOCKER/,
+    );
+    expect(() => verifyIsolation(storageService, ".")).toThrow(
+      /SAFETY_BLOCKER/,
+    );
+    const other = path.join(
+      os.tmpdir(),
+      `homecloud-bench-completeupload-mismatch-${process.pid}`,
+    );
+    expect(() => verifyIsolation(storageService, other)).toThrow(
+      /SAFETY_BLOCKER/,
+    );
     fs.rmSync(benchRoot, { recursive: true, force: true });
     fs.rmSync(other, { recursive: true, force: true });
   });
@@ -320,7 +359,9 @@ describe("complete-upload-runner", () => {
     const scale = 1024;
     const chunkSize = 512;
     const expected = computeExpectedSha256(scale, chunkSize);
-    const testDir = fs.mkdtempSync(path.join(os.tmpdir(), "homecloud-bench-sha-"));
+    const testDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "homecloud-bench-sha-"),
+    );
     writeChunks(testDir, scale, chunkSize);
     const hash = crypto.createHash("sha256");
     for (let i = 0; i < Math.ceil(scale / chunkSize); i++) {
@@ -335,7 +376,9 @@ describe("complete-upload-runner", () => {
   it("writeChunks creates correct number of chunks with correct sizes", () => {
     const scale = 1024;
     const chunkSize = 300;
-    const testDir = fs.mkdtempSync(path.join(os.tmpdir(), "homecloud-bench-chunks-"));
+    const testDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "homecloud-bench-chunks-"),
+    );
     writeChunks(testDir, scale, chunkSize);
     const totalChunks = Math.ceil(scale / chunkSize);
     const files = fs.readdirSync(testDir);
@@ -344,7 +387,8 @@ describe("complete-upload-runner", () => {
     for (let i = 0; i < totalChunks; i++) {
       const chunkPath = path.join(testDir, String(i));
       const stats = fs.statSync(chunkPath);
-      const expected = i === totalChunks - 1 ? scale - i * chunkSize : chunkSize;
+      const expected =
+        i === totalChunks - 1 ? scale - i * chunkSize : chunkSize;
       expect(stats.size).toBe(expected);
       total += stats.size;
     }
@@ -387,12 +431,24 @@ describe("complete-upload-runner", () => {
       return makeFile({ storagePath: realFinalPath, size: scale });
     };
 
-    const result = await measureCompleteUploadScale(dataSource, scale, services);
+    const result = await measureCompleteUploadScale(
+      dataSource,
+      scale,
+      services,
+    );
     const m: CompleteUploadMeasurement = result.measurement;
     expect(m.scaleBytes).toBe(scale);
+    expect(m.chunkSizeBytes).toBe(scale);
     expect(m.chunkCount).toBe(Math.ceil(scale / chunkSize));
     expect(typeof m.wallMs).toBe("number");
     expect(m.wallMs).toBeGreaterThanOrEqual(0);
+    expect(m.readFileSyncCalls).toBe(1);
+    expect(m.readFileSyncCumulativeMs).toBeGreaterThanOrEqual(0);
+    expect(m.readFileSyncMaxMs).toBeGreaterThanOrEqual(0);
+    expect(m.immediateDelayMaxMs).toBeGreaterThanOrEqual(m.readFileSyncMaxMs);
+    expect(m.timerDelayMaxMs).toBeGreaterThanOrEqual(m.readFileSyncMaxMs);
+    expect(m.immediateBeforeReadReturn).toBe(0);
+    expect(m.timerBeforeReadReturn).toBe(0);
     expect(m.rssBefore).toBeGreaterThan(0);
     expect(m.rssPeak).toBeGreaterThanOrEqual(m.rssBefore);
     expect(m.rssAfter).toBeGreaterThan(0);
@@ -408,8 +464,19 @@ describe("complete-upload-runner", () => {
     expect(m.sessionStatus).toBe("completed");
     expect(m.storageUsed).toBe(scale);
     expect(m.storageQuota).toBe(computeBenchStorageQuota(scale));
-    expect(m.dbResiduals).toEqual({ sessions: 0, files: 0, folders: 0, user: 0 });
-    expect(m.fsResiduals).toBe(0);
+    expect(m.persistedRows).toEqual({
+      sessions: 0,
+      files: 0,
+      folders: 0,
+      user: 0,
+    });
+    expect(m.dbResidualsAfterCleanup).toEqual({
+      sessions: 0,
+      files: 0,
+      folders: 0,
+      user: 0,
+    });
+    expect(m.fsResidualsAfterCleanup).toBe(0);
   });
 
   it("WriteStream metrics are present", async () => {
@@ -444,7 +511,11 @@ describe("complete-upload-runner", () => {
       return makeFile({ storagePath: realFinalPath, size: scale });
     };
 
-    const result = await measureCompleteUploadScale(dataSource, scale, services);
+    const result = await measureCompleteUploadScale(
+      dataSource,
+      scale,
+      services,
+    );
     const m = result.measurement;
     expect(m.createWriteStream).toBe(1);
     expect(m.writeCalls).toBeGreaterThan(0);
@@ -482,7 +553,11 @@ describe("complete-upload-runner", () => {
       return makeFile({ storagePath: realFinalPath, size: scale });
     };
 
-    const result = await measureCompleteUploadScale(dataSource, scale, services);
+    const result = await measureCompleteUploadScale(
+      dataSource,
+      scale,
+      services,
+    );
     const m = result.measurement;
     expect(m.rssBefore).toBeGreaterThan(0);
     expect(m.rssPeak).toBeGreaterThanOrEqual(m.rssBefore);
@@ -523,7 +598,7 @@ describe("complete-upload-runner", () => {
     };
 
     await expect(
-      measureCompleteUploadScale(dataSource, scale, services)
+      measureCompleteUploadScale(dataSource, scale, services),
     ).resolves.toBeDefined();
   });
 
@@ -534,7 +609,52 @@ describe("complete-upload-runner", () => {
       },
     });
     await expect(
-      measureCompleteUploadScale(dataSource, 100, services)
+      measureCompleteUploadScale(dataSource, 100, services),
     ).rejects.toThrow(/forced setup failure/);
+  });
+
+  it("captures actual readFileSync calls and detects a known synchronous read region", async () => {
+    const fixture = path.join(tmp, "sync-read.bin");
+    fs.writeFileSync(fixture, Buffer.alloc(1024 * 1024));
+    const instrument = createReadFileSyncInstrument([fixture]);
+    instrument.start();
+    fs.readFileSync(fixture);
+    instrument.markServiceReturned();
+    instrument.restore();
+    const snap = await instrument.settled();
+    expect(snap.calls).toBe(1);
+    expect(snap.cumulativeDurationMs).toBeGreaterThan(0);
+    expect(snap.maxDurationMs).toBe(snap.cumulativeDurationMs);
+    expect(snap.maxImmediateDelayMs).toBeGreaterThanOrEqual(snap.maxDurationMs);
+    expect(snap.maxTimerDelayMs).toBeGreaterThanOrEqual(snap.maxDurationMs);
+    expect(snap.immediateBeforeReadReturn).toBe(0);
+    expect(snap.timerBeforeReadReturn).toBe(0);
+  });
+
+  it("ignores readFileSync outside the exact chunk path set", async () => {
+    const included = path.join(tmp, "included.bin");
+    const excluded = path.join(tmp, "excluded.bin");
+    fs.writeFileSync(included, "included");
+    fs.writeFileSync(excluded, "excluded");
+    const instrument = createReadFileSyncInstrument([included]);
+    instrument.start();
+    fs.readFileSync(excluded);
+    fs.readFileSync(included);
+    instrument.markServiceReturned();
+    instrument.restore();
+    expect((await instrument.settled()).calls).toBe(1);
+  });
+
+  it("does not classify an asynchronous wait as synchronous operation time", async () => {
+    const fixture = path.join(tmp, "async-read.bin");
+    fs.writeFileSync(fixture, Buffer.alloc(1024 * 1024));
+    const instrument = createReadFileSyncInstrument([fixture]);
+    instrument.start();
+    await fs.promises.readFile(fixture);
+    instrument.markServiceReturned();
+    instrument.restore();
+    const snap = await instrument.settled();
+    expect(snap.calls).toBe(0);
+    expect(snap.cumulativeDurationMs).toBe(0);
   });
 });

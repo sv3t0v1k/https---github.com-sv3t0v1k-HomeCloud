@@ -11,18 +11,33 @@ import { UserEntity } from "../src/entities/user.entity";
 import { UploadsService } from "../src/uploads/uploads.service";
 import { StorageService } from "../src/storage/storage.service";
 import { UsersService } from "../src/users/users.service";
-import { createWriteStreamInstrument, WriteStreamInstrumentHandle } from "./write-stream-instrument";
-import { createRssSampler, RssSamplerHandle } from "./rss-sampler";
+import { createWriteStreamInstrument } from "./write-stream-instrument";
+import { createRssSampler } from "./rss-sampler";
+import { createReadFileSyncInstrument } from "./read-file-sync-instrument";
 
-export const COMPLETE_UPLOAD_SCALES = [1 * 1024 * 1024, 10 * 1024 * 1024, 50 * 1024 * 1024] as const;
-export const CHUNK_SIZE = 5 * 1024 * 1024;
+export const COMPLETE_UPLOAD_SCALES = [
+  1 * 1024 * 1024,
+  5 * 1024 * 1024,
+  50 * 1024 * 1024,
+] as const;
+export const CHUNK_SIZE = 50 * 1024 * 1024;
 export const COMPLETE_UPLOAD_BENCH_MIME_TYPES = "application/octet-stream";
 export const BENCH_QUOTA_MULTIPLIER = 2;
 
 export interface CompleteUploadMeasurement {
   scaleBytes: number;
+  chunkSizeBytes: number;
   chunkCount: number;
   wallMs: number;
+  readFileSyncCalls: number;
+  readFileSyncCumulativeMs: number;
+  readFileSyncMaxMs: number;
+  immediateDelayMaxMs: number;
+  timerDelayMaxMs: number;
+  immediateBeforeReadReturn: number;
+  timerBeforeReadReturn: number;
+  immediateBeforeServiceReturn: number;
+  timerBeforeServiceReturn: number;
   rssBefore: number;
   rssPeak: number;
   rssAfter: number;
@@ -38,8 +53,9 @@ export interface CompleteUploadMeasurement {
   sessionStatus: string;
   storageUsed: number;
   storageQuota: number;
-  dbResiduals: Record<string, number>;
-  fsResiduals: number;
+  persistedRows: Record<string, number>;
+  dbResidualsAfterCleanup: Record<string, number>;
+  fsResidualsAfterCleanup: number;
 }
 
 export interface CompleteUploadRunResult {
@@ -128,7 +144,11 @@ export function buildCompleteUploadServices(
 
 export function computeBenchStorageQuota(scaleBytes: number): number {
   const quota = scaleBytes * BENCH_QUOTA_MULTIPLIER;
-  if (!Number.isSafeInteger(scaleBytes) || scaleBytes <= 0 || !Number.isSafeInteger(quota)) {
+  if (
+    !Number.isSafeInteger(scaleBytes) ||
+    scaleBytes <= 0 ||
+    !Number.isSafeInteger(quota)
+  ) {
     throw new Error(`Invalid benchmark scale for storage quota: ${scaleBytes}`);
   }
   return quota;
@@ -140,7 +160,9 @@ export function normalizeBenchBigInt(
 ): number {
   const normalized = typeof value === "string" ? Number(value) : value;
   if (!Number.isSafeInteger(normalized) || normalized < 0) {
-    throw new Error(`Invalid ${field} returned by benchmark database: ${value}`);
+    throw new Error(
+      `Invalid ${field} returned by benchmark database: ${value}`,
+    );
   }
   return normalized;
 }
@@ -169,9 +191,16 @@ export async function createBenchUser(
   return saved.id;
 }
 
-async function cleanupAll(dataSource: DataSource, userId: number): Promise<void> {
-  await dataSource.query(`DELETE FROM share_links WHERE "userId" = $1`, [userId]);
-  await dataSource.query(`DELETE FROM upload_sessions WHERE "userId" = $1`, [userId]);
+async function cleanupAll(
+  dataSource: DataSource,
+  userId: number,
+): Promise<void> {
+  await dataSource.query(`DELETE FROM share_links WHERE "userId" = $1`, [
+    userId,
+  ]);
+  await dataSource.query(`DELETE FROM upload_sessions WHERE "userId" = $1`, [
+    userId,
+  ]);
   await dataSource.query(`DELETE FROM files WHERE "userId" = $1`, [userId]);
   await dataSource.query(`DELETE FROM folders WHERE "userId" = $1`, [userId]);
   await dataSource.getRepository(UserEntity).delete(userId);
@@ -190,21 +219,30 @@ async function countRows(
   return { sessions, files, folders, user };
 }
 
-export function computeExpectedSha256(scaleBytes: number, chunkSize: number): string {
+export function computeExpectedSha256(
+  scaleBytes: number,
+  chunkSize: number,
+): string {
   const totalChunks = Math.ceil(scaleBytes / chunkSize);
   const hash = crypto.createHash("sha256");
   for (let i = 0; i < totalChunks; i++) {
-    const chunkBytes = i === totalChunks - 1 ? scaleBytes - i * chunkSize : chunkSize;
+    const chunkBytes =
+      i === totalChunks - 1 ? scaleBytes - i * chunkSize : chunkSize;
     const chunkData = Buffer.alloc(chunkBytes, i % 256);
     hash.update(chunkData);
   }
   return hash.digest("hex");
 }
 
-export function writeChunks(tempPath: string, scaleBytes: number, chunkSize: number): void {
+export function writeChunks(
+  tempPath: string,
+  scaleBytes: number,
+  chunkSize: number,
+): void {
   const totalChunks = Math.ceil(scaleBytes / chunkSize);
   for (let i = 0; i < totalChunks; i++) {
-    const chunkBytes = i === totalChunks - 1 ? scaleBytes - i * chunkSize : chunkSize;
+    const chunkBytes =
+      i === totalChunks - 1 ? scaleBytes - i * chunkSize : chunkSize;
     const chunkData = Buffer.alloc(chunkBytes, i % 256);
     const chunkPath = path.join(tempPath, String(i));
     fs.writeFileSync(chunkPath, chunkData);
@@ -219,14 +257,14 @@ export async function measureCompleteUploadScale(
   const chunkSize = scaleBytes <= CHUNK_SIZE ? scaleBytes : CHUNK_SIZE;
   const totalChunks = Math.ceil(scaleBytes / chunkSize);
 
-  const { uploadsService, storageService, benchRoot } = services ?? buildCompleteUploadServices(dataSource);
-  const tempRoot = storageService.getTempPath();
-
+  const { uploadsService, storageService, benchRoot } =
+    services ?? buildCompleteUploadServices(dataSource);
   let userId: number | null = null;
   let uploadId: string | null = null;
 
   const writeInstrument = createWriteStreamInstrument();
   const rssSampler = createRssSampler(1); // 1ms interval
+  let cleaned = false;
 
   try {
     userId = await createBenchUser(dataSource, scaleBytes);
@@ -241,22 +279,46 @@ export async function measureCompleteUploadScale(
 
     // Write all chunks to disk before measurement
     writeChunks(session.tempPath, scaleBytes, chunkSize);
+    const chunkPaths = Array.from({ length: totalChunks }, (_, index) =>
+      path.join(session.tempPath, String(index)),
+    );
+    const readInstrument = createReadFileSyncInstrument(chunkPaths);
 
     // Start instrumentation
     writeInstrument.start();
+    readInstrument.start();
     rssSampler.start();
 
     const start = process.hrtime.bigint();
-    const result = await uploadsService.completeUpload(userId, uploadId);
-    const end = process.hrtime.bigint();
-
-    // Stop instrumentation
-    rssSampler.stop();
-    writeInstrument.restore();
+    let result: FileEntity;
+    let end: bigint;
+    try {
+      result = await uploadsService.completeUpload(userId, uploadId);
+      end = process.hrtime.bigint();
+      readInstrument.markServiceReturned();
+    } finally {
+      rssSampler.stop();
+      writeInstrument.restore();
+      readInstrument.restore();
+    }
 
     const wallMs = Number(end - start) / 1e6;
     const rssSnap = rssSampler.snapshot();
     const writeSnap = writeInstrument.snapshot();
+    const readSnap = await readInstrument.settled();
+    if (readSnap.calls !== totalChunks) {
+      throw new Error(
+        `Expected ${totalChunks} instrumented chunk reads, observed ${readSnap.calls}`,
+      );
+    }
+    if (
+      writeSnap.write !== totalChunks ||
+      writeSnap.writeFalse !== writeSnap.drain
+    ) {
+      throw new Error(
+        `Backpressure instrumentation mismatch: chunks=${totalChunks} writes=${writeSnap.write} writeFalse=${writeSnap.writeFalse} drains=${writeSnap.drain}`,
+      );
+    }
 
     // Verify final file
     const finalPath = result.storagePath;
@@ -269,24 +331,25 @@ export async function measureCompleteUploadScale(
     const expectedSha256 = computeExpectedSha256(scaleBytes, chunkSize);
 
     // Count residuals
-    const residualRows = await countRows(dataSource, userId);
-    const residualFs = fs.existsSync(tempRoot)
-      ? fs.readdirSync(tempRoot).length
-      : 0;
+    const persistedRows = await countRows(dataSource, userId);
 
     // Re-fetch session status AFTER measurement boundary (outside wall-time, instrumentation, RSS)
     const completedSession = await dataSource
       .getRepository(UploadSessionEntity)
       .findOne({ where: { uploadId, userId } });
     if (!completedSession) {
-      throw new Error(`Upload session ${uploadId} not found after successful completeUpload`);
+      throw new Error(
+        `Upload session ${uploadId} not found after successful completeUpload`,
+      );
     }
     const sessionStatus = completedSession.status;
     const completedUser = await dataSource
       .getRepository(UserEntity)
       .findOne({ where: { id: userId } });
     if (!completedUser) {
-      throw new Error(`Benchmark user ${userId} not found after successful completeUpload`);
+      throw new Error(
+        `Benchmark user ${userId} not found after successful completeUpload`,
+      );
     }
     const storageUsed = normalizeBenchBigInt(
       completedUser.storageUsed as unknown as number | string,
@@ -307,8 +370,18 @@ export async function measureCompleteUploadScale(
 
     const measurement: CompleteUploadMeasurement = {
       scaleBytes,
+      chunkSizeBytes: chunkSize,
       chunkCount: totalChunks,
       wallMs,
+      readFileSyncCalls: readSnap.calls,
+      readFileSyncCumulativeMs: readSnap.cumulativeDurationMs,
+      readFileSyncMaxMs: readSnap.maxDurationMs,
+      immediateDelayMaxMs: readSnap.maxImmediateDelayMs,
+      timerDelayMaxMs: readSnap.maxTimerDelayMs,
+      immediateBeforeReadReturn: readSnap.immediateBeforeReadReturn,
+      timerBeforeReadReturn: readSnap.timerBeforeReadReturn,
+      immediateBeforeServiceReturn: readSnap.immediateBeforeServiceReturn,
+      timerBeforeServiceReturn: readSnap.timerBeforeServiceReturn,
       rssBefore: rssSnap.before,
       rssPeak: rssSnap.peak,
       rssAfter: rssSnap.after,
@@ -324,23 +397,41 @@ export async function measureCompleteUploadScale(
       sessionStatus,
       storageUsed,
       storageQuota,
-      dbResiduals: residualRows,
-      fsResiduals: residualFs,
+      persistedRows,
+      dbResidualsAfterCleanup: {},
+      fsResidualsAfterCleanup: -1,
     };
 
-    return { measurement };
+    try {
+      await uploadsService.abortUpload(userId, uploadId);
+    } catch {
+      // A completed session is expected to reject abort; DB cleanup follows.
+    }
+    await cleanupAll(dataSource, userId);
+    const dbResidualsAfterCleanup = await countRows(dataSource, userId);
+    fs.rmSync(benchRoot, { recursive: true, force: true });
+    const fsResidualsAfterCleanup = fs.existsSync(benchRoot) ? 1 : 0;
+    cleaned = true;
+
+    return {
+      measurement: {
+        ...measurement,
+        dbResidualsAfterCleanup,
+        fsResidualsAfterCleanup,
+      },
+    };
   } finally {
     // Cleanup
-    if (uploadId && userId) {
+    if (!cleaned && uploadId && userId) {
       try {
         await uploadsService.abortUpload(userId, uploadId);
       } catch {
         // best-effort
       }
     }
-    if (userId) {
+    if (!cleaned && userId) {
       await cleanupAll(dataSource, userId);
     }
-    fs.rmSync(benchRoot, { recursive: true, force: true });
+    if (!cleaned) fs.rmSync(benchRoot, { recursive: true, force: true });
   }
 }

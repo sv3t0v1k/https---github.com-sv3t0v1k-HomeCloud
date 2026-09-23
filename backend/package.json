@@ -18,6 +18,7 @@
     "bench:compile": "tsc -p tsconfig.bench.json",
     "bench:cleanup": "npm run bench:compile && node dist-bench/bench/cleanup-index.js",
     "bench:copy-file": "npm run bench:compile && node dist-bench/bench/copy-file-index.js",
+    "bench:complete-upload": "npm run bench:compile && node dist-bench/bench/complete-upload-index.js",
     "bench:permanent-delete": "npm run bench:compile && node dist-bench/bench/permanent-delete-index.js"
   },
   "dependencies": {
