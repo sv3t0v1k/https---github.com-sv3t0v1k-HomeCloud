@@ -14,6 +14,8 @@ import {
   PreflightResult,
   STORAGE_MARKER,
   classifyStage,
+  hasFullPreflightSuccess,
+  runAfterFullTinySuccess,
   runHttpPreflight,
 } from "./http-preflight";
 
@@ -83,7 +85,9 @@ async function main(): Promise<void> {
     "HOMECLOUD_HTTP_PREFLIGHT_JWT_REFRESH_SECRET",
   );
 
-  const baseUrl = `http://127.0.0.1:${port}`;
+  const baseUrl =
+    process.env.HOMECLOUD_HTTP_PREFLIGHT_BASE_URL?.trim() ||
+    `http://127.0.0.1:${port}`;
   const common = { databaseUrl, storagePath, confirm };
   const storageEntries = fs.existsSync(storagePath)
     ? fs.readdirSync(storagePath)
@@ -129,24 +133,28 @@ async function main(): Promise<void> {
       },
       source,
     );
-    const tinyIngress = classifyStage(tiny, "MULTIPART_CHUNK", [400, 422]);
-    const large =
-      tinyIngress === "HEALTHY"
-        ? await runHttpPreflight(
-            {
-              ...common,
-              baseUrl,
-              label: "APP_DIRECT_OVER_1MIB",
-              payload: deterministicPayload(2 * 1024 * 1024),
-            },
-            source,
-          )
-        : undefined;
+    const large = await runAfterFullTinySuccess(tiny, () =>
+      runHttpPreflight(
+        {
+          ...common,
+          baseUrl,
+          label: "APP_DIRECT_OVER_1MIB",
+          payload: deterministicPayload(2 * 1024 * 1024),
+        },
+        source,
+      ),
+    );
 
     const result = report(tiny, large);
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     if (tiny.evidence.some((item) => item.stage === "CLEANUP" && !item.ok)) {
       throw new Error("Cleanup preflight завершился с ошибкой");
+    }
+    if (!hasFullPreflightSuccess(tiny)) {
+      throw new Error("Tiny HTTP preflight не прошёл полный цикл");
+    }
+    if (!large || !hasFullPreflightSuccess(large)) {
+      throw new Error("2 MiB HTTP preflight не прошёл полный цикл");
     }
     if (
       result.classification.HTTP_COMPLETION_CORRECTNESS === "RISK_CONFIRMED"

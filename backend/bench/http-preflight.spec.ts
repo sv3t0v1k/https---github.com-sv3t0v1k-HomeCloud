@@ -8,7 +8,11 @@ import { UserEntity } from "../src/entities/user.entity";
 import {
   assertSafeTargets,
   classifyStage,
+  computePreflightQuota,
+  hasFullPreflightSuccess,
   makeMultipart,
+  PreflightResult,
+  runAfterFullTinySuccess,
   runHttpPreflight,
   STORAGE_MARKER,
 } from "./http-preflight";
@@ -79,6 +83,137 @@ describe("HTTP preflight harness", () => {
     expect(classifyStage(result, "VERIFY")).toBe("INCONCLUSIVE");
   });
 
+  test("quota конечна, зависит от payload и защищена safe-integer проверками", () => {
+    expect(computePreflightQuota(32 * 1024)).toBe(64 * 1024);
+    expect(computePreflightQuota(2 * 1024 * 1024)).toBe(4 * 1024 * 1024);
+    expect(() => computePreflightQuota(0)).toThrow(/safe integer/);
+    expect(() => computePreflightQuota(Number.MAX_SAFE_INTEGER)).toThrow(
+      /safe integer/,
+    );
+  });
+
+  test("2 MiB разрешён только после полного успеха tiny, включая cleanup", () => {
+    const success = {
+      label: "tiny",
+      sha256: "hash",
+      evidence: [
+        "AUTH",
+        "CREATE_SESSION",
+        "MULTIPART_CHUNK",
+        "COMPLETE",
+        "VERIFY",
+        "CLEANUP",
+      ].map((stage) => ({ stage, ok: true })),
+    } as PreflightResult;
+    expect(hasFullPreflightSuccess(success)).toBe(true);
+    expect(
+      hasFullPreflightSuccess({
+        ...success,
+        evidence: success.evidence.map((item) =>
+          item.stage === "COMPLETE" ? { ...item, ok: false } : item,
+        ),
+      }),
+    ).toBe(false);
+    expect(
+      hasFullPreflightSuccess({
+        ...success,
+        evidence: success.evidence.map((item) =>
+          item.stage === "VERIFY" ? { ...item, ok: false } : item,
+        ),
+      }),
+    ).toBe(false);
+    expect(
+      hasFullPreflightSuccess({
+        ...success,
+        evidence: success.evidence.map((item) =>
+          item.stage === "CLEANUP" ? { ...item, ok: false } : item,
+        ),
+      }),
+    ).toBe(false);
+  });
+
+  test("runner запускает 2 MiB ровно после полного успеха tiny", async () => {
+    const success: PreflightResult = {
+      label: "tiny",
+      sha256: "hash",
+      evidence: [
+        "AUTH",
+        "CREATE_SESSION",
+        "MULTIPART_CHUNK",
+        "COMPLETE",
+        "VERIFY",
+        "CLEANUP",
+      ].map((stage) => ({ stage, ok: true })) as PreflightResult["evidence"],
+    };
+    const large = jest.fn().mockResolvedValue({
+      label: "large",
+      sha256: "large-hash",
+      evidence: [],
+    });
+    await expect(
+      runAfterFullTinySuccess(success, large),
+    ).resolves.toMatchObject({
+      label: "large",
+    });
+    expect(large).toHaveBeenCalledTimes(1);
+
+    for (const failedStage of ["COMPLETE", "VERIFY"] as const) {
+      large.mockClear();
+      const failed = {
+        ...success,
+        evidence: success.evidence.map((item) =>
+          item.stage === failedStage ? { ...item, ok: false } : item,
+        ),
+      };
+      await expect(
+        runAfterFullTinySuccess(failed, large),
+      ).resolves.toBeUndefined();
+      expect(large).not.toHaveBeenCalled();
+    }
+  });
+
+  test("останавливается, если quota после записи не подтверждена перезагрузкой", async () => {
+    const userRepo = {
+      findOneByOrFail: jest
+        .fn()
+        .mockResolvedValueOnce({ id: 81, storageUsed: 0, storageQuota: 0 })
+        .mockResolvedValueOnce({ id: 81, storageUsed: 0, storageQuota: "0" }),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
+      delete: jest.fn().mockResolvedValue({}),
+      countBy: jest.fn().mockResolvedValue(0),
+    };
+    const emptyRepo = {
+      findBy: jest.fn().mockResolvedValue([]),
+      countBy: jest.fn().mockResolvedValue(0),
+    };
+    const source = {
+      getRepository: jest.fn((entity: unknown) =>
+        entity === UserEntity ? userRepo : emptyRepo,
+      ),
+    } as unknown as DataSource;
+
+    await expect(
+      runHttpPreflight(
+        {
+          ...safe,
+          fetchImpl: jest
+            .fn()
+            .mockResolvedValue(
+              new Response(
+                JSON.stringify({ data: { accessToken: "secret" } }),
+                { status: 201 },
+              ),
+            ),
+        },
+        source,
+      ),
+    ).rejects.toThrow(/Quota после перезагрузки не совпала/);
+    expect(userRepo.update).toHaveBeenCalledWith(81, {
+      storageQuota: computePreflightQuota(safe.payload.length),
+    });
+    expect(userRepo.delete).toHaveBeenCalledWith(81);
+  });
+
   test("ожидаемый HTTP 413 фиксируется как свидетельство, а cleanup выполняется", async () => {
     const replies = [
       new Response(JSON.stringify({ data: { accessToken: "not-logged" } }), {
@@ -90,7 +225,15 @@ describe("HTTP preflight harness", () => {
       new Response("request entity too large", { status: 413 }),
     ];
     const userRepo = {
-      findOneByOrFail: jest.fn().mockResolvedValue({ id: 77, storageUsed: 0 }),
+      findOneByOrFail: jest
+        .fn()
+        .mockResolvedValueOnce({ id: 77, storageUsed: 0, storageQuota: 0 })
+        .mockResolvedValueOnce({
+          id: 77,
+          storageUsed: 0,
+          storageQuota: computePreflightQuota(safe.payload.length),
+        }),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
       delete: jest.fn().mockResolvedValue({}),
       countBy: jest.fn().mockResolvedValue(0),
     };
@@ -150,7 +293,13 @@ describe("HTTP preflight harness", () => {
       const userRepo = {
         findOneByOrFail: jest
           .fn()
-          .mockResolvedValue({ id: 78, storageUsed: 0 }),
+          .mockResolvedValueOnce({ id: 78, storageUsed: 0, storageQuota: 0 })
+          .mockResolvedValueOnce({
+            id: 78,
+            storageUsed: 0,
+            storageQuota: computePreflightQuota(safe.payload.length),
+          }),
+        update: jest.fn().mockResolvedValue({ affected: 1 }),
         delete: jest.fn().mockResolvedValue({}),
         countBy: jest.fn().mockResolvedValue(0),
       };
@@ -186,7 +335,8 @@ describe("HTTP preflight harness", () => {
     );
     fs.mkdirSync(runStorage, { recursive: true });
     fs.writeFileSync(path.join(runStorage, STORAGE_MARKER), safe.confirm);
-    const finalPath = path.join(runStorage, "final.bin");
+    const finalPath = path.join(runStorage, "79", "final.bin");
+    fs.mkdirSync(path.dirname(finalPath), { recursive: true });
     fs.writeFileSync(finalPath, safe.payload);
     const replies = [
       new Response(JSON.stringify({ data: { accessToken: "secret" } }), {
@@ -203,11 +353,18 @@ describe("HTTP preflight harness", () => {
     const userRepo = {
       findOneByOrFail: jest
         .fn()
-        .mockResolvedValueOnce({ id: 79, storageUsed: 10 })
+        .mockResolvedValueOnce({ id: 79, storageUsed: 10, storageQuota: 0 })
+        .mockResolvedValueOnce({
+          id: 79,
+          storageUsed: 10,
+          storageQuota: computePreflightQuota(safe.payload.length),
+        })
         .mockResolvedValueOnce({
           id: 79,
           storageUsed: 10 + safe.payload.length,
+          storageQuota: computePreflightQuota(safe.payload.length),
         }),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
       delete: jest.fn().mockResolvedValue({}),
       countBy: jest.fn().mockResolvedValue(0),
     };
@@ -220,7 +377,9 @@ describe("HTTP preflight harness", () => {
       countBy: jest.fn().mockResolvedValue(0),
     };
     const sessionRepo = {
-      findOneBy: jest.fn().mockResolvedValue({ status: "completed" }),
+      findOneBy: jest
+        .fn()
+        .mockResolvedValue({ uploadId: "upload-ok", status: "completed" }),
       countBy: jest.fn().mockResolvedValue(0),
     };
     const source = {
@@ -246,6 +405,20 @@ describe("HTTP preflight harness", () => {
       ]),
     );
     expect(fs.existsSync(finalPath)).toBe(false);
+    expect(userRepo.update).toHaveBeenCalledWith(79, {
+      storageQuota: computePreflightQuota(safe.payload.length),
+    });
+    expect(
+      result.evidence.find((item) => item.stage === "VERIFY")?.body,
+    ).toMatchObject({
+      expectedSha256: result.sha256,
+      actualSha256: result.sha256,
+      size: safe.payload.length,
+      fileRows: 1,
+      sessionStatus: "completed",
+      storageUsedDelta: safe.payload.length,
+      storageQuota: computePreflightQuota(safe.payload.length),
+    });
   });
 
   test("ошибка cleanup классифицируется отдельно", async () => {
@@ -256,7 +429,15 @@ describe("HTTP preflight harness", () => {
       new Response("bad create", { status: 400 }),
     ];
     const userRepo = {
-      findOneByOrFail: jest.fn().mockResolvedValue({ id: 80, storageUsed: 0 }),
+      findOneByOrFail: jest
+        .fn()
+        .mockResolvedValueOnce({ id: 80, storageUsed: 0, storageQuota: 0 })
+        .mockResolvedValueOnce({
+          id: 80,
+          storageUsed: 0,
+          storageQuota: computePreflightQuota(safe.payload.length),
+        }),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
       delete: jest.fn().mockRejectedValue(new Error("cleanup failed")),
       countBy: jest.fn().mockResolvedValue(0),
     };
@@ -278,5 +459,115 @@ describe("HTTP preflight harness", () => {
       stage: "CLEANUP",
       ok: false,
     });
+  });
+
+  test("cleanup не удаляет путь из DB вне owned storage", async () => {
+    const externalDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "homecloud-http-preflight-external-"),
+    );
+    const externalFile = path.join(externalDir, "must-survive.bin");
+    fs.writeFileSync(externalFile, "must survive");
+    const replies = [
+      new Response(JSON.stringify({ data: { accessToken: "secret" } }), {
+        status: 201,
+      }),
+      new Response("bad create", { status: 400 }),
+    ];
+    const userRepo = {
+      findOneByOrFail: jest
+        .fn()
+        .mockResolvedValueOnce({ id: 82, storageUsed: 0, storageQuota: 0 })
+        .mockResolvedValueOnce({
+          id: 82,
+          storageUsed: 0,
+          storageQuota: computePreflightQuota(safe.payload.length),
+        }),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
+      delete: jest.fn().mockResolvedValue({}),
+      countBy: jest.fn().mockResolvedValue(1),
+    };
+    const fileRepo = {
+      findBy: jest.fn().mockResolvedValue([{ storagePath: externalFile }]),
+      countBy: jest.fn().mockResolvedValue(1),
+    };
+    const source = {
+      getRepository: jest.fn((entity: unknown) =>
+        entity === UserEntity ? userRepo : fileRepo,
+      ),
+    } as unknown as DataSource;
+
+    const result = await runHttpPreflight(
+      {
+        ...safe,
+        fetchImpl: jest.fn().mockImplementation(() => replies.shift()),
+      },
+      source,
+    );
+    expect(result.evidence.at(-1)).toMatchObject({
+      stage: "CLEANUP",
+      ok: false,
+    });
+    expect(fs.readFileSync(externalFile, "utf8")).toBe("must survive");
+    expect(userRepo.delete).not.toHaveBeenCalled();
+    fs.rmSync(externalDir, { recursive: true, force: true });
+  });
+
+  test("cleanup отклоняет symlink user root и сохраняет внешний файл", async () => {
+    const runStorage = fs.mkdtempSync(
+      path.join(os.tmpdir(), "homecloud-http-preflight-symlink-"),
+    );
+    fs.writeFileSync(path.join(runStorage, STORAGE_MARKER), safe.confirm);
+    const externalDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "homecloud-http-preflight-symlink-target-"),
+    );
+    const externalFile = path.join(externalDir, "must-survive.bin");
+    fs.writeFileSync(externalFile, "must survive symlink");
+    fs.symlinkSync(externalDir, path.join(runStorage, "83"), "dir");
+    const linkedFile = path.join(runStorage, "83", "must-survive.bin");
+    const replies = [
+      new Response(JSON.stringify({ data: { accessToken: "secret" } }), {
+        status: 201,
+      }),
+      new Response("bad create", { status: 400 }),
+    ];
+    const userRepo = {
+      findOneByOrFail: jest
+        .fn()
+        .mockResolvedValueOnce({ id: 83, storageUsed: 0, storageQuota: 0 })
+        .mockResolvedValueOnce({
+          id: 83,
+          storageUsed: 0,
+          storageQuota: computePreflightQuota(safe.payload.length),
+        }),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
+      delete: jest.fn().mockResolvedValue({}),
+      countBy: jest.fn().mockResolvedValue(1),
+    };
+    const fileRepo = {
+      findBy: jest.fn().mockResolvedValue([{ storagePath: linkedFile }]),
+      countBy: jest.fn().mockResolvedValue(1),
+    };
+    const source = {
+      getRepository: jest.fn((entity: unknown) =>
+        entity === UserEntity ? userRepo : fileRepo,
+      ),
+    } as unknown as DataSource;
+
+    const result = await runHttpPreflight(
+      {
+        ...safe,
+        storagePath: runStorage,
+        fetchImpl: jest.fn().mockImplementation(() => replies.shift()),
+      },
+      source,
+    );
+    expect(result.evidence.at(-1)).toMatchObject({
+      stage: "CLEANUP",
+      ok: false,
+    });
+    expect(fs.readFileSync(externalFile, "utf8")).toBe("must survive symlink");
+    expect(userRepo.delete).not.toHaveBeenCalled();
+    fs.rmSync(runStorage, { recursive: true, force: true });
+    fs.rmSync(externalDir, { recursive: true, force: true });
   });
 });

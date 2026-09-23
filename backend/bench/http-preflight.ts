@@ -41,6 +41,90 @@ export interface PreflightResult {
 
 export type Classification = "HEALTHY" | "RISK_CONFIRMED" | "INCONCLUSIVE";
 
+const REQUIRED_SUCCESS_STAGES: readonly PreflightStage[] = [
+  "AUTH",
+  "CREATE_SESSION",
+  "MULTIPART_CHUNK",
+  "COMPLETE",
+  "VERIFY",
+  "CLEANUP",
+];
+
+export function hasFullPreflightSuccess(result: PreflightResult): boolean {
+  return REQUIRED_SUCCESS_STAGES.every(
+    (stage) =>
+      result.evidence.find((item) => item.stage === stage)?.ok === true,
+  );
+}
+
+export async function runAfterFullTinySuccess(
+  tiny: PreflightResult,
+  runLarge: () => Promise<PreflightResult>,
+): Promise<PreflightResult | undefined> {
+  return hasFullPreflightSuccess(tiny) ? runLarge() : undefined;
+}
+
+export function computePreflightQuota(payloadBytes: number): number {
+  if (!Number.isSafeInteger(payloadBytes) || payloadBytes <= 0) {
+    throw new Error("Размер payload должен быть положительным safe integer");
+  }
+  const quota = payloadBytes * 2;
+  if (!Number.isSafeInteger(quota)) {
+    throw new Error("Вычисленная quota выходит за пределы safe integer");
+  }
+  return quota;
+}
+
+function exactSafeInteger(value: unknown, field: string): number {
+  if (typeof value !== "number" && typeof value !== "string") {
+    throw new Error(`${field} имеет неожиданный тип ${typeof value}`);
+  }
+  if (typeof value === "string" && !/^(0|[1-9]\d*)$/.test(value)) {
+    throw new Error(`${field} не является точным неотрицательным integer`);
+  }
+  const numeric = Number(value);
+  if (!Number.isSafeInteger(numeric) || numeric < 0) {
+    throw new Error(`${field} выходит за пределы safe integer`);
+  }
+  return numeric;
+}
+
+function assertOwnedRegularFile(
+  storagePath: string,
+  userId: number,
+  filePath: string,
+): string {
+  const storageRootStat = fs.lstatSync(storagePath);
+  if (!storageRootStat.isDirectory() || storageRootStat.isSymbolicLink()) {
+    throw new Error("Storage root не является обычным каталогом");
+  }
+  const realStorageRoot = fs.realpathSync(storagePath);
+  const ownedRoot = path.resolve(storagePath, String(userId));
+  const ownedRootStat = fs.lstatSync(ownedRoot);
+  if (!ownedRootStat.isDirectory() || ownedRootStat.isSymbolicLink()) {
+    throw new Error("Owned storage root не является обычным каталогом");
+  }
+  const realOwnedRoot = fs.realpathSync(ownedRoot);
+  if (realOwnedRoot !== path.join(realStorageRoot, String(userId))) {
+    throw new Error("Owned storage root выходит за storage root");
+  }
+  const resolved = path.resolve(filePath);
+  if (!resolved.startsWith(ownedRoot + path.sep)) {
+    throw new Error("Путь файла выходит за owned storage пользователя");
+  }
+  const stat = fs.lstatSync(resolved);
+  if (!stat.isFile() || stat.isSymbolicLink()) {
+    throw new Error("Owned storage path не является обычным файлом");
+  }
+  const real = fs.realpathSync(resolved);
+  if (!real.startsWith(realOwnedRoot + path.sep)) {
+    throw new Error(
+      "Реальный путь файла выходит за owned storage пользователя",
+    );
+  }
+  return real;
+}
+
 export function classifyStage(
   result: PreflightResult | undefined,
   stage: PreflightStage,
@@ -197,6 +281,7 @@ export async function runHttpPreflight(
     .digest("hex");
   let userId: number | undefined;
   let uploadId: string | undefined;
+  const expectedQuota = computePreflightQuota(options.payload.length);
 
   try {
     const auth = await request(
@@ -211,13 +296,23 @@ export async function runHttpPreflight(
       },
     );
     if (!auth.response.ok) return { label: options.label, sha256, evidence };
-    const user = await dataSource
-      .getRepository(UserEntity)
-      .findOneByOrFail({ email });
-    userId = user.id;
+    const userRepository = dataSource.getRepository(UserEntity);
+    const registeredUser = await userRepository.findOneByOrFail({ email });
+    userId = registeredUser.id;
+    await userRepository.update(userId, { storageQuota: expectedQuota });
+    const user = await userRepository.findOneByOrFail({ id: userId });
+    const reloadedQuota = exactSafeInteger(user.storageQuota, "storageQuota");
+    const initialStorageUsed = exactSafeInteger(
+      user.storageUsed,
+      "storageUsed",
+    );
+    if (reloadedQuota !== expectedQuota) {
+      throw new Error(
+        `Quota после перезагрузки не совпала: ${reloadedQuota} != ${expectedQuota}`,
+      );
+    }
     const authData = dataOf<{ accessToken: string }>(auth.body);
     if (!authData.accessToken) throw new Error("AUTH не вернул accessToken");
-    const initialStorageUsed = Number(user.storageUsed);
     const headers = { authorization: `Bearer ${authData.accessToken}` };
 
     const created = await request(
@@ -266,16 +361,45 @@ export async function runHttpPreflight(
       .getRepository(UserEntity)
       .findOneByOrFail({ id: userId });
     const finalPath = files[0]?.storagePath;
-    const exactBytes = finalPath ? fs.readFileSync(finalPath) : null;
+    const ownedFinalPath = finalPath
+      ? assertOwnedRegularFile(options.storagePath, userId, finalPath)
+      : null;
+    const exactBytes = ownedFinalPath ? fs.readFileSync(ownedFinalPath) : null;
+    const actualSha256 = exactBytes
+      ? crypto.createHash("sha256").update(exactBytes).digest("hex")
+      : null;
+    const finalStorageUsed = exactSafeInteger(
+      refreshed.storageUsed,
+      "storageUsed",
+    );
+    const finalQuota = exactSafeInteger(refreshed.storageQuota, "storageQuota");
     const verified =
       files.length === 1 &&
-      Number(files[0].size) === options.payload.length &&
+      typeof finalPath === "string" &&
+      finalPath.length > 0 &&
+      exactSafeInteger(files[0].size, "file.size") === options.payload.length &&
+      session?.uploadId === uploadId &&
       session?.status === "completed" &&
-      Number(refreshed.storageUsed) - initialStorageUsed ===
-        options.payload.length &&
+      finalStorageUsed - initialStorageUsed === options.payload.length &&
+      finalQuota === expectedQuota &&
       exactBytes?.equals(options.payload) === true &&
-      crypto.createHash("sha256").update(exactBytes).digest("hex") === sha256;
-    evidence.push({ stage: "VERIFY", ok: verified });
+      actualSha256 === sha256;
+    evidence.push({
+      stage: "VERIFY",
+      ok: verified,
+      body: {
+        expectedSha256: sha256,
+        actualSha256,
+        size: exactBytes?.length,
+        fileRows: files.length,
+        storagePath: finalPath,
+        sessionStatus: session?.status,
+        storageUsedBefore: initialStorageUsed,
+        storageUsedAfter: finalStorageUsed,
+        storageUsedDelta: finalStorageUsed - initialStorageUsed,
+        storageQuota: finalQuota,
+      },
+    });
     return { label: options.label, sha256, evidence };
   } finally {
     let cleanupOk = true;
@@ -285,8 +409,14 @@ export async function runHttpPreflight(
           .getRepository(FileEntity)
           .findBy({ userId });
         for (const file of files) {
-          if (file.storagePath && fs.existsSync(file.storagePath))
-            fs.unlinkSync(file.storagePath);
+          if (file.storagePath && fs.existsSync(file.storagePath)) {
+            const ownedFile = assertOwnedRegularFile(
+              options.storagePath,
+              userId,
+              file.storagePath,
+            );
+            fs.unlinkSync(ownedFile);
+          }
         }
         await dataSource.getRepository(UserEntity).delete(userId);
       }
