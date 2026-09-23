@@ -6,7 +6,7 @@ import {
   Logger,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, In } from "typeorm";
+import { Repository, In, QueryRunner } from "typeorm";
 import * as fs from "fs";
 import { FileEntity } from "../entities/file.entity";
 import { FolderEntity } from "../entities/folder.entity";
@@ -707,21 +707,11 @@ export class FilesService {
 
     await this.storageService.copyFile(source.storagePath, targetPath);
 
-    const copy = this.fileRepository.create({
-      name: safeName,
-      storagePath: targetPath,
-      size,
-      mimeType: source.mimeType,
-      isFolder: false,
-      parentId: targetParentId,
-      userId,
-      user,
-    });
-
-    try {
-      await this.fileRepository.save(copy);
-      await this.usersService.updateStorageUsed(userId, size);
-    } catch (error) {
+    let queryRunner: QueryRunner | undefined;
+    let copy: FileEntity | undefined;
+    let transactionStarted = false;
+    let commitAttempted = false;
+    const cleanupDestination = async () => {
       try {
         await this.storageService.deleteFile(targetPath);
       } catch (cleanupError) {
@@ -730,7 +720,64 @@ export class FilesService {
           cleanupError,
         );
       }
+    };
+
+    try {
+      queryRunner = this.fileRepository.manager.connection.createQueryRunner();
+      copy = queryRunner.manager.create(FileEntity, {
+        name: safeName,
+        storagePath: targetPath,
+        size,
+        mimeType: source.mimeType,
+        isFolder: false,
+        parentId: targetParentId,
+        userId,
+        user,
+      });
+      await queryRunner.connect();
+      await queryRunner.startTransaction();
+      transactionStarted = true;
+      await this.usersService.updateStorageUsed(userId, size, queryRunner.manager);
+      await queryRunner.manager.save(copy);
+      commitAttempted = true;
+      await queryRunner.commitTransaction();
+    } catch (error) {
+      if (commitAttempted) {
+        try {
+          if (!copy?.id) {
+            throw new Error("Copy record identity is unavailable");
+          }
+          const persistedCopy = await this.fileRepository.findOne({
+            where: { id: copy.id, userId, storagePath: targetPath },
+          });
+          if (!persistedCopy) {
+            await cleanupDestination();
+          }
+        } catch (reconciliationError) {
+          this.logger.error(
+            `Failed to reconcile copied file after ambiguous commit ${targetPath}`,
+            reconciliationError,
+          );
+        }
+      } else {
+        if (transactionStarted && queryRunner) {
+          try {
+            await queryRunner.rollbackTransaction();
+          } catch (rollbackError) {
+            this.logger.error("Failed to roll back copied file transaction", rollbackError);
+          }
+        }
+        await cleanupDestination();
+      }
       throw error;
+    } finally {
+      if (queryRunner) {
+        try {
+          await queryRunner.release();
+        } catch (releaseError) {
+          this.logger.error("Failed to release copied file transaction", releaseError);
+        }
+      }
     }
 
     return copy;

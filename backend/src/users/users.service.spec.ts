@@ -60,6 +60,41 @@ describe("UsersService - Storage Accounting", () => {
       await service.updateStorageUsed(1, 100);
       expect(mockUserRepository.createQueryBuilder).toHaveBeenCalled();
     });
+
+    it("fails closed when the user is missing after a rejected reservation", async () => {
+      mockExecute.mockResolvedValue({ affected: 0 });
+      mockUserRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.updateStorageUsed(1, 100)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("fails closed when quota metadata is invalid", async () => {
+      mockExecute.mockResolvedValue({ affected: undefined });
+      mockUserRepository.findOne.mockResolvedValue({
+        id: 1,
+        storageUsed: "invalid",
+        storageQuota: 1000,
+      });
+
+      await expect(service.updateStorageUsed(1, 100)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it("fails closed when reservation was not applied without quota overflow", async () => {
+      mockExecute.mockResolvedValue({ affected: 0 });
+      mockUserRepository.findOne.mockResolvedValue({
+        id: 1,
+        storageUsed: 100,
+        storageQuota: 1000,
+      });
+
+      await expect(service.updateStorageUsed(1, 100)).rejects.toThrow(
+        "Storage quota update failed",
+      );
+    });
   });
 
   describe("decrementStorageUsed - atomic conditional update", () => {

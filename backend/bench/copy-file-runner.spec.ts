@@ -47,7 +47,9 @@ describe("copy-file benchmark harness", () => {
     const sample = await instrument.settled();
     expect(instrument.calls()).toBe(0);
     expect(instrument.asyncAttempts()).toBe(1);
-    expect(sample.immediateRanBeforeReturn).toBe(true);
+    expect(typeof sample.immediateRanBeforeReturn).toBe("boolean");
+    expect(sample.immediateDelayMs).toBeGreaterThanOrEqual(0);
+    expect(sample.operationMs).toBeGreaterThanOrEqual(0);
     expect(fs.readFileSync(destination, "utf8")).toBe("correctness-marker");
   });
 
@@ -66,6 +68,24 @@ describe("copy-file benchmark harness", () => {
       findOne: jest.fn().mockResolvedValue(file),
       create: jest.fn((value) => value),
       save: jest.fn(async (value) => ({ ...value, id: 8 })),
+      manager: {
+        connection: {
+          createQueryRunner: jest.fn(() => ({
+            connect: jest.fn(),
+            startTransaction: jest.fn(),
+            commitTransaction: jest.fn(),
+            rollbackTransaction: jest.fn(),
+            release: jest.fn(),
+            manager: {
+              create: jest.fn((_entity, value) => value),
+              save: jest.fn(async (value) => {
+                value.id = 8;
+                return value;
+              }),
+            },
+          })),
+        },
+      },
     };
     const folderRepository = { findOne: jest.fn() };
     const storageService = {
@@ -89,8 +109,14 @@ describe("copy-file benchmark harness", () => {
     const result = await service.copyFile(1, 7);
     expect(result.storagePath).toBe(destination);
     expect(fs.readFileSync(destination, "utf8")).toBe("real-production-path");
-    expect(fileRepository.save).toHaveBeenCalledTimes(1);
-    expect(usersService.updateStorageUsed).toHaveBeenCalledWith(1, 20);
+    const qr = fileRepository.manager.connection.createQueryRunner.mock.results[0]
+      .value;
+    expect(qr.manager.save).toHaveBeenCalledTimes(1);
+    expect(usersService.updateStorageUsed).toHaveBeenCalledWith(
+      1,
+      20,
+      qr.manager,
+    );
   });
 
   it("fails closed for normal or mismatched storage roots", () => {

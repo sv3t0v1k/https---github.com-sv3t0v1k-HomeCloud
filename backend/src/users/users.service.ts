@@ -53,11 +53,20 @@ export class UsersService {
       })
       .execute();
 
-    if (result.affected === 0) {
+    if (result.affected !== 1) {
       const user = await repository.findOne({ where: { id } });
-      if (user && user.storageUsed + bytes > user.storageQuota) {
+      if (!user) {
+        throw new NotFoundException("User not found");
+      }
+      const storageUsed = Number(user?.storageUsed);
+      const storageQuota = Number(user?.storageQuota);
+      if (!Number.isSafeInteger(storageUsed) || !Number.isSafeInteger(storageQuota)) {
+        throw new BadRequestException("Invalid storage quota metadata");
+      }
+      if (storageUsed + bytes > storageQuota) {
         throw new ForbiddenException("Storage quota exceeded");
       }
+      throw new BadRequestException("Storage quota update failed");
     }
   }
 

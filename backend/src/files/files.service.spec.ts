@@ -503,17 +503,18 @@ describe("FilesService - Authorization Boundary", () => {
     };
 
     beforeEach(() => {
+      const qr = mockFileRepository.manager.connection.createQueryRunner();
       mockFileRepository.findOne.mockResolvedValue(source);
       mockUsersService.findById.mockResolvedValue({
         id: 1,
         storageQuota: 1000,
         storageUsed: 0,
       });
-      mockFileRepository.create.mockImplementation((value: any) => value);
-      mockFileRepository.save.mockImplementation(async (value: any) => ({
-        id: 2,
-        ...value,
-      }));
+      qr.manager.create.mockImplementation((_entity: any, value: any) => value);
+      qr.manager.save.mockImplementation(async (value: any) => {
+        value.id = 2;
+        return value;
+      });
     });
 
     it("awaits physical copy before creating metadata", async () => {
@@ -527,11 +528,12 @@ describe("FilesService - Authorization Boundary", () => {
       await Promise.resolve();
       await Promise.resolve();
 
-      expect(mockFileRepository.create).not.toHaveBeenCalled();
-      expect(mockFileRepository.save).not.toHaveBeenCalled();
+      const qr = mockFileRepository.manager.connection.createQueryRunner();
+      expect(qr.manager.create).not.toHaveBeenCalled();
+      expect(qr.manager.save).not.toHaveBeenCalled();
       allowCopy();
       await operation;
-      expect(mockFileRepository.save).toHaveBeenCalledTimes(1);
+      expect(qr.manager.save).toHaveBeenCalledTimes(1);
     });
 
     it("does not create metadata or charge quota when physical copy fails", async () => {
@@ -540,8 +542,9 @@ describe("FilesService - Authorization Boundary", () => {
 
       await expect(service.copyFile(1, 1)).rejects.toBe(missing);
 
-      expect(mockFileRepository.create).not.toHaveBeenCalled();
-      expect(mockFileRepository.save).not.toHaveBeenCalled();
+      const qr = mockFileRepository.manager.connection.createQueryRunner();
+      expect(qr.manager.create).not.toHaveBeenCalled();
+      expect(qr.manager.save).not.toHaveBeenCalled();
       expect(mockUsersService.updateStorageUsed).not.toHaveBeenCalled();
       expect(mockStorageService.deleteFile).not.toHaveBeenCalled();
     });
@@ -555,7 +558,9 @@ describe("FilesService - Authorization Boundary", () => {
         source.storagePath,
         "/storage/1/test.txt",
       );
-      expect(mockFileRepository.create).toHaveBeenCalledWith(
+      const qr = mockFileRepository.manager.connection.createQueryRunner();
+      expect(qr.manager.create).toHaveBeenCalledWith(
+        FileEntity,
         expect.objectContaining({
           name: "test.txt",
           storagePath: "/storage/1/test.txt",
@@ -564,7 +569,11 @@ describe("FilesService - Authorization Boundary", () => {
           userId: 1,
         }),
       );
-      expect(mockUsersService.updateStorageUsed).toHaveBeenCalledWith(1, 100);
+      expect(mockUsersService.updateStorageUsed).toHaveBeenCalledWith(
+        1,
+        100,
+        qr.manager,
+      );
       expect(result).toEqual(
         expect.objectContaining({
           name: "test.txt",
@@ -580,14 +589,16 @@ describe("FilesService - Authorization Boundary", () => {
 
       await expect(service.copyFile(1, 1)).rejects.toBe(collision);
 
-      expect(mockFileRepository.create).not.toHaveBeenCalled();
-      expect(mockFileRepository.save).not.toHaveBeenCalled();
+      const qr = mockFileRepository.manager.connection.createQueryRunner();
+      expect(qr.manager.create).not.toHaveBeenCalled();
+      expect(qr.manager.save).not.toHaveBeenCalled();
       expect(mockUsersService.updateStorageUsed).not.toHaveBeenCalled();
       expect(mockStorageService.deleteFile).not.toHaveBeenCalled();
     });
 
     it("cleans up only the new destination when metadata persistence fails", async () => {
-      mockFileRepository.save.mockRejectedValueOnce(new Error("save failed"));
+      const qr = mockFileRepository.manager.connection.createQueryRunner();
+      qr.manager.save.mockRejectedValueOnce(new Error("save failed"));
 
       await expect(service.copyFile(1, 1)).rejects.toThrow("save failed");
 
@@ -597,7 +608,12 @@ describe("FilesService - Authorization Boundary", () => {
       expect(mockStorageService.deleteFile).not.toHaveBeenCalledWith(
         source.storagePath,
       );
-      expect(mockUsersService.updateStorageUsed).not.toHaveBeenCalled();
+      expect(mockUsersService.updateStorageUsed).toHaveBeenCalledWith(
+        1,
+        100,
+        qr.manager,
+      );
+      expect(qr.rollbackTransaction).toHaveBeenCalledTimes(1);
     });
 
     it("cleans up the destination without masking a quota error", async () => {
@@ -612,6 +628,139 @@ describe("FilesService - Authorization Boundary", () => {
         "/storage/1/test.txt",
       );
       expect((service as any).logger.error).toBeDefined();
+    });
+
+    it("commits quota and metadata through the same transaction manager", async () => {
+      const qr = mockFileRepository.manager.connection.createQueryRunner();
+
+      await service.copyFile(1, 1);
+
+      expect(qr.connect).toHaveBeenCalledTimes(1);
+      expect(qr.startTransaction).toHaveBeenCalledTimes(1);
+      expect(mockUsersService.updateStorageUsed).toHaveBeenCalledWith(
+        1,
+        100,
+        qr.manager,
+      );
+      expect(qr.manager.save).toHaveBeenCalledTimes(1);
+      expect(
+        mockUsersService.updateStorageUsed.mock.invocationCallOrder[0],
+      ).toBeLessThan(qr.manager.save.mock.invocationCallOrder[0]);
+      expect(qr.commitTransaction).toHaveBeenCalledTimes(1);
+      expect(qr.rollbackTransaction).not.toHaveBeenCalled();
+      expect(qr.release).toHaveBeenCalledTimes(1);
+    });
+
+    it("rolls back quota when metadata save fails and cleans destination", async () => {
+      const qr = mockFileRepository.manager.connection.createQueryRunner();
+      qr.manager.save.mockRejectedValueOnce(new Error("metadata failed"));
+
+      await expect(service.copyFile(1, 1)).rejects.toThrow("metadata failed");
+
+      expect(qr.rollbackTransaction).toHaveBeenCalledTimes(1);
+      expect(qr.commitTransaction).not.toHaveBeenCalled();
+      expect(mockStorageService.deleteFile).toHaveBeenCalledWith(
+        "/storage/1/test.txt",
+      );
+    });
+
+    it("keeps destination when an ambiguous commit is proven present", async () => {
+      const qr = mockFileRepository.manager.connection.createQueryRunner();
+      const commitError = new Error("commit outcome unknown");
+      qr.commitTransaction.mockRejectedValueOnce(commitError);
+      mockFileRepository.findOne
+        .mockResolvedValueOnce(source)
+        .mockResolvedValueOnce({ id: 2, storagePath: "/storage/1/test.txt" });
+
+      await expect(service.copyFile(1, 1)).rejects.toBe(commitError);
+
+      expect(mockFileRepository.findOne).toHaveBeenLastCalledWith({
+        where: {
+          id: 2,
+          userId: 1,
+          storagePath: "/storage/1/test.txt",
+        },
+      });
+      expect(mockStorageService.deleteFile).not.toHaveBeenCalled();
+      expect(qr.rollbackTransaction).not.toHaveBeenCalled();
+    });
+
+    it("removes destination when an ambiguous commit is proven absent", async () => {
+      const qr = mockFileRepository.manager.connection.createQueryRunner();
+      qr.commitTransaction.mockRejectedValueOnce(new Error("commit failed"));
+      mockFileRepository.findOne
+        .mockResolvedValueOnce(source)
+        .mockResolvedValueOnce(null);
+
+      await expect(service.copyFile(1, 1)).rejects.toThrow("commit failed");
+
+      expect(mockStorageService.deleteFile).toHaveBeenCalledWith(
+        "/storage/1/test.txt",
+      );
+    });
+
+    it("keeps destination when ambiguous commit reconciliation is unavailable", async () => {
+      const qr = mockFileRepository.manager.connection.createQueryRunner();
+      qr.commitTransaction.mockRejectedValueOnce(new Error("commit failed"));
+      mockFileRepository.findOne
+        .mockResolvedValueOnce(source)
+        .mockRejectedValueOnce(new Error("database unavailable"));
+
+      await expect(service.copyFile(1, 1)).rejects.toThrow("commit failed");
+
+      expect(mockStorageService.deleteFile).not.toHaveBeenCalled();
+    });
+
+    it("cleans destination when query runner creation fails", async () => {
+      mockFileRepository.manager.connection.createQueryRunner.mockImplementationOnce(
+        () => {
+          throw new Error("runner failed");
+        },
+      );
+
+      await expect(service.copyFile(1, 1)).rejects.toThrow("runner failed");
+      expect(mockStorageService.deleteFile).toHaveBeenCalledWith(
+        "/storage/1/test.txt",
+      );
+      expect(mockStorageService.deleteFile).not.toHaveBeenCalledWith(
+        source.storagePath,
+      );
+    });
+
+    it("cleans destination when metadata entity creation fails", async () => {
+      const qr = mockFileRepository.manager.connection.createQueryRunner();
+      qr.manager.create.mockImplementationOnce(() => {
+        throw new Error("entity failed");
+      });
+
+      await expect(service.copyFile(1, 1)).rejects.toThrow("entity failed");
+      expect(mockStorageService.deleteFile).toHaveBeenCalledWith(
+        "/storage/1/test.txt",
+      );
+      expect(qr.release).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not mask the original error when query runner release fails", async () => {
+      const qr = mockFileRepository.manager.connection.createQueryRunner();
+      const quotaError = new ForbiddenException("Storage quota exceeded");
+      mockUsersService.updateStorageUsed.mockRejectedValueOnce(quotaError);
+      qr.release.mockRejectedValueOnce(new Error("release failed"));
+
+      await expect(service.copyFile(1, 1)).rejects.toBe(quotaError);
+      expect(mockStorageService.deleteFile).toHaveBeenCalledWith(
+        "/storage/1/test.txt",
+      );
+    });
+
+    it("does not turn a committed copy into an error when release fails", async () => {
+      const qr = mockFileRepository.manager.connection.createQueryRunner();
+      qr.release.mockRejectedValueOnce(new Error("release failed"));
+
+      await expect(service.copyFile(1, 1)).resolves.toEqual(
+        expect.objectContaining({ id: 2, size: 100 }),
+      );
+      expect(qr.commitTransaction).toHaveBeenCalledTimes(1);
+      expect(mockStorageService.deleteFile).not.toHaveBeenCalled();
     });
 
     it.each([NaN, -1, 1.5, Number.MAX_SAFE_INTEGER + 1])(

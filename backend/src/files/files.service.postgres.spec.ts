@@ -1,4 +1,8 @@
 import { randomUUID } from "node:crypto";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import { ConfigService } from "@nestjs/config";
 import { DataSource } from "typeorm";
 import { FileEntity } from "../entities/file.entity";
 import { FolderEntity } from "../entities/folder.entity";
@@ -6,6 +10,8 @@ import { RefreshTokenEntity } from "../entities/refresh-token.entity";
 import { ShareLinkEntity } from "../entities/share-link.entity";
 import { UploadSessionEntity } from "../entities/upload-session.entity";
 import { UserEntity } from "../entities/user.entity";
+import { StorageService } from "../storage/storage.service";
+import { UsersService } from "../users/users.service";
 import { FilesService } from "./files.service";
 
 const testDatabaseUrl = process.env.HOMECLOUD_TEST_DATABASE_URL;
@@ -16,6 +22,9 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
   let admin: DataSource;
   let dataSource: DataSource;
   let service: FilesService;
+  let copyService: FilesService;
+  let copyStorage: StorageService;
+  let copyRoot: string;
   const storage = {
     deleteFile: jest.fn(),
   };
@@ -49,6 +58,16 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
       storage as any,
       users as any,
     );
+    copyRoot = fs.mkdtempSync(path.join(os.tmpdir(), "homecloud-copy-pg-"));
+    copyStorage = new StorageService(
+      new ConfigService({ STORAGE_PATH: copyRoot }),
+    );
+    copyService = new FilesService(
+      dataSource.getRepository(FileEntity),
+      dataSource.getRepository(FolderEntity),
+      copyStorage,
+      new UsersService(dataSource.getRepository(UserEntity)),
+    );
   }, 30000);
 
   afterAll(async () => {
@@ -57,6 +76,7 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
       await admin.query(`DROP SCHEMA "${schema}" CASCADE`);
       await admin.destroy();
     }
+    if (copyRoot) fs.rmSync(copyRoot, { recursive: true, force: true });
   });
 
   beforeEach(async () => {
@@ -171,5 +191,44 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
       expect.anything(),
     );
     expect(storage.deleteFile).toHaveBeenCalledTimes(1);
+  });
+
+  it("конкурирующие копии атомарно резервируют квоту", async () => {
+    const user = await dataSource.getRepository(UserEntity).save({
+      email: `${randomUUID()}@example.test`,
+      password: "hash",
+      name: "Copy race",
+      storageQuota: 150,
+      storageUsed: 0,
+    });
+    const sourcePath = copyStorage.generatePath(user.id, "source.bin");
+    fs.writeFileSync(sourcePath, Buffer.alloc(100, 7));
+    const files = dataSource.getRepository(FileEntity);
+    const source = await files.save(
+      files.create({
+        name: "source.bin",
+        storagePath: sourcePath,
+        size: 100,
+        mimeType: "application/octet-stream",
+        isFolder: false,
+        userId: user.id,
+      }),
+    );
+
+    const results = await Promise.allSettled([
+      copyService.copyFile(user.id, source.id),
+      copyService.copyFile(user.id, source.id),
+    ]);
+
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
+    expect(
+      Number(
+        (await dataSource.getRepository(UserEntity).findOneByOrFail({ id: user.id }))
+          .storageUsed,
+      ),
+    ).toBe(100);
+    expect(await files.countBy({ userId: user.id })).toBe(2);
+    expect(fs.readdirSync(path.dirname(sourcePath))).toHaveLength(2);
   });
 });
