@@ -455,7 +455,7 @@ export class FilesService {
       // Physical deletion AFTER successful commit — safe from rollback
       if (fileToDelete.storagePath) {
         try {
-          this.storageService.deleteFile(fileToDelete.storagePath);
+          await this.storageService.deleteFile(fileToDelete.storagePath);
         } catch (error) {
           this.logger.error(`Failed to delete physical file ${fileToDelete.storagePath}`, error);
         }
@@ -557,7 +557,7 @@ export class FilesService {
       for (const file of physicalFilesToDelete) {
         if (file.storagePath) {
           try {
-            this.storageService.deleteFile(file.storagePath);
+            await this.storageService.deleteFile(file.storagePath);
           } catch (error) {
             this.logger.error(`Failed to delete physical file ${file.storagePath}`, error);
           }
@@ -670,7 +670,7 @@ export class FilesService {
       for (const file of physicalFilesToDelete) {
         if (file.storagePath) {
           try {
-            this.storageService.deleteFile(file.storagePath);
+            await this.storageService.deleteFile(file.storagePath);
           } catch (error) {
             this.logger.error(`Failed to delete physical file ${file.storagePath}`, error);
           }

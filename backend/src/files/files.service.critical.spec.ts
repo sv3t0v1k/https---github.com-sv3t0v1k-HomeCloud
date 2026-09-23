@@ -565,6 +565,14 @@ describe("FilesService - Critical Findings (F-01, F-02, MISS-01, MISS-02, MISS-0
   // Phase 7: Physical delete after commit (roadmap finding)
   // ============================================================
   describe("Physical deletion timing (roadmap finding)", () => {
+    const controlledDeletion = () => {
+      let resolve!: () => void;
+      const promise = new Promise<void>((done) => {
+        resolve = done;
+      });
+      return { promise, resolve };
+    };
+
     it("deleteFilePermanently should delete physical file AFTER commit", async () => {
       const qr = mockFileRepository.manager.connection.createQueryRunner();
       qr.manager.findOne.mockResolvedValue({
@@ -619,6 +627,208 @@ describe("FilesService - Critical Findings (F-01, F-02, MISS-01, MISS-02, MISS-0
 
       expect(qr.rollbackTransaction).toHaveBeenCalled();
       expect(mockStorageService.deleteFile).not.toHaveBeenCalled();
+    });
+
+    it("deleteFilePermanently awaits physical deletion after commit", async () => {
+      const qr = mockFileRepository.manager.connection.createQueryRunner();
+      qr.manager.findOne.mockResolvedValue({
+        id: 1, userId: 1, size: 100, storagePath: "/s/a.txt",
+      });
+      const deletion = controlledDeletion();
+      let deletionStarted!: () => void;
+      const started = new Promise<void>((resolve) => {
+        deletionStarted = resolve;
+      });
+      mockStorageService.deleteFile.mockImplementationOnce(() => {
+        deletionStarted();
+        return deletion.promise;
+      });
+
+      let settled = false;
+      const result = service.deleteFilePermanently(1, 1).then(() => {
+        settled = true;
+      });
+      await started;
+
+      expect(qr.commitTransaction).toHaveBeenCalled();
+      expect(mockStorageService.deleteFile).toHaveBeenCalledWith("/s/a.txt");
+      expect(settled).toBe(false);
+      deletion.resolve();
+      await result;
+      expect(settled).toBe(true);
+    });
+
+    it("deleteFolderPermanently awaits deletion and contains failures after commit", async () => {
+      const qr = mockFolderRepository.manager.connection.createQueryRunner();
+      qr.manager.findOne.mockResolvedValue({ id: 1, userId: 1 });
+      qr.manager.query.mockResolvedValue([{ id: 1 }]);
+      qr.manager.find
+        .mockResolvedValueOnce([{ id: 1, userId: 1 }])
+        .mockResolvedValueOnce([
+          { id: 10, size: 10, storagePath: "/s/a" },
+          { id: 11, size: 20, storagePath: "/s/b" },
+        ])
+        .mockResolvedValueOnce([
+          { id: 101, folderId: 1, userId: 1, isFolder: true },
+        ]);
+      const error = new Error("unlink failed");
+      mockStorageService.deleteFile
+        .mockRejectedValueOnce(error)
+        .mockResolvedValueOnce(undefined);
+      const logSpy = jest
+        .spyOn((service as any).logger, "error")
+        .mockImplementation();
+
+      await expect(service.deleteFolderPermanently(1, 1)).resolves.toEqual({
+        message: "Folder deleted permanently",
+      });
+
+      expect(qr.commitTransaction).toHaveBeenCalledTimes(1);
+      expect(qr.rollbackTransaction).not.toHaveBeenCalled();
+      expect(mockStorageService.deleteFile).toHaveBeenNthCalledWith(1, "/s/a");
+      expect(mockStorageService.deleteFile).toHaveBeenNthCalledWith(2, "/s/b");
+      expect(logSpy).toHaveBeenCalledWith(
+        "Failed to delete physical file /s/a",
+        error,
+      );
+    });
+
+    it("deleteFolderPermanently waits for a successful physical deletion", async () => {
+      const qr = mockFolderRepository.manager.connection.createQueryRunner();
+      qr.manager.findOne.mockResolvedValue({ id: 1, userId: 1 });
+      qr.manager.query.mockResolvedValue([{ id: 1 }]);
+      qr.manager.find
+        .mockResolvedValueOnce([{ id: 1, userId: 1 }])
+        .mockResolvedValueOnce([{ id: 10, size: 10, storagePath: "/s/a" }])
+        .mockResolvedValueOnce([
+          { id: 101, folderId: 1, userId: 1, isFolder: true },
+        ]);
+      const deletion = controlledDeletion();
+      let deletionStarted!: () => void;
+      const started = new Promise<void>((resolve) => {
+        deletionStarted = resolve;
+      });
+      mockStorageService.deleteFile.mockImplementationOnce(() => {
+        deletionStarted();
+        return deletion.promise;
+      });
+
+      let settled = false;
+      const result = service.deleteFolderPermanently(1, 1).then(() => {
+        settled = true;
+      });
+      await started;
+
+      expect(qr.commitTransaction).toHaveBeenCalledTimes(1);
+      expect(settled).toBe(false);
+      deletion.resolve();
+      await result;
+      expect(settled).toBe(true);
+    });
+
+    it("deleteFilePermanently logs and contains a post-commit deletion failure", async () => {
+      const qr = mockFileRepository.manager.connection.createQueryRunner();
+      qr.manager.findOne.mockResolvedValue({
+        id: 1, userId: 1, size: 100, storagePath: "/s/a.txt",
+      });
+      const error = new Error("unlink failed");
+      mockStorageService.deleteFile.mockRejectedValueOnce(error);
+      const logSpy = jest
+        .spyOn((service as any).logger, "error")
+        .mockImplementation();
+
+      await expect(service.deleteFilePermanently(1, 1)).resolves.toEqual({
+        message: "File deleted permanently",
+      });
+
+      expect(qr.commitTransaction).toHaveBeenCalledTimes(1);
+      expect(qr.rollbackTransaction).not.toHaveBeenCalled();
+      expect(logSpy).toHaveBeenCalledWith(
+        "Failed to delete physical file /s/a.txt",
+        error,
+      );
+    });
+
+    it("emptyTrash awaits deletions sequentially with one unlink in flight", async () => {
+      const qr = mockFileRepository.manager.connection.createQueryRunner();
+      qr.manager.query.mockResolvedValue([]);
+      qr.manager.find.mockResolvedValueOnce([
+        { id: 1, size: 10, storagePath: "/s/a", isFolder: false },
+        { id: 2, size: 20, storagePath: "/s/b", isFolder: false },
+      ]);
+      const first = controlledDeletion();
+      const second = controlledDeletion();
+      let firstStarted!: () => void;
+      let secondStarted!: () => void;
+      const firstStart = new Promise<void>((resolve) => {
+        firstStarted = resolve;
+      });
+      const secondStart = new Promise<void>((resolve) => {
+        secondStarted = resolve;
+      });
+      let inFlight = 0;
+      let maxInFlight = 0;
+      mockStorageService.deleteFile.mockImplementation(() => {
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        const isFirst = mockStorageService.deleteFile.mock.calls.length === 1;
+        if (isFirst) {
+          firstStarted();
+        } else {
+          secondStarted();
+        }
+        const current = isFirst ? first.promise : second.promise;
+        return current.finally(() => {
+          inFlight -= 1;
+        });
+      });
+
+      let settled = false;
+      const result = service.emptyTrash(1).then(() => {
+        settled = true;
+      });
+      await firstStart;
+
+      expect(mockStorageService.deleteFile).toHaveBeenCalledTimes(1);
+      expect(settled).toBe(false);
+      first.resolve();
+      await secondStart;
+      expect(mockStorageService.deleteFile).toHaveBeenCalledTimes(2);
+      expect(maxInFlight).toBe(1);
+      expect(settled).toBe(false);
+      second.resolve();
+      await result;
+      expect(maxInFlight).toBe(1);
+      expect(settled).toBe(true);
+      expect(qr.commitTransaction).toHaveBeenCalledTimes(1);
+      expect(qr.rollbackTransaction).not.toHaveBeenCalled();
+    });
+
+    it("emptyTrash logs a rejected deletion and continues without an unhandled rejection", async () => {
+      const qr = mockFileRepository.manager.connection.createQueryRunner();
+      qr.manager.query.mockResolvedValue([]);
+      qr.manager.find.mockResolvedValueOnce([
+        { id: 1, size: 10, storagePath: "/s/a", isFolder: false },
+        { id: 2, size: 20, storagePath: "/s/b", isFolder: false },
+      ]);
+      const error = new Error("unlink failed");
+      mockStorageService.deleteFile
+        .mockRejectedValueOnce(error)
+        .mockResolvedValueOnce(undefined);
+      const logSpy = jest
+        .spyOn((service as any).logger, "error")
+        .mockImplementation();
+
+      await expect(service.emptyTrash(1)).resolves.toEqual({
+        message: "Trash emptied",
+      });
+
+      expect(mockStorageService.deleteFile).toHaveBeenCalledTimes(2);
+      expect(logSpy).toHaveBeenCalledWith(
+        "Failed to delete physical file /s/a",
+        error,
+      );
+      expect(qr.rollbackTransaction).not.toHaveBeenCalled();
     });
   });
 

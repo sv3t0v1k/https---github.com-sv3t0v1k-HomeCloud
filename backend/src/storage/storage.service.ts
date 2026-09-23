@@ -108,8 +108,12 @@ export class StorageService {
 
   async deleteFile(filePath: string): Promise<void> {
     const safePath = this.ensureWithinStorageRoot(filePath);
-    if (fs.existsSync(safePath)) {
-      fs.unlinkSync(safePath);
+    try {
+      await fs.promises.unlink(safePath);
+    } catch (error) {
+      if ((error as { code?: string }).code !== "ENOENT") {
+        throw error;
+      }
     }
   }
 
