@@ -9,7 +9,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import * as fs from "fs";
 import * as path from "path";
-import { once } from "events";
+import { pipeline } from "stream/promises";
 import { fileTypeFromBuffer } from "./file-type.loader";
 import { v4 as uuidv4 } from "uuid";
 import { ConfigService } from "@nestjs/config";
@@ -20,6 +20,12 @@ import { UserEntity } from "../entities/user.entity";
 import { EntityManager } from "typeorm";
 import { StorageService } from "../storage/storage.service";
 import { UsersService } from "../users/users.service";
+import {
+  IngressChunkFile,
+  cleanupIngressFile,
+  getIngressRoot,
+  parseMaxChunkSize,
+} from "./chunk-ingress";
 
 @Injectable()
 export class UploadsService {
@@ -33,7 +39,6 @@ export class UploadsService {
 
   private static readonly DEFAULT_MAX_FILE_SIZE = 1024 * 1024 * 1024;
   private static readonly DEFAULT_MAX_TOTAL_SIZE = 10 * 1024 * 1024 * 1024;
-  private static readonly DEFAULT_MAX_CHUNK_SIZE = 50 * 1024 * 1024;
   private static readonly DEFAULT_SESSION_TTL_HOURS = 24;
 
   constructor(
@@ -61,13 +66,14 @@ export class UploadsService {
       allowZero: false,
       defaultValue: UploadsService.DEFAULT_MAX_TOTAL_SIZE,
     });
-    this.maxChunkSize = this.parseSizeEnv(rawMaxChunkSize, "MAX_CHUNK_SIZE", {
-      allowZero: false,
-      defaultValue: UploadsService.DEFAULT_MAX_CHUNK_SIZE,
-    });
-    this.sessionTtlMs = this.parseTtlEnv(rawSessionTtl, "UPLOAD_SESSION_TTL_HOURS", {
-      defaultValue: UploadsService.DEFAULT_SESSION_TTL_HOURS,
-    });
+    this.maxChunkSize = parseMaxChunkSize(rawMaxChunkSize);
+    this.sessionTtlMs = this.parseTtlEnv(
+      rawSessionTtl,
+      "UPLOAD_SESSION_TTL_HOURS",
+      {
+        defaultValue: UploadsService.DEFAULT_SESSION_TTL_HOURS,
+      },
+    );
 
     if (this.maxFileSize > 0 && this.maxTotalSize < this.maxFileSize) {
       throw new BadRequestException(
@@ -167,8 +173,11 @@ export class UploadsService {
     return value;
   }
 
-  private async withTransaction<T>(fn: (manager: EntityManager) => Promise<T>): Promise<T> {
-    const queryRunner = this.uploadSessionRepository.manager.connection.createQueryRunner();
+  private async withTransaction<T>(
+    fn: (manager: EntityManager) => Promise<T>,
+  ): Promise<T> {
+    const queryRunner =
+      this.uploadSessionRepository.manager.connection.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
     try {
@@ -201,8 +210,14 @@ export class UploadsService {
       }
     }
 
-    totalSize = UploadsService.validateSafePositiveInteger(totalSize, "totalSize");
-    chunkSize = UploadsService.validateSafePositiveInteger(chunkSize, "chunkSize");
+    totalSize = UploadsService.validateSafePositiveInteger(
+      totalSize,
+      "totalSize",
+    );
+    chunkSize = UploadsService.validateSafePositiveInteger(
+      chunkSize,
+      "chunkSize",
+    );
 
     if (chunkSize > this.maxChunkSize) {
       throw new BadRequestException("Chunk size exceeds allowed maximum");
@@ -214,7 +229,9 @@ export class UploadsService {
     }
 
     if (this.maxTotalSize > 0 && totalSize > this.maxTotalSize) {
-      throw new BadRequestException("Total upload size exceeds allowed maximum");
+      throw new BadRequestException(
+        "Total upload size exceeds allowed maximum",
+      );
     }
 
     const totalChunks = Math.ceil(totalSize / chunkSize);
@@ -316,7 +333,7 @@ export class UploadsService {
     userId: number,
     uploadId: string,
     chunkIndex: number,
-    chunkData: Buffer,
+    chunkData: Buffer | IngressChunkFile,
   ): Promise<UploadSessionEntity> {
     // Validate chunkIndex as a finite safe nonnegative integer.
     if (
@@ -330,156 +347,266 @@ export class UploadsService {
       );
     }
 
-    return this.withTransaction(async (manager) => {
-      const session = await manager.findOne(UploadSessionEntity, {
-        where: { uploadId, userId },
-        lock: { mode: "pessimistic_write" },
-      });
+    let ingressPath: string | null = null;
+    const chunkSize = Buffer.isBuffer(chunkData)
+      ? chunkData.length
+      : chunkData.size;
 
-      if (!session) {
-        throw new NotFoundException("Upload session not found");
+    try {
+      if (!Buffer.isBuffer(chunkData)) {
+        ingressPath = this.validateIngressChunk(chunkData);
       }
+      return await this.withTransaction(async (manager) => {
+        const session = await manager.findOne(UploadSessionEntity, {
+          where: { uploadId, userId },
+          lock: { mode: "pessimistic_write" },
+        });
 
-      if (session.expiresAt && new Date() > session.expiresAt) {
-        throw new BadRequestException("Upload session expired");
-      }
-
-      if (session.status === "completed" || session.status === "aborted") {
-        throw new BadRequestException(`Upload session is ${session.status}`);
-      }
-
-      if (chunkIndex >= session.totalChunks) {
-        throw new BadRequestException("Invalid chunk index");
-      }
-
-      const remainingBytes =
-        session.totalSize - chunkIndex * session.chunkSize;
-      if (remainingBytes <= 0) {
-        throw new BadRequestException("Invalid chunk position");
-      }
-
-      const maxAllowed =
-        chunkIndex === session.totalChunks - 1
-          ? remainingBytes
-          : session.chunkSize;
-
-      if (chunkData.length > maxAllowed) {
-        throw new BadRequestException("Chunk size exceeds allowed limit");
-      }
-
-      const chunkPath = path.join(session.tempPath, String(chunkIndex));
-      const tempPath = chunkPath + ".tmp";
-
-      // Reconcile uploadedChunks with actual files on disk before proceeding.
-      // Retain only unique valid indices whose chunk files actually exist.
-      // If DB has an index whose file is missing, remove it.
-      // If a chunk file exists but its index is absent, add it.
-      const dbChunks = Array.from(new Set(session.uploadedChunks || []));
-      const validDbChunks = dbChunks.filter((idx) => {
-        if (idx < 0 || idx >= session.totalChunks) return false;
-        const p = path.join(session.tempPath, String(idx));
-        return fs.existsSync(p);
-      });
-      // Check for orphaned chunk files on disk not reflected in DB.
-      const existingDiskChunks: number[] = [];
-      for (let i = 0; i < session.totalChunks; i++) {
-        const p = path.join(session.tempPath, String(i));
-        if (fs.existsSync(p)) {
-          existingDiskChunks.push(i);
+        if (!session) {
+          throw new NotFoundException("Upload session not found");
         }
-      }
-      const reconciledChunks = Array.from(
-        new Set([...validDbChunks, ...existingDiskChunks]),
-      ).sort((a, b) => a - b);
 
-      // Recompute uploadedSize from reconciled chunk files.
-      let uploadedSize = 0;
-      for (const idx of reconciledChunks) {
-        const p = path.join(session.tempPath, String(idx));
-        try {
-          uploadedSize += fs.statSync(p).size;
-        } catch {
-          // File vanished during stat; ignore (will be cleaned up on next reconcile).
+        if (session.expiresAt && new Date() > session.expiresAt) {
+          throw new BadRequestException("Upload session expired");
         }
-      }
 
-      // Persist reconciled state if it differs from current session state.
-      const needsReconcile =
-        reconciledChunks.length !== (session.uploadedChunks || []).length ||
-        reconciledChunks.some(
-          (v, i) => v !== (session.uploadedChunks || [])[i],
-        ) ||
-        uploadedSize !== session.uploadedSize;
-      if (needsReconcile) {
-        session.uploadedChunks = reconciledChunks;
-        session.uploadedSize = uploadedSize;
-        await manager.save(session);
-      }
+        if (session.status === "completed" || session.status === "aborted") {
+          throw new BadRequestException(`Upload session is ${session.status}`);
+        }
 
-      // Idempotency: if this exact chunk index already exists on disk with
-      // matching content, treat the upload as a no-op and return success.
-      if (fs.existsSync(chunkPath)) {
-        const existingSize = fs.statSync(chunkPath).size;
-        if (existingSize === chunkData.length) {
-          const existingData = fs.readFileSync(chunkPath);
-          if (existingData.equals(chunkData)) {
-            // Exact duplicate: synchronize DB state and return success.
-            session.status = "uploading";
-            await manager.save(session);
-            return session;
+        if (chunkIndex >= session.totalChunks) {
+          throw new BadRequestException("Invalid chunk index");
+        }
+
+        const remainingBytes =
+          session.totalSize - chunkIndex * session.chunkSize;
+        if (remainingBytes <= 0) {
+          throw new BadRequestException("Invalid chunk position");
+        }
+
+        const maxAllowed =
+          chunkIndex === session.totalChunks - 1
+            ? remainingBytes
+            : session.chunkSize;
+
+        if (chunkSize > maxAllowed) {
+          throw new BadRequestException("Chunk size exceeds allowed limit");
+        }
+
+        const chunkPath = path.join(session.tempPath, String(chunkIndex));
+        const tempPath = chunkPath + ".tmp";
+
+        // Reconcile uploadedChunks with actual files on disk before proceeding.
+        // Retain only unique valid indices whose chunk files actually exist.
+        // If DB has an index whose file is missing, remove it.
+        // If a chunk file exists but its index is absent, add it.
+        const dbChunks = Array.from(new Set(session.uploadedChunks || []));
+        const validDbChunks = dbChunks.filter((idx) => {
+          if (idx < 0 || idx >= session.totalChunks) return false;
+          const p = path.join(session.tempPath, String(idx));
+          return fs.existsSync(p);
+        });
+        // Check for orphaned chunk files on disk not reflected in DB.
+        const existingDiskChunks: number[] = [];
+        for (let i = 0; i < session.totalChunks; i++) {
+          const p = path.join(session.tempPath, String(i));
+          if (fs.existsSync(p)) {
+            existingDiskChunks.push(i);
           }
-          // Different content with same size — reject to avoid silent overwrite.
+        }
+        const reconciledChunks = Array.from(
+          new Set([...validDbChunks, ...existingDiskChunks]),
+        ).sort((a, b) => a - b);
+
+        // Recompute uploadedSize from reconciled chunk files.
+        let uploadedSize = 0;
+        for (const idx of reconciledChunks) {
+          const p = path.join(session.tempPath, String(idx));
+          try {
+            uploadedSize += fs.statSync(p).size;
+          } catch {
+            // File vanished during stat; ignore (will be cleaned up on next reconcile).
+          }
+        }
+
+        // Persist reconciled state if it differs from current session state.
+        const needsReconcile =
+          reconciledChunks.length !== (session.uploadedChunks || []).length ||
+          reconciledChunks.some(
+            (v, i) => v !== (session.uploadedChunks || [])[i],
+          ) ||
+          uploadedSize !== session.uploadedSize;
+        if (needsReconcile) {
+          session.uploadedChunks = reconciledChunks;
+          session.uploadedSize = uploadedSize;
+          await manager.save(session);
+        }
+
+        // Idempotency: if this exact chunk index already exists on disk with
+        // matching content, treat the upload as a no-op and return success.
+        if (fs.existsSync(chunkPath)) {
+          const existingSize = fs.statSync(chunkPath).size;
+          if (existingSize === chunkSize) {
+            const isEqual = Buffer.isBuffer(chunkData)
+              ? await this.fileEqualsBuffer(chunkPath, chunkData)
+              : await this.filesEqual(chunkPath, ingressPath!);
+            if (isEqual) {
+              // Exact duplicate: synchronize DB state and return success.
+              session.status = "uploading";
+              await manager.save(session);
+              return session;
+            }
+            // Different content with same size — reject to avoid silent overwrite.
+            throw new BadRequestException(
+              `Chunk ${chunkIndex} already uploaded with different content`,
+            );
+          }
+          // Different size — reject to avoid silent overwrite.
           throw new BadRequestException(
             `Chunk ${chunkIndex} already uploaded with different content`,
           );
         }
-        // Different size — reject to avoid silent overwrite.
-        throw new BadRequestException(
-          `Chunk ${chunkIndex} already uploaded with different content`,
-        );
-      }
 
-      // Atomic write: .tmp then rename to final chunk path.
-      // Remove .tmp on any write/rename failure.
-      try {
-        fs.writeFileSync(tempPath, chunkData);
-        fs.renameSync(tempPath, chunkPath);
-      } catch (writeErr) {
-        // Clean up temp file on failure.
-        if (fs.existsSync(tempPath)) {
+        // Atomic write: .tmp then rename to final chunk path.
+        // Remove .tmp on any write/rename failure.
+        try {
+          if (Buffer.isBuffer(chunkData)) {
+            await fs.promises.writeFile(tempPath, chunkData);
+          } else {
+            await fs.promises.rename(ingressPath!, tempPath);
+          }
+          fs.renameSync(tempPath, chunkPath);
+        } catch (writeErr) {
+          // Clean up temp file on failure.
+          if (fs.existsSync(tempPath)) {
+            try {
+              fs.unlinkSync(tempPath);
+            } catch {
+              // Ignore cleanup errors.
+            }
+          }
+          throw writeErr;
+        }
+
+        // Update normalized uploadedChunks and uploadedSize.
+        const newUploadedChunks = Array.from(
+          new Set([...reconciledChunks, chunkIndex]),
+        ).sort((a, b) => a - b);
+        let newUploadedSize = uploadedSize + chunkSize;
+        // Recompute from disk to be absolutely sure (handles edge cases).
+        newUploadedSize = 0;
+        for (const idx of newUploadedChunks) {
+          const p = path.join(session.tempPath, String(idx));
           try {
-            fs.unlinkSync(tempPath);
+            newUploadedSize += fs.statSync(p).size;
           } catch {
-            // Ignore cleanup errors.
+            // Should not happen for chunks we just verified.
           }
         }
-        throw writeErr;
-      }
 
-      // Update normalized uploadedChunks and uploadedSize.
-      const newUploadedChunks = Array.from(
-        new Set([...reconciledChunks, chunkIndex]),
-      ).sort((a, b) => a - b);
-      let newUploadedSize = uploadedSize + chunkData.length;
-      // Recompute from disk to be absolutely sure (handles edge cases).
-      newUploadedSize = 0;
-      for (const idx of newUploadedChunks) {
-        const p = path.join(session.tempPath, String(idx));
-        try {
-          newUploadedSize += fs.statSync(p).size;
-        } catch {
-          // Should not happen for chunks we just verified.
+        session.uploadedChunks = newUploadedChunks;
+        session.uploadedSize = newUploadedSize;
+        session.status = "uploading";
+
+        await manager.save(session);
+
+        return session;
+      });
+    } finally {
+      if (!Buffer.isBuffer(chunkData)) {
+        cleanupIngressFile(
+          chunkData.path,
+          this.storageService.getTempPath(),
+          (error) =>
+            this.logger.warn(`Failed to clean ingress file: ${error.message}`),
+        );
+      }
+    }
+  }
+
+  private validateIngressChunk(chunk: IngressChunkFile): string {
+    const ingressRoot = getIngressRoot(this.storageService.getTempPath());
+    const resolved = path.resolve(chunk.path);
+    if (!resolved.startsWith(ingressRoot + path.sep)) {
+      throw new BadRequestException("Invalid ingress chunk path");
+    }
+    let stats: fs.Stats;
+    try {
+      stats = fs.lstatSync(resolved);
+    } catch {
+      throw new BadRequestException("Ingress chunk file is missing");
+    }
+    if (!stats.isFile() || stats.isSymbolicLink()) {
+      throw new BadRequestException("Ingress chunk must be a regular file");
+    }
+    if (stats.size !== chunk.size || stats.size > this.maxChunkSize) {
+      throw new BadRequestException("Invalid ingress chunk size");
+    }
+    return resolved;
+  }
+
+  private async fileEqualsBuffer(
+    filePath: string,
+    expected: Buffer,
+  ): Promise<boolean> {
+    const handle = await fs.promises.open(filePath, "r");
+    const block = Buffer.allocUnsafe(64 * 1024);
+    let offset = 0;
+    try {
+      while (offset < expected.length) {
+        const { bytesRead } = await handle.read(
+          block,
+          0,
+          Math.min(block.length, expected.length - offset),
+          offset,
+        );
+        if (bytesRead === 0) return false;
+        if (
+          !block
+            .subarray(0, bytesRead)
+            .equals(expected.subarray(offset, offset + bytesRead))
+        ) {
+          return false;
         }
+        offset += bytesRead;
       }
+      return offset === expected.length;
+    } finally {
+      await handle.close();
+    }
+  }
 
-      session.uploadedChunks = newUploadedChunks;
-      session.uploadedSize = newUploadedSize;
-      session.status = "uploading";
-
-      await manager.save(session);
-
-      return session;
-    });
+  private async filesEqual(
+    leftPath: string,
+    rightPath: string,
+  ): Promise<boolean> {
+    const [left, right] = await Promise.all([
+      fs.promises.open(leftPath, "r"),
+      fs.promises.open(rightPath, "r"),
+    ]);
+    const leftBlock = Buffer.allocUnsafe(64 * 1024);
+    const rightBlock = Buffer.allocUnsafe(64 * 1024);
+    let offset = 0;
+    try {
+      for (;;) {
+        const [leftRead, rightRead] = await Promise.all([
+          left.read(leftBlock, 0, leftBlock.length, offset),
+          right.read(rightBlock, 0, rightBlock.length, offset),
+        ]);
+        if (leftRead.bytesRead !== rightRead.bytesRead) return false;
+        if (leftRead.bytesRead === 0) return true;
+        if (
+          !leftBlock
+            .subarray(0, leftRead.bytesRead)
+            .equals(rightBlock.subarray(0, rightRead.bytesRead))
+        ) {
+          return false;
+        }
+        offset += leftRead.bytesRead;
+      }
+    } finally {
+      await Promise.all([left.close(), right.close()]);
+    }
   }
 
   async completeUpload(userId: number, uploadId: string): Promise<FileEntity> {
@@ -512,7 +639,9 @@ export class UploadsService {
           if (existing) {
             return { file: existing, session };
           }
-          throw new BadRequestException("Upload already completed but file record missing");
+          throw new BadRequestException(
+            "Upload already completed but file record missing",
+          );
         }
 
         if (session.status === "aborted") {
@@ -598,22 +727,24 @@ export class UploadsService {
         }
 
         let actualSize = 0;
-        const writeStream = fs.createWriteStream(finalPath);
+        const writeStream = fs.createWriteStream(finalPath, { flags: "wx" });
 
         try {
           for (let i = 0; i < session.totalChunks; i++) {
             const chunkPath = path.join(session.tempPath, String(i));
-            const chunkData = fs.readFileSync(chunkPath);
-            actualSize += chunkData.length;
-            if (!writeStream.write(chunkData)) {
-              await once(writeStream, "drain");
+            const chunkStats = await fs.promises.lstat(chunkPath);
+            if (!chunkStats.isFile()) {
+              throw new BadRequestException(`Chunk ${i} is not a regular file`);
             }
+            actualSize += chunkStats.size;
+            await pipeline(fs.createReadStream(chunkPath), writeStream, {
+              end: false,
+            });
           }
-          writeStream.end();
-
           await new Promise<void>((resolve, reject) => {
-            writeStream.on("finish", () => resolve());
-            writeStream.on("error", (err) => reject(err));
+            writeStream.once("finish", resolve);
+            writeStream.once("error", reject);
+            writeStream.end();
           });
         } catch (err) {
           writeStream.destroy();
@@ -684,11 +815,7 @@ export class UploadsService {
         });
 
         await manager.save(file);
-        await this.usersService.updateStorageUsed(
-          userId,
-          actualSize,
-          manager,
-        );
+        await this.usersService.updateStorageUsed(userId, actualSize, manager);
 
         session.status = "completed";
         await manager.save(session);
@@ -761,10 +888,7 @@ export class UploadsService {
   async cleanupExpiredSessions(): Promise<number> {
     const now = new Date();
     const sessions = await this.uploadSessionRepository.find({
-      where: [
-        { status: "pending" },
-        { status: "uploading" },
-      ],
+      where: [{ status: "pending" }, { status: "uploading" }],
     });
 
     let cleaned = 0;
@@ -794,6 +918,9 @@ export class UploadsService {
     if (!fs.existsSync(tempRoot)) {
       return 0;
     }
+    const ingressRoot = getIngressRoot(tempRoot);
+    fs.mkdirSync(ingressRoot, { recursive: true });
+    this.cleanupStaleIngressFiles(ingressRoot);
 
     let referenced: Set<string>;
     try {
@@ -814,6 +941,9 @@ export class UploadsService {
       const entries = fs.readdirSync(tempRoot);
       for (const entry of entries) {
         const entryPath = path.join(tempRoot, entry);
+        if (path.resolve(entryPath) === ingressRoot) {
+          continue;
+        }
         if (!fs.statSync(entryPath).isDirectory()) {
           continue;
         }
@@ -836,6 +966,26 @@ export class UploadsService {
     return cleaned;
   }
 
+  private cleanupStaleIngressFiles(ingressRoot: string): void {
+    const cutoff = Date.now() - this.sessionTtlMs;
+    for (const name of fs.readdirSync(ingressRoot)) {
+      const candidate = path.join(ingressRoot, name);
+      try {
+        const stats = fs.lstatSync(candidate);
+        if (
+          (stats.isFile() || stats.isSymbolicLink()) &&
+          stats.mtimeMs < cutoff
+        ) {
+          cleanupIngressFile(candidate, this.storageService.getTempPath());
+        }
+      } catch (error) {
+        if ((error as { code?: string }).code !== "ENOENT") {
+          this.logger.warn(`Failed to inspect stale ingress file ${candidate}`);
+        }
+      }
+    }
+  }
+
   async onModuleInit(): Promise<void> {
     // Run cleanup on startup to handle sessions left by crashed instances.
     try {
@@ -846,9 +996,7 @@ export class UploadsService {
         );
       }
     } catch (err) {
-      this.logger.error(
-        `Startup cleanup failed: ${(err as Error).message}`,
-      );
+      this.logger.error(`Startup cleanup failed: ${(err as Error).message}`);
     }
 
     try {
@@ -859,17 +1007,20 @@ export class UploadsService {
         );
       }
     } catch (err) {
-      this.logger.error(
-        `Startup cleanup failed: ${(err as Error).message}`,
-      );
+      this.logger.error(`Startup cleanup failed: ${(err as Error).message}`);
     }
 
     // Start periodic cleanup (every 1 hour).
-    this.cleanupTimer = setInterval(() => {
-      this.cleanupExpiredSessions().catch((err) =>
-        this.logger.error(`Periodic cleanup failed: ${(err as Error).message}`),
-      );
-    }, 60 * 60 * 1000);
+    this.cleanupTimer = setInterval(
+      () => {
+        this.cleanupExpiredSessions().catch((err) =>
+          this.logger.error(
+            `Periodic cleanup failed: ${(err as Error).message}`,
+          ),
+        );
+      },
+      60 * 60 * 1000,
+    );
   }
 
   async onModuleDestroy(): Promise<void> {

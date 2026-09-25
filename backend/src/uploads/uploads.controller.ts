@@ -19,6 +19,13 @@ import { UploadsService } from "./uploads.service";
 import { CreateSessionDto } from "./dtos/create-session.dto";
 import { ChunkDto } from "./dtos/chunk.dto";
 import { Request as ExpressRequest } from "express";
+import { IngressFileCleanupInterceptor } from "./ingress-file-cleanup.interceptor";
+import { IngressChunkFile } from "./chunk-ingress";
+
+interface UploadedChunkFile {
+  path: string;
+  size: number;
+}
 
 @Controller("uploads")
 @UseGuards(JwtGuard)
@@ -42,13 +49,13 @@ export class UploadsController {
   }
 
   @Post("session/:uploadId/chunk")
-  @UseInterceptors(FileInterceptor("chunk"))
+  @UseInterceptors(IngressFileCleanupInterceptor, FileInterceptor("chunk"))
   @HttpCode(HttpStatus.OK)
   async uploadChunk(
     @NestRequest() req: ExpressRequest & { user: { userId: number } },
     @Param("uploadId") uploadId: string,
     @Body() dto: ChunkDto,
-    @UploadedFile() chunk: any,
+    @UploadedFile() chunk: UploadedChunkFile,
   ) {
     const userId = req.user.userId;
 
@@ -56,12 +63,10 @@ export class UploadsController {
       throw new BadRequestException("Chunk file is required");
     }
 
-    return this.uploadsService.uploadChunk(
-      userId,
-      uploadId,
-      dto.chunkIndex,
-      chunk.buffer,
-    );
+    return this.uploadsService.uploadChunk(userId, uploadId, dto.chunkIndex, {
+      path: chunk.path,
+      size: chunk.size,
+    } satisfies IngressChunkFile);
   }
 
   @Post("session/:uploadId/complete")

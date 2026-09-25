@@ -150,7 +150,12 @@ describe("UploadsService - Post-Review Fixes", () => {
 
       // Use chunkSize that results in <= 100000 chunks to test quota, not chunk count limit
       await expect(
-        localService.createUploadSession(1, "test.bin", 200_000_000, 1024 * 1024),
+        localService.createUploadSession(
+          1,
+          "test.bin",
+          200_000_000,
+          1024 * 1024,
+        ),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -179,12 +184,92 @@ describe("UploadsService - Post-Review Fixes", () => {
 
       // Use chunkSize that results in <= 100000 chunks to test quota, not chunk count limit
       await expect(
-        localService.createUploadSession(1, "test.bin", 200_000_000, 1024 * 1024),
+        localService.createUploadSession(
+          1,
+          "test.bin",
+          200_000_000,
+          1024 * 1024,
+        ),
       ).rejects.toThrow(ForbiddenException);
     });
   });
 
   describe("uploadChunk - strict size enforcement", () => {
+    it("moves a controlled ingress file into session staging", async () => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), "test-ingress-"));
+      const ingressDir = path.join(root, "multipart-ingress");
+      const sessionDir = path.join(root, "session");
+      fs.mkdirSync(ingressDir);
+      fs.mkdirSync(sessionDir);
+      const ingressPath = path.join(ingressDir, "server-id");
+      fs.writeFileSync(ingressPath, Buffer.alloc(500, 0x41));
+      mockStorageService.getTempPath.mockReturnValue(root);
+      mockQueryRunner.manager.findOne.mockResolvedValue({
+        uploadId: "abc",
+        userId: 1,
+        totalSize: 500,
+        chunkSize: 500,
+        totalChunks: 1,
+        uploadedChunks: [],
+        uploadedSize: 0,
+        tempPath: sessionDir,
+        status: "pending",
+        expiresAt: new Date(Date.now() + 86400000),
+      });
+      try {
+        await expect(
+          service.uploadChunk(1, "abc", 0, {
+            path: ingressPath,
+            size: 500,
+          }),
+        ).resolves.toMatchObject({ uploadedChunks: [0], uploadedSize: 500 });
+        expect(fs.existsSync(ingressPath)).toBe(false);
+        expect(fs.readFileSync(path.join(sessionDir, "0"))).toEqual(
+          Buffer.alloc(500, 0x41),
+        );
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+      }
+    });
+
+    it("rejects ingress outside the controlled directory", async () => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), "test-ingress-root-"));
+      const external = path.join(root, "external");
+      fs.writeFileSync(external, "data");
+      mockStorageService.getTempPath.mockReturnValue(path.join(root, "tmp"));
+      try {
+        await expect(
+          service.uploadChunk(1, "abc", 0, {
+            path: external,
+            size: 4,
+          }),
+        ).rejects.toThrow("Invalid ingress chunk path");
+        expect(fs.readFileSync(external, "utf8")).toBe("data");
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+      }
+    });
+
+    it("cleans a controlled ingress file when the service rejects", async () => {
+      const root = fs.mkdtempSync(
+        path.join(os.tmpdir(), "test-ingress-error-"),
+      );
+      const ingressDir = path.join(root, "multipart-ingress");
+      fs.mkdirSync(ingressDir);
+      const ingressPath = path.join(ingressDir, "server-id");
+      fs.writeFileSync(ingressPath, "data");
+      mockStorageService.getTempPath.mockReturnValue(root);
+      mockQueryRunner.manager.findOne.mockResolvedValue(null);
+      try {
+        await expect(
+          service.uploadChunk(1, "missing", 0, { path: ingressPath, size: 4 }),
+        ).rejects.toThrow("Upload session not found");
+        expect(fs.existsSync(ingressPath)).toBe(false);
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+      }
+    });
+
     it("should reject oversized last chunk", async () => {
       const session = {
         uploadId: "abc",
@@ -338,16 +423,23 @@ describe("UploadsService - Post-Review Fixes", () => {
       };
 
       fs.mkdirSync(tempDir, { recursive: true });
-      fs.writeFileSync(path.join(tempDir, "0"), Buffer.from("MZ\x00\x00\x00\x00\x00\x00"));
+      fs.writeFileSync(
+        path.join(tempDir, "0"),
+        Buffer.from("MZ\x00\x00\x00\x00\x00\x00"),
+      );
       fs.writeFileSync(finalPath, Buffer.from("MZ\x00\x00\x00\x00\x00\x00"));
 
-      mockQueryRunner.manager.findOne.mockResolvedValueOnce(session).mockResolvedValueOnce(null);
+      mockQueryRunner.manager.findOne
+        .mockResolvedValueOnce(session)
+        .mockResolvedValueOnce(null);
       mockStorageService.generateFinalPath.mockReturnValue(finalPath);
       mockStorageService.generateSafeFilename.mockReturnValue("malware.exe");
       mockFileRepository.create.mockReturnValue({ id: 1 });
       mockFileRepository.save.mockResolvedValue({ id: 1 });
 
-      (fileTypeFromBuffer as jest.Mock).mockResolvedValue({ mime: "application/x-msdownload" });
+      (fileTypeFromBuffer as jest.Mock).mockResolvedValue({
+        mime: "application/x-msdownload",
+      });
 
       await expect(service.completeUpload(1, "abc")).rejects.toThrow(
         BadRequestException,
@@ -387,7 +479,9 @@ describe("UploadsService - Post-Review Fixes", () => {
       fs.writeFileSync(path.join(tempDir, "0"), Buffer.alloc(8));
       fs.writeFileSync(finalPath, Buffer.alloc(8));
 
-      mockQueryRunner.manager.findOne.mockResolvedValueOnce(session).mockResolvedValueOnce(null);
+      mockQueryRunner.manager.findOne
+        .mockResolvedValueOnce(session)
+        .mockResolvedValueOnce(null);
       mockStorageService.generateFinalPath.mockReturnValue(finalPath);
       mockStorageService.generateSafeFilename.mockReturnValue("photo.jpg");
       mockFileRepository.create.mockReturnValue({ id: 1 });
@@ -396,7 +490,9 @@ describe("UploadsService - Post-Review Fixes", () => {
         new ForbiddenException("Storage quota exceeded"),
       );
 
-      (fileTypeFromBuffer as jest.Mock).mockResolvedValue({ mime: "image/jpeg" });
+      (fileTypeFromBuffer as jest.Mock).mockResolvedValue({
+        mime: "image/jpeg",
+      });
 
       await expect(service.completeUpload(1, "abc")).rejects.toThrow(
         ForbiddenException,
@@ -420,22 +516,30 @@ describe("UploadsService - Post-Review Fixes", () => {
       mockUploadSessionRepository.create.mockReturnValue({ status: "pending" });
       const session = { status: "pending" };
       expect(session.status).toBe("pending");
-      expect(["pending", "uploading", "completed", "aborted"]).toContain(session.status);
+      expect(["pending", "uploading", "completed", "aborted"]).toContain(
+        session.status,
+      );
     });
 
     it("should use only valid status: uploading during chunk upload", () => {
       const status = "uploading";
-      expect(["pending", "uploading", "completed", "aborted"]).toContain(status);
+      expect(["pending", "uploading", "completed", "aborted"]).toContain(
+        status,
+      );
     });
 
     it("should use only valid status: completed on upload completion", () => {
       const status = "completed";
-      expect(["pending", "uploading", "completed", "aborted"]).toContain(status);
+      expect(["pending", "uploading", "completed", "aborted"]).toContain(
+        status,
+      );
     });
 
     it("should use only valid status: aborted on abort", () => {
       const status = "aborted";
-      expect(["pending", "uploading", "completed", "aborted"]).toContain(status);
+      expect(["pending", "uploading", "completed", "aborted"]).toContain(
+        status,
+      );
     });
 
     it("should reject invalid status in uploadChunk", async () => {
@@ -481,7 +585,8 @@ describe("UploadsService - Post-Review Fixes", () => {
       const queryRunner = { query: jest.fn() } as any;
       m.up(queryRunner);
       const alterCall = queryRunner.query.mock.calls.find(
-        (call: any[]) => typeof call[0] === "string" && call[0].includes("jsonb"),
+        (call: any[]) =>
+          typeof call[0] === "string" && call[0].includes("jsonb"),
       );
       expect(alterCall).toBeDefined();
       expect(alterCall[0]).toContain('ALTER COLUMN "uploadedChunks"');
@@ -491,7 +596,9 @@ describe("UploadsService - Post-Review Fixes", () => {
   describe("cleanupExpiredSessions — stale uploading sessions", () => {
     it("should clean up pending sessions past TTL", async () => {
       const expiredSession = {
-        id: 1, uploadId: "exp", userId: 1,
+        id: 1,
+        uploadId: "exp",
+        userId: 1,
         expiresAt: new Date(Date.now() - 1000),
         status: "pending",
         tempPath: `/tmp/exp-${Date.now()}`,
@@ -509,7 +616,9 @@ describe("UploadsService - Post-Review Fixes", () => {
 
     it("should clean up uploading sessions past TTL", async () => {
       const uploadingSession = {
-        id: 2, uploadId: "stuck", userId: 1,
+        id: 2,
+        uploadId: "stuck",
+        userId: 1,
         expiresAt: new Date(Date.now() - 1000),
         status: "uploading",
         tempPath: `/tmp/stuck-${Date.now()}`,
@@ -526,7 +635,9 @@ describe("UploadsService - Post-Review Fixes", () => {
 
     it("should not clean active sessions within TTL", async () => {
       const activeSession = {
-        id: 3, uploadId: "active", userId: 1,
+        id: 3,
+        uploadId: "active",
+        userId: 1,
         expiresAt: new Date(Date.now() + 86400000),
         status: "uploading",
         tempPath: `/tmp/active-${Date.now()}`,
@@ -568,7 +679,9 @@ describe("UploadsService - Post-Review Fixes", () => {
       fs.writeFileSync(path.join(tempDir, "1"), Buffer.alloc(512));
       fs.writeFileSync(finalPath, Buffer.alloc(1024));
 
-      mockQueryRunner.manager.findOne.mockResolvedValueOnce(session).mockResolvedValueOnce(null);
+      mockQueryRunner.manager.findOne
+        .mockResolvedValueOnce(session)
+        .mockResolvedValueOnce(null);
       mockQueryRunner.manager.save.mockResolvedValue(session);
       mockQueryRunner.manager.create.mockReturnValue({ id: 1 });
       mockUploadSessionRepository.findOne.mockResolvedValue(session);
@@ -578,10 +691,15 @@ describe("UploadsService - Post-Review Fixes", () => {
       mockFileRepository.save.mockResolvedValue({ id: 1 });
       mockUsersService.updateStorageUsed.mockResolvedValue(undefined);
 
-      (fileTypeFromBuffer as jest.Mock).mockResolvedValue({ mime: "image/png" });
+      (fileTypeFromBuffer as jest.Mock).mockResolvedValue({
+        mime: "image/png",
+      });
 
+      const readFileSyncSpy = jest.spyOn(mutableFs, "readFileSync");
       const result = await service.completeUpload(1, "abc");
       expect(result).toBeDefined();
+      expect(readFileSyncSpy).not.toHaveBeenCalled();
+      readFileSyncSpy.mockRestore();
 
       // Verify fileTypeFromBuffer was called with a small buffer (header)
       const callArgs = (fileTypeFromBuffer as jest.Mock).mock.calls[0];
@@ -623,7 +741,9 @@ describe("UploadsService - Post-Review Fixes", () => {
       mockQueryRunner.manager.create.mockReturnValue({ id: 1 });
       mockStorageService.generateFinalPath.mockReturnValue(finalPath);
       mockUsersService.updateStorageUsed.mockResolvedValue(undefined);
-      (fileTypeFromBuffer as jest.Mock).mockResolvedValue({ mime: "image/png" });
+      (fileTypeFromBuffer as jest.Mock).mockResolvedValue({
+        mime: "image/png",
+      });
 
       return session;
     }
@@ -656,8 +776,8 @@ describe("UploadsService - Post-Review Fixes", () => {
       });
       stream.destroy = jest.fn();
       const originalCreateWriteStream = mutableFs.createWriteStream;
-      mutableFs.createWriteStream = jest.fn(() =>
-        stream as unknown as fs.WriteStream
+      mutableFs.createWriteStream = jest.fn(
+        () => stream as unknown as fs.WriteStream,
       ) as typeof fs.createWriteStream;
 
       try {
@@ -666,16 +786,13 @@ describe("UploadsService - Post-Review Fixes", () => {
 
         expect(stream.write).toHaveBeenCalledTimes(1);
         expect(stream.listenerCount("drain")).toBe(1);
-        expect(stream.listenerCount("error")).toBe(1);
-        const backpressureErrorListener = stream.listeners("error")[0];
-
         stream.emit("drain");
         await expect(completion).resolves.toBeDefined();
 
         expect(stream.write).toHaveBeenCalledTimes(2);
         expect(stream.listenerCount("drain")).toBe(0);
-        expect(stream.listeners("error")).not.toContain(
-          backpressureErrorListener,
+        expect(Buffer.concat(written)).toEqual(
+          Buffer.concat([Buffer.alloc(8, 1), Buffer.alloc(8, 2)]),
         );
       } finally {
         mutableFs.createWriteStream = originalCreateWriteStream;
@@ -707,14 +824,16 @@ describe("UploadsService - Post-Review Fixes", () => {
       stream.end = jest.fn();
       stream.destroy = jest.fn();
       const originalCreateWriteStream = mutableFs.createWriteStream;
-      mutableFs.createWriteStream = jest.fn(() =>
-        stream as unknown as fs.WriteStream
+      mutableFs.createWriteStream = jest.fn(
+        () => stream as unknown as fs.WriteStream,
       ) as typeof fs.createWriteStream;
 
       try {
         const completion = service.completeUpload(1, "abc");
         await firstWrite;
-        const streamError = new Error("write stream failed while backpressured");
+        const streamError = new Error(
+          "write stream failed while backpressured",
+        );
 
         stream.emit("error", streamError);
         await expect(completion).rejects.toBe(streamError);
@@ -723,7 +842,6 @@ describe("UploadsService - Post-Review Fixes", () => {
         expect(stream.end).not.toHaveBeenCalled();
         expect(stream.destroy).toHaveBeenCalledTimes(1);
         expect(stream.listenerCount("drain")).toBe(0);
-        expect(stream.listenerCount("error")).toBe(0);
       } finally {
         mutableFs.createWriteStream = originalCreateWriteStream;
         fs.rmSync(tempDir, { recursive: true, force: true });
@@ -794,7 +912,9 @@ describe("UploadsService - Post-Review Fixes", () => {
       fs.mkdirSync(tempDir, { recursive: true });
       fs.writeFileSync(path.join(tempDir, "0"), Buffer.alloc(8));
 
-      mockQueryRunner.manager.findOne.mockResolvedValueOnce(session).mockResolvedValueOnce(null);
+      mockQueryRunner.manager.findOne
+        .mockResolvedValueOnce(session)
+        .mockResolvedValueOnce(null);
       mockStorageService.generateFinalPath
         .mockReturnValueOnce(finalPath1)
         .mockReturnValueOnce(finalPath2);
@@ -804,15 +924,21 @@ describe("UploadsService - Post-Review Fixes", () => {
       mockFileRepository.save.mockResolvedValue({ id: 1 });
       mockUsersService.updateStorageUsed.mockResolvedValue(undefined);
 
-      (fileTypeFromBuffer as jest.Mock).mockResolvedValue({ mime: "image/png" });
+      (fileTypeFromBuffer as jest.Mock).mockResolvedValue({
+        mime: "image/png",
+      });
 
       const [r1, r2] = await Promise.allSettled([
         service.completeUpload(1, "abc"),
         service.completeUpload(1, "abc"),
       ]);
 
-      const fulfilled = [r1, r2].filter((r): r is PromiseFulfilledResult<any> => r.status === "fulfilled");
-      const rejected = [r1, r2].filter((r): r is PromiseRejectedResult => r.status === "rejected");
+      const fulfilled = [r1, r2].filter(
+        (r): r is PromiseFulfilledResult<any> => r.status === "fulfilled",
+      );
+      const rejected = [r1, r2].filter(
+        (r): r is PromiseRejectedResult => r.status === "rejected",
+      );
 
       // In a real DB with pessimistic locking, only one succeeds.
       // The test verifies the code path handles the race correctly.
@@ -878,7 +1004,12 @@ describe("UploadsService - Post-Review Fixes", () => {
       mockQueryRunner.manager.findOne.mockResolvedValue(session);
       mockQueryRunner.manager.save.mockResolvedValue(session);
 
-      const result = await service.uploadChunk(1, "abc", 0, Buffer.alloc(1000, 0x41));
+      const result = await service.uploadChunk(
+        1,
+        "abc",
+        0,
+        Buffer.alloc(1000, 0x41),
+      );
       expect(result).toBeDefined();
 
       fs.rmSync(tempDir, { recursive: true, force: true });
@@ -908,11 +1039,15 @@ describe("UploadsService - Post-Review Fixes", () => {
       // Chunk file is 8 bytes, but declared totalSize is 100.
       fs.writeFileSync(path.join(tempDir, "0"), Buffer.alloc(8));
 
-      mockQueryRunner.manager.findOne.mockResolvedValueOnce(session).mockResolvedValueOnce(null);
+      mockQueryRunner.manager.findOne
+        .mockResolvedValueOnce(session)
+        .mockResolvedValueOnce(null);
       mockStorageService.generateFinalPath.mockReturnValue(finalPath);
       mockStorageService.generateSafeFilename.mockReturnValue("photo.png");
 
-      await expect(service.completeUpload(1, "abc")).rejects.toThrow(BadRequestException);
+      await expect(service.completeUpload(1, "abc")).rejects.toThrow(
+        BadRequestException,
+      );
       expect(fs.existsSync(finalPath)).toBe(false);
 
       fs.rmSync(tempDir, { recursive: true, force: true });
@@ -962,9 +1097,7 @@ describe("UploadsService - Post-Review Fixes", () => {
       fs.mkdirSync(referenced, { recursive: true });
       fs.mkdirSync(orphan, { recursive: true });
 
-      mockQueryBuilder.getRawMany.mockResolvedValue([
-        { tempPath: referenced },
-      ]);
+      mockQueryBuilder.getRawMany.mockResolvedValue([{ tempPath: referenced }]);
 
       const cleaned = await service.cleanupOrphanedTempDirs();
 
@@ -1005,7 +1138,9 @@ describe("UploadsService - Post-Review Fixes", () => {
 
       await service.cleanupOrphanedTempDirs();
 
-      expect(mockUploadSessionRepository.createQueryBuilder).toHaveBeenCalledTimes(1);
+      expect(
+        mockUploadSessionRepository.createQueryBuilder,
+      ).toHaveBeenCalledTimes(1);
       expect(mockQueryBuilder.getRawMany).toHaveBeenCalledTimes(1);
     });
 
@@ -1016,6 +1151,26 @@ describe("UploadsService - Post-Review Fixes", () => {
 
       expect(cleaned).toBe(0);
       expect(deleteSpy).not.toHaveBeenCalled();
+    });
+
+    it("preserves ingress root and removes only stale ingress files", async () => {
+      const ingressRoot = path.join(tempRoot, "multipart-ingress");
+      fs.mkdirSync(ingressRoot);
+      const stale = path.join(ingressRoot, "stale");
+      const fresh = path.join(ingressRoot, "fresh");
+      fs.writeFileSync(stale, "old");
+      fs.writeFileSync(fresh, "new");
+      const old = new Date(Date.now() - 25 * 60 * 60 * 1000);
+      fs.utimesSync(stale, old, old);
+      mockQueryBuilder.getRawMany.mockResolvedValue([]);
+
+      const cleaned = await service.cleanupOrphanedTempDirs();
+
+      expect(cleaned).toBe(0);
+      expect(fs.existsSync(ingressRoot)).toBe(true);
+      expect(fs.existsSync(stale)).toBe(false);
+      expect(fs.existsSync(fresh)).toBe(true);
+      expect(deleteSpy).not.toHaveBeenCalledWith(ingressRoot);
     });
 
     it("does not delete orphans when DB lookup fails", async () => {
@@ -1038,7 +1193,9 @@ describe("UploadsService - Post-Review Fixes", () => {
       const cleaned = await service.cleanupOrphanedTempDirs();
 
       expect(cleaned).toBe(0);
-      expect(mockUploadSessionRepository.createQueryBuilder).not.toHaveBeenCalled();
+      expect(
+        mockUploadSessionRepository.createQueryBuilder,
+      ).not.toHaveBeenCalled();
     });
   });
 });
