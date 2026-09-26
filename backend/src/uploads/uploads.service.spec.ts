@@ -10,7 +10,9 @@ import { UploadedChunksJsonb1746825070000 } from "../migrations/1746825070000-Up
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import * as crypto from "crypto";
 import { EventEmitter } from "events";
+import { Readable } from "stream";
 
 const mutableFs = jest.requireActual<typeof import("fs")>("fs");
 
@@ -812,6 +814,7 @@ describe("UploadsService - Post-Review Fixes", () => {
         write: jest.Mock<boolean, [Buffer]>;
         end: jest.Mock<void, []>;
         destroy: jest.Mock<void, []>;
+        destroyed: boolean;
       };
       let signalFirstWrite!: () => void;
       const firstWrite = new Promise<void>((resolve) => {
@@ -822,7 +825,10 @@ describe("UploadsService - Post-Review Fixes", () => {
         return false;
       });
       stream.end = jest.fn();
-      stream.destroy = jest.fn();
+      stream.destroyed = false;
+      stream.destroy = jest.fn(() => {
+        stream.destroyed = true;
+      });
       const originalCreateWriteStream = mutableFs.createWriteStream;
       mutableFs.createWriteStream = jest.fn(
         () => stream as unknown as fs.WriteStream,
@@ -844,6 +850,183 @@ describe("UploadsService - Post-Review Fixes", () => {
         expect(stream.listenerCount("drain")).toBe(0);
       } finally {
         mutableFs.createWriteStream = originalCreateWriteStream;
+        fs.rmSync(tempDir, { recursive: true, force: true });
+        fs.rmSync(finalPath, { force: true });
+      }
+    });
+  });
+
+  describe("completeUpload — stream listener lifecycle", () => {
+    function prepareSession(
+      tempDir: string,
+      finalPath: string,
+      chunks: Buffer[],
+    ) {
+      const chunkSize = chunks[0].length;
+      const session = {
+        uploadId: "many-chunks",
+        userId: 1,
+        filename: "many-chunks.png",
+        totalSize: chunks.reduce((sum, chunk) => sum + chunk.length, 0),
+        chunkSize,
+        totalChunks: chunks.length,
+        uploadedChunks: chunks.map((_chunk, index) => index),
+        uploadedSize: chunks.reduce((sum, chunk) => sum + chunk.length, 0),
+        tempPath: tempDir,
+        parentId: null,
+        status: "pending",
+        expiresAt: new Date(Date.now() + 86400000),
+      };
+
+      fs.mkdirSync(tempDir, { recursive: true });
+      chunks.forEach((chunk, index) =>
+        fs.writeFileSync(path.join(tempDir, String(index)), chunk),
+      );
+      mockQueryRunner.manager.findOne
+        .mockResolvedValueOnce(session)
+        .mockResolvedValueOnce(null);
+      mockQueryRunner.manager.save.mockImplementation((entity: any) =>
+        Promise.resolve(entity),
+      );
+      mockQueryRunner.manager.create.mockReturnValue({ id: 1 });
+      mockStorageService.generateFinalPath.mockReturnValue(finalPath);
+      mockUsersService.updateStorageUsed.mockResolvedValue(undefined);
+      (fileTypeFromBuffer as jest.Mock).mockResolvedValue({
+        mime: "image/png",
+      });
+
+      return session;
+    }
+
+    it("keeps destination listeners bounded while assembling 600 ordered chunks", async () => {
+      const tempDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), "test-complete-many-chunks-"),
+      );
+      const finalPath = `${tempDir}-final.png`;
+      const chunks = Array.from({ length: 600 }, (_unused, index) => {
+        const chunk = Buffer.alloc(64, index % 251);
+        chunk.writeUInt32BE(index, 8);
+        return chunk;
+      });
+      Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(chunks[0]);
+      const expected = Buffer.concat(chunks);
+      prepareSession(tempDir, finalPath, chunks);
+
+      const originalCreateReadStream = mutableFs.createReadStream;
+      const originalCreateWriteStream = mutableFs.createWriteStream;
+      let destination: fs.WriteStream | undefined;
+      let sourceCount = 0;
+      const listenerCheckpoints: Array<{
+        sourceCount: number;
+        error: number;
+        close: number;
+        finish: number;
+      }> = [];
+      const checkpointAt = new Set([1, 10, 20, 100, 300, 600]);
+      const warnings: Error[] = [];
+      const warningHandler = (warning: Error) => {
+        if (warning.name === "MaxListenersExceededWarning") {
+          warnings.push(warning);
+        }
+      };
+
+      mutableFs.createWriteStream = jest.fn((...args: any[]) => {
+        destination = (originalCreateWriteStream as any)(...args);
+        return destination;
+      }) as typeof fs.createWriteStream;
+      mutableFs.createReadStream = jest.fn((...args: any[]) => {
+        if (destination && checkpointAt.has(sourceCount)) {
+          listenerCheckpoints.push({
+            sourceCount,
+            error: destination.listenerCount("error"),
+            close: destination.listenerCount("close"),
+            finish: destination.listenerCount("finish"),
+          });
+        }
+        sourceCount += 1;
+        return (originalCreateReadStream as any)(...args);
+      }) as typeof fs.createReadStream;
+      process.on("warning", warningHandler);
+
+      try {
+        await expect(
+          service.completeUpload(1, "many-chunks"),
+        ).resolves.toBeDefined();
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(sourceCount).toBe(600);
+        expect(
+          listenerCheckpoints.map(({ sourceCount: count }) => count),
+        ).toEqual([1, 10, 20, 100, 300]);
+        const initialListeners = listenerCheckpoints[0];
+        for (const checkpoint of listenerCheckpoints) {
+          expect(checkpoint.error).toBe(initialListeners.error);
+          expect(checkpoint.close).toBe(initialListeners.close);
+          expect(checkpoint.finish).toBe(initialListeners.finish);
+        }
+        expect(destination?.listenerCount("error")).toBeLessThanOrEqual(
+          initialListeners.error,
+        );
+        expect(destination?.listenerCount("close")).toBeLessThanOrEqual(
+          initialListeners.close,
+        );
+        expect(destination?.listenerCount("finish")).toBeLessThanOrEqual(
+          initialListeners.finish,
+        );
+        expect(warnings).toEqual([]);
+
+        const actual = fs.readFileSync(finalPath);
+        expect(actual.length).toBe(expected.length);
+        expect(actual).toEqual(expected);
+        expect(crypto.createHash("sha256").update(actual).digest("hex")).toBe(
+          crypto.createHash("sha256").update(expected).digest("hex"),
+        );
+      } finally {
+        process.removeListener("warning", warningHandler);
+        mutableFs.createReadStream = originalCreateReadStream;
+        mutableFs.createWriteStream = originalCreateWriteStream;
+        fs.rmSync(tempDir, { recursive: true, force: true });
+        fs.rmSync(finalPath, { force: true });
+      }
+    });
+
+    it("propagates a source read error and removes the partial assembled file", async () => {
+      const tempDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), "test-complete-source-error-"),
+      );
+      const finalPath = `${tempDir}-final.png`;
+      prepareSession(tempDir, finalPath, [
+        Buffer.alloc(64, 1),
+        Buffer.alloc(64, 2),
+      ]);
+      const sourceError = new Error("chunk read failed");
+      const originalCreateReadStream = mutableFs.createReadStream;
+
+      mutableFs.createReadStream = jest.fn((filePath: fs.PathLike) => {
+        if (path.basename(String(filePath)) !== "1") {
+          return originalCreateReadStream(filePath);
+        }
+        let read = false;
+        return new Readable({
+          read() {
+            if (read) return;
+            read = true;
+            this.push(Buffer.alloc(8, 2));
+            this.destroy(sourceError);
+          },
+        }) as fs.ReadStream;
+      }) as typeof fs.createReadStream;
+
+      try {
+        await expect(service.completeUpload(1, "many-chunks")).rejects.toBe(
+          sourceError,
+        );
+        expect(mockQueryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
+        expect(mockUsersService.updateStorageUsed).not.toHaveBeenCalled();
+        expect(fs.existsSync(finalPath)).toBe(false);
+        expect(fs.existsSync(tempDir)).toBe(false);
+      } finally {
+        mutableFs.createReadStream = originalCreateReadStream;
         fs.rmSync(tempDir, { recursive: true, force: true });
         fs.rmSync(finalPath, { force: true });
       }

@@ -727,27 +727,30 @@ export class UploadsService {
         }
 
         let actualSize = 0;
+        const totalChunks = session.totalChunks;
+        const tempPath = session.tempPath;
         const writeStream = fs.createWriteStream(finalPath, { flags: "wx" });
 
         try {
-          for (let i = 0; i < session.totalChunks; i++) {
-            const chunkPath = path.join(session.tempPath, String(i));
-            const chunkStats = await fs.promises.lstat(chunkPath);
-            if (!chunkStats.isFile()) {
-              throw new BadRequestException(`Chunk ${i} is not a regular file`);
+          async function* chunkSequence() {
+            for (let i = 0; i < totalChunks; i++) {
+              const chunkPath = path.join(tempPath, String(i));
+              const chunkStats = await fs.promises.lstat(chunkPath);
+              if (!chunkStats.isFile()) {
+                throw new BadRequestException(
+                  `Chunk ${i} is not a regular file`,
+                );
+              }
+              actualSize += chunkStats.size;
+              yield* fs.createReadStream(chunkPath);
             }
-            actualSize += chunkStats.size;
-            await pipeline(fs.createReadStream(chunkPath), writeStream, {
-              end: false,
-            });
           }
-          await new Promise<void>((resolve, reject) => {
-            writeStream.once("finish", resolve);
-            writeStream.once("error", reject);
-            writeStream.end();
-          });
+
+          await pipeline(chunkSequence(), writeStream);
         } catch (err) {
-          writeStream.destroy();
+          if (!writeStream.destroyed) {
+            writeStream.destroy();
+          }
           if (fs.existsSync(finalPath)) {
             fs.unlinkSync(finalPath);
           }
