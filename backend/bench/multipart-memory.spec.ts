@@ -83,7 +83,23 @@ describe("multipart memory harness", () => {
       "NOT_RUN_SAFETY",
     );
   });
-  test("сильная компрессия консервативно уменьшает headroom", () => {
+  test("throttled pages закрывают gate", () => {
+    const evidence = darwin({
+      memory_pressure: healthyPressure,
+      vm_stat: vmWith({
+        free: 10000,
+        inactive: 400000,
+        speculative: 10000,
+        throttled: 1,
+      }),
+      "sysctl -n hw.memsize": String(16 * GIB),
+      "sysctl vm.swapusage": noSwap,
+    });
+    expect(() => assertSafePlan(25 * MIB, 1, evidence)).toThrow(
+      "NOT_RUN_SAFETY",
+    );
+  });
+  test("compressor остаётся телеметрией без двойного вычитания", () => {
     const evidence = darwin({
       memory_pressure: healthyPressure,
       vm_stat: vmWith({
@@ -95,9 +111,9 @@ describe("multipart memory harness", () => {
       "sysctl -n hw.memsize": String(16 * GIB),
       "sysctl vm.swapusage": noSwap,
     });
-    expect(() => assertSafePlan(25 * MIB, 1, evidence)).toThrow(
-      "NOT_RUN_SAFETY",
-    );
+    expect(evidence.derived.compressionPenaltyBytes).toBe(415000 * 16384);
+    expect(evidence.hostAvailableBytes).toBe((10000 + 400000 + 10000) * 16384);
+    expect(() => assertSafePlan(25 * MIB, 1, evidence)).not.toThrow();
   });
   test.each([
     ["memory_pressure", "garbage"],
@@ -151,6 +167,8 @@ describe("multipart memory harness", () => {
       3 * GIB,
     );
     expect(evidence.hostAvailableBytes).toBe(3 * GIB);
+    expect(evidence.hostReserveBytes).toBe(Math.floor(8 * GIB * 0.15));
+    expect(evidence.derived).toEqual({ linuxOsFreePath: true });
     expect(evidence.containerLimitSource).toBe("not-applicable-host-process");
   });
   test("sampler считает peaks и delta", () => {

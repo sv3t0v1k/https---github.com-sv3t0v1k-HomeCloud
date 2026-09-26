@@ -120,8 +120,7 @@ export function collectMemorySafetyEvidence(
   const pressureDetected = swapUsedBytes > 0 || throttledPages > 0;
   const conservativeAvailable = Math.max(
     0,
-    Math.min(pressureAvailableBytes, vmReclaimableBytes) -
-      compressionPenaltyBytes,
+    Math.min(pressureAvailableBytes, vmReclaimableBytes),
   );
   const hostAvailableBytes = pressureDetected ? 0 : conservativeAvailable;
   return {
