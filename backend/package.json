@@ -20,7 +20,8 @@
     "bench:copy-file": "npm run bench:compile && node dist-bench/bench/copy-file-index.js",
     "bench:complete-upload": "npm run bench:compile && node dist-bench/bench/complete-upload-index.js",
     "bench:permanent-delete": "npm run bench:compile && node dist-bench/bench/permanent-delete-index.js",
-    "bench:multipart-memory": "npm run bench:compile && node dist-bench/bench/multipart-memory-index.js"
+    "bench:multipart-memory": "npm run bench:compile && node dist-bench/bench/multipart-memory-index.js",
+    "bench:full-file-http": "npm run bench:compile && node dist-bench/bench/full-file-http-index.js"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.0",
