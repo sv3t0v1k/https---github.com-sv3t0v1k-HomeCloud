@@ -23,7 +23,7 @@
 | Phase 9 — Authentication & Sessions | `COMPLETE` | `83adfa1`, `11b27f2`, `744b27c`, `09dea37` |
 | Phase 10 — Sharing & Access Control | `COMPLETE` | 10.1–10.8 подтверждены; checkpoint `08ea21f` |
 | Phase 11 — Backend/API Hardening | `COMPLETE` | 11.1–11.5 COMPLETE |
-| Phase 12 — Performance & Scalability | `IN PROGRESS` | 12.1–12.3 COMPLETE; 12.4–12.6 PLANNED |
+| Phase 12 — Performance & Scalability | `IN PROGRESS` | 12.1–12.5 COMPLETE; 12.6 IN PROGRESS |
 
 ## Completed
 
@@ -270,20 +270,28 @@ Policy: structural evidence may justify placement in remediation backlog; when p
 **Scope boundary**
 - deferred technical debt remains A and B-extra; neither is presented as fixed;
 - startup/maintenance sync I/O is not automatically a defect;
-- Phase 12 exclusions remain unchanged; Phase 12.4 work was not started.
+- Phase 12 exclusions remained unchanged; Phase 12.4 was outside the 12.3 closure scope.
 
-### 12.4 Large-file & Concurrency Baseline — PLANNED
-- controlled large-file/concurrent scenarios;
-- upload/download/Range/ZIP and relevant DB/quota contention;
-- establish limits/degradation/failure behavior using reproducible methodology.
+### 12.4 Large-file & Concurrency Baseline — COMPLETE
+- shipped nginx verified for 32 KiB, 2 MiB, 25 MiB and 50 MiB chunks; the exact chunk endpoint required body-limit alignment and disabled proxy request buffering, while the backend remained authoritative above 50 MiB;
+- controlled 25/50 MiB concurrency scenarios confirmed linear whole-memory multipart ingress growth, including about 509.59 MiB RSS growth at 50 MiB x4;
+- full-file HTTP baseline confirmed 200 MiB healthy and 500 MiB correct for assembly, hash, accounting and cleanup, while exposing `MaxListenersExceededWarning` and O(N) listener accumulation at the shared destination;
+- the observed about 200 ms event-loop maxima were attributed to benchmark lifecycle before upload; an upload-path production event-loop risk was not confirmed.
 
-### 12.5 Evidence-based Remediation — PLANNED
-- scope determined ONLY by confirmed 12.1–12.4 findings;
-- no predetermined optimizations;
-- preserve security/integrity/transaction/access-control contracts;
-- focused regression/performance verification required.
+### 12.5 Evidence-based Remediation — COMPLETE
+- nginx chunk-ingress alignment is fixed in `c1e908f`; disk-backed bounded multipart ingress is fixed in `94b60fc`, with 50 MiB x4 AFTER RSS growth about 64.36 MiB and cleanup/error/abort/boundary semantics preserved;
+- completion uses one pipeline in `6429914`; the 600-small-chunk regression and 500 MiB requalification confirmed bounded listeners, absent warning, correct hash/accounting/cleanup and healthy event loop;
+- macOS memory safety accounting is corrected in `36e100c`; the 15% reserve and swap/throttling fail-closed gate remain intact, with the Linux/cgroup path unchanged;
+- first-class authenticated original-byte streaming with single-range resume is implemented and tested in `eaac6c4` with 200/206/416 behavior;
+- the verified 30 GiB checkpoint associated with benchmark expansion `a7010f7` passed 615/615 HTTP chunks, assembly, exact 32,212,254,720-byte authenticated download, streaming SHA-256 `ac30e93301e9888820584f1f9819120bce53688bb950a77b78b17acb520a6ace`, late 206 resume, session/accounting, bounded-memory/event-loop safety and complete DB/filesystem/temp cleanup. The benchmark path was canonicalized for the macOS `/var` -> `/private/var` alias before the clean full rerun. Result: `READY_FOR_30GIB_PRODUCT_SUPPORT=YES`.
 
-### 12.6 Performance Regression & Final Gate — PLANNED
+Known limits and deferred risks:
+- 50 GiB has not been qualified;
+- `uploadChunk` reconciliation retains O(N²)-style scaling and remains a deferred redesign risk; the successful 30 GiB qualification does not remove that architectural limitation;
+- tracked operative defaults in the service, Compose and `.env.example` remain `MAX_FILE_SIZE=1 GiB` and `MAX_TOTAL_SIZE=10 GiB`; the 30 GiB qualification used runtime-only overrides, so deployment configuration is required to expose that limit;
+- frontend/browser upload workflow was outside this backend qualification.
+
+### 12.6 Performance Regression & Final Gate — IN PROGRESS
 - repeat relevant baseline after remediation;
 - before/after evidence;
 - focused regressions;
