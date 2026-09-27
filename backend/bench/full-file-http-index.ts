@@ -89,10 +89,13 @@ async function main() {
   const storagePath = required("HOMECLOUD_FULL_FILE_STORAGE_PATH");
   const confirm = required("HOMECLOUD_FULL_FILE_CONFIRM");
   const fileMiB = Number(required("BENCH_FILE_MIB"));
+  const canonicalTempRoot = fs.realpathSync(os.tmpdir());
+  const canonicalStorageParent = fs.realpathSync(path.dirname(storagePath));
   if (
-    ![200, 500].includes(fileMiB) ||
+    ![200, 500, 30 * 1024].includes(fileMiB) ||
     confirm !== "YES_ISOLATED_FULL_FILE" ||
-    !storagePath.startsWith(os.tmpdir()) ||
+    (canonicalStorageParent !== canonicalTempRoot &&
+      !canonicalStorageParent.startsWith(canonicalTempRoot + path.sep)) ||
     !path.basename(storagePath).startsWith("homecloud-full-file-")
   )
     throw new Error("Небезопасная isolated-конфигурация");
@@ -112,8 +115,8 @@ async function main() {
     PORT: String(port),
     NODE_ENV: "production",
     MAX_CHUNK_SIZE: String(chunkBytes),
-    MAX_FILE_SIZE: String(1024 ** 3),
-    MAX_TOTAL_SIZE: String(10 * 1024 ** 3),
+    MAX_FILE_SIZE: String(fileBytes),
+    MAX_TOTAL_SIZE: String(fileBytes * 2),
     DB_PASSWORD: required("HOMECLOUD_FULL_FILE_DB_PASSWORD"),
     REDIS_PASSWORD: required("HOMECLOUD_FULL_FILE_REDIS_PASSWORD"),
     REDIS_URL: required("HOMECLOUD_FULL_FILE_REDIS_URL"),
@@ -195,7 +198,10 @@ async function main() {
       if (req.method === "POST" && /\/complete$/.test(req.path)) {
         phase = "complete";
         chunkIndex = null;
-        res.once("finish", () => loop?.disable());
+      }
+      if (req.method === "GET" && /\/files\/\d+\/download$/.test(req.path)) {
+        phase = req.headers.range ? "download-range" : "download-full";
+        chunkIndex = null;
       }
       res.once("finish", () => {
         capture();
@@ -250,6 +256,7 @@ async function main() {
         BENCH_PASSWORD: password,
         BENCH_FILE_BYTES: String(fileBytes),
         BENCH_CHUNK_BYTES: String(chunkBytes),
+        BENCH_MIN_CHUNK_INTERVAL_MS: fileMiB === 30 * 1024 ? "700" : "0",
       }),
     );
     phase = "settle-immediate";
@@ -314,7 +321,11 @@ async function main() {
       verification.storageUsed === fileBytes &&
       session.status === "completed" &&
       session.uploadedSize === fileBytes &&
-      session.uploadedChunks.length === fileBytes / chunkBytes &&
+      session.uploadedChunks.length === Math.ceil(fileBytes / chunkBytes) &&
+      client.fullDownload.status === 200 &&
+      client.fullDownload.bytes === fileBytes &&
+      client.fullDownload.sha256 === client.expectedSha256 &&
+      client.lateRange.status === 206 &&
       !verification.sessionTempExistsBeforeCleanup &&
       ingressEntriesBeforeCleanup.length === 0 &&
       unexpectedTempEntriesBeforeCleanup.length === 0;
@@ -343,7 +354,7 @@ async function main() {
             fileMiB,
             fileBytes,
             chunkBytes,
-            totalChunks: fileBytes / chunkBytes,
+            totalChunks: Math.ceil(fileBytes / chunkBytes),
           },
           safety: gate,
           provenance: {
@@ -367,7 +378,7 @@ async function main() {
             after15s,
           },
           eventLoop: {
-            window: "post-session-through-complete-response",
+            window: "post-session-through-authenticated-retrieval",
             p50Ms: loop.percentile(50) / 1e6,
             p95Ms: loop.percentile(95) / 1e6,
             p99Ms: loop.percentile(99) / 1e6,
