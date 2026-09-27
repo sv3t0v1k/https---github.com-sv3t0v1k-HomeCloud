@@ -1,12 +1,16 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 
+import { ProtectedRoute } from './routing/ProtectedRoute'
+
 function App() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
-        <Route path="/files/*" element={<FileBrowserLayout />} />
+        <Route element={<ProtectedRoute />}>
+          <Route path="/files/*" element={<FileBrowserLayout />} />
+        </Route>
         <Route path="/" element={<Navigate to="/files" replace />} />
       </Routes>
     </div>

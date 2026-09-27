@@ -24,7 +24,7 @@
 | Phase 10 — Sharing & Access Control | `COMPLETE` | 10.1–10.8 подтверждены; checkpoint `08ea21f` |
 | Phase 11 — Backend/API Hardening | `COMPLETE` | 11.1–11.5 COMPLETE |
 | Phase 12 — Performance & Scalability | `COMPLETE` | 12.1–12.6 COMPLETE |
-| Phase 13 — Frontend Foundation | `PLANNED` | решение владельца; реализация не начата |
+| Phase 13 — Frontend Foundation | `IN PROGRESS` | 13.1 COMPLETE; следующий подэтап не начат |
 
 ## Completed
 
@@ -321,11 +321,11 @@ OUT OF SCOPE:
 - Redis redesign/removal;
 - unrelated refactoring.
 
-## Phase 13 — Frontend Foundation — PLANNED
+## Phase 13 — Frontend Foundation — IN PROGRESS
 
 Goal: превратить существующий React/Vite-прототип в минимальный рабочий клиент к подтверждённым backend-контрактам без преждевременной смены стека, усложнения state management или заявления неподтверждённой browser-scale поддержки.
 
-Phase 13 утверждён владельцем как следующее направление, но реализация не начата. Все подэтапы остаются `PLANNED`; переход в `IN PROGRESS` требует отдельного явного старта.
+Phase 13 начат отдельным решением владельца. Завершён только 13.1; остальные подэтапы остаются `PLANNED` и не начинаются автоматически.
 
 ### Подтверждённые ограничения backend-контрактов
 
@@ -334,7 +334,7 @@ Phase 13 утверждён владельцем как следующее на�
 - `GET /uploads/sessions` не возвращает сессии в состоянии `uploading`; поэтому восстановление незавершённой загрузки после reload не входит в acceptance criteria 13.4 до исправления backend-контракта;
 - httpOnly cookie transport отсутствует. Персистентное хранение refresh token в JavaScript-доступном storage имеет XSS-компромисс и не принимается молча: в 13.1 должен быть зафиксирован минимальный security-aware lifecycle, согласованный с текущим bearer/refresh API, без ослабления backend-модели.
 
-### 13.1 Frontend Architecture & API Foundation — PLANNED
+### 13.1 Frontend Architecture & API Foundation — COMPLETE
 
 Objective: сформировать минимальный клиентский фундамент поверх существующего React/Vite-приложения и реальных API-контрактов.
 
@@ -359,6 +359,17 @@ Acceptance criteria:
 - новые зависимости добавлены только при доказанной необходимости.
 
 Dependencies: текущие backend auth/error contracts и отдельное явное разрешение начать Phase 13; решение logout-блокера не требуется для старта 13.1, но требуется для закрытия 13.2.
+
+Implemented and verified:
+- единый Axios boundary использует same-origin `/api/v1` по умолчанию; неработающая runtime-передача build-time `VITE_API_URL` через Compose удалена;
+- backend success envelope распаковывается централизованно, ошибки нормализуются в network/validation/authentication/authorization/rate-limit/server categories;
+- access token хранится только в памяти, refresh token — в `sessionStorage`; XSS-риск, отсутствие httpOnly cookies и граница multi-tab явно зафиксированы;
+- refresh rotation координируется single-flight, защищённые запросы повторяются не более одного раза, auth endpoints исключены из interceptor recursion;
+- session epoch предотвращает запись токенов из устаревшего in-flight refresh после local session termination или замены сессии;
+- SessionProvider выполняет bootstrap через refresh и `/users/me`; guard различает bootstrapping, anonymous, authenticated и временную недоступность без redirect flicker;
+- добавлены Vitest, Testing Library и рабочая ESLint 9 flat configuration без production state/cache library.
+
+Evidence: 3 frontend test files, 12/12 tests PASS; production build PASS; lint PASS; `git diff --check` PASS; independent review APPROVE после одного bounded correction cycle.
 
 ### 13.2 Authentication UX — PLANNED
 

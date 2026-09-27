@@ -10,14 +10,19 @@ export interface RegisterDto {
 }
 
 export interface Tokens {
-  access_token: string
-  refresh_token: string
+  accessToken: string
+  refreshToken: string
 }
 
 export interface User {
-  id: string
+  id: number
   email: string
-  name?: string
-  created_at: string
-  updated_at: string
+  name: string
+  isActive: boolean
+  isEmailVerified: boolean
+  avatar: string | null
+  storageQuota: string | number
+  storageUsed: string | number
+  createdAt: string
+  updatedAt: string
 }
