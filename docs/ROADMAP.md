@@ -23,7 +23,7 @@
 | Phase 9 — Authentication & Sessions | `COMPLETE` | `83adfa1`, `11b27f2`, `744b27c`, `09dea37` |
 | Phase 10 — Sharing & Access Control | `COMPLETE` | 10.1–10.8 подтверждены; checkpoint `08ea21f` |
 | Phase 11 — Backend/API Hardening | `COMPLETE` | 11.1–11.5 COMPLETE |
-| Phase 12 — Performance & Scalability | `IN PROGRESS` | 12.1–12.5 COMPLETE; 12.6 IN PROGRESS |
+| Phase 12 — Performance & Scalability | `COMPLETE` | 12.1–12.6 COMPLETE |
 
 ## Completed
 
@@ -168,7 +168,7 @@ Explicitly deferred / not Phase 11 defects:
 - production deployment/TLS/secrets;
 - Phase 10 sharing redesign.
 
-## Phase 12 — Performance & Scalability — IN PROGRESS
+## Phase 12 — Performance & Scalability — COMPLETE
 
 Goal: establish measurable backend performance characteristics, identify evidence-backed bottlenecks, remediate only confirmed critical issues, and verify improvements without weakening correctness/security guarantees.
 
@@ -291,14 +291,25 @@ Known limits and deferred risks:
 - tracked operative defaults in the service, Compose and `.env.example` remain `MAX_FILE_SIZE=1 GiB` and `MAX_TOTAL_SIZE=10 GiB`; the 30 GiB qualification used runtime-only overrides, so deployment configuration is required to expose that limit;
 - frontend/browser upload workflow was outside this backend qualification.
 
-### 12.6 Performance Regression & Final Gate — IN PROGRESS
-- repeat relevant baseline after remediation;
-- before/after evidence;
-- focused regressions;
-- full backend suite;
-- tsc, lint, build;
-- documentation reconciliation;
-- final Phase 12 checkpoint.
+### 12.6 Performance Regression & Final Gate — COMPLETE
+
+**Fresh final regression evidence**
+- database orphan cleanup remained at one classification query for 1000 directories (6.07 ms median); the historical N+1 behavior did not return;
+- multipart 50 MiB x4 passed the unchanged macOS safety gate with four overlapping requests, exact hashes/accounting, zero DB/filesystem residuals and 66,961,408-byte (~63.86 MiB) peak RSS growth, versus about 509.59 MiB before disk-backed ingress and about 64.36 MiB in the trusted remediation run;
+- the canonical 500 MiB end-to-end cell passed 10/10 HTTP chunks, assembly, exact 524,288,000-byte authenticated full download (200), streaming SHA-256 `2c72cdc80600b910a6cad0a66a37fa6d4f3a86b7a14a31b23d582150ab9c052e`, late 1 MiB Range (206), accounting, session state and complete DB/filesystem/temp cleanup;
+- the 500 MiB event-loop window was reset after session setup and covered upload through authenticated retrieval: p99 11.518 ms, maximum 15.663 ms. No `MaxListenersExceededWarning` returned, and focused high-chunk/backpressure regressions passed;
+- the first diagnostic HTTP attempt used the macOS `/var` alias and correctly failed storage-root validation after `realpath` resolved `/private/var`; a canonical `/private/var` 200 MiB confirmation and the fresh canonical 500 MiB final cell both passed. This was a benchmark invocation error, not a production regression;
+- the existing 30 GiB qualification record from 12.5 remains the product-scale evidence and was not redundantly repeated.
+
+**Final gates**
+- focused regressions: 22/22 suites, 238/238 tests passed;
+- full backend suite: 46 suites passed, 4 skipped; 546 tests passed, 15 skipped;
+- typecheck, backend build, benchmark TypeScript compile and `git diff --check`: PASS;
+- lint: 0 errors, 15 pre-existing `jest/expect-expect` warnings in `security.config.spec.ts`;
+- independent review: APPROVE; no production regression or unresolved MUST_FIX remained in the Phase 12 scope;
+- disposable final-gate and diagnostic resources were removed after exact label verification; old unowned containers and the normal HomeCloud stack were not used or modified.
+
+Phase 12 is complete. The known 50 GiB, O(N²) reconciliation, deployment-limit and frontend/browser boundaries recorded in 12.5 remain unchanged.
 
 OUT OF SCOPE:
 - observability/metrics infrastructure;
