@@ -24,7 +24,7 @@
 | Phase 10 — Sharing & Access Control | `COMPLETE` | 10.1–10.8 подтверждены; checkpoint `08ea21f` |
 | Phase 11 — Backend/API Hardening | `COMPLETE` | 11.1–11.5 COMPLETE |
 | Phase 12 — Performance & Scalability | `COMPLETE` | 12.1–12.6 COMPLETE |
-| Phase 13 — Frontend Foundation | `IN PROGRESS` | 13.1 COMPLETE; следующий подэтап не начат |
+| Phase 13 — Frontend Foundation | `IN PROGRESS` | 13.1–13.2 COMPLETE; следующий подэтап не начат |
 
 ## Completed
 
@@ -325,11 +325,11 @@ OUT OF SCOPE:
 
 Goal: превратить существующий React/Vite-прототип в минимальный рабочий клиент к подтверждённым backend-контрактам без преждевременной смены стека, усложнения state management или заявления неподтверждённой browser-scale поддержки.
 
-Phase 13 начат отдельным решением владельца. Завершён только 13.1; остальные подэтапы остаются `PLANNED` и не начинаются автоматически.
+Phase 13 начат отдельным решением владельца. Завершены 13.1–13.2; остальные подэтапы остаются `PLANNED` и не начинаются автоматически.
 
 ### Подтверждённые ограничения backend-контрактов
 
-- эффективный logout сейчас не завершает клиентскую сессию ожидаемым образом; это блокирует приёмку полного logout/revocation lifecycle в 13.2 и требует отдельного backend-исправления до закрытия подэтапа;
+- дефект эффективного logout устранён в 13.2: refresh token находится через bcrypt comparison, а активный потомок rotation-chain отзывается транзакционно;
 - authenticated original download использует bearer-token transport. Первый frontend-срез ограничивается небольшим файлом через контролируемый `Blob`-путь; поддержка 30 GiB в браузере, надёжный resume и прямой browser download не заявляются до отдельного решения по безопасному transport;
 - `GET /uploads/sessions` не возвращает сессии в состоянии `uploading`; поэтому восстановление незавершённой загрузки после reload не входит в acceptance criteria 13.4 до исправления backend-контракта;
 - httpOnly cookie transport отсутствует. Персистентное хранение refresh token в JavaScript-доступном storage имеет XSS-компромисс и не принимается молча: в 13.1 должен быть зафиксирован минимальный security-aware lifecycle, согласованный с текущим bearer/refresh API, без ослабления backend-модели.
@@ -371,7 +371,7 @@ Implemented and verified:
 
 Evidence: 3 frontend test files, 12/12 tests PASS; production build PASS; lint PASS; `git diff --check` PASS; independent review APPROVE после одного bounded correction cycle.
 
-### 13.2 Authentication UX — PLANNED
+### 13.2 Authentication UX — COMPLETE
 
 Objective: реализовать понятный login/session/logout lifecycle поверх foundation 13.1.
 
@@ -394,6 +394,16 @@ Acceptance criteria:
 - auth contract tests и ключевые component/e2e сценарии проходят.
 
 Dependencies: 13.1; backend-исправление эффективного logout обязательно для статуса `COMPLETE`.
+
+Implemented and verified:
+- login подключён к реальному `/auth/login`, после выдачи token pair пользователь подтверждается через `/users/me` и попадает в защищённую область;
+- invalid credentials, network/rate-limit/backend failures отображаются без создания фиктивной сессии; неуспешный `/users/me` атомарно очищает только что выданные токены;
+- bootstrap после reload, single-flight rotation, terminal expiry/revocation и защищённые routes используют единый session lifecycle; expiry сопровождается явным сообщением на login screen;
+- logout сначала получает согласованную актуальную access/refresh пару, затем вызывает backend без interceptor replay; локальная сессия очищается только после подтверждённой ревокации, а transient failure сохраняет её для повторной попытки;
+- backend logout исправлен: raw token сопоставляется через `bcrypt.compare`, row блокируется в транзакции, rotation-chain проходится по user-scoped `replacedBy`, активный потомок отзывается conditional update;
+- registration, email verification, password reset, social auth и file features не реализовывались.
+
+Evidence: backend auth 24/24 tests PASS; full backend suite 46 passed / 4 skipped, 549 tests passed / 15 skipped; frontend 4 test files, 18/18 tests PASS; backend/frontend build PASS; frontend lint PASS; backend lint 0 errors и 15 pre-existing test warnings; `git diff --check` PASS; independent security review APPROVE.
 
 ### 13.3 File Browser — PLANNED
 

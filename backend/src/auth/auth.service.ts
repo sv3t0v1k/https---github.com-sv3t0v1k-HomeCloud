@@ -224,17 +224,40 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
   async logout(userId: number, refreshToken: string): Promise<void> {
     if (!refreshToken) return;
 
-    const tokenHash = await bcrypt.hash(refreshToken, 10);
-    const storedToken = await this.refreshTokenRepository.findOne({
-      where: { tokenHash, userId },
-    });
+    await this.refreshTokenRepository.manager.transaction(async (manager) => {
+      const initialToken = await this.findAndLockRefreshToken(
+        manager,
+        userId,
+        refreshToken,
+      );
 
-    if (storedToken && !storedToken.revoked) {
-      await this.refreshTokenRepository.update(storedToken.id, {
-        revoked: true,
-        revokedAt: new Date(),
-      });
-    }
+      if (!initialToken) return;
+      let storedToken: RefreshTokenEntity = initialToken;
+
+      const visitedHashes = new Set<string>();
+      while (storedToken.replacedBy) {
+        if (visitedHashes.has(storedToken.replacedBy)) return;
+        visitedHashes.add(storedToken.replacedBy);
+
+        const replacement: RefreshTokenEntity | null = await manager.findOne(
+          RefreshTokenEntity,
+          {
+          where: { tokenHash: storedToken.replacedBy, userId },
+          lock: { mode: "pessimistic_write" },
+          },
+        );
+        if (!replacement) return;
+        storedToken = replacement;
+      }
+
+      if (storedToken.revoked) return;
+
+      await manager.update(
+        RefreshTokenEntity,
+        { id: storedToken.id, revoked: false },
+        { revoked: true, revokedAt: new Date() },
+      );
+    });
   }
 
   async revokeAllUserTokens(userId: number): Promise<void> {

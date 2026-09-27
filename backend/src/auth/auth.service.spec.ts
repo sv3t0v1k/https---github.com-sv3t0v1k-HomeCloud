@@ -119,9 +119,20 @@ describe("AuthService - Phase 3", () => {
       const findOne = jest.fn(async (entity: unknown, options: any) => {
         findOneCalls.push(options);
         if (options?.lock) {
-          releaseTokenLock = await acquireTokenLock();
+          if (!releaseTokenLock) {
+            releaseTokenLock = await acquireTokenLock();
+          }
           const id = options?.where?.id;
-          return records.find((record) => record.id === id) ?? null;
+          const tokenHash = options?.where?.tokenHash;
+          const userId = options?.where?.userId;
+          return (
+            records.find(
+              (record) =>
+                (id === undefined || record.id === id) &&
+                (tokenHash === undefined || record.tokenHash === tokenHash) &&
+                (userId === undefined || record.userId === userId),
+            ) ?? null
+          );
         }
         if (entity === RefreshTokenEntity) {
           const tokenHash = options?.where?.tokenHash;
@@ -516,22 +527,92 @@ describe("AuthService - Phase 3", () => {
 
   describe("logout", () => {
     it("should revoke refresh token on logout", async () => {
-      const tokenHash = await bcrypt.hash("token-a", 10);
-      const storedToken = {
-        id: 1,
-        tokenHash,
-        userId: 1,
-        revoked: false,
-      };
-
-      mockRefreshTokenRepository.findOne.mockResolvedValue(storedToken);
+      const harness = useTransaction([
+        {
+          id: 1,
+          tokenHash: "old-hash",
+          userId: 1,
+          revoked: false,
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+      ]);
 
       await service.logout(1, "token-a");
 
-      expect(mockRefreshTokenRepository.update).toHaveBeenCalledWith(1, {
-        revoked: true,
-        revokedAt: expect.any(Date),
+      expect(harness.find).toHaveBeenCalledWith(RefreshTokenEntity, {
+        where: { userId: 1 },
       });
+      expect(harness.update).toHaveBeenCalledWith(
+        RefreshTokenEntity,
+        { id: 1, revoked: false },
+        { revoked: true, revokedAt: expect.any(Date) },
+      );
+      expect(harness.records[0].revoked).toBe(true);
+    });
+
+    it("should not revoke a token that does not match", async () => {
+      const harness = useTransaction([
+        {
+          id: 1,
+          tokenHash: "hash-refresh-other",
+          userId: 1,
+          revoked: false,
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+      ]);
+
+      await service.logout(1, "token-a");
+
+      expect(harness.update).not.toHaveBeenCalled();
+      expect(harness.records[0].revoked).toBe(false);
+    });
+
+    it("should revoke the active replacement in a rotated session", async () => {
+      const harness = useTransaction([
+        {
+          id: 1,
+          tokenHash: "old-hash",
+          userId: 1,
+          revoked: true,
+          replacedBy: "hash-refresh-new",
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+        {
+          id: 2,
+          tokenHash: "hash-refresh-new",
+          userId: 1,
+          revoked: false,
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+      ]);
+
+      await service.logout(1, "token-a");
+
+      expect(harness.update).toHaveBeenCalledWith(
+        RefreshTokenEntity,
+        { id: 2, revoked: false },
+        { revoked: true, revokedAt: expect.any(Date) },
+      );
+      expect(harness.records[1].revoked).toBe(true);
+    });
+
+    it("should reject refresh after logout revoked the session", async () => {
+      const harness = useTransaction([
+        {
+          id: 1,
+          tokenHash: "old-hash",
+          userId: 1,
+          revoked: false,
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+      ]);
+
+      await service.logout(1, "token-a");
+
+      await expect(service.refresh(1, "token-a")).rejects.toThrow(
+        "Refresh token was reused",
+      );
+      expect(harness.records[0].revoked).toBe(true);
     });
   });
 

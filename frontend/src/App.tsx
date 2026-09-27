@@ -1,5 +1,9 @@
+import { useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 
+import { ApiError } from './api/errors'
+import { LoginPage } from './auth/LoginPage'
+import { useSession } from './auth/SessionContext'
 import { ProtectedRoute } from './routing/ProtectedRoute'
 
 function App() {
@@ -7,70 +11,11 @@ function App() {
     <div className="min-h-screen bg-gray-50">
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
         <Route element={<ProtectedRoute />}>
           <Route path="/files/*" element={<FileBrowserLayout />} />
         </Route>
         <Route path="/" element={<Navigate to="/files" replace />} />
       </Routes>
-    </div>
-  )
-}
-
-function LoginPage() {
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="max-w-md w-full mx-auto p-6">
-        <div className="bg-white rounded-lg shadow-md p-8">
-          <h1 className="text-2xl font-bold text-center mb-6">HomeCloud</h1>
-          <h2 className="text-xl font-semibold mb-4">Sign In</h2>
-          <form className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Email</label>
-              <input type="email" className="w-full border rounded-md px-3 py-2" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Password</label>
-              <input type="password" className="w-full border rounded-md px-3 py-2" />
-            </div>
-            <button type="submit" className="w-full bg-blue-600 text-white rounded-md py-2 hover:bg-blue-700">
-              Sign In
-            </button>
-          </form>
-          <p className="mt-4 text-center text-sm">
-            Don't have an account? <a href="/register" className="text-blue-600">Register</a>
-          </p>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function RegisterPage() {
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="max-w-md w-full mx-auto p-6">
-        <div className="bg-white rounded-lg shadow-md p-8">
-          <h1 className="text-2xl font-bold text-center mb-6">HomeCloud</h1>
-          <h2 className="text-xl font-semibold mb-4">Create Account</h2>
-          <form className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Email</label>
-              <input type="email" className="w-full border rounded-md px-3 py-2" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Password</label>
-              <input type="password" className="w-full border rounded-md px-3 py-2" />
-            </div>
-            <button type="submit" className="w-full bg-blue-600 text-white rounded-md py-2 hover:bg-blue-700">
-              Register
-            </button>
-          </form>
-          <p className="mt-4 text-center text-sm">
-            Already have an account? <a href="/login" className="text-blue-600">Sign In</a>
-          </p>
-        </div>
-      </div>
     </div>
   )
 }
@@ -89,6 +34,27 @@ function FileBrowserLayout() {
 }
 
 function Navbar() {
+  const session = useSession()
+  const [loggingOut, setLoggingOut] = useState(false)
+  const [logoutError, setLogoutError] = useState<string | null>(null)
+
+  async function handleLogout() {
+    if (loggingOut) return
+    setLoggingOut(true)
+    setLogoutError(null)
+    try {
+      await session.logout()
+    } catch (caught) {
+      setLogoutError(
+        caught instanceof ApiError
+          ? caught.message
+          : 'Sign out could not be completed. Please try again.',
+      )
+    } finally {
+      setLoggingOut(false)
+    }
+  }
+
   return (
     <nav className="bg-white shadow-sm border-b">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -97,7 +63,15 @@ function Navbar() {
             <h1 className="text-xl font-bold text-gray-900">HomeCloud</h1>
           </div>
           <div className="flex items-center gap-4">
-            <button className="text-gray-700 hover:text-gray-900">Logout</button>
+            {logoutError ? <span className="text-sm text-red-700" role="alert">{logoutError}</span> : null}
+            <button
+              className="text-gray-700 hover:text-gray-900 disabled:opacity-60"
+              disabled={loggingOut}
+              onClick={() => void handleLogout()}
+              type="button"
+            >
+              {loggingOut ? 'Signing out…' : 'Logout'}
+            </button>
           </div>
         </div>
       </div>

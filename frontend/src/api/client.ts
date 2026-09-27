@@ -13,12 +13,14 @@ import { normalizeApiError } from './errors'
 declare module 'axios' {
   interface AxiosRequestConfig {
     skipAuth?: boolean
+    skipRefresh?: boolean
     authRetry?: boolean
     accessTokenUsed?: string
   }
 
   interface InternalAxiosRequestConfig {
     skipAuth?: boolean
+    skipRefresh?: boolean
     authRetry?: boolean
     accessTokenUsed?: string
   }
@@ -134,7 +136,7 @@ function retryWithCurrentToken(
 }
 
 function isRefreshEligible(config: InternalAxiosRequestConfig): boolean {
-  if (config.skipAuth) return false
+  if (config.skipAuth || config.skipRefresh) return false
   const url = config.url || ''
   return !['/auth/login', '/auth/register', '/auth/refresh'].some((path) =>
     url.endsWith(path),

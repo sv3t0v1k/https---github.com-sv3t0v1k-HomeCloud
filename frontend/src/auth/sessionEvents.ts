@@ -1,4 +1,5 @@
-type SessionExpiredListener = () => void
+export type SessionExpiredReason = 'expired'
+type SessionExpiredListener = (reason: SessionExpiredReason) => void
 
 const listeners = new Set<SessionExpiredListener>()
 
@@ -9,6 +10,6 @@ export function subscribeToSessionExpired(listener: SessionExpiredListener) {
   }
 }
 
-export function publishSessionExpired() {
-  listeners.forEach((listener) => listener())
+export function publishSessionExpired(reason: SessionExpiredReason = 'expired') {
+  listeners.forEach((listener) => listener(reason))
 }

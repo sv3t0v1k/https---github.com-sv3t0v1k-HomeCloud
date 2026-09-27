@@ -10,40 +10,46 @@ import {
 
 import { apiRequest, clearSession, refreshSession } from '../api/client'
 import type { Tokens, User } from '../types/auth'
+import { login as loginRequest, logout as logoutRequest } from './api'
 import { subscribeToSessionExpired } from './sessionEvents'
 import { tokenStorage } from './tokenStorage'
 
 type SessionState =
-  | { status: 'bootstrapping'; user: null }
-  | { status: 'anonymous'; user: null }
-  | { status: 'authenticated'; user: User }
-  | { status: 'unavailable'; user: null }
+  | { status: 'bootstrapping'; user: null; notice: null }
+  | { status: 'anonymous'; user: null; notice: string | null }
+  | { status: 'authenticated'; user: User; notice: null }
+  | { status: 'unavailable'; user: null; notice: null }
 
 type SessionContextValue = SessionState & {
   establishSession(tokens: Tokens): Promise<void>
   endSession(): void
+  login(email: string, password: string): Promise<void>
+  logout(): Promise<void>
   retryBootstrap(): Promise<void>
 }
 
 type SessionAction =
   | { type: 'BOOTSTRAP' }
   | { type: 'AUTHENTICATED'; user: User }
-  | { type: 'ANONYMOUS' }
+  | { type: 'ANONYMOUS'; notice?: string }
   | { type: 'UNAVAILABLE' }
 
 const SessionContext = createContext<SessionContextValue | null>(null)
 
 function reducer(_state: SessionState, action: SessionAction): SessionState {
-  if (action.type === 'BOOTSTRAP') return { status: 'bootstrapping', user: null }
-  if (action.type === 'AUTHENTICATED') return { status: 'authenticated', user: action.user }
-  if (action.type === 'UNAVAILABLE') return { status: 'unavailable', user: null }
-  return { status: 'anonymous', user: null }
+  if (action.type === 'BOOTSTRAP') return { status: 'bootstrapping', user: null, notice: null }
+  if (action.type === 'AUTHENTICATED') {
+    return { status: 'authenticated', user: action.user, notice: null }
+  }
+  if (action.type === 'UNAVAILABLE') return { status: 'unavailable', user: null, notice: null }
+  return { status: 'anonymous', user: null, notice: action.notice ?? null }
 }
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, {
     status: 'bootstrapping',
     user: null,
+    notice: null,
   })
 
   const loadUser = useCallback(async () => {
@@ -70,7 +76,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void bootstrap()
-    return subscribeToSessionExpired(() => dispatch({ type: 'ANONYMOUS' }))
+    return subscribeToSessionExpired(() =>
+      dispatch({ type: 'ANONYMOUS', notice: 'Your session has expired. Please sign in again.' }),
+    )
   }, [bootstrap])
 
   const value = useMemo<SessionContextValue>(
@@ -78,9 +86,31 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       ...state,
       async establishSession(tokens) {
         tokenStorage.set(tokens)
-        await loadUser()
+        try {
+          await loadUser()
+        } catch (error) {
+          clearSession()
+          dispatch({ type: 'ANONYMOUS' })
+          throw error
+        }
       },
       endSession() {
+        clearSession()
+        dispatch({ type: 'ANONYMOUS' })
+      },
+      async login(email, password) {
+        const tokens = await loginRequest({ email, password })
+        tokenStorage.set(tokens)
+        try {
+          await loadUser()
+        } catch (error) {
+          clearSession()
+          dispatch({ type: 'ANONYMOUS' })
+          throw error
+        }
+      },
+      async logout() {
+        await logoutRequest()
         clearSession()
         dispatch({ type: 'ANONYMOUS' })
       },
