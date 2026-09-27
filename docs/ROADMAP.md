@@ -24,6 +24,7 @@
 | Phase 10 — Sharing & Access Control | `COMPLETE` | 10.1–10.8 подтверждены; checkpoint `08ea21f` |
 | Phase 11 — Backend/API Hardening | `COMPLETE` | 11.1–11.5 COMPLETE |
 | Phase 12 — Performance & Scalability | `COMPLETE` | 12.1–12.6 COMPLETE |
+| Phase 13 — Frontend Foundation | `PLANNED` | решение владельца; реализация не начата |
 
 ## Completed
 
@@ -320,14 +321,203 @@ OUT OF SCOPE:
 - Redis redesign/removal;
 - unrelated refactoring.
 
+## Phase 13 — Frontend Foundation — PLANNED
+
+Goal: превратить существующий React/Vite-прототип в минимальный рабочий клиент к подтверждённым backend-контрактам без преждевременной смены стека, усложнения state management или заявления неподтверждённой browser-scale поддержки.
+
+Phase 13 утверждён владельцем как следующее направление, но реализация не начата. Все подэтапы остаются `PLANNED`; переход в `IN PROGRESS` требует отдельного явного старта.
+
+### Подтверждённые ограничения backend-контрактов
+
+- эффективный logout сейчас не завершает клиентскую сессию ожидаемым образом; это блокирует приёмку полного logout/revocation lifecycle в 13.2 и требует отдельного backend-исправления до закрытия подэтапа;
+- authenticated original download использует bearer-token transport. Первый frontend-срез ограничивается небольшим файлом через контролируемый `Blob`-путь; поддержка 30 GiB в браузере, надёжный resume и прямой browser download не заявляются до отдельного решения по безопасному transport;
+- `GET /uploads/sessions` не возвращает сессии в состоянии `uploading`; поэтому восстановление незавершённой загрузки после reload не входит в acceptance criteria 13.4 до исправления backend-контракта;
+- httpOnly cookie transport отсутствует. Персистентное хранение refresh token в JavaScript-доступном storage имеет XSS-компромисс и не принимается молча: в 13.1 должен быть зафиксирован минимальный security-aware lifecycle, согласованный с текущим bearer/refresh API, без ослабления backend-модели.
+
+### 13.1 Frontend Architecture & API Foundation — PLANNED
+
+Objective: сформировать минимальный клиентский фундамент поверх существующего React/Vite-приложения и реальных API-контрактов.
+
+In scope:
+- сохранить React Router и Axios, уже присутствующие в проекте;
+- определить route shell и guards, единый API client, environment/base-URL contract и нормализацию ошибок;
+- определить владельца auth/session state, refresh coordination и явную политику хранения токенов с учётом отсутствия httpOnly cookies;
+- использовать React state/context для небольшого client state; production state library или cache layer вводить только при подтверждённой необходимости;
+- зафиксировать базовые loading/error/empty patterns и test tooling для последующих подэтапов.
+
+Out of scope:
+- пользовательские file/upload/sharing features;
+- визуальная полировка и новая design system;
+- миграция framework/build tooling или добавление библиотек «на будущее»;
+- изменение backend-контрактов.
+
+Acceptance criteria:
+- приложение конфигурируемо обращается к реальному API через один boundary;
+- auth refresh/error handling не дублируются по компонентам, исключают бесконечные retry loops и различают network, validation, authorization и session-expiry cases;
+- token-storage решение и его XSS/CSRF-компромиссы документированы в кодовой архитектуре и тестируемы;
+- routing, API boundary и базовые состояния покрыты целевыми unit/component tests;
+- новые зависимости добавлены только при доказанной необходимости.
+
+Dependencies: текущие backend auth/error contracts и отдельное явное разрешение начать Phase 13; решение logout-блокера не требуется для старта 13.1, но требуется для закрытия 13.2.
+
+### 13.2 Authentication UX — PLANNED
+
+Objective: реализовать понятный login/session/logout lifecycle поверх foundation 13.1.
+
+In scope:
+- login, восстановление допустимой сессии после reload, access-token refresh и route protection;
+- session expiry/revocation/401 handling без циклов и потери диагностируемости;
+- logout UX после исправления эффективного backend logout;
+- meaningful loading и error states.
+
+Out of scope:
+- регистрация, email verification, password reset и социальный вход;
+- ослабление token transport ради удобства клиента;
+- обход или frontend-маскировка дефекта backend logout.
+
+Acceptance criteria:
+- валидный пользователь входит и попадает в защищённую область;
+- допустимая сессия восстанавливается после reload в пределах утверждённой token-storage модели;
+- refresh rotation, истечение, revocation и 401 приводят к одному предсказуемому состоянию;
+- после backend-исправления logout реально инвалидирует ожидаемую сессию и подтверждён интеграционным тестом;
+- auth contract tests и ключевые component/e2e сценарии проходят.
+
+Dependencies: 13.1; backend-исправление эффективного logout обязательно для статуса `COMPLETE`.
+
+### 13.3 File Browser — PLANNED
+
+Objective: дать аутентифицированному пользователю минимальную навигацию по собственному root и папкам.
+
+In scope:
+- root listing, folder navigation и отображение фактических file/folder metadata;
+- loading, empty, not-found, forbidden и recoverable error states;
+- обновление списка после операций первого вертикального среза;
+- минимальные доступные keyboard/focus semantics, необходимые для функционального UX.
+
+Out of scope:
+- sharing, previews, trash и расширенные file operations;
+- виртуализация, бесконечная прокрутка и frontend pagination до появления согласованного backend-контракта;
+- косметическая полировка сверх функциональной читаемости.
+
+Acceptance criteria:
+- пользователь видит только собственный root, открывает вложенную папку и возвращается назад;
+- empty/loading/error состояния различимы и не подменяют друг друга;
+- navigation и access failures проверены component/integration tests против реальных response shapes;
+- отсутствие backend pagination явно не маскируется неподтверждённой client-side масштабируемостью.
+
+Dependencies: 13.1 и защищённая сессия из 13.2; существующие files/folders endpoints.
+
+### 13.4 Upload & Download — PLANNED
+
+Objective: замкнуть первый реальный file workflow: небольшая session/chunk/complete загрузка и authenticated original download.
+
+In scope:
+- create session → upload chunk(s) → complete с реальными limit/chunk/error contracts;
+- retry/idempotency только в пределах подтверждённого backend behavior;
+- отображение прогресса текущей вкладки и обновление browser listing после completion;
+- небольшой authenticated original download через bearer request и контролируемый `Blob`-путь;
+- обработка 401, 4xx validation/conflict, network interruption и отмены UI-операции.
+
+Out of scope:
+- reload-resume незавершённой загрузки, пока `GET /uploads/sessions` не возвращает `uploading` sessions;
+- заявление 30 GiB browser support, large-download resume или универсального прямого download до transport decision;
+- параллельный scheduler, offline queue и premature worker architecture;
+- sharing/public download.
+
+Acceptance criteria:
+- небольшой файл загружается через реальный session/chunk/complete API, появляется в текущей папке и совпадает при обратном скачивании;
+- повтор запроса обрабатывается согласно backend idempotency contract без ложного успеха;
+- session expiry и значимые backend errors видны пользователю и не оставляют UI в фиктивном success state;
+- интеграционный/e2e тест покрывает первый вертикальный срез без требования reload upload resume;
+- browser-scale ограничения явно сохранены и не экстраполируются из backend 30 GiB qualification.
+
+Dependencies: 13.1–13.3; transport decision нужен для расширения download beyond small `Blob`; backend contract change нужен для reload-resume.
+
+### 13.5 Sharing & Previews — PLANNED
+
+Objective: подключить существующие sharing и preview contracts после стабилизации основного приватного workflow.
+
+In scope:
+- создание/просмотр/отзыв доступных share links в пределах backend policy;
+- authenticated previews/thumbnails с соблюдением cache/auth boundary;
+- public share flows только по фактическим password/expiry/download-limit contracts.
+
+Out of scope:
+- redesign backend sharing policy;
+- новые preview formats или обход существующих size limits;
+- включение sharing/previews в первый вертикальный срез.
+
+Acceptance criteria:
+- owner/public states, expiry/password/revocation и preview access проверены интеграционными сценариями;
+- приватные preview не получают публичное кеширование;
+- ошибки политики не маскируются generic success/empty states.
+
+Dependencies: 13.1–13.4 и стабильные sharing/preview backend contracts.
+
+### 13.6 Trash, File Operations & UX Resilience — PLANNED
+
+Objective: завершить повседневные file operations и устойчивость интерфейса без расширения backend scope.
+
+In scope:
+- доступные create/rename/move/copy/delete/restore/permanent-delete operations по фактическим endpoints;
+- подтверждение необратимых действий, stale-state recovery и повторная синхронизация списка;
+- accessibility essentials, responsive functional layout и согласованные error/loading/empty states.
+
+Out of scope:
+- новые backend operations;
+- offline-first режим, realtime synchronization и визуальная полировка как самостоятельная цель;
+- production observability infrastructure.
+
+Acceptance criteria:
+- поддерживаемые операции сохраняют корректную навигацию и обновляют server state;
+- destructive flows требуют явного подтверждения и отображают частичные/полные failures;
+- основные keyboard/focus/responsive paths проходят regression checks.
+
+Dependencies: 13.1–13.4; фактические files/trash contracts; 13.5 не является обязательной зависимостью.
+
+### 13.7 Frontend Regression & Final Gate — PLANNED
+
+Objective: подтвердить рабочий frontend-срез без завышенных product/performance claims.
+
+In scope:
+- unit/component/integration/e2e regression matrix для auth, navigation, small upload/download и реализованных later features;
+- production build/runtime configuration, nginx fallback/base-URL и browser smoke checks;
+- security review token lifecycle, error leakage и private caching;
+- сверка документации и roadmap с фактическим результатом.
+
+Out of scope:
+- объявление production readiness, TLS/secrets/deployment release gate;
+- 30/50 GiB browser qualification без отдельного утверждённого harness и transport решения;
+- backend performance requalification, не вызванная frontend-контрактом.
+
+Acceptance criteria:
+- agreed frontend suites, production build и browser smoke scenarios проходят;
+- первый вертикальный срез воспроизводим в чистой сессии;
+- logout и reload-resume claims делаются только после устранения соответствующих backend-блокеров;
+- independent review подтверждает отсутствие contract mismatch, security regression и незаявленной реализации;
+- roadmap обновляется по фактическим evidence, после чего Phase 13 может быть закрыт отдельным checkpoint.
+
+Dependencies: завершённые применимые подэтапы 13.1–13.6 и устранение блокеров для заявляемых возможностей.
+
+### Первый вертикальный срез
+
+Целевой сценарий: пользователь открывает приложение → проходит bootstrap/login → допустимая сессия восстанавливается после reload → пользователь видит собственный root, открывает папку → загружает небольшой файл через реальный session/chunk/complete API → скачивает тот же оригинал через authenticated small-file path → получает понятные expiry/error states.
+
+Ownership по подэтапам:
+- 13.1: bootstrap, routing, API/error/session foundation;
+- 13.2: login, session restore, refresh/expiry и защищённые routes;
+- 13.3: root/folder listing и navigation states;
+- 13.4: small upload/download и сквозной e2e scenario.
+
+Этот срез намеренно не обещает эффективный logout до backend-исправления, reload-resume upload, sharing/previews/trash, large browser download или 30 GiB browser support.
+
 ## Planned
 
-Эти направления подтверждены как необходимая будущая работа, но новые номера Phase им не назначены:
+Эти направления подтверждены как необходимая будущая работа, но новые номера Phase им не назначены. Ранее ненумерованное направление **Frontend foundation и функции** перенесено в утверждённый Phase 13 и здесь не дублируется:
 
 - **Backend/API hardening:** inventory endpoints/guards/DTO/errors, validation, authorization, CORS/headers/rate limits, dependency-aware health.
 - **Observability & operations:** structured logs, correlation context, metrics, readiness/liveness и operational runbooks.
 - **Failure & security testing:** failure injection, restore drill, IDOR/token/password/rate-limit abuse cases и dependency/container checks.
-- **Frontend foundation и функции:** архитектура клиента, auth, file browser, uploads, sharing, previews, UX/accessibility, resilience и tests.
 - **Production readiness:** topology, TLS, secrets, deployment/migration/rollback procedure, encrypted/offsite/incremental backup и release gate.
 
 Ни одно planned-направление не разрешено начинать автоматически.
