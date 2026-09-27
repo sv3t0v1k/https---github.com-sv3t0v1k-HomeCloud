@@ -117,6 +117,21 @@ export class FilesController {
     return this.filesService.findFolders(userId, parentIdNum);
   }
 
+  @Get("folders/:id")
+  async findFolder(
+    @NestRequest() req: ExpressRequest & { user: { userId: number } },
+    @Param("id") id: string,
+  ) {
+    if (!/^[1-9]\d*$/.test(id)) {
+      throw new BadRequestException("Invalid folder id");
+    }
+    const folderId = Number(id);
+    if (!Number.isSafeInteger(folderId)) {
+      throw new BadRequestException("Invalid folder id");
+    }
+    return this.filesService.findFolder(req.user.userId, folderId);
+  }
+
   @Get("trash")
   async getTrash(
     @NestRequest() req: ExpressRequest & { user: { userId: number } },

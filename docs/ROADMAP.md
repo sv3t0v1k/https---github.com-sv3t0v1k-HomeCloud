@@ -24,7 +24,7 @@
 | Phase 10 — Sharing & Access Control | `COMPLETE` | 10.1–10.8 подтверждены; checkpoint `08ea21f` |
 | Phase 11 — Backend/API Hardening | `COMPLETE` | 11.1–11.5 COMPLETE |
 | Phase 12 — Performance & Scalability | `COMPLETE` | 12.1–12.6 COMPLETE |
-| Phase 13 — Frontend Foundation | `IN PROGRESS` | 13.1–13.2 COMPLETE; следующий подэтап не начат |
+| Phase 13 — Frontend Foundation | `IN PROGRESS` | 13.1–13.3 COMPLETE; следующий подэтап не начат |
 
 ## Completed
 
@@ -325,7 +325,7 @@ OUT OF SCOPE:
 
 Goal: превратить существующий React/Vite-прототип в минимальный рабочий клиент к подтверждённым backend-контрактам без преждевременной смены стека, усложнения state management или заявления неподтверждённой browser-scale поддержки.
 
-Phase 13 начат отдельным решением владельца. Завершены 13.1–13.2; остальные подэтапы остаются `PLANNED` и не начинаются автоматически.
+Phase 13 начат отдельным решением владельца. Завершены 13.1–13.3; остальные подэтапы остаются `PLANNED` и не начинаются автоматически.
 
 ### Подтверждённые ограничения backend-контрактов
 
@@ -405,7 +405,7 @@ Implemented and verified:
 
 Evidence: backend auth 24/24 tests PASS; full backend suite 46 passed / 4 skipped, 549 tests passed / 15 skipped; frontend 4 test files, 18/18 tests PASS; backend/frontend build PASS; frontend lint PASS; backend lint 0 errors и 15 pre-existing test warnings; `git diff --check` PASS; independent security review APPROVE.
 
-### 13.3 File Browser — PLANNED
+### 13.3 File Browser — COMPLETE
 
 Objective: дать аутентифицированному пользователю минимальную навигацию по собственному root и папкам.
 
@@ -427,6 +427,16 @@ Acceptance criteria:
 - отсутствие backend pagination явно не маскируется неподтверждённой client-side масштабируемостью.
 
 Dependencies: 13.1 и защищённая сессия из 13.2; существующие files/folders endpoints.
+
+Implemented and verified:
+- root и вложенные папки загружаются из реальных раздельных `GET /files` и `GET /files/folders` contracts; для navigation используется числовой `FolderEntity.id`, а bigint metadata обрабатывается как `string | number`;
+- маршруты `/files` и `/files/folders/:folderId`, browser history и breadcrumbs поддерживают навигацию вперёд/назад; direct reload восстанавливает именную цепочку предков;
+- добавлен узкий authenticated `GET /files/folders/:id`: только активная owned folder metadata, одинаковый 404 для отсутствующей/недоступной папки и строгая проверка положительного safe-integer id;
+- loading, empty, recoverable error/retry, not-found и forbidden states разделены; частичный результат двух listing requests не показывается как полный каталог;
+- stale navigation requests отменяются через `AbortController`; таблица, breadcrumbs, folder buttons и status/error states имеют базовую semantic/keyboard accessibility;
+- file mutations, search, trash, sharing, previews, upload и download не реализовывались; pagination/scaling claims не заявлялись.
+
+Evidence: backend folder/service targeted tests 52/52 PASS; full backend suite 47 passed / 4 skipped, 557 tests passed / 15 skipped; frontend 5 test files, 24/24 tests PASS; backend/frontend build PASS; frontend lint PASS; backend lint 0 errors и 15 pre-existing test warnings; `git diff --check` PASS; independent review APPROVE после одного bounded correction cycle.
 
 ### 13.4 Upload & Download — PLANNED
 

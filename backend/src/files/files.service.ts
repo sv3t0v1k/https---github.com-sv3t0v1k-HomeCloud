@@ -98,7 +98,7 @@ export class FilesService {
 
   async findFolder(userId: number, id: number) {
     const folder = await this.folderRepository.findOne({
-      where: { id, userId },
+      where: { id, userId, isDeleted: false },
     });
     if (!folder) {
       throw new NotFoundException("Folder not found");

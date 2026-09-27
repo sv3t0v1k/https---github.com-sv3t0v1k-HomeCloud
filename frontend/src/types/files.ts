@@ -1,28 +1,23 @@
-export interface File {
-  id: string
+export interface FileItem {
+  id: number
   name: string
-  path: string
-  size: number
-  mime_type: string
-  created_at: string
-  updated_at: string
-  owner_id: string
-  folder_id?: string
+  size: string | number
+  mimeType: string | null
+  isDeleted: boolean
+  isStarred: boolean
+  parentId: number | null
+  updatedAt: string
 }
 
-export interface Folder {
-  id: string
+export interface FolderItem {
+  id: number
   name: string
-  path: string
-  parent_id?: string
-  created_at: string
-  updated_at: string
-  owner_id: string
+  isDeleted: boolean
+  parentId: number | null
+  updatedAt: string
 }
 
-export interface StorageInfo {
-  used: number
-  total: number
-  files_count: number
-  folders_count: number
+export interface FolderContents {
+  files: FileItem[]
+  folders: FolderItem[]
 }

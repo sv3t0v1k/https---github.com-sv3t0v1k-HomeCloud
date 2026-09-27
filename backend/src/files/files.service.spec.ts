@@ -128,7 +128,7 @@ describe("FilesService - Authorization Boundary", () => {
       const result = await service.findFolder(1, 1);
       expect(result).toEqual(folder);
       expect(mockFolderRepository.findOne).toHaveBeenCalledWith({
-        where: { id: 1, userId: 1 },
+        where: { id: 1, userId: 1, isDeleted: false },
       });
     });
 
@@ -137,7 +137,16 @@ describe("FilesService - Authorization Boundary", () => {
 
       await expect(service.findFolder(1, 2)).rejects.toThrow(NotFoundException);
       expect(mockFolderRepository.findOne).toHaveBeenCalledWith({
-        where: { id: 2, userId: 1 },
+        where: { id: 2, userId: 1, isDeleted: false },
+      });
+    });
+
+    it("should not return a deleted folder", async () => {
+      mockFolderRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.findFolder(1, 3)).rejects.toThrow(NotFoundException);
+      expect(mockFolderRepository.findOne).toHaveBeenCalledWith({
+        where: { id: 3, userId: 1, isDeleted: false },
       });
     });
   });

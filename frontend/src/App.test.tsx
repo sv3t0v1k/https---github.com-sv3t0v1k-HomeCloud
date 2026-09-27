@@ -32,6 +32,7 @@ describe('authentication UX', () => {
         })
       }
       if (config.url === '/users/me') return userResponse(config)
+      if (isDirectoryRequest(config.url)) return emptyDirectoryResponse(config)
       throw new Error(`Unexpected request: ${config.url}`)
     }
 
@@ -41,7 +42,7 @@ describe('authentication UX', () => {
     await user.type(screen.getByLabelText('Password'), 'correct-password')
     await user.click(screen.getByRole('button', { name: 'Sign In' }))
 
-    expect(await screen.findByText('My Files')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'My Files' })).toBeInTheDocument()
     expect(tokenStorage.getRefreshToken()).toBe('refresh')
   })
 
@@ -98,6 +99,7 @@ describe('authentication UX', () => {
     }
     apiClient.defaults.adapter = async (config) => {
       if (config.url === '/users/me') return userResponse(config)
+      if (isDirectoryRequest(config.url)) return emptyDirectoryResponse(config)
       if (config.url === '/auth/logout') {
         expect(config.headers.Authorization).toBe('Bearer access-2')
         expect(JSON.parse(String(config.data))).toEqual({ refreshToken: 'refresh-2' })
@@ -130,6 +132,7 @@ describe('authentication UX', () => {
     }
     apiClient.defaults.adapter = async (config) => {
       if (config.url === '/users/me') return userResponse(config)
+      if (isDirectoryRequest(config.url)) return emptyDirectoryResponse(config)
       if (config.url === '/auth/logout') throw new AxiosError('offline')
       throw new Error(`Unexpected request: ${config.url}`)
     }
@@ -139,7 +142,7 @@ describe('authentication UX', () => {
     await user.click(await screen.findByRole('button', { name: 'Logout' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('server is unavailable')
-    expect(screen.getByText('My Files')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'My Files' })).toBeInTheDocument()
     expect(tokenStorage.getRefreshToken()).toBe('refresh-2')
   })
 
@@ -149,10 +152,11 @@ describe('authentication UX', () => {
       success: true,
       data: { accessToken: 'access', refreshToken: 'refresh' },
     })
-    apiClient.defaults.adapter = async (config) => userResponse(config)
+    apiClient.defaults.adapter = async (config) =>
+      isDirectoryRequest(config.url) ? emptyDirectoryResponse(config) : userResponse(config)
 
     renderApp('/files')
-    expect(await screen.findByText('My Files')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'My Files' })).toBeInTheDocument()
 
     act(() => publishSessionExpired())
 
@@ -187,6 +191,14 @@ function userResponse(config: InternalAxiosRequestConfig) {
       updatedAt: '2026-01-01T00:00:00.000Z',
     },
   })
+}
+
+function isDirectoryRequest(url?: string) {
+  return url === '/files' || url === '/files/folders'
+}
+
+function emptyDirectoryResponse(config: InternalAxiosRequestConfig) {
+  return response(config, { success: true, data: [] })
 }
 
 function response(config: InternalAxiosRequestConfig, data: unknown): AxiosResponse {
