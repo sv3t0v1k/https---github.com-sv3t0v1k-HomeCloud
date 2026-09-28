@@ -24,7 +24,7 @@
 | Phase 10 — Sharing & Access Control | `COMPLETE` | 10.1–10.8 подтверждены; checkpoint `08ea21f` |
 | Phase 11 — Backend/API Hardening | `COMPLETE` | 11.1–11.5 COMPLETE |
 | Phase 12 — Performance & Scalability | `COMPLETE` | 12.1–12.6 COMPLETE |
-| Phase 13 — Frontend Foundation | `IN PROGRESS` | 13.1–13.3 COMPLETE; следующий подэтап не начат |
+| Phase 13 — Frontend Foundation | `IN PROGRESS` | 13.1–13.4 COMPLETE; следующий подэтап не начат |
 
 ## Completed
 
@@ -325,7 +325,7 @@ OUT OF SCOPE:
 
 Goal: превратить существующий React/Vite-прототип в минимальный рабочий клиент к подтверждённым backend-контрактам без преждевременной смены стека, усложнения state management или заявления неподтверждённой browser-scale поддержки.
 
-Phase 13 начат отдельным решением владельца. Завершены 13.1–13.3; остальные подэтапы остаются `PLANNED` и не начинаются автоматически.
+Phase 13 начат отдельным решением владельца. Завершены 13.1–13.4; остальные подэтапы остаются `PLANNED` и не начинаются автоматически.
 
 ### Подтверждённые ограничения backend-контрактов
 
@@ -438,7 +438,7 @@ Implemented and verified:
 
 Evidence: backend folder/service targeted tests 52/52 PASS; full backend suite 47 passed / 4 skipped, 557 tests passed / 15 skipped; frontend 5 test files, 24/24 tests PASS; backend/frontend build PASS; frontend lint PASS; backend lint 0 errors и 15 pre-existing test warnings; `git diff --check` PASS; independent review APPROVE после одного bounded correction cycle.
 
-### 13.4 Upload & Download — PLANNED
+### 13.4 Upload & Download — COMPLETE
 
 Objective: замкнуть первый реальный file workflow: небольшая session/chunk/complete загрузка и authenticated original download.
 
@@ -463,6 +463,17 @@ Acceptance criteria:
 - browser-scale ограничения явно сохранены и не экстраполируются из backend 30 GiB qualification.
 
 Dependencies: 13.1–13.3; transport decision нужен для расширения download beyond small `Blob`; backend contract change нужен для reload-resume.
+
+Implemented and verified:
+- однопоточная загрузка создаёт backend session для текущей папки, последовательно отправляет 10 MiB `File.slice()` chunks и вызывает completion без чтения всего файла в память;
+- progress агрегируется по фактически переданным байтам и остаётся ниже 100% до успешного completion; отдельные состояния показывают подготовку, передачу и финализацию;
+- chunk retry ограничен тремя попытками только для network/5xx; 4xx и completion автоматически не повторяются, а terminal failure и user cancel выполняют best-effort abort server session без подмены исходной ошибки;
+- смена папки отменяет активную загрузку; успешный completion обновляет оба listing endpoint текущей папки и показывает новый файл;
+- quota, size/chunk limit, MIME validation, session expiry, auth, network и server failures преобразуются в краткие пользовательские состояния;
+- authenticated original download использует существующий bearer-aware Axios boundary и контролируемый `Blob`-путь с жёстким лимитом 100 MiB до запроса; 30 GiB browser support, resume и универсальный native streaming download не заявляются;
+- backend не изменялся; runtime max chunk size по-прежнему не публикуется API, поэтому клиентский 10 MiB chunk явно согласован с текущим deployment contract и ошибки меньшего deployment limit остаются видимыми.
+
+Evidence: frontend focused transfer tests 26/26 PASS; full frontend suite 7 files / 44 tests PASS; production build PASS; lint PASS; `git diff --check` PASS; independent review APPROVE после одного bounded correction cycle. Real-API smoke не выполнялся против постоянного normal stack без изолированных credentials/cleanup lifecycle; вертикальный workflow подтверждён Axios contract/component integration tests, а backend upload/download contracts ранее покрыты backend suites.
 
 ### 13.5 Sharing & Previews — PLANNED
 
