@@ -30,7 +30,11 @@ export class FilesService {
     return files.reduce((total, file) => {
       const size = Number(file.size);
       const nextTotal = total + size;
-      if (!Number.isSafeInteger(size) || size < 0 || !Number.isSafeInteger(nextTotal)) {
+      if (
+        !Number.isSafeInteger(size) ||
+        size < 0 ||
+        !Number.isSafeInteger(nextTotal)
+      ) {
         throw new BadRequestException("Invalid file size metadata");
       }
       return nextTotal;
@@ -162,7 +166,8 @@ export class FilesService {
 
     await this.assertFolderOwnership(userId, parentId);
 
-    const queryRunner = this.fileRepository.manager.connection.createQueryRunner();
+    const queryRunner =
+      this.fileRepository.manager.connection.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
@@ -179,7 +184,11 @@ export class FilesService {
       });
 
       await queryRunner.manager.save(file);
-      await this.usersService.updateStorageUsed(userId, size, queryRunner.manager);
+      await this.usersService.updateStorageUsed(
+        userId,
+        size,
+        queryRunner.manager,
+      );
 
       await queryRunner.commitTransaction();
 
@@ -199,7 +208,8 @@ export class FilesService {
 
     await this.assertFolderOwnership(userId, parentId);
 
-    const queryRunner = this.folderRepository.manager.connection.createQueryRunner();
+    const queryRunner =
+      this.folderRepository.manager.connection.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
@@ -286,7 +296,8 @@ export class FilesService {
       }
     }
 
-    const queryRunner = this.folderRepository.manager.connection.createQueryRunner();
+    const queryRunner =
+      this.folderRepository.manager.connection.createQueryRunner();
     let transactionStarted = false;
 
     try {
@@ -335,7 +346,8 @@ export class FilesService {
   }
 
   async assertNoCycle(folderId: number, targetParentId: number): Promise<void> {
-    const descendantRows: { id: number }[] = await this.folderRepository.query(`
+    const descendantRows: { id: number }[] = await this.folderRepository.query(
+      `
       WITH RECURSIVE descendants AS (
         SELECT id FROM folders WHERE id = $1 AND "userId" = (SELECT "userId" FROM folders WHERE id = $1)
         UNION ALL
@@ -343,9 +355,11 @@ export class FilesService {
         INNER JOIN descendants d ON f."parentId" = d.id
       )
       SELECT id FROM descendants
-    `, [folderId]);
+    `,
+      [folderId],
+    );
 
-    const descendantIds = new Set(descendantRows.map(r => r.id));
+    const descendantIds = new Set(descendantRows.map((r) => r.id));
     if (descendantIds.has(targetParentId)) {
       throw new BadRequestException("Cannot move folder into its own subtree");
     }
@@ -365,7 +379,8 @@ export class FilesService {
   }
 
   async removeFolder(userId: number, id: number) {
-    const queryRunner = this.folderRepository.manager.connection.createQueryRunner();
+    const queryRunner =
+      this.folderRepository.manager.connection.createQueryRunner();
     let transactionStarted = false;
 
     try {
@@ -408,6 +423,12 @@ export class FilesService {
 
   async restoreFile(userId: number, id: number) {
     const file = await this.findOne(userId, id);
+    if (file.parentId !== null) {
+      const activeParent = await this.folderRepository.findOne({
+        where: { id: file.parentId, userId, isDeleted: false },
+      });
+      if (!activeParent) file.parentId = null;
+    }
     file.isDeleted = false;
     file.deletedAt = null;
     await this.fileRepository.save(file);
@@ -416,7 +437,8 @@ export class FilesService {
   }
 
   async restoreFolder(userId: number, id: number) {
-    const queryRunner = this.folderRepository.manager.connection.createQueryRunner();
+    const queryRunner =
+      this.folderRepository.manager.connection.createQueryRunner();
     let transactionStarted = false;
 
     try {
@@ -438,6 +460,16 @@ export class FilesService {
         throw new NotFoundException("Folder mirror not found");
       }
 
+      if (folder.parentId !== null) {
+        const activeParent = await queryRunner.manager.findOne(FolderEntity, {
+          where: { id: folder.parentId, userId, isDeleted: false },
+        });
+        if (!activeParent) {
+          folder.parentId = null;
+          mirror.parentId = null;
+        }
+      }
+
       folder.isDeleted = false;
       folder.deletedAt = null;
       mirror.isDeleted = false;
@@ -457,7 +489,8 @@ export class FilesService {
   }
 
   async deleteFilePermanently(userId: number, id: number) {
-    const queryRunner = this.fileRepository.manager.connection.createQueryRunner();
+    const queryRunner =
+      this.fileRepository.manager.connection.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
@@ -474,7 +507,11 @@ export class FilesService {
 
       fileToDelete = file;
 
-      await this.usersService.decrementStorageUsed(userId, file.size, queryRunner.manager);
+      await this.usersService.decrementStorageUsed(
+        userId,
+        file.size,
+        queryRunner.manager,
+      );
       await queryRunner.manager.delete(FileEntity, id);
 
       await queryRunner.commitTransaction();
@@ -484,7 +521,10 @@ export class FilesService {
         try {
           await this.storageService.deleteFile(fileToDelete.storagePath);
         } catch (error) {
-          this.logger.error(`Failed to delete physical file ${fileToDelete.storagePath}`, error);
+          this.logger.error(
+            `Failed to delete physical file ${fileToDelete.storagePath}`,
+            error,
+          );
         }
       }
 
@@ -498,7 +538,8 @@ export class FilesService {
   }
 
   async deleteFolderPermanently(userId: number, id: number) {
-    const queryRunner = this.folderRepository.manager.connection.createQueryRunner();
+    const queryRunner =
+      this.folderRepository.manager.connection.createQueryRunner();
     let transactionStarted = false;
     let physicalFilesToDelete: FileEntity[] = [];
 
@@ -516,7 +557,9 @@ export class FilesService {
       }
 
       // Recursively collect all descendant folder IDs via CTE
-      const descendantFolderRows: { id: number }[] = await queryRunner.manager.query(`
+      const descendantFolderRows: { id: number }[] =
+        await queryRunner.manager.query(
+          `
         WITH RECURSIVE descendants AS (
           SELECT id FROM folders WHERE id = $1 AND "userId" = $2
           UNION
@@ -525,9 +568,11 @@ export class FilesService {
           WHERE f."userId" = $2
         )
         SELECT id FROM descendants
-      `, [id, userId]);
+      `,
+          [id, userId],
+        );
 
-      const folderIdsToDelete = descendantFolderRows.map(r => r.id);
+      const folderIdsToDelete = descendantFolderRows.map((r) => r.id);
       const lockedFolders = await queryRunner.manager.find(FolderEntity, {
         where: { id: In(folderIdsToDelete), userId },
         lock: { mode: "pessimistic_write" },
@@ -555,10 +600,12 @@ export class FilesService {
         },
         lock: { mode: "pessimistic_write" },
       });
-      const mirroredFolderIds = new Set(folderMirrorFiles.map(file => file.folderId));
+      const mirroredFolderIds = new Set(
+        folderMirrorFiles.map((file) => file.folderId),
+      );
       if (
         folderMirrorFiles.length !== folderIdsToDelete.length ||
-        folderIdsToDelete.some(folderId => !mirroredFolderIds.has(folderId))
+        folderIdsToDelete.some((folderId) => !mirroredFolderIds.has(folderId))
       ) {
         throw new NotFoundException("Folder mirror not found");
       }
@@ -568,11 +615,18 @@ export class FilesService {
       const totalSize = this.sumFileSizes(descendantFiles);
 
       // Atomic quota decrement (inside transaction)
-      await this.usersService.decrementStorageUsed(userId, totalSize, queryRunner.manager);
+      await this.usersService.decrementStorageUsed(
+        userId,
+        totalSize,
+        queryRunner.manager,
+      );
 
       // Bulk delete all records (inside transaction)
       if (allFileRecords.length > 0) {
-        await queryRunner.manager.delete(FileEntity, allFileRecords.map(f => f.id));
+        await queryRunner.manager.delete(
+          FileEntity,
+          allFileRecords.map((f) => f.id),
+        );
       }
       if (folderIdsToDelete.length > 0) {
         await queryRunner.manager.delete(FolderEntity, folderIdsToDelete);
@@ -586,7 +640,10 @@ export class FilesService {
           try {
             await this.storageService.deleteFile(file.storagePath);
           } catch (error) {
-            this.logger.error(`Failed to delete physical file ${file.storagePath}`, error);
+            this.logger.error(
+              `Failed to delete physical file ${file.storagePath}`,
+              error,
+            );
           }
         }
       }
@@ -617,7 +674,8 @@ export class FilesService {
   }
 
   async emptyTrash(userId: number) {
-    const queryRunner = this.fileRepository.manager.connection.createQueryRunner();
+    const queryRunner =
+      this.fileRepository.manager.connection.createQueryRunner();
     let transactionStarted = false;
     let physicalFilesToDelete: FileEntity[] = [];
 
@@ -625,7 +683,8 @@ export class FilesService {
       await queryRunner.connect();
       await queryRunner.startTransaction("SERIALIZABLE");
       transactionStarted = true;
-      const folderRows: { id: number }[] = await queryRunner.manager.query(`
+      const folderRows: { id: number }[] = await queryRunner.manager.query(
+        `
         WITH RECURSIVE trash_folders AS (
           SELECT id FROM folders WHERE "userId" = $1 AND "isDeleted" = true
           UNION
@@ -634,8 +693,10 @@ export class FilesService {
           WHERE f."userId" = $1
         )
         SELECT id FROM trash_folders
-      `, [userId]);
-      const folderIds = folderRows.map(row => row.id);
+      `,
+        [userId],
+      );
+      const folderIds = folderRows.map((row) => row.id);
 
       let folderFiles: FileEntity[] = [];
       let folderMirrors: FileEntity[] = [];
@@ -662,10 +723,12 @@ export class FilesService {
           where: { userId, folderId: In(folderIds), isFolder: true },
           lock: { mode: "pessimistic_write" },
         });
-        const mirroredFolderIds = new Set(folderMirrors.map(file => file.folderId));
+        const mirroredFolderIds = new Set(
+          folderMirrors.map((file) => file.folderId),
+        );
         if (
           folderMirrors.length !== folderIds.length ||
-          folderIds.some(folderId => !mirroredFolderIds.has(folderId))
+          folderIds.some((folderId) => !mirroredFolderIds.has(folderId))
         ) {
           throw new NotFoundException("Folder mirror not found");
         }
@@ -680,10 +743,14 @@ export class FilesService {
       const totalSize = this.sumFileSizes(physicalFilesToDelete);
 
       // Atomic quota decrement (inside transaction)
-      await this.usersService.decrementStorageUsed(userId, totalSize, queryRunner.manager);
+      await this.usersService.decrementStorageUsed(
+        userId,
+        totalSize,
+        queryRunner.manager,
+      );
 
       // Bulk delete all records (inside transaction)
-      const fileIds = allFileRecords.map(f => f.id);
+      const fileIds = allFileRecords.map((f) => f.id);
       if (fileIds.length > 0) {
         await queryRunner.manager.delete(FileEntity, fileIds);
       }
@@ -699,7 +766,10 @@ export class FilesService {
           try {
             await this.storageService.deleteFile(file.storagePath);
           } catch (error) {
-            this.logger.error(`Failed to delete physical file ${file.storagePath}`, error);
+            this.logger.error(
+              `Failed to delete physical file ${file.storagePath}`,
+              error,
+            );
           }
         }
       }
@@ -764,7 +834,11 @@ export class FilesService {
       await queryRunner.connect();
       await queryRunner.startTransaction();
       transactionStarted = true;
-      await this.usersService.updateStorageUsed(userId, size, queryRunner.manager);
+      await this.usersService.updateStorageUsed(
+        userId,
+        size,
+        queryRunner.manager,
+      );
       await queryRunner.manager.save(copy);
       commitAttempted = true;
       await queryRunner.commitTransaction();
@@ -791,7 +865,10 @@ export class FilesService {
           try {
             await queryRunner.rollbackTransaction();
           } catch (rollbackError) {
-            this.logger.error("Failed to roll back copied file transaction", rollbackError);
+            this.logger.error(
+              "Failed to roll back copied file transaction",
+              rollbackError,
+            );
           }
         }
         await cleanupDestination();
@@ -802,7 +879,10 @@ export class FilesService {
         try {
           await queryRunner.release();
         } catch (releaseError) {
-          this.logger.error("Failed to release copied file transaction", releaseError);
+          this.logger.error(
+            "Failed to release copied file transaction",
+            releaseError,
+          );
         }
       }
     }

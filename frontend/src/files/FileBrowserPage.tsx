@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import { ApiError } from '../api/errors'
 import type { FileItem, FolderContents, FolderItem } from '../types/files'
-import { getFolder, getFolderContents } from './api'
+import { copyFile, createFolder, getFolder, getFolderContents, moveFile, moveFolder, moveToTrash, renameFile, renameFolder } from './api'
 import {
   BrowserDownloadLimitError,
   downloadOriginalFile,
@@ -13,16 +13,19 @@ import { uploadFile, type UploadProgress } from './upload'
 import { ShareDialog } from '../sharing/ShareDialog'
 import type { ShareTarget } from '../sharing/api'
 import { PreviewModal } from './PreviewModal'
+import { safeOperationError } from './operationErrors'
 
 interface Crumb { id: number; name: string }
 interface FolderLocationState { crumbs?: Crumb[] }
 
 type PageState =
   | { status: 'loading' }
-  | { status: 'ready'; contents: FolderContents; crumbs: Crumb[] }
+  | { status: 'ready'; folderId: number | null; contents: FolderContents; crumbs: Crumb[]; warning: string | null }
   | { status: 'error'; message: string }
   | { status: 'not-found' }
   | { status: 'forbidden' }
+
+type RemovedItem = { kind: 'file' | 'folder'; id: number }
 
 export function FileBrowserPage() {
   const { folderId: folderIdParam } = useParams()
@@ -30,6 +33,7 @@ export function FileBrowserPage() {
   const navigate = useNavigate()
   const [reloadKey, setReloadKey] = useState(0)
   const [page, setPage] = useState<PageState>({ status: 'loading' })
+  const requestGeneration = useRef(0)
   const folderId = parseFolderId(folderIdParam)
 
   useEffect(() => {
@@ -39,11 +43,14 @@ export function FileBrowserPage() {
     }
 
     const controller = new AbortController()
-    setPage({ status: 'loading' })
+    const generation = ++requestGeneration.current
+    setPage((current) => current.status === 'ready' && current.folderId === folderId ? current : { status: 'loading' })
     loadPage(folderId, location.state, controller.signal)
-      .then(({ contents, crumbs }) => setPage({ status: 'ready', contents, crumbs }))
+      .then(({ contents, crumbs }) => {
+        if (generation === requestGeneration.current && !controller.signal.aborted) setPage({ status: 'ready', folderId, contents, crumbs, warning: null })
+      })
       .catch((error: unknown) => {
-        if (controller.signal.aborted) return
+        if (controller.signal.aborted || generation !== requestGeneration.current) return
         if (error instanceof ApiError && error.status === 404) {
           setPage({ status: 'not-found' })
           return
@@ -52,15 +59,14 @@ export function FileBrowserPage() {
           setPage({ status: 'forbidden' })
           return
         }
-        setPage({
-          status: 'error',
-          message: error instanceof ApiError ? error.message : 'This folder could not be loaded.',
-        })
+        const message = safeOperationError(error, 'This folder could not be loaded.')
+        setPage((current) => current.status === 'ready' && current.folderId === folderId ? { ...current, warning: message } : { status: 'error', message })
       })
     return () => controller.abort()
   }, [folderId, folderIdParam, location.state, reloadKey])
 
-  const crumbs = page.status === 'ready' ? page.crumbs : readStateCrumbs(location.state)
+  const readyPage = page.status === 'ready' && page.folderId === folderId ? page : null
+  const crumbs = readyPage ? readyPage.crumbs : readStateCrumbs(location.state)
   const title = crumbs[crumbs.length - 1]?.name ?? 'My Files'
 
   function openFolder(folder: FolderItem) {
@@ -69,17 +75,33 @@ export function FileBrowserPage() {
     })
   }
 
+  function refresh(remove?: RemovedItem) {
+    if (remove) {
+      setPage((current) => current.status !== 'ready' || current.folderId !== folderId ? current : {
+        ...current,
+        contents: {
+          files: remove.kind === 'file' ? current.contents.files.filter((item) => item.id !== remove.id) : current.contents.files,
+          folders: remove.kind === 'folder' ? current.contents.folders.filter((item) => item.id !== remove.id) : current.contents.folders,
+        },
+      })
+    }
+    setReloadKey((key) => key + 1)
+  }
+
   return (
     <section aria-labelledby="files-heading">
       <Breadcrumbs crumbs={crumbs} />
       <h2 className="mb-6 text-2xl font-bold text-gray-900" id="files-heading">{title}</h2>
       {folderIdParam === undefined || folderId !== null ? (
-        <UploadControl
-          enabled={page.status === 'ready'}
-          key={folderId === null ? 'upload-root' : `upload-${folderId}`}
-          onUploaded={() => setReloadKey((key) => key + 1)}
-          parentId={folderId ?? undefined}
-        />
+        <div className="grid gap-4 md:grid-cols-2">
+          <UploadControl
+            enabled={readyPage !== null}
+            key={folderId === null ? 'upload-root' : `upload-${folderId}`}
+            onUploaded={() => setReloadKey((key) => key + 1)}
+            parentId={folderId ?? undefined}
+          />
+          <CreateFolderControl enabled={readyPage !== null} onCreated={() => setReloadKey((key) => key + 1)} parentId={folderId ?? undefined} />
+        </div>
       ) : null}
       {page.status === 'loading' ? (
         <p aria-live="polite" className="rounded-md bg-white p-6 text-gray-600" role="status">Loading files…</p>
@@ -99,8 +121,8 @@ export function FileBrowserPage() {
       {page.status === 'forbidden' ? (
         <DirectoryAccessState message="You do not have permission to view this folder." />
       ) : null}
-      {page.status === 'ready' ? (
-        <DirectoryTable contents={page.contents} onOpenFolder={openFolder} />
+      {readyPage ? (
+        <>{readyPage.warning ? <div className="mb-4 rounded border border-red-200 bg-red-50 p-3" role="alert">{readyPage.warning} <button className="ml-2 text-blue-700 underline" onClick={() => setReloadKey((key) => key + 1)} type="button">Retry</button></div> : null}<DirectoryTable contents={readyPage.contents} currentFolderId={readyPage.folderId} onChanged={refresh} onOpenFolder={openFolder} /></>
       ) : null}
     </section>
   )
@@ -172,32 +194,52 @@ function Breadcrumbs({ crumbs }: { crumbs: Crumb[] }) {
   )
 }
 
-function DirectoryTable({ contents, onOpenFolder }: { contents: FolderContents; onOpenFolder(folder: FolderItem): void }) {
+function DirectoryTable({ contents, currentFolderId, onChanged, onOpenFolder }: { contents: FolderContents; currentFolderId: number | null; onChanged(remove?: RemovedItem): void; onOpenFolder(folder: FolderItem): void }) {
   const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [pending, setPending] = useState<string | null>(null)
+  const [moveTargets, setMoveTargets] = useState<Record<string, string>>({})
+  const pendingRef = useRef(false)
+  async function mutate(key: string, operation: () => Promise<unknown>, remove?: RemovedItem) {
+    if (pendingRef.current) return
+    pendingRef.current = true
+    setPending(key)
+    setError(null)
+    try { await operation(); onChanged(remove) }
+    catch (caught) { setError(safeOperationError(caught, 'The operation could not be completed.')) }
+    finally { pendingRef.current = false; setPending(null) }
+  }
+  function requestedName(current: string) {
+    const value = window.prompt('New name', current)?.trim()
+    if (!value || value.length > 255) { if (value !== undefined) setError('Enter a valid non-empty name of at most 255 characters.'); return null }
+    return value
+  }
+  function selectedParent(key: string): number | undefined { const value = moveTargets[key] ?? ''; return value === '' ? undefined : Number(value) }
   if (contents.folders.length === 0 && contents.files.length === 0) {
     return <p className="rounded-md bg-white p-8 text-center text-gray-600">This folder is empty.</p>
   }
   return (
-    <div className="overflow-x-auto rounded-lg border bg-white">
+    <div>{error ? <p className="mb-3 rounded border border-red-200 bg-red-50 p-3 text-red-800" role="alert">{error}</p> : null}<div className="overflow-x-auto rounded-lg border bg-white">
       <table className="min-w-full divide-y divide-gray-200">
         <caption className="sr-only">Files and folders in the current location</caption>
         <thead className="bg-gray-50 text-left text-sm text-gray-600"><tr><th className="px-4 py-3 font-medium" scope="col">Name</th><th className="px-4 py-3 font-medium" scope="col">Type</th><th className="px-4 py-3 font-medium" scope="col">Size</th><th className="px-4 py-3 font-medium" scope="col">Modified</th><th className="px-4 py-3 text-right font-medium" scope="col">Actions</th></tr></thead>
         <tbody className="divide-y divide-gray-100">
           {contents.folders.map((folder) => (
-            <tr key={`folder-${folder.id}`}><td className="px-4 py-3"><button className="font-medium text-blue-700 hover:underline" onClick={() => onOpenFolder(folder)} type="button">{folder.name}</button></td><td className="px-4 py-3 text-gray-600">Folder</td><td className="px-4 py-3 text-gray-500">—</td><td className="px-4 py-3 text-gray-600">{formatDate(folder.updatedAt)}</td><td className="px-4 py-3 text-right"><button className="text-blue-700 hover:underline" onClick={() => setShareTarget({ fileId: folder.shareFileId, name: folder.name, isFolder: true })} type="button">Share {folder.name}</button></td></tr>
+            <tr key={`folder-${folder.id}`}><td className="px-4 py-3"><button className="font-medium text-blue-700 hover:underline" onClick={() => onOpenFolder(folder)} type="button">{folder.name}</button></td><td className="px-4 py-3 text-gray-600">Folder</td><td className="px-4 py-3 text-gray-500">—</td><td className="px-4 py-3 text-gray-600">{formatDate(folder.updatedAt)}</td><td className="px-4 py-3 text-right"><div className="flex flex-wrap justify-end gap-3"><button className="text-blue-700 hover:underline" disabled={pending !== null} onClick={() => setShareTarget({ fileId: folder.shareFileId, name: folder.name, isFolder: true })} type="button">Share {folder.name}</button><button className="text-blue-700 underline" disabled={pending !== null} onClick={() => { const name = requestedName(folder.name); if (name) void mutate(`rename-folder-${folder.id}`, () => renameFolder(folder.id, name)) }} type="button">Rename {folder.name}</button><select aria-label={`Destination for ${folder.name}`} className="rounded border px-2" disabled={pending !== null} onChange={(event) => setMoveTargets((targets) => ({ ...targets, [`folder-${folder.id}`]: event.target.value }))} value={moveTargets[`folder-${folder.id}`] ?? ''}><option value="">My Files</option>{contents.folders.filter((candidate) => candidate.id !== folder.id).map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}</select><button className="text-blue-700 underline" disabled={pending !== null} onClick={() => void mutate(`move-folder-${folder.id}`, () => moveFolder(folder.id, selectedParent(`folder-${folder.id}`) ?? null))} type="button">Move {folder.name}</button><button className="text-red-700 underline" disabled={pending !== null} onClick={() => { if (window.confirm(`Move ${folder.name} and its contents to Trash?`)) void mutate(`trash-folder-${folder.id}`, () => moveToTrash('folder', folder.id), { kind: 'folder', id: folder.id }) }} type="button">{pending === `trash-folder-${folder.id}` ? 'Moving…' : `Trash ${folder.name}`}</button></div></td></tr>
           ))}
-          {contents.files.map((file) => <FileRow file={file} key={`file-${file.id}`} onShare={() => setShareTarget({ fileId: file.id, name: file.name, isFolder: false })} />)}
+          {contents.files.map((file) => <FileRow currentFolderId={currentFolderId} destinations={contents.folders} disabled={pending !== null} file={file} key={`file-${file.id}`} mutate={mutate} onShare={() => setShareTarget({ fileId: file.id, name: file.name, isFolder: false })} requestedName={requestedName} />)}
         </tbody>
       </table>
       {shareTarget ? <ShareDialog onClose={() => setShareTarget(null)} target={shareTarget} /> : null}
-    </div>
+    </div></div>
   )
 }
 
-function FileRow({ file, onShare }: { file: FileItem; onShare(): void }) {
+function FileRow({ currentFolderId, destinations, disabled, file, mutate, onShare, requestedName }: { currentFolderId: number | null; destinations: FolderItem[]; disabled: boolean; file: FileItem; mutate(key: string, operation: () => Promise<unknown>, remove?: RemovedItem): Promise<void>; onShare(): void; requestedName(current: string): string | null }) {
   const [downloadState, setDownloadState] = useState<'idle' | 'downloading'>('idle')
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const [showPreview, setShowPreview] = useState(false)
+  const [moveTarget, setMoveTarget] = useState('')
 
   async function download() {
     if (downloadState === 'downloading') return
@@ -219,13 +261,14 @@ function FileRow({ file, onShare }: { file: FileItem; onShare(): void }) {
       <td className="px-4 py-3 text-gray-600">{formatBytes(file.size)}</td>
       <td className="px-4 py-3 text-gray-600">{formatDate(file.updatedAt)}</td>
       <td className="px-4 py-3 text-right">
-        <button className="mr-3 text-blue-700 hover:underline" onClick={onShare} type="button">Share {file.name}</button>
+        <button className="mr-3 text-blue-700 hover:underline" disabled={disabled} onClick={onShare} type="button">Share {file.name}</button>
         <button className="mr-4 text-blue-700 hover:underline" onClick={() => setShowPreview(true)} type="button">
           Preview {file.name}
         </button>
         <button className="text-blue-700 hover:underline disabled:opacity-60" disabled={downloadState === 'downloading'} onClick={() => void download()} type="button">
           {downloadState === 'downloading' ? 'Downloading…' : `Download ${file.name}`}
         </button>
+        <div className="mt-2 flex flex-wrap justify-end gap-3"><button className="text-blue-700 underline" disabled={disabled} onClick={() => { const name = requestedName(file.name); if (name) void mutate(`rename-file-${file.id}`, () => renameFile(file.id, name)) }} type="button">Rename {file.name}</button><select aria-label={`Destination for ${file.name}`} className="rounded border px-2" disabled={disabled} onChange={(event) => setMoveTarget(event.target.value)} value={moveTarget}><option value="">My Files</option>{destinations.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select><button className="text-blue-700 underline" disabled={disabled} onClick={() => void mutate(`move-file-${file.id}`, () => moveFile(file.id, moveTarget === '' ? undefined : Number(moveTarget)))} type="button">Move {file.name}</button><button className="text-blue-700 underline" disabled={disabled} onClick={() => void mutate(`copy-file-${file.id}`, () => copyFile(file.id, currentFolderId ?? undefined))} type="button">Copy {file.name}</button><button className="text-red-700 underline" disabled={disabled} onClick={() => { if (window.confirm(`Move ${file.name} to Trash?`)) void mutate(`trash-file-${file.id}`, () => moveToTrash('file', file.id), { kind: 'file', id: file.id }) }} type="button">Trash {file.name}</button></div>
         {downloadError ? <p className="mt-1 text-sm text-red-700" role="alert">{downloadError}</p> : null}
         {showPreview ? <PreviewModal file={file} onClose={() => setShowPreview(false)} /> : null}
       </td>
@@ -237,6 +280,26 @@ type UploadUiState =
   | { status: 'idle' | 'selected' | 'cancelled'; progress: null; message: string | null }
   | { status: 'active'; progress: UploadProgress; message: null }
   | { status: 'success' | 'error'; progress: UploadProgress | null; message: string }
+
+function CreateFolderControl({ enabled, parentId, onCreated }: { enabled: boolean; parentId?: number; onCreated(): void }) {
+  const [name, setName] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const busyRef = useRef(false)
+  async function submit(event: React.FormEvent) {
+    event.preventDefault()
+    const trimmed = name.trim()
+    if (busyRef.current || !enabled) return
+    if (!trimmed || trimmed.length > 255) { setError('Enter a valid non-empty name of at most 255 characters.'); return }
+    busyRef.current = true
+    setBusy(true)
+    setError(null)
+    try { await createFolder(trimmed, parentId); setName(''); onCreated() }
+    catch (caught) { setError(safeOperationError(caught, 'The folder could not be created.')) }
+    finally { busyRef.current = false; setBusy(false) }
+  }
+  return <section aria-labelledby="create-folder-heading" className="mb-6 rounded-lg border bg-white p-4"><h3 className="font-semibold" id="create-folder-heading">Create a folder</h3><form className="mt-3 flex flex-wrap gap-3" onSubmit={(event) => void submit(event)}><label className="sr-only" htmlFor="new-folder-name">Folder name</label><input className="min-w-0 flex-1 rounded border px-3 py-2" disabled={!enabled || busy} id="new-folder-name" maxLength={255} onChange={(event) => setName(event.target.value)} placeholder="Folder name" value={name} /><button className="rounded bg-blue-700 px-4 py-2 text-white disabled:opacity-50" disabled={!enabled || busy || !name.trim()} type="submit">{busy ? 'Creating…' : 'Create folder'}</button></form>{error ? <p className="mt-2 text-sm text-red-700" role="alert">{error}</p> : null}</section>
+}
 
 function UploadControl({ enabled, parentId, onUploaded }: { enabled: boolean; parentId?: number; onUploaded(): void }) {
   const [file, setFile] = useState<File | null>(null)

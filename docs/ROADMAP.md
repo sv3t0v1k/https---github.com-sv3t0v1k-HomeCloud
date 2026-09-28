@@ -24,7 +24,7 @@
 | Phase 10 — Sharing & Access Control | `COMPLETE` | 10.1–10.8 подтверждены; checkpoint `08ea21f` |
 | Phase 11 — Backend/API Hardening | `COMPLETE` | 11.1–11.5 COMPLETE |
 | Phase 12 — Performance & Scalability | `COMPLETE` | 12.1–12.6 COMPLETE |
-| Phase 13 — Frontend Foundation | `IN PROGRESS` | 13.1–13.5 COMPLETE; следующий подэтап не начат |
+| Phase 13 — Frontend Foundation | `IN PROGRESS` | 13.1–13.6 COMPLETE; 13.7 следующий, не начат |
 
 ## Completed
 
@@ -325,7 +325,7 @@ OUT OF SCOPE:
 
 Goal: превратить существующий React/Vite-прототип в минимальный рабочий клиент к подтверждённым backend-контрактам без преждевременной смены стека, усложнения state management или заявления неподтверждённой browser-scale поддержки.
 
-Phase 13 начат отдельным решением владельца. Завершены 13.1–13.4; остальные подэтапы остаются `PLANNED` и не начинаются автоматически.
+Phase 13 начат отдельным решением владельца. Завершены 13.1–13.6; 13.7 остаётся `PLANNED` и не начинается автоматически.
 
 ### Подтверждённые ограничения backend-контрактов
 
@@ -504,7 +504,7 @@ Delivered:
 
 Evidence: focused frontend sharing/preview/browser tests 35/35 PASS; full frontend suite 9 files / 66 tests PASS; focused backend files/sharing tests 53/53 PASS; full backend suite 47 passed / 4 skipped, 562 passed / 15 skipped tests; frontend/backend production builds PASS; frontend lint PASS; backend lint PASS с 15 прежними `jest/expect-expect` warnings; `git diff --check` PASS; independent review APPROVE. Real-API smoke не выполнялся против постоянного normal stack без гарантированно disposable credentials/data и полного cleanup lifecycle.
 
-### 13.6 Trash, File Operations & UX Resilience — PLANNED
+### 13.6 Trash, File Operations & UX Resilience — COMPLETE
 
 Objective: завершить повседневные file operations и устойчивость интерфейса без расширения backend scope.
 
@@ -524,6 +524,15 @@ Acceptance criteria:
 - основные keyboard/focus/responsive paths проходят regression checks.
 
 Dependencies: 13.1–13.4; фактические files/trash contracts; 13.5 не является обязательной зависимостью.
+
+Delivered:
+- добавлены отдельная корзина с датой удаления, restore, permanent delete и empty trash, а также create folder, rename/move/delete файлов и папок и copy файлов по фактическим backend-контрактам;
+- folder lifecycle HTTP routes и operation DTO validation закрывают ранее недоступные backend-сервисы; restore файла или папки безопасно возвращает объект в root, если прежний parent больше не активен;
+- listing state привязан к загрузившему его `folderId` и request generation: после A→B stale-строки немедленно неактивны, late A response не заменяет B, а mutation handlers используют явные item IDs и загруженный folder context;
+- успешное удаление отражается локально до refetch, поэтому transient повторная загрузка не воскрешает удалённый элемент; ошибки остаются безопасными и доступны для retry;
+- destructive actions требуют подтверждения, повторные мутации блокируются, terminal mutation 401 проходит через единый session-expiry lifecycle.
+
+Evidence: focused frontend operations/trash/API/auth tests 34/34 PASS; full frontend suite 11 files / 81 tests PASS; focused backend lifecycle/DTO tests 54/54 PASS; full backend suite 48 passed / 4 skipped, 567 passed / 15 skipped tests; frontend/backend production builds PASS; frontend lint PASS; backend lint 0 errors и 15 прежних `jest/expect-expect` warnings; changed backend files formatted штатным Prettier; `git diff --check` PASS; independent review APPROVE после bounded remediation cycle.
 
 ### 13.7 Frontend Regression & Final Gate — PLANNED
 

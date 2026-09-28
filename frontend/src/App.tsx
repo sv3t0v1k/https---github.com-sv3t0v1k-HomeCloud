@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, Link } from 'react-router-dom'
 
 import { ApiError } from './api/errors'
 import { LoginPage } from './auth/LoginPage'
 import { useSession } from './auth/SessionContext'
 import { FileBrowserPage } from './files/FileBrowserPage'
+import { TrashPage } from './files/TrashPage'
 import { ProtectedRoute } from './routing/ProtectedRoute'
 
 function App() {
@@ -15,6 +16,7 @@ function App() {
         <Route element={<ProtectedRoute />}>
           <Route path="/files" element={<FileBrowserLayout />} />
           <Route path="/files/folders/:folderId" element={<FileBrowserLayout />} />
+          <Route path="/files/trash" element={<FileBrowserLayout trash />} />
         </Route>
         <Route path="/" element={<Navigate to="/files" replace />} />
       </Routes>
@@ -22,12 +24,12 @@ function App() {
   )
 }
 
-function FileBrowserLayout() {
+function FileBrowserLayout({ trash = false }: { trash?: boolean }) {
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <FileBrowserPage />
+        {trash ? <TrashPage /> : <FileBrowserPage />}
       </main>
     </div>
   )
@@ -63,6 +65,8 @@ function Navbar() {
             <h1 className="text-xl font-bold text-gray-900">HomeCloud</h1>
           </div>
           <div className="flex items-center gap-4">
+            <Link className="text-blue-700 hover:underline" to="/files">Files</Link>
+            <Link className="text-blue-700 hover:underline" to="/files/trash">Trash</Link>
             {logoutError ? <span className="text-sm text-red-700" role="alert">{logoutError}</span> : null}
             <button
               className="text-gray-700 hover:text-gray-900 disabled:opacity-60"

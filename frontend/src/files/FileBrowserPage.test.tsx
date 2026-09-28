@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {
   AxiosError,
@@ -7,14 +7,14 @@ import {
   type AxiosResponse,
   type InternalAxiosRequestConfig,
 } from 'axios'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom'
 
 import { apiClient } from '../api/client'
 import { FileBrowserPage } from './FileBrowserPage'
 
 describe('FileBrowserPage', () => {
-  afterEach(cleanup)
+  afterEach(() => { cleanup(); vi.restoreAllMocks() })
   beforeEach(() => {
     apiClient.defaults.adapter = undefined
   })
@@ -74,7 +74,7 @@ describe('FileBrowserPage', () => {
 
     renderPage('/files')
     const user = userEvent.setup()
-    expect(await screen.findByRole('alert')).toHaveTextContent('Server error')
+    expect(await screen.findByRole('alert')).toHaveTextContent('server could not complete')
     await user.click(screen.getByRole('button', { name: 'Try again' }))
 
     expect(await screen.findByText('This folder is empty.')).toBeInTheDocument()
@@ -261,11 +261,209 @@ describe('FileBrowserPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(expectedMessage)
     expect(screen.queryByText(/uploaded successfully/)).not.toBeInTheDocument()
   })
+
+  it('creates a folder and refreshes the current listing', async () => {
+    let created = false
+    let payload: unknown
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/files/folders' && config.method === 'get') return ok(config, created ? [folder(8, 'New folder', null)] : [])
+      if (config.url === '/files') return ok(config, [])
+      if (config.url === '/files/folders' && config.method === 'post') { payload = JSON.parse(String(config.data)); created = true; return createdResponse(config, {}) }
+      throw new Error(`Unexpected request: ${config.url}`)
+    }
+    renderPage('/files')
+    const user = userEvent.setup()
+    await user.type(await screen.findByLabelText('Folder name'), 'New folder')
+    await user.click(screen.getByRole('button', { name: 'Create folder' }))
+    expect(await screen.findByRole('button', { name: 'New folder' })).toBeInTheDocument()
+    expect(payload).toEqual({ name: 'New folder' })
+  })
+
+  it('renames, moves, copies and trashes files with refresh and confirmation', async () => {
+    let present = true
+    const mutations: Array<{ url?: string; method?: string; data?: unknown }> = []
+    vi.spyOn(window, 'prompt').mockReturnValue('renamed.txt')
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/files/folders') return ok(config, [folder(7, 'Destination', null)])
+      if (config.url === '/files') return ok(config, present ? [file(11, 'report.txt', 2)] : [])
+      mutations.push({ url: config.url, method: config.method, data: config.data ? JSON.parse(String(config.data)) : undefined })
+      if (config.url === '/files/11' && config.method === 'delete') present = false
+      return ok(config, {})
+    }
+    renderPage('/files')
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'Rename report.txt' }))
+    await waitFor(() => expect(mutations).toHaveLength(1))
+    await user.selectOptions(screen.getByLabelText('Destination for report.txt'), '7')
+    await user.click(screen.getByRole('button', { name: 'Move report.txt' }))
+    await waitFor(() => expect(mutations).toHaveLength(2))
+    await user.click(screen.getByRole('button', { name: 'Copy report.txt' }))
+    await waitFor(() => expect(mutations).toHaveLength(3))
+    await user.click(screen.getByRole('button', { name: 'Trash report.txt' }))
+    await waitFor(() => expect(screen.queryByText('report.txt', { selector: 'td' })).not.toBeInTheDocument())
+    expect(mutations).toEqual(expect.arrayContaining([
+      { url: '/files/11', method: 'patch', data: { name: 'renamed.txt' } },
+      { url: '/files/11/move', method: 'post', data: { targetParentId: 7 } },
+      { url: '/files/11/copy', method: 'post', data: {} },
+      { url: '/files/11', method: 'delete', data: undefined },
+    ]))
+  })
+
+  it('makes the previous folder non-actionable immediately after navigation', async () => {
+    let mutationCalls = 0
+    apiClient.defaults.adapter = async (config) => {
+      const parentId = config.params?.parentId as number | undefined
+      if (config.url === '/files/folders/7') return ok(config, folder(7, 'Destination', null))
+      if (config.url === '/files/folders' && parentId === 7) return await new Promise<AxiosResponse>(() => undefined)
+      if (config.url === '/files' && parentId === 7) return await new Promise<AxiosResponse>(() => undefined)
+      if (config.url === '/files/folders') return ok(config, [folder(7, 'Destination', null)])
+      if (config.url === '/files') return ok(config, [file(11, 'old.txt', 1)])
+      mutationCalls += 1
+      throw new Error(`Unexpected request: ${config.url}`)
+    }
+    renderPage('/files')
+    const user = userEvent.setup()
+    await screen.findByRole('button', { name: 'Rename old.txt' })
+    await user.click(screen.getByRole('button', { name: 'Destination' }))
+    expect(screen.queryByRole('button', { name: 'Rename old.txt' })).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Loading files')
+    expect(mutationCalls).toBe(0)
+  })
+
+  it('keeps the duplicate mutation guard enforced while navigation replaces the view', async () => {
+    let mutationCalls = 0
+    let finishMutation!: (value: AxiosResponse) => void
+    vi.spyOn(window, 'prompt').mockReturnValue('renamed.txt')
+    apiClient.defaults.adapter = async (config) => {
+      const parentId = config.params?.parentId as number | undefined
+      if (config.url === '/files/folders/7') return ok(config, folder(7, 'Destination', null))
+      if (config.url === '/files/folders' && parentId === 7) return await new Promise<AxiosResponse>(() => undefined)
+      if (config.url === '/files' && parentId === 7) return await new Promise<AxiosResponse>(() => undefined)
+      if (config.url === '/files/folders') return ok(config, [folder(7, 'Destination', null)])
+      if (config.url === '/files') return ok(config, [file(11, 'old.txt', 1)])
+      if (config.url === '/files/11' && config.method === 'patch') {
+        mutationCalls += 1
+        return await new Promise<AxiosResponse>((resolve) => { finishMutation = resolve })
+      }
+      throw new Error(`Unexpected request: ${config.url}`)
+    }
+    renderPage('/files')
+    const user = userEvent.setup()
+    const rename = await screen.findByRole('button', { name: 'Rename old.txt' })
+    await user.dblClick(rename)
+    expect(mutationCalls).toBe(1)
+    await user.click(screen.getByRole('button', { name: 'Destination' }))
+    expect(screen.queryByRole('button', { name: 'Rename old.txt' })).not.toBeInTheDocument()
+    expect(mutationCalls).toBe(1)
+    finishMutation(ok({} as InternalAxiosRequestConfig, {}))
+  })
+
+  it('discards a superseded listing that resolves after the current folder', async () => {
+    let finishOldFolders!: (value: AxiosResponse) => void
+    let finishOldFiles!: (value: AxiosResponse) => void
+    apiClient.defaults.adapter = async (config) => {
+      const parentId = config.params?.parentId as number | undefined
+      if (config.url === '/files/folders/7') return ok(config, folder(7, 'Current', null))
+      if (config.url === '/files/folders' && parentId === 7) return ok(config, [])
+      if (config.url === '/files' && parentId === 7) return ok(config, [file(22, 'current.txt', 1, 7)])
+      if (config.url === '/files/folders') return await new Promise<AxiosResponse>((resolve) => { finishOldFolders = resolve })
+      if (config.url === '/files') return await new Promise<AxiosResponse>((resolve) => { finishOldFiles = resolve })
+      throw new Error(`Unexpected request: ${config.url}`)
+    }
+    renderNavigablePage()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Go to current folder' }))
+    expect(await screen.findByText('current.txt')).toBeInTheDocument()
+    finishOldFolders(ok({} as InternalAxiosRequestConfig, []))
+    finishOldFiles(ok({} as InternalAxiosRequestConfig, [file(11, 'late-old.txt', 1)]))
+    await waitFor(() => expect(screen.queryByText('late-old.txt')).not.toBeInTheDocument())
+    expect(screen.getByText('current.txt')).toBeInTheDocument()
+  })
+
+  it('covers folder rename, move, and delete component paths', async () => {
+    let folders = [folder(7, 'Project', null), folder(8, 'Archive', null)]
+    const mutations: Array<{ url?: string; method?: string; data?: unknown }> = []
+    vi.spyOn(window, 'prompt').mockReturnValue('Renamed project')
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/files/folders' && config.method === 'get') return ok(config, folders)
+      if (config.url === '/files') return ok(config, [])
+      mutations.push({ url: config.url, method: config.method, data: config.data ? JSON.parse(String(config.data)) : undefined })
+      if (config.url === '/files/folders/7' && config.method === 'delete') folders = folders.filter((item) => item.id !== 7)
+      return ok(config, {})
+    }
+    renderPage('/files')
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'Rename Project' }))
+    await waitFor(() => expect(mutations).toHaveLength(1))
+    await user.selectOptions(screen.getByLabelText('Destination for Project'), '8')
+    await user.click(screen.getByRole('button', { name: 'Move Project' }))
+    await waitFor(() => expect(mutations).toHaveLength(2))
+    await user.click(screen.getByRole('button', { name: 'Trash Project' }))
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Project' })).not.toBeInTheDocument())
+    expect(mutations).toEqual(expect.arrayContaining([
+      { url: '/files/folders/7', method: 'patch', data: { name: 'Renamed project' } },
+      { url: '/files/folders/7', method: 'patch', data: { parentId: 8 } },
+      { url: '/files/folders/7', method: 'delete', data: undefined },
+    ]))
+  })
+
+  it('keeps a successfully removed item absent when the refetch fails', async () => {
+    let deleted = false
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/files/folders') return ok(config, [])
+      if (config.url === '/files') {
+        if (deleted) throw serverError(config)
+        return ok(config, [file(11, 'remove-me.txt', 1)])
+      }
+      if (config.url === '/files/11' && config.method === 'delete') { deleted = true; return ok(config, {}) }
+      throw new Error(`Unexpected request: ${config.url}`)
+    }
+    renderPage('/files')
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'Trash remove-me.txt' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('server could not complete')
+    expect(screen.queryByText('remove-me.txt')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+  })
+
+  it('keeps the item stable and safely reports a 401 mutation', async () => {
+    vi.spyOn(window, 'prompt').mockReturnValue('renamed.txt')
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/files/folders') return ok(config, [])
+      if (config.url === '/files') return ok(config, [file(11, 'report.txt', 1)])
+      throw responseFailure(config, 401, 'raw token failure')
+    }
+    renderPage('/files')
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'Rename report.txt' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('session has expired')
+    expect(screen.getByText('report.txt')).toBeInTheDocument()
+    expect(screen.queryByText('raw token failure')).not.toBeInTheDocument()
+  })
 })
 
 function renderPage(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
+      <Routes>
+        <Route path="/files" element={<FileBrowserPage />} />
+        <Route path="/files/folders/:folderId" element={<FileBrowserPage />} />
+      </Routes>
+    </MemoryRouter>,
+  )
+}
+
+function renderNavigablePage() {
+  function Navigation() {
+    const navigate = useNavigate()
+    return <button onClick={() => navigate('/files/folders/7')} type="button">Go to current folder</button>
+  }
+  return render(
+    <MemoryRouter initialEntries={['/files']}>
+      <Navigation />
       <Routes>
         <Route path="/files" element={<FileBrowserPage />} />
         <Route path="/files/folders/:folderId" element={<FileBrowserPage />} />
@@ -294,6 +492,8 @@ function file(id: number, name: string, size: string | number, parentId: number 
 function created(config: InternalAxiosRequestConfig, data: unknown): AxiosResponse {
   return { ...ok(config, data), status: 201, statusText: 'Created' }
 }
+
+const createdResponse = created
 
 function ok(config: InternalAxiosRequestConfig, data: unknown): AxiosResponse {
   return {

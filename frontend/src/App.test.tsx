@@ -163,6 +163,40 @@ describe('authentication UX', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('session has expired')
     expect(screen.getByRole('heading', { name: 'Sign In' })).toBeInTheDocument()
   })
+
+  it('routes a terminal 401 from a file mutation through session expiry handling', async () => {
+    tokenStorage.set({ accessToken: 'stale', refreshToken: 'initial-refresh' })
+    let refreshCalls = 0
+    sessionClient.defaults.adapter = async (config) => {
+      refreshCalls += 1
+      if (refreshCalls === 1) {
+        return response(config, {
+          success: true,
+          data: { accessToken: 'access', refreshToken: 'rotated-refresh' },
+        })
+      }
+      throw responseError(config, 401, 'Refresh token expired')
+    }
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/users/me') return userResponse(config)
+      if (config.url === '/files/folders' && config.method === 'post') {
+        throw responseError(config, 401, 'Access token expired')
+      }
+      if (isDirectoryRequest(config.url)) return emptyDirectoryResponse(config)
+      throw new Error(`Unexpected request: ${config.url}`)
+    }
+
+    renderApp('/files')
+    const user = userEvent.setup()
+    await user.type(await screen.findByLabelText('Folder name'), 'New folder')
+    await user.click(screen.getByRole('button', { name: 'Create folder' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('session has expired')
+    expect(screen.getByRole('heading', { name: 'Sign In' })).toBeInTheDocument()
+    expect(tokenStorage.getAccessToken()).toBeNull()
+    expect(tokenStorage.getRefreshToken()).toBeNull()
+    expect(refreshCalls).toBe(2)
+  })
 })
 
 function renderApp(path: string) {

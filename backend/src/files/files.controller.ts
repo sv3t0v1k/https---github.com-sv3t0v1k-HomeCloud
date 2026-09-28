@@ -17,6 +17,7 @@ import {
 } from "@nestjs/common";
 import { Request as ExpressRequest, Response } from "express";
 import * as fs from "fs";
+import { IsInt, IsOptional, IsString, MaxLength, Min } from "class-validator";
 import { JwtGuard } from "../auth/guards/jwt.guard";
 import { FilesService } from "./files.service";
 import { StorageService } from "../storage/storage.service";
@@ -71,20 +72,39 @@ export function parseDownloadRange(
 }
 
 class CreateFolderDto {
+  @IsString()
+  @MaxLength(255)
   name!: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
   parentId?: number;
 }
 
 class UpdateFileDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
   name?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
   parentId?: number | null;
 }
 
 class CopyFileDto {
+  @IsOptional()
+  @IsInt()
+  @Min(1)
   targetParentId?: number;
 }
 
 class MoveFileDto {
+  @IsOptional()
+  @IsInt()
+  @Min(1)
   targetParentId?: number;
 }
 
@@ -130,6 +150,49 @@ export class FilesController {
       throw new BadRequestException("Invalid folder id");
     }
     return this.filesService.findFolder(req.user.userId, folderId);
+  }
+
+  @Patch("folders/:id")
+  async updateFolder(
+    @NestRequest() req: ExpressRequest & { user: { userId: number } },
+    @Param("id") id: string,
+    @Body() dto: UpdateFileDto,
+  ) {
+    return this.filesService.updateFolder(
+      req.user.userId,
+      parseInt(id, 10),
+      dto,
+    );
+  }
+
+  @Delete("folders/:id")
+  @HttpCode(HttpStatus.OK)
+  async removeFolder(
+    @NestRequest() req: ExpressRequest & { user: { userId: number } },
+    @Param("id") id: string,
+  ) {
+    return this.filesService.removeFolder(req.user.userId, parseInt(id, 10));
+  }
+
+  @Post("folders/:id/restore")
+  @HttpCode(HttpStatus.OK)
+  async restoreFolder(
+    @NestRequest() req: ExpressRequest & { user: { userId: number } },
+    @Param("id") id: string,
+  ) {
+    return this.filesService.restoreFolder(req.user.userId, parseInt(id, 10));
+  }
+
+  @Delete("folders/:id/permanent")
+  @HttpCode(HttpStatus.OK)
+  async deleteFolderPermanently(
+    @NestRequest() req: ExpressRequest & { user: { userId: number } },
+    @Param("id") id: string,
+  ) {
+    return this.filesService.deleteFolderPermanently(
+      req.user.userId,
+      parseInt(id, 10),
+    );
   }
 
   @Get("trash")
