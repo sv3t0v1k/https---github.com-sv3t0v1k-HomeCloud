@@ -10,6 +10,9 @@ import {
   MAX_BROWSER_BLOB_DOWNLOAD_BYTES,
 } from './download'
 import { uploadFile, type UploadProgress } from './upload'
+import { ShareDialog } from '../sharing/ShareDialog'
+import type { ShareTarget } from '../sharing/api'
+import { PreviewModal } from './PreviewModal'
 
 interface Crumb { id: number; name: string }
 interface FolderLocationState { crumbs?: Crumb[] }
@@ -170,6 +173,7 @@ function Breadcrumbs({ crumbs }: { crumbs: Crumb[] }) {
 }
 
 function DirectoryTable({ contents, onOpenFolder }: { contents: FolderContents; onOpenFolder(folder: FolderItem): void }) {
+  const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null)
   if (contents.folders.length === 0 && contents.files.length === 0) {
     return <p className="rounded-md bg-white p-8 text-center text-gray-600">This folder is empty.</p>
   }
@@ -180,18 +184,20 @@ function DirectoryTable({ contents, onOpenFolder }: { contents: FolderContents; 
         <thead className="bg-gray-50 text-left text-sm text-gray-600"><tr><th className="px-4 py-3 font-medium" scope="col">Name</th><th className="px-4 py-3 font-medium" scope="col">Type</th><th className="px-4 py-3 font-medium" scope="col">Size</th><th className="px-4 py-3 font-medium" scope="col">Modified</th><th className="px-4 py-3 text-right font-medium" scope="col">Actions</th></tr></thead>
         <tbody className="divide-y divide-gray-100">
           {contents.folders.map((folder) => (
-            <tr key={`folder-${folder.id}`}><td className="px-4 py-3"><button className="font-medium text-blue-700 hover:underline" onClick={() => onOpenFolder(folder)} type="button">{folder.name}</button></td><td className="px-4 py-3 text-gray-600">Folder</td><td className="px-4 py-3 text-gray-500">—</td><td className="px-4 py-3 text-gray-600">{formatDate(folder.updatedAt)}</td><td className="px-4 py-3 text-right text-gray-500">—</td></tr>
+            <tr key={`folder-${folder.id}`}><td className="px-4 py-3"><button className="font-medium text-blue-700 hover:underline" onClick={() => onOpenFolder(folder)} type="button">{folder.name}</button></td><td className="px-4 py-3 text-gray-600">Folder</td><td className="px-4 py-3 text-gray-500">—</td><td className="px-4 py-3 text-gray-600">{formatDate(folder.updatedAt)}</td><td className="px-4 py-3 text-right"><button className="text-blue-700 hover:underline" onClick={() => setShareTarget({ fileId: folder.shareFileId, name: folder.name, isFolder: true })} type="button">Share {folder.name}</button></td></tr>
           ))}
-          {contents.files.map((file) => <FileRow file={file} key={`file-${file.id}`} />)}
+          {contents.files.map((file) => <FileRow file={file} key={`file-${file.id}`} onShare={() => setShareTarget({ fileId: file.id, name: file.name, isFolder: false })} />)}
         </tbody>
       </table>
+      {shareTarget ? <ShareDialog onClose={() => setShareTarget(null)} target={shareTarget} /> : null}
     </div>
   )
 }
 
-function FileRow({ file }: { file: FileItem }) {
+function FileRow({ file, onShare }: { file: FileItem; onShare(): void }) {
   const [downloadState, setDownloadState] = useState<'idle' | 'downloading'>('idle')
   const [downloadError, setDownloadError] = useState<string | null>(null)
+  const [showPreview, setShowPreview] = useState(false)
 
   async function download() {
     if (downloadState === 'downloading') return
@@ -213,10 +219,15 @@ function FileRow({ file }: { file: FileItem }) {
       <td className="px-4 py-3 text-gray-600">{formatBytes(file.size)}</td>
       <td className="px-4 py-3 text-gray-600">{formatDate(file.updatedAt)}</td>
       <td className="px-4 py-3 text-right">
+        <button className="mr-3 text-blue-700 hover:underline" onClick={onShare} type="button">Share {file.name}</button>
+        <button className="mr-4 text-blue-700 hover:underline" onClick={() => setShowPreview(true)} type="button">
+          Preview {file.name}
+        </button>
         <button className="text-blue-700 hover:underline disabled:opacity-60" disabled={downloadState === 'downloading'} onClick={() => void download()} type="button">
           {downloadState === 'downloading' ? 'Downloading…' : `Download ${file.name}`}
         </button>
         {downloadError ? <p className="mt-1 text-sm text-red-700" role="alert">{downloadError}</p> : null}
+        {showPreview ? <PreviewModal file={file} onClose={() => setShowPreview(false)} /> : null}
       </td>
     </tr>
   )

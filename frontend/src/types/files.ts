@@ -11,6 +11,7 @@ export interface FileItem {
 
 export interface FolderItem {
   id: number
+  shareFileId: number
   name: string
   isDeleted: boolean
   parentId: number | null

@@ -112,12 +112,13 @@ export class SharingController {
     @Body() dto: CreateShareDto,
   ) {
     const userId = req.user.userId;
-    return this.sharingService.createShareLink(userId, dto.fileId, {
+    const share = await this.sharingService.createShareLink(userId, dto.fileId, {
       password: dto.password,
       expiresInDays: dto.expiresInDays,
       maxDownloads: dto.maxDownloads,
       isFolder: dto.isFolder,
     });
+    return toOwnerShareResponse(share);
   }
 
   @Get()
@@ -126,7 +127,8 @@ export class SharingController {
     @NestRequest() req: ExpressRequest & { user: { userId: number } },
   ) {
     const userId = req.user.userId;
-    return this.sharingService.listUserShares(userId);
+    const shares = await this.sharingService.listUserShares(userId);
+    return shares.map(toOwnerShareResponse);
   }
 
   @Delete(":id")
@@ -362,4 +364,27 @@ export class SharingController {
 
     stream.pipe(res);
   }
+}
+
+function toOwnerShareResponse(share: ShareLinkEntity) {
+  return {
+    id: share.id,
+    token: share.token,
+    fileId: share.fileId,
+    isFolder: share.isFolder,
+    isActive: share.isActive,
+    expiresAt: share.expiresAt,
+    downloadCount: share.downloadCount,
+    maxDownloads: share.maxDownloads ?? null,
+    createdAt: share.createdAt,
+    updatedAt: share.updatedAt,
+    file: share.file
+      ? {
+          id: share.file.id,
+          name: share.file.name,
+          isFolder: share.file.isFolder,
+          folderId: share.file.folderId,
+        }
+      : undefined,
+  };
 }

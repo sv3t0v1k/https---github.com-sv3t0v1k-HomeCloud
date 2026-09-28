@@ -64,6 +64,7 @@ describe("FilesService - Authorization Boundary", () => {
       create: jest.fn(),
       save: jest.fn(),
       delete: jest.fn(),
+      createQueryBuilder: jest.fn(),
       manager: {
         connection: {
           createQueryRunner: jest.fn(() => mockQueryRunner),
@@ -124,12 +125,23 @@ describe("FilesService - Authorization Boundary", () => {
     it("should return folder when it belongs to user", async () => {
       const folder = { id: 1, userId: 1, name: "Documents" };
       mockFolderRepository.findOne.mockResolvedValue(folder);
+      mockFileRepository.findOne.mockResolvedValue({ id: 81, folderId: 1 });
 
       const result = await service.findFolder(1, 1);
-      expect(result).toEqual(folder);
+      expect(result).toEqual({ ...folder, shareFileId: 81 });
       expect(mockFolderRepository.findOne).toHaveBeenCalledWith({
         where: { id: 1, userId: 1, isDeleted: false },
       });
+      expect(mockFileRepository.findOne).toHaveBeenCalledWith({
+        where: { folderId: 1, userId: 1, isFolder: true, isDeleted: false },
+      });
+    });
+
+    it("fails closed when an otherwise visible folder has no mirror file", async () => {
+      mockFolderRepository.findOne.mockResolvedValue({ id: 1, userId: 1, name: "Documents" });
+      mockFileRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.findFolder(1, 1)).rejects.toThrow("Folder mirror not found");
     });
 
     it("should throw NotFoundException when folder belongs to another user", async () => {
@@ -148,6 +160,63 @@ describe("FilesService - Authorization Boundary", () => {
       expect(mockFolderRepository.findOne).toHaveBeenCalledWith({
         where: { id: 3, userId: 1, isDeleted: false },
       });
+    });
+  });
+
+  describe("findFolders", () => {
+    it("adds the owner-scoped mirror id required by folder sharing", async () => {
+      const getMany = jest.fn().mockResolvedValue([
+        { id: 4, userId: 1, name: "Alpha" },
+        { id: 9, userId: 1, name: "Beta" },
+      ]);
+      mockFolderRepository.createQueryBuilder.mockReturnValue({
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        getMany,
+      });
+      mockFileRepository.find.mockResolvedValue([
+        { id: 40, folderId: 4 },
+        { id: 90, folderId: 9 },
+      ]);
+
+      await expect(service.findFolders(1)).resolves.toEqual([
+        { id: 4, userId: 1, name: "Alpha", shareFileId: 40 },
+        { id: 9, userId: 1, name: "Beta", shareFileId: 90 },
+      ]);
+      expect(mockFileRepository.find).toHaveBeenCalledWith({
+        where: {
+          userId: 1,
+          folderId: expect.anything(),
+          isFolder: true,
+          isDeleted: false,
+        },
+      });
+    });
+
+    it("does not query mirrors for an empty folder listing", async () => {
+      const getMany = jest.fn().mockResolvedValue([]);
+      mockFolderRepository.createQueryBuilder.mockReturnValue({
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        getMany,
+      });
+
+      await expect(service.findFolders(1)).resolves.toEqual([]);
+      expect(mockFileRepository.find).not.toHaveBeenCalled();
+    });
+
+    it("fails closed when a listed folder has no owner-scoped mirror", async () => {
+      mockFolderRepository.createQueryBuilder.mockReturnValue({
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([{ id: 4, userId: 1, name: "Alpha" }]),
+      });
+      mockFileRepository.find.mockResolvedValue([]);
+
+      await expect(service.findFolders(1)).rejects.toThrow("Folder mirror not found");
     });
   });
 

@@ -122,11 +122,19 @@ describe("SharingController - streaming code verification", () => {
 
   it("should forward maxDownloads from DTO to the sharing service", async () => {
     const mockService = {
-      createShareLink: jest.fn().mockResolvedValue({ token: "tok" }),
+      createShareLink: jest.fn().mockResolvedValue({
+        id: 4,
+        token: "tok",
+        fileId: 7,
+        password: "bcrypt-hash",
+        isFolder: false,
+        isActive: true,
+        maxDownloads: 3,
+      }),
     };
     const controller = new SharingController(mockService as any, {} as any);
 
-    await controller.createShareLink(
+    const result = await controller.createShareLink(
       { user: { userId: 1 } } as any,
       { fileId: 7, maxDownloads: 3, isFolder: false } as any,
     );
@@ -137,5 +145,32 @@ describe("SharingController - streaming code verification", () => {
       maxDownloads: 3,
       isFolder: false,
     });
+    expect(result).toMatchObject({ id: 4, token: "tok", fileId: 7 });
+    expect(result).not.toHaveProperty("password");
+    expect(result).not.toHaveProperty("user");
+  });
+
+  it("does not expose password hashes or user records when listing shares", async () => {
+    const mockService = {
+      listUserShares: jest.fn().mockResolvedValue([{
+        id: 8,
+        token: "listed",
+        fileId: 12,
+        password: "bcrypt-hash",
+        user: { id: 1, password: "user-hash" },
+        isFolder: false,
+        isActive: true,
+        maxDownloads: null,
+        file: { id: 12, name: "safe.png", isFolder: false, folderId: null, storagePath: "/secret" },
+      }]),
+    };
+    const controller = new SharingController(mockService as any, {} as any);
+
+    const result = await controller.listShares({ user: { userId: 1 } } as any);
+
+    expect(result[0]).toMatchObject({ token: "listed", file: { name: "safe.png" } });
+    expect(result[0]).not.toHaveProperty("password");
+    expect(result[0]).not.toHaveProperty("user");
+    expect(result[0].file).not.toHaveProperty("storagePath");
   });
 });

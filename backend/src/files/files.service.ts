@@ -85,7 +85,28 @@ export class FilesService {
 
     query.orderBy("folder.name", "ASC");
 
-    return query.getMany();
+    const folders = await query.getMany();
+    if (folders.length === 0) return [];
+
+    const mirrors = await this.fileRepository.find({
+      where: {
+        userId,
+        folderId: In(folders.map((folder) => folder.id)),
+        isFolder: true,
+        isDeleted: includeDeleted,
+      },
+    });
+    const mirrorByFolderId = new Map(
+      mirrors.map((mirror) => [mirror.folderId, mirror.id]),
+    );
+
+    return folders.map((folder) => {
+      const shareFileId = mirrorByFolderId.get(folder.id);
+      if (!shareFileId) {
+        throw new NotFoundException("Folder mirror not found");
+      }
+      return { ...folder, shareFileId };
+    });
   }
 
   async findOne(userId: number, id: number) {
@@ -103,7 +124,13 @@ export class FilesService {
     if (!folder) {
       throw new NotFoundException("Folder not found");
     }
-    return folder;
+    const mirror = await this.fileRepository.findOne({
+      where: { folderId: id, userId, isFolder: true, isDeleted: false },
+    });
+    if (!mirror) {
+      throw new NotFoundException("Folder mirror not found");
+    }
+    return { ...folder, shareFileId: mirror.id };
   }
 
   async assertFolderOwnership(userId: number, folderId?: number | null) {

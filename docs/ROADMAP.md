@@ -24,7 +24,7 @@
 | Phase 10 — Sharing & Access Control | `COMPLETE` | 10.1–10.8 подтверждены; checkpoint `08ea21f` |
 | Phase 11 — Backend/API Hardening | `COMPLETE` | 11.1–11.5 COMPLETE |
 | Phase 12 — Performance & Scalability | `COMPLETE` | 12.1–12.6 COMPLETE |
-| Phase 13 — Frontend Foundation | `IN PROGRESS` | 13.1–13.4 COMPLETE; следующий подэтап не начат |
+| Phase 13 — Frontend Foundation | `IN PROGRESS` | 13.1–13.5 COMPLETE; следующий подэтап не начат |
 
 ## Completed
 
@@ -475,7 +475,7 @@ Implemented and verified:
 
 Evidence: frontend focused transfer tests 26/26 PASS; full frontend suite 7 files / 44 tests PASS; production build PASS; lint PASS; `git diff --check` PASS; independent review APPROVE после одного bounded correction cycle. Real-API smoke не выполнялся против постоянного normal stack без изолированных credentials/cleanup lifecycle; вертикальный workflow подтверждён Axios contract/component integration tests, а backend upload/download contracts ранее покрыты backend suites.
 
-### 13.5 Sharing & Previews — PLANNED
+### 13.5 Sharing & Previews — COMPLETE
 
 Objective: подключить существующие sharing и preview contracts после стабилизации основного приватного workflow.
 
@@ -495,6 +495,14 @@ Acceptance criteria:
 - ошибки политики не маскируются generic success/empty states.
 
 Dependencies: 13.1–13.4 и стабильные sharing/preview backend contracts.
+
+Delivered:
+- file/folder share links создаются через owner-authenticated contract; доступны active-list, copy/open и revoke с expiry/password/max-download controls ровно в пределах backend DTO;
+- owner share responses больше не сериализуют password hash, user record или storage path; folder listing/detail публикуют owner-scoped mirror `shareFileId`, необходимый существующей folder-sharing модели;
+- authenticated text/image previews используют существующий 5 MiB backend boundary; unsupported MIME, too-large, missing, forbidden, auth и network/server states отображаются явно;
+- preview requests отменяются при смене/закрытии, а image object URLs освобождаются детерминированно; публичное кеширование не добавлялось.
+
+Evidence: focused frontend sharing/preview/browser tests 35/35 PASS; full frontend suite 9 files / 66 tests PASS; focused backend files/sharing tests 53/53 PASS; full backend suite 47 passed / 4 skipped, 562 passed / 15 skipped tests; frontend/backend production builds PASS; frontend lint PASS; backend lint PASS с 15 прежними `jest/expect-expect` warnings; `git diff --check` PASS; independent review APPROVE. Real-API smoke не выполнялся против постоянного normal stack без гарантированно disposable credentials/data и полного cleanup lifecycle.
 
 ### 13.6 Trash, File Operations & UX Resilience — PLANNED
 

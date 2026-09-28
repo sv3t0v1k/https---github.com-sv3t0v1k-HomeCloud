@@ -1,0 +1,144 @@
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { apiClient } from '../api/client'
+import { ShareDialog } from './ShareDialog'
+
+describe('ShareDialog', () => {
+  beforeEach(() => {
+    apiClient.defaults.adapter = undefined
+  })
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+  })
+
+  it('creates a protected file share with exact policy fields and never renders the password', async () => {
+    const payloads: unknown[] = []
+    let shares: unknown[] = []
+    apiClient.defaults.adapter = async (config) => {
+      if (config.method === 'get' && config.url === '/sharing') return ok(config, shares)
+      if (config.method === 'post' && config.url === '/sharing') {
+        payloads.push(JSON.parse(String(config.data)))
+        shares = [share(5, 'token-5', 12)]
+        return ok(config, shares[0])
+      }
+      throw new Error(`Unexpected request: ${config.method} ${config.url}`)
+    }
+
+    render(<ShareDialog onClose={() => undefined} target={{ fileId: 12, name: 'photo.png', isFolder: false }} />)
+    const user = userEvent.setup()
+    await screen.findByText('No active links for this item.')
+    await user.clear(screen.getByLabelText('Expires in days'))
+    await user.type(screen.getByLabelText('Expires in days'), '30')
+    await user.type(screen.getByLabelText('Download limit (optional)'), '4')
+    await user.type(screen.getByLabelText('Password (optional)'), 'secret phrase')
+    await user.click(screen.getByRole('button', { name: 'Create share link' }))
+
+    expect(await screen.findByText('Share link created.')).toBeInTheDocument()
+    expect(payloads).toEqual([{ fileId: 12, isFolder: false, expiresInDays: 30, password: 'secret phrase', maxDownloads: 4 }])
+    expect(screen.getByLabelText('Password (optional)')).toHaveValue('')
+    expect(screen.queryByText('secret phrase')).not.toBeInTheDocument()
+  })
+
+  it('creates a folder share with the mirror file id', async () => {
+    let payload: unknown
+    apiClient.defaults.adapter = async (config) => {
+      if (config.method === 'get') return ok(config, [])
+      payload = JSON.parse(String(config.data))
+      return ok(config, share(6, 'folder-token', 91, true))
+    }
+    render(<ShareDialog onClose={() => undefined} target={{ fileId: 91, name: 'Docs', isFolder: true }} />)
+    const user = userEvent.setup()
+    await screen.findByText('No active links for this item.')
+    await user.click(screen.getByRole('button', { name: 'Create share link' }))
+    await screen.findByText('Share link created.')
+    expect(payload).toEqual({ fileId: 91, isFolder: true, expiresInDays: 7 })
+  })
+
+  it('copies, opens, and revokes an existing share before refreshing', async () => {
+    let shares = [share(7, 'copy-token', 12)]
+    let deleteCalls = 0
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    apiClient.defaults.adapter = async (config) => {
+      if (config.method === 'get') return ok(config, shares)
+      if (config.method === 'delete' && config.url === '/sharing/7') {
+        deleteCalls += 1
+        shares = []
+        return ok(config, { message: 'revoked' })
+      }
+      throw new Error(`Unexpected request: ${config.method} ${config.url}`)
+    }
+    render(<ShareDialog onClose={() => undefined} target={{ fileId: 12, name: 'photo.png', isFolder: false }} />)
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    await user.click(await screen.findByRole('button', { name: 'Copy URL' }))
+    expect(writeText).toHaveBeenCalledWith('http://localhost:3000/api/v1/sharing/public/copy-token')
+    await user.click(screen.getByRole('button', { name: 'Open' }))
+    expect(open).toHaveBeenCalledWith('http://localhost:3000/api/v1/sharing/public/copy-token', '_blank', 'noopener,noreferrer')
+    await user.click(screen.getByRole('button', { name: 'Revoke' }))
+    await waitFor(() => expect(screen.getByText('No active links for this item.')).toBeInTheDocument())
+    expect(deleteCalls).toBe(1)
+  })
+
+  it('reports clipboard failure while leaving the URL visible', async () => {
+    apiClient.defaults.adapter = async (config) => ok(config, [share(9, 'still-visible', 12)])
+    render(<ShareDialog onClose={() => undefined} target={{ fileId: 12, name: 'photo.png', isFolder: false }} />)
+    const user = userEvent.setup()
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: vi.fn().mockRejectedValue(new Error('denied')) } })
+    await user.click(await screen.findByRole('button', { name: 'Copy URL' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('could not be copied')
+    expect(screen.getByDisplayValue(/still-visible$/)).toBeInTheDocument()
+  })
+
+  it.each([
+    [400, 'File exceeds maximum shareable size', 'exceeds the sharing size limit'],
+    [400, 'File type not allowed for sharing', 'file type cannot be shared'],
+    [403, 'private authorization details', 'do not have permission'],
+    [404, 'Share link not found', 'no longer available'],
+    [500, 'database /private/path failed', 'could not be updated'],
+  ])('maps sharing HTTP %s errors without exposing backend details', async (status, backendMessage, expected) => {
+    apiClient.defaults.adapter = async (config) => {
+      if (config.method === 'get') return ok(config, [])
+      throw failure(config, status, backendMessage)
+    }
+    render(<ShareDialog onClose={() => undefined} target={{ fileId: 12, name: 'photo.png', isFolder: false }} />)
+    const user = userEvent.setup()
+    await screen.findByText('No active links for this item.')
+    await user.type(screen.getByLabelText('Password (optional)'), 'discard me')
+    await user.click(screen.getByRole('button', { name: 'Create share link' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(expected)
+    expect(alert).not.toHaveTextContent(backendMessage)
+    expect(screen.getByLabelText('Password (optional)')).toHaveValue('')
+    expect(screen.queryByText('discard me')).not.toBeInTheDocument()
+  })
+
+  it('uses the existing session-expiry error model for owner share listing', async () => {
+    apiClient.defaults.adapter = async (config) => { throw failure(config, 401, 'raw token failure') }
+
+    render(<ShareDialog onClose={() => undefined} target={{ fileId: 12, name: 'photo.png', isFolder: false }} />)
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('session has expired')
+    expect(alert).not.toHaveTextContent('raw token failure')
+  })
+})
+
+function share(id: number, token: string, fileId: number, isFolder = false) {
+  return { id, token, fileId, isFolder, isActive: true, expiresAt: '2099-01-01T00:00:00.000Z', downloadCount: 0, maxDownloads: null, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }
+}
+
+function ok<T>(config: InternalAxiosRequestConfig, data: T): AxiosResponse {
+  return { data: { success: true, data }, status: 200, statusText: 'OK', headers: {}, config }
+}
+
+function failure(config: InternalAxiosRequestConfig, status: number, message: string) {
+  return new AxiosError('failed', undefined, config, undefined, {
+    config, status, statusText: 'Error', headers: new AxiosHeaders(), data: { statusCode: status, message },
+  })
+}
