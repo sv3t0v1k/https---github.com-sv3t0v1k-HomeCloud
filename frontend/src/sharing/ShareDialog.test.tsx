@@ -1,6 +1,7 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
+import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { apiClient } from '../api/client'
@@ -41,6 +42,66 @@ describe('ShareDialog', () => {
     expect(payloads).toEqual([{ fileId: 12, isFolder: false, expiresInDays: 30, password: 'secret phrase', maxDownloads: 4 }])
     expect(screen.getByLabelText('Password (optional)')).toHaveValue('')
     expect(screen.queryByText('secret phrase')).not.toBeInTheDocument()
+  })
+
+  it('moves focus inside, traps it in both directions, closes with Escape, and restores the trigger', async () => {
+    apiClient.defaults.adapter = async (config) => ok(config, [])
+    const user = userEvent.setup()
+    render(<ShareHarness />)
+
+    const trigger = screen.getByRole('button', { name: 'Open sharing' })
+    await user.click(trigger)
+    const close = screen.getByRole('button', { name: 'Close sharing' })
+    expect(close).toHaveFocus()
+
+    await user.tab({ shift: true })
+    expect(screen.getByRole('button', { name: 'Create share link' })).toHaveFocus()
+    await user.tab()
+    expect(close).toHaveFocus()
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+  })
+
+  it('closes during loading and restores safely when the trigger disappears', async () => {
+    apiClient.defaults.adapter = async () => await new Promise<AxiosResponse>(() => undefined)
+    const user = userEvent.setup()
+    render(<ShareHarness removeTriggerOnClose />)
+
+    await user.click(screen.getByRole('button', { name: 'Open sharing' }))
+    expect(screen.getByRole('button', { name: 'Close sharing' })).toHaveFocus()
+    expect(screen.getByText('Loading share links…')).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open sharing' })).not.toBeInTheDocument()
+  })
+
+  it('keeps focus trapped and closes while a share mutation is pending', async () => {
+    apiClient.defaults.adapter = async (config) => {
+      if (config.method === 'get') return ok(config, [])
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+      return await new Promise<AxiosResponse>(() => undefined)
+    }
+    const user = userEvent.setup()
+    render(<ShareHarness />)
+
+    const trigger = screen.getByRole('button', { name: 'Open sharing' })
+    await user.click(trigger)
+    await screen.findByText('No active links for this item.')
+    await user.click(screen.getByRole('button', { name: 'Create share link' }))
+
+    const close = screen.getByRole('button', { name: 'Close sharing' })
+    await waitFor(() => expect(close).toHaveFocus())
+    await user.tab({ shift: true })
+    expect(screen.getByLabelText('Password (optional)')).toHaveFocus()
+    await user.tab()
+    expect(close).toHaveFocus()
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
   })
 
   it('creates a folder share with the mirror file id', async () => {
@@ -128,6 +189,17 @@ describe('ShareDialog', () => {
     expect(alert).not.toHaveTextContent('raw token failure')
   })
 })
+
+function ShareHarness({ removeTriggerOnClose = false }: { removeTriggerOnClose?: boolean }) {
+  const [open, setOpen] = useState(false)
+  const [showTrigger, setShowTrigger] = useState(true)
+  return <>{showTrigger ? <button onClick={() => setOpen(true)} type="button">Open sharing</button> : null}{open ? (
+    <ShareDialog
+      onClose={() => { if (removeTriggerOnClose) setShowTrigger(false); setOpen(false) }}
+      target={{ fileId: 12, name: 'photo.png', isFolder: false }}
+    />
+  ) : null}</>
+}
 
 function share(id: number, token: string, fileId: number, isFolder = false) {
   return { id, token, fileId, isFolder, isActive: true, expiresAt: '2099-01-01T00:00:00.000Z', downloadCount: 0, maxDownloads: null, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }

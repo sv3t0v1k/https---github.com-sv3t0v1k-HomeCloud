@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { ApiError } from '../api/errors'
+import { useDialogFocus } from '../accessibility/useDialogFocus'
 import { createShare, listShares, publicShareUrl, revokeShare, type OwnerShare, type ShareTarget } from './api'
 
 export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose(): void }) {
@@ -12,6 +13,8 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose(
   const [password, setPassword] = useState('')
   const [expiresInDays, setExpiresInDays] = useState('7')
   const [maxDownloads, setMaxDownloads] = useState('')
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const dialogRef = useDialogFocus(onClose, closeButtonRef)
 
   const refresh = useCallback(async (signal?: AbortSignal) => {
     const all = await listShares(signal)
@@ -30,6 +33,10 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose(
       })
     return () => controller.abort()
   }, [refresh])
+
+  useEffect(() => {
+    if (busy) closeButtonRef.current?.focus()
+  }, [busy, dialogRef])
 
   async function submit(event: React.FormEvent) {
     event.preventDefault()
@@ -95,11 +102,11 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose(
   }
 
   return (
-    <div aria-labelledby="share-title" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog">
+    <div aria-labelledby="share-title" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" ref={dialogRef} role="dialog" tabIndex={-1}>
       <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
         <div className="flex items-start justify-between gap-4">
           <div><h3 className="text-xl font-semibold" id="share-title">Share {target.name}</h3><p className="mt-1 text-sm text-gray-600">Links expire automatically and follow server download policy.</p></div>
-          <button aria-label="Close sharing" className="text-gray-600 underline" disabled={busy} onClick={onClose} type="button">Close</button>
+          <button aria-label="Close sharing" className="text-gray-600 underline" onClick={onClose} ref={closeButtonRef} type="button">Close</button>
         </div>
 
         <form className="mt-5 grid gap-4 sm:grid-cols-3" onSubmit={(event) => void submit(event)}>

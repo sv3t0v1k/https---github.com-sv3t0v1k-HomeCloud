@@ -1,6 +1,7 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError, AxiosHeaders, CanceledError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
+import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { apiClient } from '../api/client'
@@ -63,6 +64,41 @@ describe('PreviewModal', () => {
     expect(await screen.findByText('preview body')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Close preview' }))
     expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('moves focus inside, traps it in both directions, closes with Escape, and restores the trigger', async () => {
+    apiClient.defaults.adapter = async (config) => ok(config, {
+      type: 'text', content: 'preview body', mimeType: 'text/plain',
+    })
+    const user = userEvent.setup()
+    render(<PreviewHarness file={file(30, 'keyboard.txt')} />)
+
+    const trigger = screen.getByRole('button', { name: 'Open preview' })
+    await user.click(trigger)
+    const close = screen.getByRole('button', { name: 'Close preview' })
+    expect(close).toHaveFocus()
+
+    await user.tab()
+    expect(close).toHaveFocus()
+    await user.tab({ shift: true })
+    expect(close).toHaveFocus()
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+  })
+
+  it('restores safely when the trigger disappears while the request is still loading', async () => {
+    apiClient.defaults.adapter = async () => await new Promise<AxiosResponse>(() => undefined)
+    const user = userEvent.setup()
+    render(<PreviewHarness file={file(31, 'slow.txt')} removeTriggerOnClose />)
+
+    await user.click(screen.getByRole('button', { name: 'Open preview' }))
+    expect(screen.getByRole('button', { name: 'Close preview' })).toHaveFocus()
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open preview' })).not.toBeInTheDocument()
   })
 
   it('creates one image object URL and revokes it on close/unmount', async () => {
@@ -149,6 +185,14 @@ describe('PreviewModal', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('session has expired')
   })
 })
+
+function PreviewHarness({ file: target, removeTriggerOnClose = false }: { file: FileItem; removeTriggerOnClose?: boolean }) {
+  const [open, setOpen] = useState(false)
+  const [showTrigger, setShowTrigger] = useState(true)
+  return <>{showTrigger ? <button onClick={() => setOpen(true)} type="button">Open preview</button> : null}{open ? (
+    <PreviewModal file={target} onClose={() => { if (removeTriggerOnClose) setShowTrigger(false); setOpen(false) }} />
+  ) : null}</>
+}
 
 function file(id: number, name: string, mimeType = 'text/plain'): FileItem {
   return { id, name, mimeType, size: 1, isDeleted: false, isStarred: false, parentId: null, updatedAt: '2026-01-01T00:00:00Z' }

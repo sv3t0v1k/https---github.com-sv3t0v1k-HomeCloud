@@ -24,7 +24,7 @@
 | Phase 10 — Sharing & Access Control | `COMPLETE` | 10.1–10.8 подтверждены; checkpoint `08ea21f` |
 | Phase 11 — Backend/API Hardening | `COMPLETE` | 11.1–11.5 COMPLETE |
 | Phase 12 — Performance & Scalability | `COMPLETE` | 12.1–12.6 COMPLETE |
-| Phase 13 — Frontend Foundation | `IN PROGRESS` | 13.1–13.6 COMPLETE; 13.7 следующий, не начат |
+| Phase 13 — Frontend Foundation | `COMPLETE` | 13.1–13.7 COMPLETE; итоговый gate подтверждён |
 
 ## Completed
 
@@ -321,11 +321,11 @@ OUT OF SCOPE:
 - Redis redesign/removal;
 - unrelated refactoring.
 
-## Phase 13 — Frontend Foundation — IN PROGRESS
+## Phase 13 — Frontend Foundation — COMPLETE
 
 Goal: превратить существующий React/Vite-прототип в минимальный рабочий клиент к подтверждённым backend-контрактам без преждевременной смены стека, усложнения state management или заявления неподтверждённой browser-scale поддержки.
 
-Phase 13 начат отдельным решением владельца. Завершены 13.1–13.6; 13.7 остаётся `PLANNED` и не начинается автоматически.
+Phase 13 начат отдельным решением владельца и завершён после итоговой регрессии 13.7. Следующая работа — отдельно согласованная реализация нового frontend-дизайна; она не входит в Phase 13 и не начинается автоматически.
 
 ### Подтверждённые ограничения backend-контрактов
 
@@ -534,7 +534,7 @@ Delivered:
 
 Evidence: focused frontend operations/trash/API/auth tests 34/34 PASS; full frontend suite 11 files / 81 tests PASS; focused backend lifecycle/DTO tests 54/54 PASS; full backend suite 48 passed / 4 skipped, 567 passed / 15 skipped tests; frontend/backend production builds PASS; frontend lint PASS; backend lint 0 errors и 15 прежних `jest/expect-expect` warnings; changed backend files formatted штатным Prettier; `git diff --check` PASS; independent review APPROVE после bounded remediation cycle.
 
-### 13.7 Frontend Regression & Final Gate — PLANNED
+### 13.7 Frontend Regression & Final Gate — COMPLETE
 
 Objective: подтвердить рабочий frontend-срез без завышенных product/performance claims.
 
@@ -557,6 +557,14 @@ Acceptance criteria:
 - roadmap обновляется по фактическим evidence, после чего Phase 13 может быть закрыт отдельным checkpoint.
 
 Dependencies: завершённые применимые подэтапы 13.1–13.6 и устранение блокеров для заявляемых возможностей.
+
+Delivered:
+- итоговая регрессия повторно подтвердила auth/session, browser navigation, transfer, sharing/preview и trash/file-operation сценарии без расширения функционального scope;
+- `PreviewModal` и `ShareDialog` получили минимальный modal focus lifecycle: начальный фокус, Escape, двунаправленный focus trap, восстановление trigger и безопасное поведение при исчезновении trigger или изменении доступных controls во время async mutation;
+- production build/typecheck, lint, runtime/base-URL/nginx configuration и согласованность security/contracts подтверждены; прежние ограничения browser download/upload, MIME, anonymous sharing, search/bulk/drag-drop и 30 GiB browser support сохранены;
+- real-API smoke не выполнялся без disposable credentials и безопасного изолированного cleanup lifecycle; постоянные данные и старые контейнеры не затрагивались.
+
+Evidence: focused modal tests 27/27 PASS; frontend regression groups 19/19, 21/21, 13/13, 27/27 и 6/6 PASS; full frontend suite 11 files / 86 tests PASS; targeted backend contract gate 14 suites / 194 tests PASS; full backend suite 48 passed / 4 skipped, 567 passed / 15 skipped tests; frontend/backend production builds PASS; frontend lint PASS; backend lint 0 errors и 15 прежних `jest/expect-expect` warnings; `git diff --check` PASS; independent accessibility/consistency review APPROVE.
 
 ### Первый вертикальный срез
 

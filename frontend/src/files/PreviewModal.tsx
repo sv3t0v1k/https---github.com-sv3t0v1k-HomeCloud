@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { ApiError } from '../api/errors'
+import { useDialogFocus } from '../accessibility/useDialogFocus'
 import type { FileItem } from '../types/files'
 import { getFilePreview, previewImageBlob, type PreviewPayload } from './preview'
 
@@ -11,6 +12,8 @@ type PreviewState =
 
 export function PreviewModal({ file, onClose }: { file: FileItem; onClose(): void }) {
   const [state, setState] = useState<PreviewState>({ status: 'loading' })
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const dialogRef = useDialogFocus(onClose, closeButtonRef)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -41,12 +44,14 @@ export function PreviewModal({ file, onClose }: { file: FileItem; onClose(): voi
       aria-labelledby="preview-title"
       aria-modal="true"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      ref={dialogRef}
       role="dialog"
+      tabIndex={-1}
     >
       <div className="max-h-[90vh] w-full max-w-3xl overflow-auto rounded-lg bg-white p-5 shadow-xl">
         <div className="flex items-start justify-between gap-4">
           <h3 className="break-all text-lg font-semibold text-gray-900" id="preview-title">Preview: {file.name}</h3>
-          <button className="text-blue-700 hover:underline" onClick={onClose} type="button">Close preview</button>
+          <button className="text-blue-700 hover:underline" onClick={onClose} ref={closeButtonRef} type="button">Close preview</button>
         </div>
         {state.status === 'loading' ? <p className="mt-5 text-gray-600" role="status">Loading preview…</p> : null}
         {state.status === 'error' ? <p className="mt-5 rounded-md bg-red-50 p-4 text-red-800" role="alert">{state.message}</p> : null}
