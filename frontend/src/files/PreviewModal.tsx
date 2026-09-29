@@ -43,43 +43,45 @@ export function PreviewModal({ file, onClose }: { file: FileItem; onClose(): voi
     <div
       aria-labelledby="preview-title"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="dialog-overlay preview-overlay"
       ref={dialogRef}
       role="dialog"
       tabIndex={-1}
     >
-      <div className="max-h-[90vh] w-full max-w-3xl overflow-auto rounded-lg bg-white p-5 shadow-xl">
-        <div className="flex items-start justify-between gap-4">
-          <h3 className="break-all text-lg font-semibold text-gray-900" id="preview-title">Preview: {file.name}</h3>
-          <button className="text-blue-700 hover:underline" onClick={onClose} ref={closeButtonRef} type="button">Close preview</button>
+      <div className="dialog-surface preview-dialog">
+        <div className="dialog-header">
+          <h3 className="preview-title" id="preview-title">Просмотр: {file.name}</h3>
+          <button className="button button--ghost" onClick={onClose} ref={closeButtonRef} type="button">Закрыть просмотр</button>
         </div>
-        {state.status === 'loading' ? <p className="mt-5 text-gray-600" role="status">Loading preview…</p> : null}
-        {state.status === 'error' ? <p className="mt-5 rounded-md bg-red-50 p-4 text-red-800" role="alert">{state.message}</p> : null}
+        <div className="dialog-body preview-content">
+        {state.status === 'loading' ? <p className="loading-state preview-loading" role="status">Загружаем предпросмотр…</p> : null}
+        {state.status === 'error' ? <p className="alert alert--danger" role="alert">{state.message}</p> : null}
         {state.status === 'ready' && state.preview.type === 'text' ? (
-          <pre className="mt-5 max-h-[65vh] overflow-auto whitespace-pre-wrap break-words rounded-md bg-gray-950 p-4 text-sm text-gray-100">{state.preview.content}</pre>
+          <pre className="preview-text mono">{state.preview.content}</pre>
         ) : null}
         {state.status === 'ready' && state.preview.type === 'image' && state.imageUrl ? (
-          <img alt={`Preview of ${file.name}`} className="mx-auto mt-5 max-h-[65vh] max-w-full object-contain" src={state.imageUrl} />
+          <img alt={`Предпросмотр: ${file.name}`} className="preview-image" src={state.imageUrl} />
         ) : null}
         {state.status === 'ready' && state.preview.type === 'unsupported' ? (
-          <p className="mt-5 rounded-md bg-amber-50 p-4 text-amber-900" role="status">Preview is not available for this file type.</p>
+          <p className="empty-state preview-unsupported" role="status">Предпросмотр недоступен для этого типа файлов.</p>
         ) : null}
+        </div>
       </div>
     </div>
   )
 }
 
 function previewErrorMessage(error: unknown): string {
-  if (!(error instanceof ApiError)) return 'The preview could not be loaded. Please try again.'
+  if (!(error instanceof ApiError)) return 'Не удалось загрузить предпросмотр. Попробуйте ещё раз.'
   const message = error.message.toLowerCase()
-  if (error.kind === 'network') return 'The preview could not be loaded because the server is unavailable.'
-  if (error.kind === 'authentication') return 'Your session has expired. Please sign in again.'
-  if (error.kind === 'authorization') return 'You do not have permission to preview this file.'
-  if (error.status === 404) return 'This file is no longer available.'
+  if (error.kind === 'network') return 'Не удалось загрузить предпросмотр: сервер недоступен.'
+  if (error.kind === 'authentication') return 'Сеанс завершён. Войдите снова.'
+  if (error.kind === 'authorization') return 'У вас нет разрешения на просмотр этого файла.'
+  if (error.status === 404) return 'Этот файл больше недоступен.'
   if (error.status === 400 && (message.includes('maximum preview size') || message.includes('exceeds'))) {
-    return 'This file is too large to preview.'
+    return 'Файл слишком большой для предпросмотра.'
   }
-  if (error.status === 400) return 'This file cannot be previewed.'
-  if (error.kind === 'server') return 'The server could not generate this preview. Please try again.'
-  return 'The preview could not be loaded. Please try again.'
+  if (error.status === 400) return 'Предпросмотр этого файла недоступен.'
+  if (error.kind === 'server') return 'Сервер не смог подготовить предпросмотр. Попробуйте ещё раз.'
+  return 'Не удалось загрузить предпросмотр. Попробуйте ещё раз.'
 }

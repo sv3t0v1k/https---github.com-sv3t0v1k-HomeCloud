@@ -77,7 +77,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void bootstrap()
     return subscribeToSessionExpired(() =>
-      dispatch({ type: 'ANONYMOUS', notice: 'Your session has expired. Please sign in again.' }),
+      dispatch({ type: 'ANONYMOUS', notice: 'Сессия истекла. Войдите снова.' }),
     )
   }, [bootstrap])
 

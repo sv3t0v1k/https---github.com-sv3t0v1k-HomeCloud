@@ -46,7 +46,7 @@ describe('ProtectedRoute', () => {
 
     renderRoutes()
 
-    expect(screen.getByRole('status')).toHaveTextContent('Restoring your session')
+    expect(screen.getByRole('status')).toHaveTextContent('Восстанавливаем сеанс')
     expect(screen.queryByText('Protected screen')).not.toBeInTheDocument()
     finishRefresh?.()
 

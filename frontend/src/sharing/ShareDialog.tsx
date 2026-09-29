@@ -43,11 +43,11 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose(
     const expiry = Number(expiresInDays)
     const limit = maxDownloads === '' ? undefined : Number(maxDownloads)
     if (!Number.isInteger(expiry) || expiry < 1 || expiry > 36500) {
-      setError('Expiry must be a whole number from 1 to 36500 days.')
+      setError('Укажите целое число дней от 1 до 36500.')
       return
     }
     if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1)) {
-      setError('Download limit must be a positive whole number.')
+      setError('Лимит скачиваний должен быть положительным целым числом.')
       return
     }
     setBusy(true)
@@ -63,7 +63,7 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose(
       })
       setPassword('')
       await refresh()
-      setNotice('Share link created.')
+      setNotice('Ссылка создана.')
     } catch (cause) {
       setPassword('')
       setError(shareErrorMessage(cause))
@@ -76,9 +76,9 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose(
     setError(null)
     try {
       await navigator.clipboard.writeText(publicShareUrl(share.token))
-      setNotice('Share URL copied.')
+      setNotice('Ссылка скопирована.')
     } catch {
-      setError('The share URL could not be copied. Copy it from the field instead.')
+      setError('Не удалось скопировать ссылку. Скопируйте её из поля вручную.')
     }
   }
 
@@ -93,7 +93,7 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose(
     try {
       await revokeShare(share.id)
       await refresh()
-      setNotice('Share link revoked.')
+      setNotice('Доступ по ссылке закрыт.')
     } catch (cause) {
       setError(shareErrorMessage(cause))
     } finally {
@@ -102,58 +102,62 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose(
   }
 
   return (
-    <div aria-labelledby="share-title" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" ref={dialogRef} role="dialog" tabIndex={-1}>
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
-        <div className="flex items-start justify-between gap-4">
-          <div><h3 className="text-xl font-semibold" id="share-title">Share {target.name}</h3><p className="mt-1 text-sm text-gray-600">Links expire automatically and follow server download policy.</p></div>
-          <button aria-label="Close sharing" className="text-gray-600 underline" onClick={onClose} ref={closeButtonRef} type="button">Close</button>
+    <div aria-labelledby="share-title" aria-modal="true" className="dialog-overlay" ref={dialogRef} role="dialog" tabIndex={-1}>
+      <div className="dialog-surface share-dialog">
+        <header className="dialog-header">
+          <div>
+            <p className="eyebrow">Общий доступ</p>
+            <h3 id="share-title">Поделиться: {target.name}</h3>
+            <p className="page-description">Настройте срок действия ссылки и ограничения скачивания.</p>
+          </div>
+          <button aria-label="Закрыть общий доступ" className="button button--ghost" onClick={onClose} ref={closeButtonRef} type="button">Закрыть</button>
+        </header>
+        <div className="dialog-body">
+          <form className="share-form" onSubmit={(event) => void submit(event)}>
+            <label className="field">Срок действия, дней<input className="input mono" max={36500} min={1} onChange={(event) => setExpiresInDays(event.target.value)} required type="number" value={expiresInDays} /></label>
+            <label className="field">Лимит скачиваний (необязательно)<input className="input mono" min={1} onChange={(event) => setMaxDownloads(event.target.value)} placeholder="Без ограничений" type="number" value={maxDownloads} /></label>
+            <label className="field">Пароль (необязательно)<input autoComplete="new-password" className="input" maxLength={1024} onChange={(event) => setPassword(event.target.value)} type="password" value={password} /></label>
+            <button className="button button--primary share-create" disabled={busy} type="submit">{busy ? 'Сохраняем…' : 'Создать ссылку'}</button>
+          </form>
+          {error ? <p className="alert alert--danger" role="alert">{error}</p> : null}
+          {notice ? <p className="alert alert--success" role="status">{notice}</p> : null}
+          <section aria-labelledby="current-shares" className="share-links">
+            <div className="section-heading"><h4 id="current-shares">Ссылки на этот объект</h4><span className="muted mono">{shares.length}</span></div>
+            {loading ? <p className="loading-state" role="status">Загружаем ссылки…</p> : null}
+            {!loading && shares.length === 0 ? <p className="empty-state">Для этого объекта пока нет ссылок.</p> : null}
+            <ul className="share-list">
+              {shares.map((share) => {
+                const url = publicShareUrl(share.token)
+                return <li className="share-card" key={share.id}>
+                  <p className="share-status">{shareStatus(share)}</p>
+                  <input aria-label={`Публичная ссылка: ${target.name}`} className="input mono" readOnly value={url} />
+                  <p className="muted mono">Скачиваний: {String(share.downloadCount)}{share.maxDownloads === null ? '' : ` из ${String(share.maxDownloads)}`}</p>
+                  <div className="share-actions"><button className="button button--ghost" onClick={() => void copy(share)} type="button">Копировать ссылку</button><button className="button button--ghost" onClick={() => open(share)} type="button">Открыть</button><button className="button button--danger" disabled={busy} onClick={() => void revoke(share)} type="button">Закрыть доступ</button></div>
+                </li>
+              })}
+            </ul>
+          </section>
         </div>
-
-        <form className="mt-5 grid gap-4 sm:grid-cols-3" onSubmit={(event) => void submit(event)}>
-          <label className="text-sm text-gray-700">Expires in days<input className="mt-1 w-full rounded border px-3 py-2" max={36500} min={1} onChange={(event) => setExpiresInDays(event.target.value)} required type="number" value={expiresInDays} /></label>
-          <label className="text-sm text-gray-700">Download limit (optional)<input className="mt-1 w-full rounded border px-3 py-2" min={1} onChange={(event) => setMaxDownloads(event.target.value)} placeholder="Unlimited" type="number" value={maxDownloads} /></label>
-          <label className="text-sm text-gray-700">Password (optional)<input autoComplete="new-password" className="mt-1 w-full rounded border px-3 py-2" maxLength={1024} onChange={(event) => setPassword(event.target.value)} type="password" value={password} /></label>
-          <button className="rounded bg-blue-700 px-4 py-2 text-white disabled:opacity-50 sm:col-span-3" disabled={busy} type="submit">{busy ? 'Working…' : 'Create share link'}</button>
-        </form>
-
-        {error ? <p className="mt-4 text-sm text-red-700" role="alert">{error}</p> : null}
-        {notice ? <p className="mt-4 text-sm text-green-700" role="status">{notice}</p> : null}
-
-        <section aria-labelledby="current-shares" className="mt-6">
-          <h4 className="font-semibold" id="current-shares">Current links</h4>
-          {loading ? <p className="mt-2 text-sm text-gray-600" role="status">Loading share links…</p> : null}
-          {!loading && shares.length === 0 ? <p className="mt-2 text-sm text-gray-600">No active links for this item.</p> : null}
-          <ul className="mt-3 space-y-3">
-            {shares.map((share) => {
-              const url = publicShareUrl(share.token)
-              return <li className="rounded border p-3" key={share.id}>
-                <input aria-label={`Public URL for ${target.name}`} className="w-full rounded border bg-gray-50 px-2 py-1 text-sm" readOnly value={url} />
-                <p className="mt-2 text-xs text-gray-600">{shareStatus(share)} · {String(share.downloadCount)} downloads{share.maxDownloads === null ? '' : ` of ${String(share.maxDownloads)}`}</p>
-                <div className="mt-2 flex flex-wrap gap-3 text-sm"><button className="text-blue-700 underline" onClick={() => void copy(share)} type="button">Copy URL</button><button className="text-blue-700 underline" onClick={() => open(share)} type="button">Open</button><button className="text-red-700 underline disabled:opacity-50" disabled={busy} onClick={() => void revoke(share)} type="button">Revoke</button></div>
-              </li>
-            })}
-          </ul>
-        </section>
       </div>
     </div>
   )
 }
 
 function shareStatus(share: OwnerShare): string {
-  if (share.expiresAt && new Date(share.expiresAt).getTime() <= Date.now()) return 'Expired'
-  if (share.maxDownloads !== null && Number(share.downloadCount) >= Number(share.maxDownloads)) return 'Download limit reached'
-  return share.expiresAt ? `Expires ${new Date(share.expiresAt).toLocaleDateString()}` : 'Does not expire'
+  if (share.expiresAt && new Date(share.expiresAt).getTime() <= Date.now()) return 'Срок действия истёк'
+  if (share.maxDownloads !== null && Number(share.downloadCount) >= Number(share.maxDownloads)) return 'Лимит скачиваний исчерпан'
+  return share.expiresAt ? `Действует до ${new Date(share.expiresAt).toLocaleDateString('ru-RU')}` : 'Без срока действия'
 }
 
 function shareErrorMessage(cause: unknown): string {
-  if (!(cause instanceof ApiError)) return 'Sharing could not be updated. Please try again.'
+  if (!(cause instanceof ApiError)) return 'Не удалось обновить доступ. Попробуйте ещё раз.'
   const message = cause.message.toLowerCase()
-  if (cause.kind === 'authentication') return 'Your session has expired. Please sign in again.'
-  if (cause.kind === 'authorization') return 'You do not have permission to share this item.'
-  if (cause.status === 404) return 'This item or share link is no longer available.'
-  if (message.includes('maximum shareable size')) return 'This file exceeds the sharing size limit.'
-  if (message.includes('type') && message.includes('sharing')) return 'This file type cannot be shared.'
-  if (cause.kind === 'validation') return 'The sharing settings were rejected. Check the values and try again.'
-  if (cause.kind === 'network') return 'The server is unavailable. Check your connection and try again.'
-  return 'Sharing could not be updated. Please try again.'
+  if (cause.kind === 'authentication') return 'Сеанс завершён. Войдите снова.'
+  if (cause.kind === 'authorization') return 'У вас нет разрешения открыть доступ к этому объекту.'
+  if (cause.status === 404) return 'Объект или ссылка больше недоступны.'
+  if (message.includes('maximum shareable size')) return 'Размер файла превышает лимит для общего доступа.'
+  if (message.includes('type') && message.includes('sharing')) return 'Для этого типа файлов общий доступ недоступен.'
+  if (cause.kind === 'validation') return 'Проверьте параметры доступа и попробуйте ещё раз.'
+  if (cause.kind === 'network') return 'Сервер недоступен. Проверьте соединение и попробуйте ещё раз.'
+  return 'Не удалось обновить доступ. Попробуйте ещё раз.'
 }

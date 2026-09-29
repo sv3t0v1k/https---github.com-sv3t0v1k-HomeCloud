@@ -6,7 +6,7 @@ import {
   type AxiosResponse,
   type InternalAxiosRequestConfig,
 } from 'axios'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 
 import App from './App'
@@ -16,6 +16,36 @@ import { publishSessionExpired } from './auth/sessionEvents'
 import { tokenStorage } from './auth/tokenStorage'
 
 describe('authentication UX', () => {
+  it('mounts the drawer only when open, traps focus, closes on Escape and restores the opener', async () => {
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })))
+    tokenStorage.set({ accessToken: 'stale', refreshToken: 'refresh' })
+    sessionClient.defaults.adapter = async (config) => response(config, { success: true, data: { accessToken: 'access', refreshToken: 'rotated' } })
+    apiClient.defaults.adapter = async (config) => isDirectoryRequest(config.url) ? emptyDirectoryResponse(config) : userResponse(config)
+    renderApp('/files')
+    const user = userEvent.setup()
+    const opener = await screen.findByRole('button', { name: 'Открыть навигацию' })
+    expect(opener).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('dialog', { name: 'Навигация' })).not.toBeInTheDocument()
+    await user.click(opener)
+    const drawer = screen.getByRole('dialog', { name: 'Навигация' })
+    expect(opener).toHaveAttribute('aria-controls', drawer.id)
+    expect(opener).toHaveAttribute('aria-expanded', 'true')
+    expect(drawer).toContainElement(document.activeElement as HTMLElement)
+    expect(document.querySelector<HTMLElement>('.app-frame')?.inert).toBe(true)
+    expect(document.body.style.overflow).toBe('hidden')
+    await user.tab({ shift: true })
+    expect(drawer).toContainElement(document.activeElement as HTMLElement)
+    await user.tab()
+    expect(screen.getByRole('button', { name: 'Закрыть навигацию' })).toHaveFocus()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Навигация' })).not.toBeInTheDocument()
+    expect(opener).toHaveFocus()
+    expect(opener).toHaveAttribute('aria-expanded', 'false')
+    expect(document.querySelector<HTMLElement>('.app-frame')?.inert).toBe(false)
+    expect(document.body.style.overflow).toBe('')
+    vi.unstubAllGlobals()
+  })
+
   beforeEach(() => tokenStorage.clear())
   afterEach(cleanup)
 
@@ -38,11 +68,11 @@ describe('authentication UX', () => {
 
     renderApp('/login')
     const user = userEvent.setup()
-    await user.type(await screen.findByLabelText('Email'), 'owner@example.com')
-    await user.type(screen.getByLabelText('Password'), 'correct-password')
-    await user.click(screen.getByRole('button', { name: 'Sign In' }))
+    await user.type(await screen.findByLabelText('Электронная почта'), 'owner@example.com')
+    await user.type(screen.getByLabelText('Пароль'), 'correct-password')
+    await user.click(screen.getByRole('button', { name: 'Войти' }))
 
-    expect(await screen.findByRole('heading', { name: 'My Files' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Мои файлы' })).toBeInTheDocument()
     expect(tokenStorage.getRefreshToken()).toBe('refresh')
   })
 
@@ -53,11 +83,11 @@ describe('authentication UX', () => {
 
     renderApp('/login')
     const user = userEvent.setup()
-    await user.type(await screen.findByLabelText('Email'), 'owner@example.com')
-    await user.type(screen.getByLabelText('Password'), 'wrong-password')
-    await user.click(screen.getByRole('button', { name: 'Sign In' }))
+    await user.type(await screen.findByLabelText('Электронная почта'), 'owner@example.com')
+    await user.type(screen.getByLabelText('Пароль'), 'wrong-password')
+    await user.click(screen.getByRole('button', { name: 'Войти' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Invalid credentials')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Неверная электронная почта или пароль.')
     expect(tokenStorage.getRefreshToken()).toBeNull()
   })
 
@@ -75,11 +105,11 @@ describe('authentication UX', () => {
 
     renderApp('/login')
     const user = userEvent.setup()
-    await user.type(await screen.findByLabelText('Email'), 'owner@example.com')
-    await user.type(screen.getByLabelText('Password'), 'correct-password')
-    await user.click(screen.getByRole('button', { name: 'Sign In' }))
+    await user.type(await screen.findByLabelText('Электронная почта'), 'owner@example.com')
+    await user.type(screen.getByLabelText('Пароль'), 'correct-password')
+    await user.click(screen.getByRole('button', { name: 'Войти' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('server is unavailable')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Сервер недоступен')
     expect(tokenStorage.getAccessToken()).toBeNull()
     expect(tokenStorage.getRefreshToken()).toBeNull()
   })
@@ -110,9 +140,9 @@ describe('authentication UX', () => {
 
     renderApp('/files')
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('button', { name: 'Logout' }))
+    await user.click(await screen.findByRole('button', { name: 'Выйти' }))
 
-    expect(await screen.findByRole('heading', { name: 'Sign In' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Войти' })).toBeInTheDocument()
     expect(refreshCount).toBe(2)
     expect(tokenStorage.getRefreshToken()).toBeNull()
   })
@@ -139,10 +169,10 @@ describe('authentication UX', () => {
 
     renderApp('/files')
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('button', { name: 'Logout' }))
+    await user.click(await screen.findByRole('button', { name: 'Выйти' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('server is unavailable')
-    expect(screen.getByRole('heading', { name: 'My Files' })).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent('Сервер недоступен')
+    expect(screen.getByRole('heading', { name: 'Мои файлы' })).toBeInTheDocument()
     expect(tokenStorage.getRefreshToken()).toBe('refresh-2')
   })
 
@@ -156,12 +186,12 @@ describe('authentication UX', () => {
       isDirectoryRequest(config.url) ? emptyDirectoryResponse(config) : userResponse(config)
 
     renderApp('/files')
-    expect(await screen.findByRole('heading', { name: 'My Files' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Мои файлы' })).toBeInTheDocument()
 
     act(() => publishSessionExpired())
 
-    expect(await screen.findByRole('status')).toHaveTextContent('session has expired')
-    expect(screen.getByRole('heading', { name: 'Sign In' })).toBeInTheDocument()
+    expect(await screen.findByRole('status')).toHaveTextContent('Сессия истекла')
+    expect(screen.getByRole('heading', { name: 'Войти' })).toBeInTheDocument()
   })
 
   it('routes a terminal 401 from a file mutation through session expiry handling', async () => {
@@ -188,11 +218,12 @@ describe('authentication UX', () => {
 
     renderApp('/files')
     const user = userEvent.setup()
-    await user.type(await screen.findByLabelText('Folder name'), 'New folder')
-    await user.click(screen.getByRole('button', { name: 'Create folder' }))
+    await user.click(await screen.findByRole('button', { name: 'Новая папка' }))
+    await user.type(await screen.findByLabelText('Название папки'), 'New folder')
+    await user.click(screen.getByRole('button', { name: 'Создать папку' }))
 
-    expect(await screen.findByRole('status')).toHaveTextContent('session has expired')
-    expect(screen.getByRole('heading', { name: 'Sign In' })).toBeInTheDocument()
+    expect(await screen.findByRole('status')).toHaveTextContent('Сессия истекла')
+    expect(screen.getByRole('heading', { name: 'Войти' })).toBeInTheDocument()
     expect(tokenStorage.getAccessToken()).toBeNull()
     expect(tokenStorage.getRefreshToken()).toBeNull()
     expect(refreshCalls).toBe(2)

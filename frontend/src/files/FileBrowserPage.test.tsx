@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {
   AxiosError,
@@ -39,7 +39,7 @@ describe('FileBrowserPage', () => {
     expect(await screen.findByText('report.txt')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Documents' }))
 
-    expect(await screen.findByText('This folder is empty.')).toBeInTheDocument()
+    expect(await screen.findByText('В этой папке пока пусто')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Documents' })).toBeInTheDocument()
     expect(nestedParentIds).toEqual([7, 7])
   })
@@ -55,8 +55,8 @@ describe('FileBrowserPage', () => {
 
     renderPage('/files/folders/9')
 
-    const breadcrumb = await screen.findByRole('navigation', { name: 'Breadcrumb' })
-    expect(breadcrumb).toHaveTextContent('My Files/Parent/Child')
+    const breadcrumb = await screen.findByRole('navigation', { name: 'Путь к папке' })
+    expect(breadcrumb).toHaveTextContent('Мои файлы/Parent/Child')
     expect(screen.getByText('inside.txt')).toBeInTheDocument()
   })
 
@@ -74,10 +74,10 @@ describe('FileBrowserPage', () => {
 
     renderPage('/files')
     const user = userEvent.setup()
-    expect(await screen.findByRole('alert')).toHaveTextContent('server could not complete')
-    await user.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось выполнить операцию')
+    await user.click(screen.getByRole('button', { name: 'Повторить' }))
 
-    expect(await screen.findByText('This folder is empty.')).toBeInTheDocument()
+    expect(await screen.findByText('В этой папке пока пусто')).toBeInTheDocument()
     expect(fileCalls).toBe(2)
   })
 
@@ -90,13 +90,13 @@ describe('FileBrowserPage', () => {
 
     renderPage('/files/folders/12junk')
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('folder address is invalid')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Некорректный адрес папки')
     expect(calls).toBe(0)
   })
 
   it.each([
-    [404, 'does not exist or is not available'],
-    [403, 'do not have permission'],
+    [404, 'не существует или недоступна'],
+    [403, 'нет доступа'],
   ])('renders a distinct access state for HTTP %s', async (status, message) => {
     apiClient.defaults.adapter = async (config) => {
       throw responseFailure(config, status)
@@ -105,8 +105,8 @@ describe('FileBrowserPage', () => {
     renderPage('/files/folders/7')
 
     expect(await screen.findByRole('alert')).toHaveTextContent(message)
-    expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Return to My Files' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'К моим файлам' })).toBeInTheDocument()
   })
 
   it('uploads into the current folder and refreshes its listing after completion', async () => {
@@ -132,14 +132,14 @@ describe('FileBrowserPage', () => {
 
     renderPage('/files/folders/9')
     const user = userEvent.setup()
-    await screen.findByText('This folder is empty.')
+    await screen.findByText('В этой папке пока пусто')
     const selected = new File([new Uint8Array([1, 2, 3, 4])], 'new.png', { type: 'image/png' })
-    await user.upload(screen.getByLabelText('Choose a file to upload'), selected)
-    expect(screen.getByText(/Selected: new.png/)).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Upload' }))
+    await user.upload(screen.getByLabelText('Выбрать файл для загрузки'), selected)
+    expect(screen.getByText(/Выбран файл: new.png/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Загрузить' }))
 
-    expect(await screen.findByText('new.png uploaded successfully.')).toBeInTheDocument()
-    expect(await screen.findByText('new.png', { selector: 'td' })).toBeInTheDocument()
+    expect(await screen.findByText('new.png — файл загружен.')).toBeInTheDocument()
+    expect(await screen.findByText('new.png', { selector: 'button' })).toBeInTheDocument()
     expect(sessionPayloads).toEqual([{ filename: 'new.png', totalSize: 4, chunkSize: 10 * 1024 * 1024, parentId: 9 }])
   })
 
@@ -154,14 +154,15 @@ describe('FileBrowserPage', () => {
 
     renderPage('/files')
     const user = userEvent.setup()
-    await screen.findByText('This folder is empty.')
+    await screen.findByText('В этой папке пока пусто')
     await user.upload(
-      screen.getByLabelText('Choose a file to upload'),
+      screen.getByLabelText('Выбрать файл для загрузки'),
       new File([new Uint8Array([1])], 'small.png', { type: 'image/png' }),
     )
-    await user.click(screen.getByRole('button', { name: 'Upload' }))
+    await user.click(screen.getByRole('button', { name: 'Загрузить' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('not enough storage space')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Недостаточно места')
+    expect(screen.getByRole('button', { name: 'Повторить загрузку' })).toBeEnabled()
   })
 
   it('blocks an oversized browser download before issuing a request', async () => {
@@ -175,9 +176,9 @@ describe('FileBrowserPage', () => {
 
     renderPage('/files')
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('button', { name: 'Download archive.zip' }))
+    await chooseAction(user, 'archive.zip', 'Скачать')
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('limited to 100 MB')
+    expect(await screen.findByRole('alert')).toHaveTextContent('до 100 МБ')
     expect(downloadRequests).toBe(0)
   })
 
@@ -214,11 +215,11 @@ describe('FileBrowserPage', () => {
     const user = userEvent.setup()
     await screen.findByRole('button', { name: 'Documents' })
     await user.upload(
-      screen.getByLabelText('Choose a file to upload'),
+      screen.getByLabelText('Выбрать файл для загрузки'),
       new File([new Uint8Array([1])], 'moving.png', { type: 'image/png' }),
     )
-    await user.click(screen.getByRole('button', { name: 'Upload' }))
-    await screen.findByRole('button', { name: 'Cancel upload' })
+    await user.click(screen.getByRole('button', { name: 'Загрузить' }))
+    await screen.findByRole('button', { name: 'Отменить загрузку' })
     await user.click(screen.getByRole('button', { name: 'Documents' }))
 
     expect(await screen.findByRole('heading', { name: 'Documents' })).toBeInTheDocument()
@@ -228,9 +229,9 @@ describe('FileBrowserPage', () => {
   })
 
   it.each([
-    ['File size exceeds allowed maximum', 'exceeds the upload limit'],
-    ['File type application/octet-stream is not allowed for upload', 'file type is not allowed'],
-    ['Upload session expired', 'upload session expired'],
+    ['File size exceeds allowed maximum', 'превышает ограничение загрузки'],
+    ['File type application/octet-stream is not allowed for upload', 'тип файла не разрешён'],
+    ['Upload session expired', 'Срок загрузки истёк'],
   ])('maps upload failure "%s" without showing success', async (backendMessage, expectedMessage) => {
     apiClient.defaults.adapter = async (config) => {
       if (config.url === '/files/folders' || config.url === '/files') return ok(config, [])
@@ -251,15 +252,15 @@ describe('FileBrowserPage', () => {
 
     renderPage('/files')
     const user = userEvent.setup()
-    await screen.findByText('This folder is empty.')
+    await screen.findByText('В этой папке пока пусто')
     await user.upload(
-      screen.getByLabelText('Choose a file to upload'),
+      screen.getByLabelText('Выбрать файл для загрузки'),
       new File([new Uint8Array([1])], 'bad.bin', { type: 'application/octet-stream' }),
     )
-    await user.click(screen.getByRole('button', { name: 'Upload' }))
+    await user.click(screen.getByRole('button', { name: 'Загрузить' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(expectedMessage)
-    expect(screen.queryByText(/uploaded successfully/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/файл загружен/)).not.toBeInTheDocument()
   })
 
   it('creates a folder and refreshes the current listing', async () => {
@@ -273,8 +274,10 @@ describe('FileBrowserPage', () => {
     }
     renderPage('/files')
     const user = userEvent.setup()
-    await user.type(await screen.findByLabelText('Folder name'), 'New folder')
-    await user.click(screen.getByRole('button', { name: 'Create folder' }))
+    await screen.findByText('В этой папке пока пусто')
+    await user.click(screen.getByRole('button', { name: 'Новая папка' }))
+    await user.type(await screen.findByLabelText('Название папки'), 'New folder')
+    await user.click(screen.getByRole('button', { name: 'Создать папку' }))
     expect(await screen.findByRole('button', { name: 'New folder' })).toBeInTheDocument()
     expect(payload).toEqual({ name: 'New folder' })
   })
@@ -282,8 +285,6 @@ describe('FileBrowserPage', () => {
   it('renames, moves, copies and trashes files with refresh and confirmation', async () => {
     let present = true
     const mutations: Array<{ url?: string; method?: string; data?: unknown }> = []
-    vi.spyOn(window, 'prompt').mockReturnValue('renamed.txt')
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     apiClient.defaults.adapter = async (config) => {
       if (config.url === '/files/folders') return ok(config, [folder(7, 'Destination', null)])
       if (config.url === '/files') return ok(config, present ? [file(11, 'report.txt', 2)] : [])
@@ -293,15 +294,21 @@ describe('FileBrowserPage', () => {
     }
     renderPage('/files')
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('button', { name: 'Rename report.txt' }))
+    await chooseAction(user, 'report.txt', 'Переименовать')
+    await user.clear(screen.getByLabelText('Новое название'))
+    await user.type(screen.getByLabelText('Новое название'), 'renamed.txt')
+    await user.click(screen.getByRole('button', { name: 'Переименовать' }))
     await waitFor(() => expect(mutations).toHaveLength(1))
-    await user.selectOptions(screen.getByLabelText('Destination for report.txt'), '7')
-    await user.click(screen.getByRole('button', { name: 'Move report.txt' }))
+    await chooseAction(user, 'report.txt', 'Переместить')
+    await user.selectOptions(screen.getByLabelText('Папка назначения'), '7')
+    await user.click(screen.getByRole('button', { name: 'Переместить' }))
     await waitFor(() => expect(mutations).toHaveLength(2))
-    await user.click(screen.getByRole('button', { name: 'Copy report.txt' }))
+    await chooseAction(user, 'report.txt', 'Копировать')
+    await user.click(screen.getByRole('button', { name: 'Копировать' }))
     await waitFor(() => expect(mutations).toHaveLength(3))
-    await user.click(screen.getByRole('button', { name: 'Trash report.txt' }))
-    await waitFor(() => expect(screen.queryByText('report.txt', { selector: 'td' })).not.toBeInTheDocument())
+    await chooseAction(user, 'report.txt', 'В корзину')
+    await user.click(screen.getByRole('button', { name: 'Переместить в корзину' }))
+    await waitFor(() => expect(screen.queryByText('report.txt', { selector: 'button' })).not.toBeInTheDocument())
     expect(mutations).toEqual(expect.arrayContaining([
       { url: '/files/11', method: 'patch', data: { name: 'renamed.txt' } },
       { url: '/files/11/move', method: 'post', data: { targetParentId: 7 } },
@@ -324,17 +331,16 @@ describe('FileBrowserPage', () => {
     }
     renderPage('/files')
     const user = userEvent.setup()
-    await screen.findByRole('button', { name: 'Rename old.txt' })
+    await screen.findByRole('button', { name: 'Действия: old.txt' })
     await user.click(screen.getByRole('button', { name: 'Destination' }))
-    expect(screen.queryByRole('button', { name: 'Rename old.txt' })).not.toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent('Loading files')
+    expect(screen.queryByRole('button', { name: 'Действия: old.txt' })).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Загрузка файлов')
     expect(mutationCalls).toBe(0)
   })
 
   it('keeps the duplicate mutation guard enforced while navigation replaces the view', async () => {
     let mutationCalls = 0
     let finishMutation!: (value: AxiosResponse) => void
-    vi.spyOn(window, 'prompt').mockReturnValue('renamed.txt')
     apiClient.defaults.adapter = async (config) => {
       const parentId = config.params?.parentId as number | undefined
       if (config.url === '/files/folders/7') return ok(config, folder(7, 'Destination', null))
@@ -348,13 +354,15 @@ describe('FileBrowserPage', () => {
       }
       throw new Error(`Unexpected request: ${config.url}`)
     }
-    renderPage('/files')
+    renderNavigablePage()
     const user = userEvent.setup()
-    const rename = await screen.findByRole('button', { name: 'Rename old.txt' })
-    await user.dblClick(rename)
+    await chooseAction(user, 'old.txt', 'Переименовать')
+    await user.clear(screen.getByLabelText('Новое название'))
+    await user.type(screen.getByLabelText('Новое название'), 'renamed.txt')
+    await user.dblClick(screen.getByRole('button', { name: 'Переименовать' }))
     expect(mutationCalls).toBe(1)
-    await user.click(screen.getByRole('button', { name: 'Destination' }))
-    expect(screen.queryByRole('button', { name: 'Rename old.txt' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Go to current folder' }))
+    expect(screen.queryByRole('button', { name: 'Действия: old.txt' })).not.toBeInTheDocument()
     expect(mutationCalls).toBe(1)
     finishMutation(ok({} as InternalAxiosRequestConfig, {}))
   })
@@ -384,8 +392,6 @@ describe('FileBrowserPage', () => {
   it('covers folder rename, move, and delete component paths', async () => {
     let folders = [folder(7, 'Project', null), folder(8, 'Archive', null)]
     const mutations: Array<{ url?: string; method?: string; data?: unknown }> = []
-    vi.spyOn(window, 'prompt').mockReturnValue('Renamed project')
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     apiClient.defaults.adapter = async (config) => {
       if (config.url === '/files/folders' && config.method === 'get') return ok(config, folders)
       if (config.url === '/files') return ok(config, [])
@@ -395,12 +401,17 @@ describe('FileBrowserPage', () => {
     }
     renderPage('/files')
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('button', { name: 'Rename Project' }))
+    await chooseAction(user, 'Project', 'Переименовать')
+    await user.clear(screen.getByLabelText('Новое название'))
+    await user.type(screen.getByLabelText('Новое название'), 'Renamed project')
+    await user.click(screen.getByRole('button', { name: 'Переименовать' }))
     await waitFor(() => expect(mutations).toHaveLength(1))
-    await user.selectOptions(screen.getByLabelText('Destination for Project'), '8')
-    await user.click(screen.getByRole('button', { name: 'Move Project' }))
+    await chooseAction(user, 'Project', 'Переместить')
+    await user.selectOptions(screen.getByLabelText('Папка назначения'), '8')
+    await user.click(screen.getByRole('button', { name: 'Переместить' }))
     await waitFor(() => expect(mutations).toHaveLength(2))
-    await user.click(screen.getByRole('button', { name: 'Trash Project' }))
+    await chooseAction(user, 'Project', 'В корзину')
+    await user.click(screen.getByRole('button', { name: 'Переместить в корзину' }))
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Project' })).not.toBeInTheDocument())
     expect(mutations).toEqual(expect.arrayContaining([
       { url: '/files/folders/7', method: 'patch', data: { name: 'Renamed project' } },
@@ -411,7 +422,6 @@ describe('FileBrowserPage', () => {
 
   it('keeps a successfully removed item absent when the refetch fails', async () => {
     let deleted = false
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     apiClient.defaults.adapter = async (config) => {
       if (config.url === '/files/folders') return ok(config, [])
       if (config.url === '/files') {
@@ -423,14 +433,14 @@ describe('FileBrowserPage', () => {
     }
     renderPage('/files')
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('button', { name: 'Trash remove-me.txt' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('server could not complete')
+    await chooseAction(user, 'remove-me.txt', 'В корзину')
+    await user.click(screen.getByRole('button', { name: 'Переместить в корзину' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось выполнить операцию')
     expect(screen.queryByText('remove-me.txt')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Повторить' })).toBeInTheDocument()
   })
 
   it('keeps the item stable and safely reports a 401 mutation', async () => {
-    vi.spyOn(window, 'prompt').mockReturnValue('renamed.txt')
     apiClient.defaults.adapter = async (config) => {
       if (config.url === '/files/folders') return ok(config, [])
       if (config.url === '/files') return ok(config, [file(11, 'report.txt', 1)])
@@ -438,12 +448,145 @@ describe('FileBrowserPage', () => {
     }
     renderPage('/files')
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('button', { name: 'Rename report.txt' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('session has expired')
-    expect(screen.getByText('report.txt')).toBeInTheDocument()
+    await chooseAction(user, 'report.txt', 'Переименовать')
+    await user.clear(screen.getByLabelText('Новое название'))
+    await user.type(screen.getByLabelText('Новое название'), 'renamed.txt')
+    await user.click(screen.getByRole('button', { name: 'Переименовать' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Сессия истекла')
+    expect(screen.getByRole('button', { name: 'report.txt' })).toBeInTheDocument()
     expect(screen.queryByText('raw token failure')).not.toBeInTheDocument()
   })
+  it('supports keyboard menus and restores focus after cancelling a dialog', async () => {
+    apiClient.defaults.adapter = async (config) => ok(config, config.url === '/files' ? [file(11, 'keyboard.txt', 1)] : [])
+    renderPage('/files')
+    const user = userEvent.setup()
+    const trigger = await screen.findByRole('button', { name: 'Действия: keyboard.txt' })
+    trigger.focus()
+    await user.keyboard('{ArrowDown}')
+    expect(screen.getByRole('menuitem', { name: 'Просмотр' })).toHaveFocus()
+    await user.keyboard('{End}')
+    expect(screen.getByRole('menuitem', { name: 'В корзину' })).toHaveFocus()
+    await user.keyboard('{Escape}')
+    expect(trigger).toHaveFocus()
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    await chooseAction(user, 'keyboard.txt', 'Переименовать')
+    expect(screen.getByRole('dialog')).toContainElement(document.activeElement as HTMLElement)
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+  })
+
+  it('shows complete metadata in tile mode and does not delete on cancel', async () => {
+    let mutations = 0
+    apiClient.defaults.adapter = async (config) => {
+      if (config.method !== 'get') mutations += 1
+      return ok(config, config.url === '/files' ? [file(11, 'retained.txt', 2048)] : [])
+    }
+    renderPage('/files')
+    const user = userEvent.setup()
+    await screen.findByText('retained.txt')
+    await user.click(screen.getByRole('button', { name: 'Плитка' }))
+    expect(screen.getByRole('button', { name: 'Плитка' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('table')).toHaveClass('directory-grid')
+    const row = screen.getByRole('button', { name: 'retained.txt' }).closest('tr')!
+    expect(within(row).getByText('Размер:')).toBeInTheDocument()
+    expect(row).toHaveTextContent('2.0 КБ')
+    await chooseAction(user, 'retained.txt', 'В корзину')
+    await user.click(screen.getByRole('button', { name: 'Отмена' }))
+    expect(mutations).toBe(0)
+    expect(screen.getByRole('button', { name: 'retained.txt' })).toBeInTheDocument()
+  })
+
+  it('allows closing a pending create dialog without allowing a duplicate request', async () => {
+    let completeCreate!: () => void
+    let createCalls = 0
+    let created = false
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/files/folders' && config.method === 'get') return ok(config, created ? [folder(8, 'Pending folder', null)] : [])
+      if (config.url === '/files') return ok(config, [])
+      if (config.url === '/files/folders' && config.method === 'post') {
+        createCalls += 1
+        return await new Promise<AxiosResponse>((resolve) => { completeCreate = () => { created = true; resolve(createdResponse(config, {})) } })
+      }
+      throw new Error(`Unexpected request: ${config.url}`)
+    }
+    renderPage('/files')
+    const user = userEvent.setup()
+    await screen.findByText('В этой папке пока пусто')
+    const trigger = screen.getByRole('button', { name: 'Новая папка' })
+    await user.click(trigger)
+    await user.type(screen.getByLabelText('Название папки'), 'Pending folder')
+    await user.click(screen.getByRole('button', { name: 'Создать папку' }))
+    expect(createCalls).toBe(1)
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Создание папки продолжается')
+    expect(trigger).toHaveFocus()
+    expect(trigger).toHaveAttribute('aria-disabled', 'true')
+    await user.click(trigger)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(createCalls).toBe(1)
+    completeCreate()
+    expect(await screen.findByRole('button', { name: 'Pending folder' })).toBeInTheDocument()
+    expect(trigger).toBeEnabled()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('shows an API conflict after correcting a local rename validation error', async () => {
+    let mutations = 0
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/files/folders') return ok(config, [])
+      if (config.url === '/files') return ok(config, [file(11, 'rename.txt', 1)])
+      mutations += 1
+      throw responseFailure(config, 409, 'Already exists')
+    }
+    renderPage('/files')
+    const user = userEvent.setup()
+    await chooseAction(user, 'rename.txt', 'Переименовать')
+    const input = screen.getByLabelText('Новое название')
+    await user.clear(input)
+    await user.click(screen.getByRole('button', { name: 'Переименовать' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('Введите название от 1 до 255 символов')
+    expect(mutations).toBe(0)
+    await user.type(input, 'existing.txt')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Переименовать' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Объект с таким названием уже существует')
+    expect(mutations).toBe(1)
+  })
+
+  it('allows closing a pending rename and clears its late failure before a new action', async () => {
+    let failRename!: () => void
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/files/folders') return ok(config, [])
+      if (config.url === '/files') return ok(config, [file(11, 'pending.txt', 1)])
+      return await new Promise<AxiosResponse>((_resolve, reject) => { failRename = () => reject(responseFailure(config, 409)) })
+    }
+    renderPage('/files')
+    const user = userEvent.setup()
+    await chooseAction(user, 'pending.txt', 'Переименовать')
+    await user.click(screen.getByRole('button', { name: 'Переименовать' }))
+    await user.click(screen.getAllByRole('button', { name: 'Закрыть' })[0])
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Операция продолжается')
+    const trigger = screen.getByRole('button', { name: 'Действия: pending.txt' })
+    expect(trigger).toHaveFocus()
+    expect(trigger).toHaveAttribute('aria-disabled', 'true')
+    await user.click(trigger)
+    await user.keyboard('{ArrowDown}')
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    failRename()
+    expect(await screen.findByRole('alert')).toHaveTextContent('Объект с таким названием уже существует')
+    await chooseAction(user, 'pending.txt', 'Переименовать')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
 })
+
+async function chooseAction(user: ReturnType<typeof userEvent.setup>, name: string, action: string) {
+  await user.click(await screen.findByRole('button', { name: `Действия: ${name}` }))
+  await user.click(screen.getByRole('menuitem', { name: action }))
+}
 
 function renderPage(path: string) {
   return render(

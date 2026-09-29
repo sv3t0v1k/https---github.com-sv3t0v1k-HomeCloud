@@ -13,7 +13,6 @@ describe('TrashPage', () => {
     let files = [file(4, 'old.txt')]
     let folders = [folder(7, 'Old folder')]
     const calls: string[] = []
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     apiClient.defaults.adapter = async (config) => {
       calls.push(`${config.method}:${config.url}`)
       if (config.url === '/files/trash') return ok(config, { files, folders })
@@ -23,10 +22,12 @@ describe('TrashPage', () => {
     }
     render(<TrashPage />)
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('button', { name: 'Restore old.txt' }))
+    await user.click(await screen.findByRole('button', { name: 'Восстановить old.txt' }))
     await waitFor(() => expect(screen.queryByText('old.txt')).not.toBeInTheDocument())
-    await user.click(screen.getByRole('button', { name: 'Delete Old folder permanently' }))
-    await waitFor(() => expect(screen.getByText('Trash is empty.')).toBeInTheDocument())
+    await user.click(screen.getByRole('button', { name: 'Удалить Old folder навсегда' }))
+    expect(screen.getByRole('dialog', { name: 'Удалить «Old folder» навсегда?' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Удалить навсегда' }))
+    await waitFor(() => expect(screen.getByText('Корзина пуста')).toBeInTheDocument())
     expect(calls).toContain('post:/files/4/restore')
     expect(calls).toContain('delete:/files/folders/7/permanent')
   })
@@ -38,8 +39,8 @@ describe('TrashPage', () => {
     }
     render(<TrashPage />)
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('button', { name: 'Restore old.txt' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('server could not complete')
+    await user.click(await screen.findByRole('button', { name: 'Восстановить old.txt' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось выполнить операцию. Повторите попытку.')
     expect(screen.getByText('old.txt')).toBeInTheDocument()
     expect(screen.queryByText(/private\/storage/)).not.toBeInTheDocument()
   })
@@ -54,7 +55,7 @@ describe('TrashPage', () => {
     }
     render(<TrashPage />)
     const user = userEvent.setup()
-    const button = await screen.findByRole('button', { name: 'Restore old.txt' })
+    const button = await screen.findByRole('button', { name: 'Восстановить old.txt' })
     await user.dblClick(button)
     expect(restoreCalls).toBe(1)
     finish(ok({} as InternalAxiosRequestConfig, {}))
@@ -63,7 +64,6 @@ describe('TrashPage', () => {
   it('requires confirmation before emptying trash and then refetches', async () => {
     let files = [file(4, 'old.txt')]
     let emptyCalls = 0
-    vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true)
     apiClient.defaults.adapter = async (config) => {
       if (config.url === '/files/trash') return ok(config, { files, folders: [] })
       if (config.url === '/files/empty-trash') { emptyCalls += 1; files = []; return ok(config, {}) }
@@ -71,12 +71,39 @@ describe('TrashPage', () => {
     }
     render(<TrashPage />)
     const user = userEvent.setup()
-    const button = await screen.findByRole('button', { name: 'Empty Trash' })
+    const button = await screen.findByRole('button', { name: 'Очистить корзину' })
     await user.click(button)
+    expect(screen.getByRole('dialog', { name: 'Очистить корзину?' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Отмена' })).toHaveFocus()
+    await user.click(screen.getByRole('button', { name: 'Отмена' }))
     expect(emptyCalls).toBe(0)
+    expect(button).toHaveFocus()
     await user.click(button)
-    expect(await screen.findByText('Trash is empty.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Удалить всё навсегда' }))
+    expect(await screen.findByText('Корзина пуста')).toBeInTheDocument()
     expect(emptyCalls).toBe(1)
+  })
+
+  it('traps confirmation focus, cancels with Escape, and restores the trigger without deleting', async () => {
+    const calls: string[] = []
+    apiClient.defaults.adapter = async (config) => {
+      calls.push(`${config.method}:${config.url}`)
+      return ok(config, { files: [file(4, 'old.txt')], folders: [] })
+    }
+    render(<TrashPage />)
+    const user = userEvent.setup()
+    const trigger = await screen.findByRole('button', { name: 'Удалить old.txt навсегда' })
+    await user.click(trigger)
+    const cancel = screen.getByRole('button', { name: 'Отмена' })
+    expect(cancel).toHaveFocus()
+    await user.tab({ shift: true })
+    expect(screen.getByRole('button', { name: 'Удалить навсегда' })).toHaveFocus()
+    await user.tab()
+    expect(cancel).toHaveFocus()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+    expect(calls).toEqual(['get:/files/trash'])
   })
 
   it('restores a folder through the folder lifecycle endpoint', async () => {
@@ -89,8 +116,8 @@ describe('TrashPage', () => {
     }
     render(<TrashPage />)
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('button', { name: 'Restore Old folder' }))
-    expect(await screen.findByText('Trash is empty.')).toBeInTheDocument()
+    await user.click(await screen.findByRole('button', { name: 'Восстановить Old folder' }))
+    expect(await screen.findByText('Корзина пуста')).toBeInTheDocument()
     expect(restoreCalls).toBe(1)
   })
 })

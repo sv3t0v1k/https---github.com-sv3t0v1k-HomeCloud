@@ -62,7 +62,7 @@ describe('PreviewModal', () => {
     render(<PreviewModal file={file(3, 'notes.txt')} onClose={onClose} />)
 
     expect(await screen.findByText('preview body')).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Close preview' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Закрыть просмотр' }))
     expect(onClose).toHaveBeenCalledOnce()
   })
 
@@ -75,7 +75,7 @@ describe('PreviewModal', () => {
 
     const trigger = screen.getByRole('button', { name: 'Open preview' })
     await user.click(trigger)
-    const close = screen.getByRole('button', { name: 'Close preview' })
+    const close = screen.getByRole('button', { name: 'Закрыть просмотр' })
     expect(close).toHaveFocus()
 
     await user.tab()
@@ -94,7 +94,7 @@ describe('PreviewModal', () => {
     render(<PreviewHarness file={file(31, 'slow.txt')} removeTriggerOnClose />)
 
     await user.click(screen.getByRole('button', { name: 'Open preview' }))
-    expect(screen.getByRole('button', { name: 'Close preview' })).toHaveFocus()
+    expect(screen.getByRole('button', { name: 'Закрыть просмотр' })).toHaveFocus()
     await user.keyboard('{Escape}')
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -107,7 +107,7 @@ describe('PreviewModal', () => {
     })
     const view = render(<PreviewModal file={file(4, 'photo.png', 'image/png')} onClose={() => undefined} />)
 
-    expect(await screen.findByRole('img', { name: 'Preview of photo.png' })).toHaveAttribute('src', 'blob:preview')
+    expect(await screen.findByRole('img', { name: 'Предпросмотр: photo.png' })).toHaveAttribute('src', 'blob:preview')
     expect(createObjectURL).toHaveBeenCalledOnce()
     view.unmount()
     expect(revokeObjectURL).toHaveBeenCalledOnce()
@@ -123,7 +123,7 @@ describe('PreviewModal', () => {
       }, { once: true })
     })
     const view = render(<PreviewModal file={file(5, 'slow.txt')} onClose={() => undefined} />)
-    await screen.findByText('Loading preview…')
+    await screen.findByText('Загружаем предпросмотр…')
 
     view.unmount()
     expect(aborted).toBe(true)
@@ -160,15 +160,15 @@ describe('PreviewModal', () => {
     })
     render(<PreviewModal file={file(8, 'archive.zip', 'application/zip')} onClose={() => undefined} />)
 
-    expect(await screen.findByText('Preview is not available for this file type.')).toBeInTheDocument()
+    expect(await screen.findByText('Предпросмотр недоступен для этого типа файлов.')).toBeInTheDocument()
     expect(screen.queryByText('internal backend wording')).not.toBeInTheDocument()
   })
 
   it.each([
-    [400, 'Image exceeds maximum preview size', 'too large to preview'],
-    [404, 'File not found on storage', 'no longer available'],
-    [403, 'Forbidden', 'do not have permission'],
-    [500, 'private /srv/storage/path', 'could not generate this preview'],
+    [400, 'Image exceeds maximum preview size', 'слишком большой для предпросмотра'],
+    [404, 'File not found on storage', 'больше недоступен'],
+    [403, 'Forbidden', 'У вас нет разрешения'],
+    [500, 'private /srv/storage/path', 'не смог подготовить предпросмотр'],
   ])('maps HTTP %s without exposing backend details', async (status, backendMessage, expected) => {
     apiClient.defaults.adapter = async (config) => { throw failure(config, status, backendMessage) }
     render(<PreviewModal file={file(9, 'problem.png', 'image/png')} onClose={() => undefined} />)
@@ -182,7 +182,7 @@ describe('PreviewModal', () => {
     apiClient.defaults.adapter = async (config) => { throw failure(config, 401, 'token rejected') }
     render(<PreviewModal file={file(10, 'private.txt')} onClose={() => undefined} />)
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('session has expired')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Сеанс завершён')
   })
 })
 

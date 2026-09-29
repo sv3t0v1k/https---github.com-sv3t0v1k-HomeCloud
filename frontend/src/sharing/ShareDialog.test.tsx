@@ -31,16 +31,16 @@ describe('ShareDialog', () => {
 
     render(<ShareDialog onClose={() => undefined} target={{ fileId: 12, name: 'photo.png', isFolder: false }} />)
     const user = userEvent.setup()
-    await screen.findByText('No active links for this item.')
-    await user.clear(screen.getByLabelText('Expires in days'))
-    await user.type(screen.getByLabelText('Expires in days'), '30')
-    await user.type(screen.getByLabelText('Download limit (optional)'), '4')
-    await user.type(screen.getByLabelText('Password (optional)'), 'secret phrase')
-    await user.click(screen.getByRole('button', { name: 'Create share link' }))
+    await screen.findByText('Для этого объекта пока нет ссылок.')
+    await user.clear(screen.getByLabelText('Срок действия, дней'))
+    await user.type(screen.getByLabelText('Срок действия, дней'), '30')
+    await user.type(screen.getByLabelText('Лимит скачиваний (необязательно)'), '4')
+    await user.type(screen.getByLabelText('Пароль (необязательно)'), 'secret phrase')
+    await user.click(screen.getByRole('button', { name: 'Создать ссылку' }))
 
-    expect(await screen.findByText('Share link created.')).toBeInTheDocument()
+    expect(await screen.findByText('Ссылка создана.')).toBeInTheDocument()
     expect(payloads).toEqual([{ fileId: 12, isFolder: false, expiresInDays: 30, password: 'secret phrase', maxDownloads: 4 }])
-    expect(screen.getByLabelText('Password (optional)')).toHaveValue('')
+    expect(screen.getByLabelText('Пароль (необязательно)')).toHaveValue('')
     expect(screen.queryByText('secret phrase')).not.toBeInTheDocument()
   })
 
@@ -51,11 +51,11 @@ describe('ShareDialog', () => {
 
     const trigger = screen.getByRole('button', { name: 'Open sharing' })
     await user.click(trigger)
-    const close = screen.getByRole('button', { name: 'Close sharing' })
+    const close = screen.getByRole('button', { name: 'Закрыть общий доступ' })
     expect(close).toHaveFocus()
 
     await user.tab({ shift: true })
-    expect(screen.getByRole('button', { name: 'Create share link' })).toHaveFocus()
+    expect(screen.getByRole('button', { name: 'Создать ссылку' })).toHaveFocus()
     await user.tab()
     expect(close).toHaveFocus()
 
@@ -70,8 +70,8 @@ describe('ShareDialog', () => {
     render(<ShareHarness removeTriggerOnClose />)
 
     await user.click(screen.getByRole('button', { name: 'Open sharing' }))
-    expect(screen.getByRole('button', { name: 'Close sharing' })).toHaveFocus()
-    expect(screen.getByText('Loading share links…')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Закрыть общий доступ' })).toHaveFocus()
+    expect(screen.getByText('Загружаем ссылки…')).toBeInTheDocument()
     await user.keyboard('{Escape}')
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -89,13 +89,13 @@ describe('ShareDialog', () => {
 
     const trigger = screen.getByRole('button', { name: 'Open sharing' })
     await user.click(trigger)
-    await screen.findByText('No active links for this item.')
-    await user.click(screen.getByRole('button', { name: 'Create share link' }))
+    await screen.findByText('Для этого объекта пока нет ссылок.')
+    await user.click(screen.getByRole('button', { name: 'Создать ссылку' }))
 
-    const close = screen.getByRole('button', { name: 'Close sharing' })
+    const close = screen.getByRole('button', { name: 'Закрыть общий доступ' })
     await waitFor(() => expect(close).toHaveFocus())
     await user.tab({ shift: true })
-    expect(screen.getByLabelText('Password (optional)')).toHaveFocus()
+    expect(screen.getByLabelText('Пароль (необязательно)')).toHaveFocus()
     await user.tab()
     expect(close).toHaveFocus()
 
@@ -113,9 +113,9 @@ describe('ShareDialog', () => {
     }
     render(<ShareDialog onClose={() => undefined} target={{ fileId: 91, name: 'Docs', isFolder: true }} />)
     const user = userEvent.setup()
-    await screen.findByText('No active links for this item.')
-    await user.click(screen.getByRole('button', { name: 'Create share link' }))
-    await screen.findByText('Share link created.')
+    await screen.findByText('Для этого объекта пока нет ссылок.')
+    await user.click(screen.getByRole('button', { name: 'Создать ссылку' }))
+    await screen.findByText('Ссылка создана.')
     expect(payload).toEqual({ fileId: 91, isFolder: true, expiresInDays: 7 })
   })
 
@@ -136,12 +136,12 @@ describe('ShareDialog', () => {
     const user = userEvent.setup()
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
-    await user.click(await screen.findByRole('button', { name: 'Copy URL' }))
+    await user.click(await screen.findByRole('button', { name: 'Копировать ссылку' }))
     expect(writeText).toHaveBeenCalledWith('http://localhost:3000/api/v1/sharing/public/copy-token')
-    await user.click(screen.getByRole('button', { name: 'Open' }))
+    await user.click(screen.getByRole('button', { name: 'Открыть' }))
     expect(open).toHaveBeenCalledWith('http://localhost:3000/api/v1/sharing/public/copy-token', '_blank', 'noopener,noreferrer')
-    await user.click(screen.getByRole('button', { name: 'Revoke' }))
-    await waitFor(() => expect(screen.getByText('No active links for this item.')).toBeInTheDocument())
+    await user.click(screen.getByRole('button', { name: 'Закрыть доступ' }))
+    await waitFor(() => expect(screen.getByText('Для этого объекта пока нет ссылок.')).toBeInTheDocument())
     expect(deleteCalls).toBe(1)
   })
 
@@ -150,17 +150,17 @@ describe('ShareDialog', () => {
     render(<ShareDialog onClose={() => undefined} target={{ fileId: 12, name: 'photo.png', isFolder: false }} />)
     const user = userEvent.setup()
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: vi.fn().mockRejectedValue(new Error('denied')) } })
-    await user.click(await screen.findByRole('button', { name: 'Copy URL' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('could not be copied')
+    await user.click(await screen.findByRole('button', { name: 'Копировать ссылку' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось скопировать ссылку')
     expect(screen.getByDisplayValue(/still-visible$/)).toBeInTheDocument()
   })
 
   it.each([
-    [400, 'File exceeds maximum shareable size', 'exceeds the sharing size limit'],
-    [400, 'File type not allowed for sharing', 'file type cannot be shared'],
-    [403, 'private authorization details', 'do not have permission'],
-    [404, 'Share link not found', 'no longer available'],
-    [500, 'database /private/path failed', 'could not be updated'],
+    [400, 'File exceeds maximum shareable size', 'Размер файла превышает лимит для общего доступа'],
+    [400, 'File type not allowed for sharing', 'Для этого типа файлов общий доступ недоступен'],
+    [403, 'private authorization details', 'У вас нет разрешения'],
+    [404, 'Share link not found', 'больше недоступны'],
+    [500, 'database /private/path failed', 'Не удалось обновить доступ'],
   ])('maps sharing HTTP %s errors without exposing backend details', async (status, backendMessage, expected) => {
     apiClient.defaults.adapter = async (config) => {
       if (config.method === 'get') return ok(config, [])
@@ -168,14 +168,14 @@ describe('ShareDialog', () => {
     }
     render(<ShareDialog onClose={() => undefined} target={{ fileId: 12, name: 'photo.png', isFolder: false }} />)
     const user = userEvent.setup()
-    await screen.findByText('No active links for this item.')
-    await user.type(screen.getByLabelText('Password (optional)'), 'discard me')
-    await user.click(screen.getByRole('button', { name: 'Create share link' }))
+    await screen.findByText('Для этого объекта пока нет ссылок.')
+    await user.type(screen.getByLabelText('Пароль (необязательно)'), 'discard me')
+    await user.click(screen.getByRole('button', { name: 'Создать ссылку' }))
 
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(expected)
     expect(alert).not.toHaveTextContent(backendMessage)
-    expect(screen.getByLabelText('Password (optional)')).toHaveValue('')
+    expect(screen.getByLabelText('Пароль (необязательно)')).toHaveValue('')
     expect(screen.queryByText('discard me')).not.toBeInTheDocument()
   })
 
@@ -185,7 +185,7 @@ describe('ShareDialog', () => {
     render(<ShareDialog onClose={() => undefined} target={{ fileId: 12, name: 'photo.png', isFolder: false }} />)
 
     const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent('session has expired')
+    expect(alert).toHaveTextContent('Сеанс завершён')
     expect(alert).not.toHaveTextContent('raw token failure')
   })
 })

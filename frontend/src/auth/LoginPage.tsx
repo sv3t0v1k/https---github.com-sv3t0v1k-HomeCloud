@@ -2,6 +2,7 @@ import { type FormEvent, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 
 import { ApiError } from '../api/errors'
+import { Icon } from '../ui/Icon'
 import { useSession } from './SessionContext'
 
 export function LoginPage() {
@@ -15,8 +16,8 @@ export function LoginPage() {
 
   if (session.status === 'bootstrapping') {
     return (
-      <main className="min-h-screen flex items-center justify-center" role="status">
-        Restoring your session…
+      <main className="auth-page" role="status">
+        Восстанавливаем сеанс…
       </main>
     )
   }
@@ -36,9 +37,7 @@ export function LoginPage() {
       navigate(readReturnPath(location.state), { replace: true })
     } catch (caught) {
       setError(
-        caught instanceof ApiError
-          ? caught.message
-          : 'Sign in could not be completed. Please try again.',
+        loginErrorMessage(caught),
       )
     } finally {
       setSubmitting(false)
@@ -46,27 +45,28 @@ export function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center">
-      <div className="max-w-md w-full mx-auto p-6">
-        <div className="bg-white rounded-lg shadow-md p-8">
-          <h1 className="text-2xl font-bold text-center mb-6">HomeCloud</h1>
-          <h2 className="text-xl font-semibold mb-4">Sign In</h2>
+    <main className="auth-page">
+      <div className="auth-layout">
+        <div className="auth-card">
+          <h1 className="auth-brand"><Icon name="cloud" height={32} width={32} />HomeCloud</h1>
+          <h2 className="page-heading">Войти</h2>
+          <p className="page-description">Ваши файлы — в одном месте.</p>
           {session.status === 'anonymous' && session.notice ? (
-            <p className="mb-4 rounded-md bg-amber-50 p-3 text-sm text-amber-900" role="status">
+            <p className="alert alert--warning" role="status">
               {session.notice}
             </p>
           ) : null}
           {error ? (
-            <p className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-800" role="alert">
+            <p className="alert alert--danger" role="alert">
               {error}
             </p>
           ) : null}
-          <form className="space-y-4" onSubmit={handleSubmit}>
+          <form className="auth-form" onSubmit={handleSubmit}>
             <div>
-              <label className="block text-sm font-medium mb-1" htmlFor="email">Email</label>
+              <label className="field" htmlFor="email">Электронная почта</label>
               <input
                 autoComplete="email"
-                className="w-full border rounded-md px-3 py-2"
+                className="input"
                 disabled={submitting}
                 id="email"
                 onChange={(event) => setEmail(event.target.value)}
@@ -76,10 +76,10 @@ export function LoginPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1" htmlFor="password">Password</label>
+              <label className="field" htmlFor="password">Пароль</label>
               <input
                 autoComplete="current-password"
-                className="w-full border rounded-md px-3 py-2"
+                className="input"
                 disabled={submitting}
                 id="password"
                 onChange={(event) => setPassword(event.target.value)}
@@ -89,11 +89,11 @@ export function LoginPage() {
               />
             </div>
             <button
-              className="w-full bg-blue-600 text-white rounded-md py-2 hover:bg-blue-700 disabled:opacity-60"
+              className="button button--primary"
               disabled={submitting}
               type="submit"
             >
-              {submitting ? 'Signing in…' : 'Sign In'}
+              {submitting ? 'Входим…' : 'Войти'}
             </button>
           </form>
         </div>
@@ -114,4 +114,14 @@ function readReturnPath(state: unknown): string {
     return state.from
   }
   return '/files'
+}
+
+function loginErrorMessage(error: unknown): string {
+  if (!(error instanceof ApiError)) return 'Не удалось войти. Попробуйте ещё раз.'
+  if (error.kind === 'authentication') return 'Неверная электронная почта или пароль.'
+  if (error.kind === 'authorization') return 'Доступ к аккаунту ограничен.'
+  if (error.kind === 'validation') return 'Проверьте электронную почту и пароль.'
+  if (error.kind === 'rate-limit') return 'Слишком много попыток входа. Попробуйте позже.'
+  if (error.kind === 'network') return 'Сервер недоступен. Проверьте соединение и попробуйте ещё раз.'
+  return 'Не удалось войти. Попробуйте ещё раз.'
 }

@@ -7,14 +7,14 @@ export function ProtectedRoute() {
   const location = useLocation()
 
   if (session.status === 'bootstrapping') {
-    return <RouteState message="Restoring your session…" />
+    return <RouteState message="Восстанавливаем сеанс…" />
   }
 
   if (session.status === 'unavailable') {
     return (
       <RouteState
-        message="HomeCloud is temporarily unavailable."
-        actionLabel="Try again"
+        message="HomeCloud временно недоступен."
+        actionLabel="Попробовать снова"
         onAction={() => void session.retryBootstrap()}
       />
     )
@@ -37,11 +37,11 @@ function RouteState({
   onAction?: () => void
 }) {
   return (
-    <main className="min-h-screen flex items-center justify-center" role="status">
-      <div className="text-center">
-        <p className="text-gray-700">{message}</p>
+    <main className="auth-page" role="status">
+      <div className="route-state">
+        <p className="muted">{message}</p>
         {actionLabel && onAction ? (
-          <button className="mt-4 text-blue-600" onClick={onAction} type="button">
+          <button className="button button--primary" onClick={onAction} type="button">
             {actionLabel}
           </button>
         ) : null}

@@ -3,6 +3,8 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import { SessionProvider } from './auth/SessionContext'
+import '@fontsource-variable/manrope'
+import '@fontsource-variable/jetbrains-mono'
 import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
