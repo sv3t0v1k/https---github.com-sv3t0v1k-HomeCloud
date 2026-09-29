@@ -1,3 +1,4 @@
+import { parseDatabaseSize } from "../common/database-size";
 import {
   Injectable,
   NotFoundException,
@@ -28,7 +29,7 @@ export class FilesService {
 
   private sumFileSizes(files: FileEntity[]): number {
     return files.reduce((total, file) => {
-      const size = Number(file.size);
+      const size = parseDatabaseSize(file.size, "Invalid file size metadata");
       const nextTotal = total + size;
       if (
         !Number.isSafeInteger(size) ||
@@ -794,7 +795,7 @@ export class FilesService {
 
     await this.assertFolderOwnership(userId, targetParentId);
 
-    const size = Number(source.size);
+    const size = parseDatabaseSize(source.size, "Invalid file size metadata");
     if (!Number.isSafeInteger(size) || size < 0) {
       throw new BadRequestException("Invalid file size metadata");
     }

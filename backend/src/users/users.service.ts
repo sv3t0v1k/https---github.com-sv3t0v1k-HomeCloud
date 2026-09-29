@@ -1,3 +1,4 @@
+import { parseDatabaseSize } from "../common/database-size";
 import { Injectable, Logger, ForbiddenException, NotFoundException, BadRequestException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, EntityManager } from "typeorm";
@@ -35,7 +36,8 @@ export class UsersService {
     bytes: number,
     manager?: EntityManager,
   ): Promise<void> {
-    if (bytes <= 0) {
+    bytes = parseDatabaseSize(bytes);
+    if (bytes === 0) {
       return;
     }
 
@@ -58,12 +60,9 @@ export class UsersService {
       if (!user) {
         throw new NotFoundException("User not found");
       }
-      const storageUsed = Number(user?.storageUsed);
-      const storageQuota = Number(user?.storageQuota);
-      if (!Number.isSafeInteger(storageUsed) || !Number.isSafeInteger(storageQuota)) {
-        throw new BadRequestException("Invalid storage quota metadata");
-      }
-      if (storageUsed + bytes > storageQuota) {
+      const storageUsed = parseDatabaseSize(user.storageUsed);
+      const storageQuota = parseDatabaseSize(user.storageQuota);
+      if (parseDatabaseSize(storageUsed + bytes) > storageQuota) {
         throw new ForbiddenException("Storage quota exceeded");
       }
       throw new BadRequestException("Storage quota update failed");
@@ -75,7 +74,8 @@ export class UsersService {
     bytes: number,
     manager?: EntityManager,
   ): Promise<void> {
-    if (bytes <= 0) {
+    bytes = parseDatabaseSize(bytes);
+    if (bytes === 0) {
       return;
     }
 
@@ -95,7 +95,7 @@ export class UsersService {
       if (!user) {
         throw new NotFoundException("User not found");
       }
-      if (user.storageUsed < bytes) {
+      if (parseDatabaseSize(user.storageUsed) < bytes) {
         throw new BadRequestException(
           "Storage used would go negative — data inconsistency detected",
         );

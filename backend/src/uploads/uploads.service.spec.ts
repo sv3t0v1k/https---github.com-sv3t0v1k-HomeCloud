@@ -126,6 +126,64 @@ describe("UploadsService - Post-Review Fixes", () => {
     jest.clearAllMocks();
   });
 
+  describe("database quota arithmetic regression", () => {
+    let tempRoot: string;
+    beforeEach(() => {
+      tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "quota-regression-"));
+      mockStorageService.getTempPath.mockReturnValue(tempRoot);
+      mockQueryRunner.manager.create.mockImplementation((_entity: unknown, data: unknown) => data);
+    });
+    afterEach(() => fs.rmSync(tempRoot, { recursive: true, force: true }));
+
+    it("accepts four sequential 125-byte uploads with string DB accounting", async () => {
+      let used = 0;
+      const totals: number[] = [];
+      mockQueryRunner.manager.findOne.mockImplementation(async () => ({
+        id: 1, storageQuota: "104857600", storageUsed: String(used),
+      }));
+      for (let i = 0; i < 4; i++) {
+        const session = await service.createUploadSession(1, "tiny.txt", 125, 125);
+        expect(session.totalSize).toBe(125);
+        used += session.totalSize;
+        totals.push(used);
+      }
+      expect(totals).toEqual([125, 250, 375, 500]);
+      expect(mockQueryRunner.commitTransaction).toHaveBeenCalledTimes(4);
+      expect(mockQueryRunner.manager.findOne).toHaveBeenCalledWith(
+        expect.anything(), { where: { id: 1 }, lock: { mode: "pessimistic_write" } },
+      );
+    });
+
+    it("allows exact quota including a string reservation", async () => {
+      mockQueryRunner.manager.findOne.mockResolvedValue({ storageQuota: "1000", storageUsed: "775" });
+      mockQueryBuilder.getRawOne.mockResolvedValue({ activeTotal: "125" });
+      await expect(service.createUploadSession(1, "exact.txt", 100, 100)).resolves.toMatchObject({ totalSize: 100 });
+    });
+
+    it("rejects one byte above quota including reservations", async () => {
+      mockQueryRunner.manager.findOne.mockResolvedValue({ storageQuota: "1000", storageUsed: "775" });
+      mockQueryBuilder.getRawOne.mockResolvedValue({ activeTotal: "125" });
+      await expect(service.createUploadSession(1, "over.txt", 101, 101)).rejects.toThrow("Storage quota exceeded");
+      expect(mockQueryRunner.manager.save).not.toHaveBeenCalled();
+      expect(mockQueryRunner.rollbackTransaction).toHaveBeenCalled();
+    });
+
+    it.each([null, undefined, "invalid", "9007199254740993", "-1"])(
+      "fails closed for invalid aggregate %p", async (activeTotal) => {
+        mockQueryRunner.manager.findOne.mockResolvedValue({ storageQuota: "1000", storageUsed: "0" });
+        mockQueryBuilder.getRawOne.mockResolvedValue({ activeTotal });
+        await expect(service.createUploadSession(1, "bad.txt", 125, 125)).rejects.toThrow(BadRequestException);
+        expect(mockQueryRunner.manager.save).not.toHaveBeenCalled();
+      },
+    );
+
+    it("rejects unsafe combined accounting even with unlimited session quota", async () => {
+      mockQueryRunner.manager.findOne.mockResolvedValue({ storageQuota: "0", storageUsed: String(Number.MAX_SAFE_INTEGER) });
+      await expect(service.createUploadSession(1, "unsafe.txt", 1, 1)).rejects.toThrow(BadRequestException);
+      expect(mockQueryRunner.manager.save).not.toHaveBeenCalled();
+    });
+  });
+
   describe("createUploadSession - quota pre-check", () => {
     it("should reject when MAX_FILE_SIZE is 0 but quota exceeded", async () => {
       mockConfigService.get.mockImplementation((key: string) => {

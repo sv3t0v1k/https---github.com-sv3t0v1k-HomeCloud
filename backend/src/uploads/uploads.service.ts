@@ -1,3 +1,4 @@
+import { parseDatabaseSize } from "../common/database-size";
 import {
   Injectable,
   NotFoundException,
@@ -267,10 +268,13 @@ export class UploadsService {
           statuses: ["pending", "uploading"],
         })
         .getRawOne();
-      const activeTotal = Number(activeResult?.activeTotal ?? 0) || 0;
+      const activeTotal = parseDatabaseSize(activeResult?.activeTotal);
 
-      const quota = user.storageQuota;
-      if (quota > 0 && user.storageUsed + activeTotal + totalSize > quota) {
+      const quota = parseDatabaseSize(user.storageQuota);
+      const used = parseDatabaseSize(user.storageUsed);
+      const reserved = parseDatabaseSize(used + activeTotal);
+      const nextUsed = parseDatabaseSize(reserved + totalSize);
+      if (quota > 0 && nextUsed > quota) {
         throw new ForbiddenException("Storage quota exceeded");
       }
 
