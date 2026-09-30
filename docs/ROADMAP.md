@@ -22,9 +22,9 @@
 | Phase 8 — Uploads & Large Files | `COMPLETE` | commits серии Phase 8 и Remediation B, итог зафиксирован в `c877829` |
 | Phase 9 — Authentication & Sessions | `COMPLETE` | `83adfa1`, `11b27f2`, `744b27c`, `09dea37` |
 | Phase 10 — Sharing & Access Control | `COMPLETE` | 10.1–10.8 подтверждены; checkpoint `08ea21f` |
-| Phase 11 — Backend/API Hardening | `COMPLETE` | 11.1–11.5 COMPLETE |
-| Phase 12 — Performance & Scalability | `COMPLETE` | 12.1–12.6 COMPLETE |
-| Phase 13 — Frontend Foundation | `COMPLETE` | 13.1–13.7 COMPLETE; итоговый gate подтверждён |
+| Phase 11 — Backend/API Hardening | `COMPLETE` | 11.1–11.5; checkpoint `39dc751` |
+| Phase 12 — Performance & Scalability | `COMPLETE` | 12.1–12.6; checkpoint `e408425` |
+| Phase 13 — Frontend | `COMPLETE` | 13.1–13.7; checkpoint `0147a4c` |
 
 ## Completed
 
@@ -105,7 +105,7 @@ Acceptance criteria: lifecycle и threat model документированы; e
 - атомарная блокировка перебора password-protected share — `5257de9`;
 - явная связь folder mirror через `folderId` и транзакционная синхронизация жизненного цикла папок — `4b4801f`, `dc1d341`, `9962192`.
 
-Стабильный checkpoint активной работы: `08ea21f`.
+Стабильный checkpoint Phase 10: `08ea21f`.
 
 Общий acceptance criteria Phase 10 — все пункты соблюдены и подтверждены commit `08ea21f`:
 
@@ -150,7 +150,7 @@ Regression: `auth.validation.spec.ts`, `users.controller.contract.spec.ts`, `dto
 - lint: 0 errors (15 pre-existing warnings in `security.config.spec.ts`, outside Phase 11 scope);
 - build: `nest build` clean, `dist/` gitignored;
 - documentation reconciliation: roadmap updated, Phase 11 marked COMPLETE.
-- Final Phase 11 checkpoint: `919de64`, `6d065f2`, `2c56709` chain verified; `git diff` scoped to Phase 11 only.
+- Final Phase 11 checkpoint: `39dc751`; readiness и Compose changes подтверждены `6d065f2` и `919de64`.
 
 Phase 11 acceptance:
 1. confirmed boundary validation gaps closed;
@@ -310,7 +310,7 @@ Known limits and deferred risks:
 - independent review: APPROVE; no production regression or unresolved MUST_FIX remained in the Phase 12 scope;
 - disposable final-gate and diagnostic resources were removed after exact label verification; old unowned containers and the normal HomeCloud stack were not used or modified.
 
-Phase 12 is complete. The known 50 GiB, O(N²) reconciliation, deployment-limit and frontend/browser boundaries recorded in 12.5 remain unchanged.
+Phase 12 is complete at checkpoint `e4084256b4c34053a4d74b27764b92d348a9a10d`. The known 50 GiB, O(N²) reconciliation, deployment-limit and frontend/browser boundaries recorded in 12.5 remain unchanged.
 
 OUT OF SCOPE:
 - observability/metrics infrastructure;
@@ -321,11 +321,11 @@ OUT OF SCOPE:
 - Redis redesign/removal;
 - unrelated refactoring.
 
-## Phase 13 — Frontend Foundation — COMPLETE
+## Phase 13 — Frontend — COMPLETE
 
-Goal: превратить существующий React/Vite-прототип в минимальный рабочий клиент к подтверждённым backend-контрактам без преждевременной смены стека, усложнения state management или заявления неподтверждённой browser-scale поддержки.
+Goal: превратить исходное React/Vite-приложение в минимальный рабочий клиент к подтверждённым backend-контрактам без преждевременной смены стека, усложнения state management или заявления неподтверждённой browser-scale поддержки.
 
-Phase 13 начат отдельным решением владельца и завершён после итоговой регрессии 13.7. Следующая работа — отдельно согласованная реализация нового frontend-дизайна; она не входит в Phase 13 и не начинается автоматически.
+Phase 13 начат отдельным решением владельца и завершён после итоговой регрессии 13.7, checkpoint `0147a4c0f846a4bb977b1153d8f52587215528d6`. Позднее отдельно выполнен owner-directed redesign; он не является новой Phase.
 
 ### Подтверждённые ограничения backend-контрактов
 
@@ -576,14 +576,15 @@ Ownership по подэтапам:
 - 13.3: root/folder listing и navigation states;
 - 13.4: small upload/download и сквозной e2e scenario.
 
-Этот срез намеренно не обещает эффективный logout до backend-исправления, reload-resume upload, sharing/previews/trash, large browser download или 30 GiB browser support.
+Границы первого среза были историческим scope 13.1–13.4: позднее в 13.5–13.6 добавлены sharing/previews/trash, а эффективный logout подтверждён в 13.2. Reload-resume upload, large browser download и 30 GiB browser support по-прежнему не заявляются.
+
+После Phase 13 выполнен owner-directed redesign (`3f94b54dab41bfdf6b68921be847fd2e927e90b1`): русский UI, единая система токенов, локальные Manrope и JetBrains Mono, доступный drawer, список/плитка, контекстные меню, унифицированные диалоги и компактный менеджер загрузок. CSS compatibility-layer удалён. Frontend gate: 96/96 tests, lint и build PASS; independent review APPROVE. Backend quota arithmetic fix (`743b47e544b114970c777d3ca27222738e1aab11`) устранил строковую конкатенацию PostgreSQL BIGINT/SUM с проверкой недопустимых и небезопасных значений при сохранении транзакционной защиты; focused 178 PASS / 5 skipped, full backend 597 PASS / 15 skipped, build PASS, lint 0 errors, independent review APPROVE. Изолированный runtime подтвердил две загрузки по 125 bytes (`storageUsed = 250`), границы квоты и download 125 bytes (HTTP 200, точное совпадение байтов) при каноническом storage root `/private/tmp/...`. Auth, файлы/папки, upload/download, preview, sharing, trash/restore, Chromium 1440/768/390 и accessibility spot-check PASS; Safari/Firefox SKIPPED. `POST_FIX_CHECKPOINT: PASS`. Это проверка продукта в изолированном runtime, не production release gate.
 
 ## Planned
 
-Эти направления подтверждены как необходимая будущая работа, но новые номера Phase им не назначены. Ранее ненумерованное направление **Frontend foundation и функции** перенесено в утверждённый Phase 13 и здесь не дублируется:
+Эти направления остаются будущей работой без новых номеров Phase; завершённые backend hardening и frontend здесь не дублируются:
 
-- **Backend/API hardening:** inventory endpoints/guards/DTO/errors, validation, authorization, CORS/headers/rate limits, dependency-aware health.
-- **Observability & operations:** structured logs, correlation context, metrics, readiness/liveness и operational runbooks.
+- **Observability & operations:** structured logs, correlation context, metrics, эксплуатационный мониторинг readiness/liveness и runbooks.
 - **Failure & security testing:** failure injection, restore drill, IDOR/token/password/rate-limit abuse cases и dependency/container checks.
 - **Production readiness:** topology, TLS, secrets, deployment/migration/rollback procedure, encrypted/offsite/incremental backup и release gate.
 

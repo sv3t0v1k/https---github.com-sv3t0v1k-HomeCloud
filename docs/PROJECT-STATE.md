@@ -4,7 +4,7 @@
 
 ## Назначение
 
-HomeCloud — самостоятельно размещаемое облачное хранилище файлов. Проект предоставляет REST API для пользователей, файлового дерева, возобновляемых загрузок, публичных ссылок и превью, а также процедуры резервного копирования и восстановления. Пользовательский web-интерфейс пока остаётся прототипом и не является полнофункциональным клиентом backend.
+HomeCloud — самостоятельно размещаемое облачное хранилище файлов. Проект предоставляет REST API для пользователей, файлового дерева, возобновляемых загрузок, публичных ссылок и превью, а также процедуры резервного копирования и восстановления. Пользовательский web-интерфейс — рабочий аутентифицированный клиент backend; его функциональный runtime smoke подтверждён в изолированном окружении.
 
 ## Архитектура
 
@@ -13,7 +13,7 @@ HomeCloud — самостоятельно размещаемое облачно
 - **Хранилище:** локальная файловая система через `StorageService`; постоянные файлы находятся в `/storage`, временные части загрузок — в `/storage/.tmp`.
 - **Аутентификация:** JWT access/refresh tokens, ротация и отзыв refresh-сессий, bcrypt для паролей.
 - **Основные backend-модули:** `auth`, `users`, `files`, `uploads`, `sharing`, `previews`, `storage`, `common`.
-- **Frontend:** React 18, Vite и Tailwind. `frontend/src/App.tsx` содержит каркас экранов; рабочая интеграция auth, файлов, uploads и sharing ещё не реализована.
+- **Frontend:** React 18, Vite и Tailwind; аутентификация и защищённая навигация, файловый браузер, небольшие upload/download, sharing/preview, корзина и файловые операции интегрированы с backend. После Phase 13 выполнен адаптивный редизайн с русским UI, локальными Manrope/JetBrains Mono, списком/плиткой, контекстными меню и доступными drawer/диалогами. Browser-scale upload/download и resume не подтверждены.
 - **Резервное копирование:** `scripts/backup.sh`, `scripts/restore.sh`, `scripts/reconcile.py`, тесты безопасности в `scripts/tests`.
 
 ## Runtime и deployment
@@ -30,12 +30,16 @@ Redis присутствует в runtime-конфигурации, но не и
 - **Phase 7 — Storage & Filesystem Integrity.** Завершены транзакционные операции файлового дерева, проверки имён/циклов и безопасный порядок DB/filesystem изменений.
 - **Phase 8 — Uploads & Large Files.** Завершены JSONB-учёт чанков, лимиты, idempotency, quota locking, reconciliation и очистка временных данных.
 - **Phase 9 — Authentication & Sessions.** Завершены документирование модели угроз и жизненного цикла сессий, усиление refresh rotation/reuse/revocation и regression tests. Авторитетные документы: [`auth-threat-model.md`](./auth-threat-model.md) и [`session-lifecycle.md`](./session-lifecycle.md).
-- **Phase 10.1–10.5 и последующий hardening Sharing & Access Control.** Помимо исходных этапов подтверждены единая fail-closed проверка public share, запрет выдачи soft-deleted объектов, безопасный streaming, `Cache-Control: no-store`, отдельные IP/token/attempt rate limits и блокировка перебора пароля.
-- **Целостность папок и их файловых представлений.** `FileEntity` связан с `FolderEntity` через `folderId`; rename/move/soft-delete/restore/permanent-delete и очистка корзины синхронизируют обе сущности транзакционно и не предполагают равенство их ID.
+- **Phase 10 — Sharing & Access Control.** Помимо исходных этапов подтверждены единая fail-closed проверка public share, запрет выдачи soft-deleted объектов, безопасный streaming, `Cache-Control: no-store`, отдельные IP/token/attempt rate limits и блокировка перебора пароля.
+- **Связанная целостность папок и их файловых представлений.** `FileEntity` связан с `FolderEntity` через `folderId`; rename/move/soft-delete/restore/permanent-delete и очистка корзины синхронизируют обе сущности транзакционно и не предполагают равенство их ID.
+
+- **Phase 11 — Backend/API Hardening.** Границы API, validation/error contracts, private cache policy и readiness для PostgreSQL и storage проверены; Compose healthcheck использует readiness. Redis не входит в readiness. Checkpoint `39dc751`.
+- **Phase 12 — Performance & Scalability.** Подтверждены database cleanup/N+1 fixes, асинхронные файловые пути, disk-backed multipart ingress, streaming/backpressure и authenticated Range download; 30 GiB end-to-end qualification PASS. Checkpoint `e408425`; 50 GiB не квалифицированы, O(N²)-style upload chunk reconciliation остаётся риском.
+- **Phase 13 — Frontend.** Подэтапы 13.1–13.7 COMPLETE: auth, файловый браузер, upload/download, sharing/preview, корзина и файловые операции, финальная регрессия. Checkpoint `0147a4c`. Последующий redesign (`3f94b54`) и quota fix (`743b47e`) — отдельная работа без новых номеров Phase.
 
 ## Стабильный checkpoint
 
-Стабильный проверенный checkpoint — `08ea21f`. Он включает приёмку Phase 10.5 (`951cb2f`), public-sharing hardening (`1b09424`–`5257de9`), транзакционную целостность папок/зеркал (`4b4801f`–`9962192`), публичный просмотр папок и scoped download (`60ac7bd`) и потоковое ZIP-скачивание папки (`08ea21f`). Результаты приёмки исходной работы Kilo описаны в [`PHASE-10.5-REVIEW.md`](./PHASE-10.5-REVIEW.md).
+Стабильный проверенный checkpoint — `743b47e544b114970c777d3ca27222738e1aab11`. Он включает завершённые backend Phase 11 (`39dc751`) и Phase 12 (`e408425`), frontend Phase 13 (`0147a4c`), owner-directed redesign (`3f94b54`) и исправление расчёта квоты (`743b47e`). Последующий изолированный runtime verification подтвердил download при каноническом storage root, основные пользовательские сценарии, Chromium 1440/768/390 и accessibility spot-check (`POST_FIX_CHECKPOINT: PASS`); код после проверки не менялся. Это не подтверждение production readiness.
 
 ## Phase 10 — завершена
 
@@ -55,15 +59,12 @@ Redis присутствует в runtime-конфигурации, но не и
 - **10.7:** безопасный scoped download потомка по `fileId` — `60ac7bd`;
 - **10.8:** потоковое ZIP-скачивание папки, один слот на архив — `08ea21f`;
 
-Phase 10 завершена: все активные участники (listing, scoped download, ZIP) реализованы и проверены. Текущий следующий участок — изначальные направления из [`ROADMAP.md`](./ROADMAP.md): Backend/API hardening, performance & scalability, observability & operations, failure & security testing, frontend foundation и production readiness. Это не разрешение на публикацию или production deployment.
+Phase 10 завершена: listing, scoped download и ZIP реализованы и проверены. Актуальные завершённые этапы и незавершённые направления указаны в [`ROADMAP.md`](./ROADMAP.md); публикация и production deployment не подтверждены.
 
-- **Phase 11 — Backend/API Hardening.** Завершена readiness-контракт: `GET /api/v1/health` — liveness состояния процесса без проверки зависимостей; `GET /api/v1/health/ready` — 200 только при успешном `SELECT 1` по PostgreSQL и существовании/директории/доступности на запись корня хранилища, иначе 503 с `{ status:"not_ready", checks:{ database, storage } }` без раскрытия ошибок, путей или секретов. Redis не инсталлируется, не запрашивается и не входит в readiness. Backend Docker healthcheck переключён на readiness; `depends_on` остался только на PostgreSQL. Итоговые коммиты: `6d065f2`, `919de64`, `39dc751`.
 ## Известный deferred backlog
 
-- Folder-sharing: потоковое ZIP-скачивание папки реализовано (`08ea21f`); listing потомков и scoped download также реализованы.
 - Автоматический retry для serialization/deadlock конфликтов в транзакционных folder operations, если появится эксплуатационная необходимость.
-- Наблюдаемость, performance/load baseline и failure/security testing.
-- Полноценный frontend и его автоматические тесты.
+- Наблюдаемость, эксплуатационный мониторинг, дополнительные failure/security и нагрузочные проверки за пределами завершённой Phase 12.
 - Production deployment: TLS, secrets, offsite/encrypted/incremental backup и проверенный rollback/DR.
 
 Подробные статусы и критерии приёмки находятся только в [`ROADMAP.md`](./ROADMAP.md); этот раздел не заменяет roadmap.
