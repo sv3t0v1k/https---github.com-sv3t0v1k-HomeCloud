@@ -1,0 +1,133 @@
+# Standalone production topology: docker compose -f docker-compose.production.yml
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-homecloud}
+      POSTGRES_USER: ${DB_USER:-homecloud}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    profiles: [redis]
+    image: redis:7-alpine
+    command: >
+      sh -c 'redis-server
+      ${REDIS_PASSWORD:+--requirepass $REDIS_PASSWORD}'
+    volumes:
+      - redis_data:/data
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_NAME: ${DB_NAME:-homecloud}
+      DB_USER: ${DB_USER:-homecloud}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DATABASE_URL: postgres://${DB_USER:-homecloud}:${DB_PASSWORD}@db:5432/${DB_NAME:-homecloud}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      STORAGE_PATH: /storage
+      # Метрики выключены без отдельного токена; endpoint требует Bearer.
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+      MAX_FILE_SIZE: ${MAX_FILE_SIZE:-1073741824}
+      MAX_TOTAL_SIZE: ${MAX_TOTAL_SIZE:-10737418240}
+      CHUNK_SIZE: ${CHUNK_SIZE:-10485760}
+      MAX_CHUNK_SIZE: ${MAX_CHUNK_SIZE:-52428800}
+      FRONTEND_URL: https://${PUBLIC_HOST:?Set PUBLIC_HOST to the production hostname}
+      TRUSTED_PROXY_IP: 172.30.0.10
+    volumes:
+      - storage_data:/storage
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000/api/v1/health/ready', (r) => { process.exit(r.statusCode === 200 ? 0 : 1); }).on('error', () => process.exit(1));\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      app_network:
+      backend_proxy:
+        aliases: [homebackend]
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost/ || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      backend_proxy:
+        ipv4_address: 172.30.0.10
+      ingress_frontend:
+    restart: unless-stopped
+
+  ingress:
+    image: nginx:alpine
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST:?Set PUBLIC_HOST to the production hostname}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/ingress/19-validate-public-host.sh:/docker-entrypoint.d/19-validate-public-host.sh:ro
+      - ./deploy/ingress/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./deploy/ingress/upgrade.conf:/etc/nginx/conf.d/upgrade.conf:ro
+      - ${TLS_CERT_DIR:?Set TLS_CERT_DIR to the certificate directory}:/etc/nginx/tls:ro
+    depends_on:
+      frontend:
+        condition: service_healthy
+    networks:
+      ingress_frontend:
+        ipv4_address: 172.29.0.10
+    restart: unless-stopped
+
+volumes:
+  db_data:
+  redis_data:
+  storage_data:
+
+networks:
+  app_network:
+    driver: bridge
+    internal: true
+  backend_proxy:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+  ingress_frontend:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.29.0.0/24
