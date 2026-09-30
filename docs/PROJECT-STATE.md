@@ -18,9 +18,11 @@ HomeCloud — самостоятельно размещаемое облачно
 
 ## Runtime и deployment
 
-`docker-compose.yml` описывает PostgreSQL, Redis, backend и frontend. Backend хранит файлы в volume `storage_data`; база и Redis используют отдельные volumes. PostgreSQL, Redis, backend и frontend имеют Compose healthchecks; backend endpoint `/api/v1/health` проверяет только состояние процесса (liveness), а `/api/v1/health/ready` — готовность: PostgreSQL (`SELECT 1`) и корень хранилища (существует, является директорией, запись доступна). Backend healthcheck в compose использует readiness-endpoint `/api/v1/health/ready`. Backend `depends_on` только на PostgreSQL (`service_healthy`); Redis не блокирует запуск backend.
+`docker-compose.yml` описывает PostgreSQL, Redis, backend и frontend. Backend хранит файлы в volume `storage_data`; база и Redis используют отдельные volumes. PostgreSQL, Redis, backend и frontend имеют Compose healthchecks; backend endpoint `/api/v1/health` проверяет только состояние процесса (liveness), а `/api/v1/health/ready` — готовность: PostgreSQL (`SELECT 1` через отдельное ограниченное соединение) и реальное чтение/запись storage root и `.tmp` через собственные эксклюзивные probe-артефакты. Совместимый `/api/v1/health/live` также доступен. Readiness объединяет параллельные проверки, кэширует результат на 1 s и ограничивает HTTP-ожидание 3 s; filesystem I/O не отменяется таймером. При общем timeout dependency status консервативно unavailable. Backend healthcheck в compose использует readiness-endpoint `/api/v1/health/ready`. Backend `depends_on` только на PostgreSQL (`service_healthy`); Redis не блокирует запуск backend.
 
-Redis присутствует в runtime-конфигурации, но не имеет клиента и потребителей в коде backend — не является хранилищем сессий или кэшем приложения. Volume `uploads_data` объявлен, но не подключён. Production readiness, TLS, внешнее хранение резервных копий и управление секретами пока не подтверждены.
+Redis package и runtime-конфигурация присутствуют, но backend не создаёт Redis-клиент и не обращается к Redis — не является хранилищем сессий или кэшем приложения. Volume `uploads_data` объявлен, но не подключён. Production readiness, TLS, внешнее хранение резервных копий и управление секретами пока не подтверждены.
+
+Backend пишет структурированные JSON-логи с безопасными operational messages и HTTP completion. `X-Request-Id` принимается только в консервативном формате и возвращается в response; AsyncLocalStorage сохраняет request context. Сырые SQL query logs отключены. `/api/v1/metrics` выдаёт Prometheus text с bounded HTTP labels и runtime signals; endpoint выключен без `METRICS_TOKEN`, иначе требует отдельный Bearer token. Он проксируется nginx, поэтому внутренний backend port не заменяет эту защиту. [Runbook](./operations-runbook.md) описывает triage и ограничения.
 
 ## Подтверждённые завершённые этапы
 
@@ -39,7 +41,9 @@ Redis присутствует в runtime-конфигурации, но не и
 
 ## Стабильный checkpoint
 
-Стабильный проверенный checkpoint — `743b47e544b114970c777d3ca27222738e1aab11`. Он включает завершённые backend Phase 11 (`39dc751`) и Phase 12 (`e408425`), frontend Phase 13 (`0147a4c`), owner-directed redesign (`3f94b54`) и исправление расчёта квоты (`743b47e`). Последующий изолированный runtime verification подтвердил download при каноническом storage root, основные пользовательские сценарии, Chromium 1440/768/390 и accessibility spot-check (`POST_FIX_CHECKPOINT: PASS`); код после проверки не менялся. Это не подтверждение production readiness.
+Текущий проверенный backend operational checkpoint — `cefff5094d9824c924afe06bb06ed9281e4056d1`: ненумерованный Observability & Operations baseline. Full backend 609 PASS / 15 SKIPPED, build и lint gate пройдены; изолированный runtime подтвердил health/degradation/recovery, logs/request ID и защищённые metrics. Independent review APPROVE. [Evidence и ограничения](./observability-checkpoint.md). Это не production release gate и не повторная полная browser qualification.
+
+Предыдущий проверенный product checkpoint — `743b47e544b114970c777d3ca27222738e1aab11`. Он включает завершённые backend Phase 11 (`39dc751`) и Phase 12 (`e408425`), frontend Phase 13 (`0147a4c`), owner-directed redesign (`3f94b54`) и исправление расчёта квоты (`743b47e`). Последующий изолированный runtime verification подтвердил download при каноническом storage root, основные пользовательские сценарии, Chromium 1440/768/390 и accessibility spot-check (`POST_FIX_CHECKPOINT: PASS`); это историческое product evidence, выполненное до последующего observability checkpoint. Это не подтверждение production readiness.
 
 ## Phase 10 — завершена
 
@@ -64,7 +68,7 @@ Phase 10 завершена: listing, scoped download и ZIP реализова�
 ## Известный deferred backlog
 
 - Автоматический retry для serialization/deadlock конфликтов в транзакционных folder operations, если появится эксплуатационная необходимость.
-- Наблюдаемость, эксплуатационный мониторинг, дополнительные failure/security и нагрузочные проверки за пределами завершённой Phase 12.
+- Внешние scrape/alerts/log shipping и дополнительные failure/security и нагрузочные проверки за пределами завершённой Phase 12. Базовый ненумерованный Observability & Operations checkpoint завершён; централизованный мониторинг не установлен.
 - Production deployment: TLS, secrets, offsite/encrypted/incremental backup и проверенный rollback/DR.
 
 Подробные статусы и критерии приёмки находятся только в [`ROADMAP.md`](./ROADMAP.md); этот раздел не заменяет roadmap.

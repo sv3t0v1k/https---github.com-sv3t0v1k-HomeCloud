@@ -25,6 +25,7 @@
 | Phase 11 — Backend/API Hardening | `COMPLETE` | 11.1–11.5; checkpoint `39dc751` |
 | Phase 12 — Performance & Scalability | `COMPLETE` | 12.1–12.6; checkpoint `e408425` |
 | Phase 13 — Frontend | `COMPLETE` | 13.1–13.7; checkpoint `0147a4c` |
+| Observability & Operations — ненумерованный operational baseline | `COMPLETE` | checkpoint `cefff50`; [evidence](./observability-checkpoint.md) |
 
 ## Completed
 
@@ -580,11 +581,20 @@ Ownership по подэтапам:
 
 После Phase 13 выполнен owner-directed redesign (`3f94b54dab41bfdf6b68921be847fd2e927e90b1`): русский UI, единая система токенов, локальные Manrope и JetBrains Mono, доступный drawer, список/плитка, контекстные меню, унифицированные диалоги и компактный менеджер загрузок. CSS compatibility-layer удалён. Frontend gate: 96/96 tests, lint и build PASS; independent review APPROVE. Backend quota arithmetic fix (`743b47e544b114970c777d3ca27222738e1aab11`) устранил строковую конкатенацию PostgreSQL BIGINT/SUM с проверкой недопустимых и небезопасных значений при сохранении транзакционной защиты; focused 178 PASS / 5 skipped, full backend 597 PASS / 15 skipped, build PASS, lint 0 errors, independent review APPROVE. Изолированный runtime подтвердил две загрузки по 125 bytes (`storageUsed = 250`), границы квоты и download 125 bytes (HTTP 200, точное совпадение байтов) при каноническом storage root `/private/tmp/...`. Auth, файлы/папки, upload/download, preview, sharing, trash/restore, Chromium 1440/768/390 и accessibility spot-check PASS; Safari/Firefox SKIPPED. `POST_FIX_CHECKPOINT: PASS`. Это проверка продукта в изолированном runtime, не production release gate.
 
+### Observability & Operations — ненумерованный operational baseline
+
+Статус: `COMPLETE`. Owner-approved направление существующего backlog, без новой Phase. Checkpoint `cefff5094d9824c924afe06bb06ed9281e4056d1`.
+
+Добавлены JSON backend logs без сырых URLs/токенов/SQL parameters, `X-Request-Id` и изолированный async context, completion/error severity, bounded dependency-aware readiness для PostgreSQL и реального read/write storage root + `.tmp`. Redis остаётся некритичным и не используется backend. Prometheus metrics включают HTTP count/duration/in-flight и process memory/uptime; endpoint выключен без dedicated token, иначе Bearer protected. Compose продолжает проверять readiness; добавлена только необязательная metrics config. Frontend не менялся.
+
+Evidence: focused 64/64 PASS; full backend 609 PASS / 15 SKIPPED (51 suites PASS / 4 SKIPPED); lint 0 errors / 15 прежних warnings; build/typecheck, Compose config, изменённое implementation formatting и `git diff --check` PASS с двумя задокументированными legacy formatting exceptions. Изолированный runtime: healthy 200, DB/storage degradation 503 при live 200, recovery 200, request IDs, защищённая text exposition и privacy marker scan PASS. Independent review APPROVE. `OBSERVABILITY_OPERATIONS_CHECKPOINT: PASS`.
+
+[Эксплуатационный runbook](./operations-runbook.md) и [подробное evidence/ограничения](./observability-checkpoint.md). Внешние scrape/alerts/log shipping, distributed tracing и domain metrics не добавлены; production readiness не заявляется.
+
 ## Planned
 
 Эти направления остаются будущей работой без новых номеров Phase; завершённые backend hardening и frontend здесь не дублируются:
 
-- **Observability & operations:** structured logs, correlation context, metrics, эксплуатационный мониторинг readiness/liveness и runbooks.
 - **Failure & security testing:** failure injection, restore drill, IDOR/token/password/rate-limit abuse cases и dependency/container checks.
 - **Production readiness:** topology, TLS, secrets, deployment/migration/rollback procedure, encrypted/offsite/incremental backup и release gate.
 
