@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_DB: ${DB_NAME:-homecloud}
       POSTGRES_USER: ${DB_USER:-homecloud}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD using the external secret file}
     volumes:
       - db_data:/var/lib/postgresql/data
     networks:
@@ -19,15 +19,25 @@ services:
   redis:
     profiles: [redis]
     image: redis:7-alpine
-    command: >
-      sh -c 'redis-server
-      ${REDIS_PASSWORD:+--requirepass $REDIS_PASSWORD}'
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    command:
+      - sh
+      - -ec
+      - |
+        case "$$REDIS_PASSWORD" in
+          ''|*[!0-9a-fA-F]*) echo 'Invalid REDIS_PASSWORD' >&2; exit 1 ;;
+        esac
+        [ "$${#REDIS_PASSWORD}" -ge 64 ] || { echo 'Invalid REDIS_PASSWORD' >&2; exit 1; }
+        umask 077
+        printf 'requirepass %s\n' "$$REDIS_PASSWORD" > /tmp/homecloud-redis.conf
+        exec redis-server /tmp/homecloud-redis.conf
     volumes:
       - redis_data:/data
     networks:
       - app_network
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      test: ["CMD-SHELL", 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli --no-auth-warning ping']
       interval: 5s
       timeout: 3s
       retries: 10
@@ -41,12 +51,12 @@ services:
       PORT: 3000
       DB_NAME: ${DB_NAME:-homecloud}
       DB_USER: ${DB_USER:-homecloud}
-      DB_PASSWORD: ${DB_PASSWORD}
-      DATABASE_URL: postgres://${DB_USER:-homecloud}:${DB_PASSWORD}@db:5432/${DB_NAME:-homecloud}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD using the external secret file}
+      DATABASE_URL: postgres://${DB_USER:-homecloud}:${DB_PASSWORD:?Set DB_PASSWORD using the external secret file}@db:5432/${DB_NAME:-homecloud}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       REDIS_PASSWORD: ${REDIS_PASSWORD}
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET using the external secret file}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET using the external secret file}
       STORAGE_PATH: /storage
       # Метрики выключены без отдельного токена; endpoint требует Bearer.
       METRICS_TOKEN: ${METRICS_TOKEN:-}

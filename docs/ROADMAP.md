@@ -608,7 +608,7 @@ Evidence: focused 64/64 PASS; full backend 609 PASS / 15 SKIPPED (51 suites PASS
 
 Эти направления остаются будущей работой без новых номеров Phase; завершённые backend hardening и frontend здесь не дублируются:
 
-- **Production readiness — INCOMPLETE:** secret lifecycle, encrypted/offsite backup, final recovery/production deployment acceptance и public certificate lifecycle; TLS/proxy baseline см. checkpoint выше; incremental strategy — отдельное решение. Architecture & Release Gate см. checkpoint выше.
+- **Production readiness — INCOMPLETE:** encrypted/offsite backup, final recovery/production deployment acceptance и public certificate lifecycle; TLS/proxy baseline см. checkpoint выше; incremental strategy — отдельное решение. Architecture & Release Gate см. checkpoint выше.
 
 Ни одно planned-направление не разрешено начинать автоматически.
 
@@ -622,3 +622,7 @@ Evidence: focused 64/64 PASS; full backend 609 PASS / 15 SKIPPED (51 suites PASS
 - Email verification, password reset и автоматическая ротация JWT secrets — не реализованы и не должны заявляться как готовые возможности.
 
 Закрытые исторические findings F-07, F-08, F-09 и F-13 не возвращаются в deferred backlog.
+
+## Production Readiness — Secret Lifecycle
+
+Ненумерованный checkpoint: COMPLETE; independent review APPROVE. Инвентарь actual secrets, strengthened fail-closed validation, external-only CSPRNG generation, Docker context exclusions и vendor-neutral environment delivery завершены. JWT planned maintenance cutover явно инвалидирует старые tokens; DB/metrics rotation и rollback проверены на isolated compiled runtime. Focused106, full backend702 (59 suites, без skipped), generator1, lint/build/typecheck/Compose gates PASS. [Контракт](./secret-lifecycle.md), [evidence и ограничения](./production-readiness-checkpoint.md). Автоматическая JWT ротация не добавлена. OVERALL_PRODUCTION_READINESS: NOT_READY; encrypted/offsite backup, public certificate lifecycle и final recovery/acceptance остаются блокерами. Предыдущие COMPLETE checkpoints сохранены; новая Phase не создана. Рекомендуемый следующий блок — encrypted/offsite backup, автоматически не начинается.

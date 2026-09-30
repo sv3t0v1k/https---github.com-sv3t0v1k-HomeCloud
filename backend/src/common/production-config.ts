@@ -12,14 +12,20 @@ export function validateProductionConfig(
   const reject = (name: string): never => {
     throw new Error(`Unsafe or missing production configuration: ${name}`);
   };
+  // These are minimum format checks, not an estimate of entropy. Operators must
+  // generate credentials with a cryptographically secure random source.
   const secret = (name: string, input: string, minimum: number): void => {
     if (
       input.length < minimum ||
       input !== input.trim() ||
-      /chang[e-]*me|change.me.in.production|password|your.secret|example|demo|^postgres$|^secret$/i.test(
+      /chang[e-]*me|change.me.in.production|password|your.secret|example|demo|placeholder|replace.me|default|^postgres$|^secret$/i.test(
         input,
       ) ||
-      new Set(input).size < 8
+      new Set(input).size < 8 ||
+      /^(.{1,16})\1+$/s.test(input) ||
+      /0123456789|1234567890|abcdefghijklmnopqrstuvwxyz|ABCDEFGHIJKLMNOPQRSTUVWXYZ|qwertyuiop/i.test(
+        input,
+      )
     )
       reject(name);
   };
@@ -42,13 +48,17 @@ export function validateProductionConfig(
   } catch {
     reject("DATABASE_URL");
   }
-  if (value("DB_PASSWORD")) {
+  if (config.DB_PASSWORD !== undefined && config.DB_PASSWORD !== "") {
     secret("DB_PASSWORD", value("DB_PASSWORD"), 16);
     if (value("DB_PASSWORD") !== decodeURIComponent(database.password))
       reject("DB_PASSWORD / DATABASE_URL");
   }
-  if (value("METRICS_TOKEN"))
+  // An absent/empty token disables metrics. A supplied malformed token must not
+  // silently disable protection or be accepted as a production credential.
+  if (config.METRICS_TOKEN !== undefined && config.METRICS_TOKEN !== "")
     secret("METRICS_TOKEN", value("METRICS_TOKEN"), 32);
+  if (config.REDIS_PASSWORD !== undefined && config.REDIS_PASSWORD !== "")
+    secret("REDIS_PASSWORD", value("REDIS_PASSWORD"), 16);
   if (
     !isAbsolute(value("STORAGE_PATH")) ||
     value("STORAGE_PATH").includes("\0")

@@ -51,3 +51,7 @@ Production отвергает отсутствующие/очевидно сла
 ## Непокрытые условия go-live
 
 Жизненный цикл секретов (доставка, доступ, ротация, отзыв, recovery); encrypted/offsite backup; retention и alerting; проверка recovery узла; реальный rollback между двумя версиями и smoke через окончательный public ingress. JWT access после logout действителен до TTL; rate limits и metrics process-local; post-commit unlink может оставить orphan. Эти ограничения должны быть приняты владельцем, а не скрыты статусом checkpoint.
+
+## Secret Lifecycle baseline
+
+Production delivery, generation, custody, maintenance rotation и rollback определены в [secret lifecycle](./secret-lifecycle.md). Использовать только явный external env-file 0600 в каталоге0700, quiet Compose validation и recreate consumers. Runtime environment доступен Docker/root администраторам. JWT planned cutover явно инвалидирует старые tokens; DB env change не изменяет password существующей role. Overall readiness остаётся NOT_READY; public CA lifecycle и encrypted/offsite recovery этим контрактом не закрыты.

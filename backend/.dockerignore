@@ -1,0 +1,27 @@
+# Runtime credentials and private certificate material never enter build contexts.
+.env
+.env.*
+**/.env
+**/.env.*
+!*.example
+!**/*.example
+*.pem
+*.key
+*.p12
+*.pfx
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+certs
+secrets
+node_modules
+**/node_modules
+.git
+**/.git
+dist
+dist-bench
+build
+coverage
+.next
+*.log

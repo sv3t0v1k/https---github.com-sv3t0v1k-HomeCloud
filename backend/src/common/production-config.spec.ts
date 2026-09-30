@@ -35,6 +35,12 @@ describe("production configuration before dependency initialization", () => {
   it.each([
     ["JWT_SECRET", "change-me-in-production"],
     ["JWT_SECRET", "a".repeat(40)],
+    ["JWT_SECRET", "abcdefgh".repeat(4)],
+    ["JWT_SECRET", "0123456789".repeat(4)],
+    ["JWT_SECRET", "abcdefghijklmnopqrstuvwxyz123456"],
+    ["JWT_SECRET", "replace-me-with-a-secure-random-secret"],
+    ["JWT_SECRET", "placeholder-A7s9K2v6P4n8Q1r5T3u0W9x2"],
+    ["JWT_SECRET", "default-A7s9K2v6P4n8Q1r5T3u0W9x2Y6"],
     ["JWT_REFRESH_SECRET", "short"],
     ["DATABASE_URL", "postgresql://homecloud:password@postgres/homecloud"],
     ["DATABASE_URL", "postgresql://postgres/homecloud"],
@@ -42,6 +48,10 @@ describe("production configuration before dependency initialization", () => {
     ["DATABASE_URL", "postgresql://homecloud:%ZZ@postgres/homecloud"],
     ["DB_PASSWORD", "example"],
     ["METRICS_TOKEN", "weak"],
+    ["METRICS_TOKEN", "   "],
+    ["REDIS_PASSWORD", "weak"],
+    ["REDIS_PASSWORD", "   "],
+    ["DB_PASSWORD", "   "],
     ["STORAGE_PATH", "./storage"],
     ["FRONTEND_URL", "http://cloud.example.org"],
     ["FRONTEND_URL", "https://cloud.example.org/path"],
@@ -72,5 +82,42 @@ describe("production configuration before dependency initialization", () => {
         METRICS_TOKEN: "metrics-C9u1M4x8R6p0S3t7V5w2Y1z4A8b0",
       }),
     ).not.toThrow();
+  });
+  it.each(["METRICS_TOKEN", "REDIS_PASSWORD", "DB_PASSWORD"])(
+    "rejects non-string configured %s without serializing it",
+    (name) => {
+      expect(() =>
+        validateProductionConfig({
+          ...valid(),
+          [name]: { sensitive: "hidden" },
+        }),
+      ).toThrow(`Unsafe or missing production configuration: ${name}`);
+    },
+  );
+  it("accepts absent or empty optional credentials", () => {
+    expect(() =>
+      validateProductionConfig({
+        ...valid(),
+        METRICS_TOKEN: "",
+        REDIS_PASSWORD: "",
+        DB_PASSWORD: "",
+      }),
+    ).not.toThrow();
+  });
+  it("accepts a matching database password and a strong optional Redis password", () => {
+    expect(() =>
+      validateProductionConfig({
+        ...valid(),
+        DB_PASSWORD: "D4b7N9p2R6s8T1u5",
+        REDIS_PASSWORD: "J6c9R2t5V8n1B4m7",
+      }),
+    ).not.toThrow();
+  });
+  it("rejects mismatched database credentials without exposing either value", () => {
+    expect(() =>
+      validateProductionConfig({ ...valid(), DB_PASSWORD: "J6c9R2t5V8n1B4m7" }),
+    ).toThrow(
+      "Unsafe or missing production configuration: DB_PASSWORD / DATABASE_URL",
+    );
   });
 });
