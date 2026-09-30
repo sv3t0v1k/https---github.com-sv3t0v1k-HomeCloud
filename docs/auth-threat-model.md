@@ -156,16 +156,14 @@ After the transaction, the controller maps `{ reused: true }` to
 
 ### 5.1 Logout (`POST /api/v1/auth/logout`, `JwtGuard`)
 
-- `AuthService.logout(userId, refreshToken)`:
-  - No-op if `refreshToken` is falsy.
-  - `bcrypt.hash(refreshToken, 10)` then `refreshTokenRepository.findOne({
-    where: { tokenHash, userId } })`.
-  - If found and `!storedToken.revoked`, update the row to
-    `revoked = true, revokedAt = now`.
-- Requires a valid access token (route is behind `JwtGuard`) but the actual
-  revocation targets the refresh row identified by the submitted refresh
-  token string. If the client sends a wrong/expired refresh token, logout
-  silently succeeds without revoking anything.
+- `AuthService.logout(userId, refreshToken)` performs a transaction. It matches
+  the submitted raw token against stored bcrypt hashes, locks the matching row,
+  follows `replacedBy` hashes scoped to the same user, and revokes the terminal
+  active refresh row. Repeated logout and unknown tokens are no-ops.
+- Requires a valid access JWT through the current `JwtGuard`. Refresh-chain
+  revocation does not invalidate stateless access JWTs before their TTL.
+- Current guards validate JWT signature/expiry; this checkpoint does not certify
+  immediate inactive-user or access-token revocation semantics.
 
 ### 5.2 Change password (`POST /api/v1/auth/change-password`, `JwtGuard`)
 

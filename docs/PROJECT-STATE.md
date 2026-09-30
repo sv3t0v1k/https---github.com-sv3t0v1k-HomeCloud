@@ -65,10 +65,14 @@ Backend пишет структурированные JSON-логи с безо�
 
 Phase 10 завершена: listing, scoped download и ZIP реализованы и проверены. Актуальные завершённые этапы и незавершённые направления указаны в [`ROADMAP.md`](./ROADMAP.md); публикация и production deployment не подтверждены.
 
+## Failure & Security Testing
+
+Ненумерованный checkpoint завершён: реальный disposable restore с проверкой целостности, DB/storage failure-recovery, representative security/ownership/session/rate-limit regressions и privacy signals. Full backend 57 suites / 651 tests PASS без skipped integrations; independent review APPROVE. [Подробное evidence и границы](./failure-security-checkpoint.md). Production readiness не подтверждена; Phase 13 и observability baseline сохранены.
+
 ## Известный deferred backlog
 
 - Автоматический retry для serialization/deadlock конфликтов в транзакционных folder operations, если появится эксплуатационная необходимость.
-- Внешние scrape/alerts/log shipping и дополнительные failure/security и нагрузочные проверки за пределами завершённой Phase 12. Базовый ненумерованный Observability & Operations checkpoint завершён; централизованный мониторинг не установлен.
+- Внешние scrape/alerts/log shipping и дополнительные сценарии отказов и нагрузочные проверки за пределами завершённой Phase 12. Базовый ненумерованный Observability & Operations checkpoint завершён; централизованный мониторинг не установлен.
 - Production deployment: TLS, secrets, offsite/encrypted/incremental backup и проверенный rollback/DR.
 
 Подробные статусы и критерии приёмки находятся только в [`ROADMAP.md`](./ROADMAP.md); этот раздел не заменяет roadmap.

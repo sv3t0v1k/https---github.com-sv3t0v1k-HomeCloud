@@ -26,6 +26,7 @@
 | Phase 12 — Performance & Scalability | `COMPLETE` | 12.1–12.6; checkpoint `e408425` |
 | Phase 13 — Frontend | `COMPLETE` | 13.1–13.7; checkpoint `0147a4c` |
 | Observability & Operations — ненумерованный operational baseline | `COMPLETE` | checkpoint `cefff50`; [evidence](./observability-checkpoint.md) |
+| Failure & Security Testing — ненумерованный checkpoint | `COMPLETE` | [evidence и границы](./failure-security-checkpoint.md) |
 
 ## Completed
 
@@ -591,11 +592,14 @@ Evidence: focused 64/64 PASS; full backend 609 PASS / 15 SKIPPED (51 suites PASS
 
 [Эксплуатационный runbook](./operations-runbook.md) и [подробное evidence/ограничения](./observability-checkpoint.md). Внешние scrape/alerts/log shipping, distributed tracing и domain metrics не добавлены; production readiness не заявляется.
 
+### Failure & Security Testing — ненумерованный checkpoint
+
+Статус: `COMPLETE`. Owner-approved направление после Observability & Operations, без новой Phase. Реальные disposable backup/restore с проверкой строк/байтов/квоты, DB/storage failure и recovery, representative ownership/share/session/rate-limit abuse gates пройдены. Focused 34 suites / 453 tests и full 57 suites / 651 tests PASS без пропусков; build/typecheck/lint PASS. Independent review APPROVE. [Evidence, команды и ограничения](./failure-security-checkpoint.md). Phase 13 и observability checkpoint сохраняются COMPLETE; production readiness не заявляется.
+
 ## Planned
 
 Эти направления остаются будущей работой без новых номеров Phase; завершённые backend hardening и frontend здесь не дублируются:
 
-- **Failure & security testing:** failure injection, restore drill, IDOR/token/password/rate-limit abuse cases и dependency/container checks.
 - **Production readiness:** topology, TLS, secrets, deployment/migration/rollback procedure, encrypted/offsite/incremental backup и release gate.
 
 Ни одно planned-направление не разрешено начинать автоматически.
