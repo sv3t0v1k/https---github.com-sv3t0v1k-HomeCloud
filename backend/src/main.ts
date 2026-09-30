@@ -9,6 +9,7 @@ import { requestObservability } from "./common/observability/request-observabili
 import { MetricsService } from "./common/observability/metrics.service";
 import { ConfigService } from "@nestjs/config";
 import { applySecurityMiddleware } from "./common/security.config";
+import { configureTrustedProxy } from "./common/trusted-proxy";
 import { validateStartupConfiguration } from "./common/startup-validation.service";
 
 async function bootstrap() {
@@ -21,6 +22,7 @@ async function bootstrap() {
 
   const configService = app.get(ConfigService);
 
+  configureTrustedProxy(app, configService);
   app.use(requestObservability(app.get(MetricsService)));
   applySecurityMiddleware(app, configService);
   app.useBodyParser("json");

@@ -1,9 +1,11 @@
+import { trustedProxyAddress } from "./trusted-proxy";
 import { isAbsolute } from "path";
 
 /** Runs before database connection; errors contain names, never configuration values. */
 export function validateProductionConfig(
   config: Record<string, unknown>,
 ): Record<string, unknown> {
+  trustedProxyAddress(config.TRUSTED_PROXY_IP);
   if (config.NODE_ENV !== "production") return config;
   const value = (name: string): string =>
     typeof config[name] === "string" ? (config[name] as string) : "";

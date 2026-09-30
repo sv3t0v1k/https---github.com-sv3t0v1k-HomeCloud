@@ -4,6 +4,7 @@ import cors from "cors";
 import rateLimit from "express-rate-limit";
 import { ConfigService } from "@nestjs/config";
 import { NextFunction, Request, Response } from "express";
+import { clientIp } from "./trusted-proxy";
 import * as crypto from "crypto";
 
 export function buildCorsOptions(configService: ConfigService) {
@@ -45,6 +46,7 @@ export function buildCorsOptions(configService: ConfigService) {
 
 export function getGlobalRateLimitOptions() {
   return {
+    keyGenerator: clientIp,
     windowMs: 60 * 1000,
     max: 100,
     message: { statusCode: 429, message: "Too many requests" },
@@ -53,6 +55,7 @@ export function getGlobalRateLimitOptions() {
 
 export function getAuthRateLimitOptions() {
   return {
+    keyGenerator: clientIp,
     windowMs: 60 * 1000,
     max: 10,
     message: { statusCode: 429, message: "Too many auth requests" },
@@ -61,6 +64,7 @@ export function getAuthRateLimitOptions() {
 
 export function getPublicSharingRateLimitOptions() {
   return {
+    keyGenerator: clientIp,
     windowMs: 60 * 1000,
     max: 60,
     message: { statusCode: 429, message: "Too many public sharing requests" },
@@ -69,6 +73,7 @@ export function getPublicSharingRateLimitOptions() {
 
 export function getPublicSharingAttemptRateLimitOptions() {
   return {
+    keyGenerator: clientIp,
     windowMs: 60 * 1000,
     max: 10,
     message: { statusCode: 429, message: "Too many share access attempts" },
@@ -92,7 +97,7 @@ export function getPublicSharingAttemptTokenRateLimitOptions() {
       if (match) {
         return `tok:${crypto.createHash("sha256").update(match[1]).digest("hex")}`;
       }
-      return `ip:${req.ip || "unknown"}`;
+      return `ip:${clientIp(req)}`;
     },
   };
 }
@@ -114,7 +119,7 @@ export function getPublicSharingTokenRateLimitOptions() {
       if (match) {
         return `tok:${crypto.createHash("sha256").update(match[1]).digest("hex")}`;
       }
-      return `ip:${req.ip || "unknown"}`;
+      return `ip:${clientIp(req)}`;
     },
   };
 }
@@ -126,11 +131,8 @@ export function applySecurityMiddleware(
   app.use(
     helmet({
       contentSecurityPolicy: false,
-      hsts: {
-        maxAge: 31536000,
-        includeSubDomains: true,
-        preload: true,
-      },
+      // TLS ingress owns HSTS; internal HTTP must never assert it.
+      hsts: false,
     }),
   );
 
