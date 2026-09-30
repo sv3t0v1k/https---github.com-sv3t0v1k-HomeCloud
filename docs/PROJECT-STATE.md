@@ -73,7 +73,7 @@ Phase 10 завершена: listing, scoped download и ZIP реализова�
 
 - Автоматический retry для serialization/deadlock конфликтов в транзакционных folder operations, если появится эксплуатационная необходимость.
 - Внешние scrape/alerts/log shipping и дополнительные сценарии отказов и нагрузочные проверки за пределами завершённой Phase 12. Базовый ненумерованный Observability & Operations checkpoint завершён; централизованный мониторинг не установлен.
-- Production deployment: public certificate provisioning/renewal, offsite/encrypted backup и финальный recovery/acceptance; incremental strategy — отдельное решение.
+- Production deployment: public certificate provisioning/renewal, production offsite/operator qualification и финальный recovery/acceptance; incremental strategy — отдельное решение.
 
 Подробные статусы и критерии приёмки находятся только в [`ROADMAP.md`](./ROADMAP.md); этот раздел не заменяет roadmap.
 
@@ -96,3 +96,8 @@ Phase 10 завершена: listing, scoped download и ZIP реализова�
 ## Production Readiness — Secret Lifecycle
 
 Ненумерованный checkpoint: COMPLETE; independent review APPROVE. Инвентарь actual secrets, strengthened fail-closed validation, external-only CSPRNG generation, Docker context exclusions и vendor-neutral environment delivery завершены. JWT planned maintenance cutover явно инвалидирует старые tokens; DB/metrics rotation и rollback проверены на isolated compiled runtime. Focused106, full backend702 (59 suites, без skipped), generator1, lint/build/typecheck/Compose gates PASS. [Контракт](./secret-lifecycle.md), [evidence и ограничения](./production-readiness-checkpoint.md). Автоматическая JWT ротация не добавлена. OVERALL_PRODUCTION_READINESS: NOT_READY; encrypted/offsite backup, public certificate lifecycle и final recovery/acceptance остаются блокерами. Предыдущие COMPLETE checkpoints сохранены; новая Phase не создана. Рекомендуемый следующий блок — encrypted/offsite backup, автоматически не начинается.
+
+
+## Production Readiness — Backup Productionization
+
+Ненумерованный checkpoint: COMPLETE в границах реализации и isolated qualification; independent review APPROVE. Standard age encrypted full backups, verified vendor-neutral filesystem replication, atomic generation sets, retention7/30d (minimum2), safe failure signals и encrypted offsite restore поверх существующего v1 tooling. Focused34, legacy backup27, restore validation15 PASS; real offsite-authoritative disposable DB/storage drill и readiness200 PASS. [Контракт, evidence и ограничения](./backup-productionization.md). Production физический offsite mount/failure domain, schedule/alerts, key custody и full-volume RPO/RTO требуют operator validation. Incremental engine не добавлен. OVERALL_PRODUCTION_READINESS: NOT_READY; public certificate lifecycle, final recovery/acceptance и remaining operator/release checks остаются блокерами. Новая Phase не создана; следующий блок автоматически не начинается.

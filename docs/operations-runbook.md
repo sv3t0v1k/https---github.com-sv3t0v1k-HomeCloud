@@ -46,3 +46,10 @@ Backend пишет JSON по одной записи на строку в stdout
 ## Ограничения
 
 Нет распределённого tracing, централизованного log shipping, внешнего Prometheus/alerting, multi-replica aggregation или production readiness. Проверка storage не гарантирует отсутствие последующего отказа. Проверка БД не гарантирует успешность следующей транзакции. Runtime smoke проводится только на disposable data; destructive failure testing нормального окружения сюда не входит.
+
+
+## Production encrypted/offsite backup
+
+Использовать [Backup Productionization](./backup-productionization.md): maintenance write barrier → `backup-production.sh` → verified offsite success. Проверять JSON job events и `last-backup-success.json` (timestamp/generation/offsite_verified); restore marker не сбрасывает backup freshness. Nonzero job exit требует incident response; retention warning требует отдельной проверки cleanup и capacity. Initial daily stale alert >26h — proposed threshold, требуется утверждение RPO. Scheduler, внешний alert routing, реальный mount/failure domain, recovery key custody и full-volume RPO/RTO проверяются на production узле.
+
+Для recovery сначала `restore-offsite.sh GENERATION --validate-only`, затем restore в закрытом maintenance target, reconciliation и readiness200. Wrong key/corruption до decrypt/validation не меняют target. Не удалять последний verified restore point для освобождения места. Stale `.production.lock`, `.plaintext_*`, `.restore_*`, `.partial_*`, `.expired_*` исследовать только после подтверждения отсутствия job; plaintext staging требует encrypted filesystem, unlink не гарантирует secure erase.

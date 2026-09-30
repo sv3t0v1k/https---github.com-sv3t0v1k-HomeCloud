@@ -1,0 +1,68 @@
+# Production Readiness — Backup Productionization
+
+Ненумерованный блок после Secret Lifecycle. Общая готовность: **NOT_READY**.
+
+## Границы доказательства
+
+Production wrapper сохраняет существующий v1 paired backup/restore, включая checksums, metadata sidecar, archive security scan, storage staging/swap, migration/reconciliation. Полные backup зашифрованы age; внешний filesystem target представляет подключённое offsite хранилище. Разный путь на одном диске не создаёт другой failure domain. Оператор обязан проверить внешний mount, доступность, ёмкость, права и аварийный доступ. Disposable drill проверяет transport/recovery contract на изолированном target; потеря реального production-узла этим не моделируется.
+
+## Ключи и зависимости
+
+Нужны Bash, Python3 ≥3.9, age/age-keygen, Docker Compose и зависимости legacy backup/restore. Используется стандартный [age v1](https://age-encryption.org/v1), authenticated encryption, X25519 recipients. Reference implementation: [age](https://github.com/FiloSottile/age). Runtime отсутствие age завершается fail-closed. В проверках использован age v1.2.1 из upstream Go module; на deployment установить поддерживаемый пакет age по процедуре платформы.
+
+Identity генерировать вне checkout и backup roots в закрытом каталоге700, с umask077: `age-keygen -o /secure/recovery/key-v1.txt`; файл должен быть новым, owner-only0600. Public recipient получить `age-keygen -y /secure/recovery/key-v1.txt > /secure/backup/recipients.txt`. Не выводить identity, не помещать ключ в env, Git, image, backup manifest или command-line argument. Writer получает только public recipients; private identity нужна recovery operator. Root/Docker administrators и malware на recovery host остаются доверенной границей.
+
+Rotation: создать независимую новую identity; переключить recipients только после проверки нового encrypted restore. Старые identities хранить до истечения ВСЕХ backup, зашифрованных ими, включая копии вне автоматического retention. Возврат recipients не расшифрует прошлые artifacts новым ключом. Compromise требует отдельного incident plan: rotation не отзывает доступ к уже украденным ciphertext+identity. Emergency custody: отдельный защищённый vault/offline recovery copy identities, inventory key versions, восстановление доступа без исходного production host; проверка доступа минимум при rotation и recovery drill. Не внедряется KMS.
+
+## Консистентность и recovery budgets
+
+DB dump и storage archive последовательны. Перед job остановить приём новых writes, дождаться активных uploads/deletes/moves и остановить backend/writers; DB остаётся доступной pg_dump. Удерживать maintenance barrier до конца job. Public ingress после restore закрыт до migrations, reconciliation, readiness200 и проверки rows/quota/shares/file bytes. Подтверждение barrier в настройках является ответственностью оператора, скрипт не доказывает отсутствие стороннего writer.
+
+Encrypted full backups являются минимальным baseline; incremental engine не добавлен. Исторические 24h RPO и 30min RTO — предложенные цели, а не измеренный production SLA. Для запуска нужны замеры полного объёма: dump+archive+encrypt+network, staging peak disk, decrypt+restore+reconciliation, допустимое maintenance окно. Если full backup не помещается в утверждённые budgets, остановить rollout и запросить owner decision по incremental/snapshot решению. Малый fixture drill не доказывает масштабируемость на production объёме.
+
+## Privacy и остаточные риски
+
+Offsite содержит ciphertext и ограниченный manifest (id, размер/hash ciphertext, время/format); DB counts, user filenames и SQL metadata внутри ciphertext. SHA256 проверяет corruption/transport, не authenticity против замены artifact+manifest атакующим. Age authentication проверяется до target mutation; источник/target ACL и custody остаются обязательными. Удаление plaintext staging — unlink, не гарантированное secure erase SSD/COW/snapshot. Использовать encrypted staging disk; при SIGKILL/host crash могут остаться private staging remnants, нужен контролируемый operator cleanup после проверки отсутствия активного job. Не выполнять автоматическое удаление неизвестных partial artifacts.
+
+## Исполняемый контракт
+
+Все paths абсолютные; локальный и внешний root различаются и не вложены друг в друга. Внешний root provisioned заранее; автоматическое создание потерянного mount недопустимо. Recipient/identity файлы вне repo и обоих backup roots, без symlink, права0600. Структура generation: `hc_YYYYMMDDTHHMMSSZ_<random16>/backup.age` + `manifest.json`. На внешнем root нет plaintext v1 metadata. Незавершённые `.partial_*` не являются restore points.
+
+Настройки backup job:
+
+```sh
+export BACKUP_PRODUCTION_DIR=/var/lib/homecloud/encrypted-backups
+export BACKUP_OFFSITE_DIR=/mnt/homecloud-offsite/backups
+export BACKUP_AGE_RECIPIENTS_FILE=/secure/backup/recipients.txt
+export BACKUP_OFFSITE_CONFIRMED=1
+export BACKUP_WRITE_BARRIER_CONFIRMED=1
+export BACKUP_RETAIN_COUNT=7
+export BACKUP_RETENTION_DAYS=30
+bash scripts/backup-production.sh
+```
+
+Подтверждения задавать только ПОСЛЕ проверки mount/failure domain и maintenance barrier. Не сохранять `BACKUP_WRITE_BARRIER_CONFIRMED=1` как постоянное обещание, когда writers работают. Legacy `scripts/backup.sh` остаётся plaintext maintenance tool и не production success contract.
+
+Restore использует те же roots и `BACKUP_OFFSITE_CONFIRMED=1`, внешнюю `BACKUP_AGE_IDENTITY_FILE`, явный generation ID:
+
+```sh
+export BACKUP_AGE_IDENTITY_FILE=/secure/recovery/key-v1.txt
+bash scripts/restore-offsite.sh hc_YYYYMMDDTHHMMSSZ_0123456789abcdef --validate-only
+bash scripts/restore-offsite.sh hc_YYYYMMDDTHHMMSSZ_0123456789abcdef --yes
+```
+
+Сначала copy+verify, затем authenticated decrypt, безопасный whitelist четырёх regular bundle members, legacy validation. Wrong identity/corrupt artifact не вызывает target mutation. Destructive restore выполняется только в maintenance и выбранном Compose project; legacy DB restore не является общей транзакцией с storage. После успешного decrypt другие ошибки restore требуют существующего recovery runbook; гарантии полного rollback DB+storage нет.
+
+## Retention и сигналы
+
+Консервативный default: сохранять минимум7 verified generations и все моложе30 дней, отдельно на обоих roots. Count override не меньше2. Удаление старших возможно лишь после verified replacement+offsite success. Corrupt/partial наборы не считаются и автоматически не удаляются. Набор убирается из discoverable namespace rename в `.expired_*`, затем удаляется как каталог. Cleanup warning отдельно; уже verified backup остаётся успешным. Replication failure оставляет локальный encrypted restore point, возвращает nonzero и не запускает retention: это failed production job, не degraded success.
+
+Safe JSON events различают configuration, legacy backup (фиксированные DB/storage/checksum reasons), archive, encryption, metadata, offsite replication/verification, decryption, archive validation, legacy restore, retention warning. Сырые child stdout/stderr подавлены: SQL, credentials и keys не попадают в общий job log. Exit codes: configuration2, legacy backup10, archive11, metadata12, encryption13, replication14, verification15, decrypt16, archive-validation17, legacy-restore18, прочие1. Retention warning не меняет successful backup exit0.
+
+Оператор/планировщик обязан ловить nonzero job status, отсутствие `backup_production_completed`, события `retention_warning` и возраст последнего verified offsite success. Начальный alert threshold для daily schedule: >26h без offsite success; утвердить с RPO owner. Журнал scheduler хранить закрытым. DB failure: проверить readiness/disk/DB; storage: mount/permissions/capacity; metadata/checksum: сохранить прошлые restore points, проверить filesystem; encryption: наличие age/recipient permissions; replication: внешний mount/connectivity/capacity; cleanup warning: проверить права и `.expired_*`, не удалять newest points вручную. Повторить job после устранения причины с barrier. Внешняя доставка alerts и фактическое расписание production проверяются оператором; notification service здесь не установлен.
+
+Локальный root должен иметь права0700. Shared `.production.lock` предотвращает параллельные production backup/restore; stale lock автоматически не крадётся. Маркеры `last-backup-success.json` и `last-restore-success.json` разделены; содержат безопасное время/event, backup дополнительно generation/offsite_verified. `--validate-only` пишет отдельный validation marker, не объявляет restore завершённым. Failure markers также разделены по operation.
+
+## Проверка checkpoint
+
+Production focused34PASS; legacy backup safety27PASS; legacy restore validation15PASS (1 destructive integration skipped и заменена real isolated drill). Bash/Python syntax и diff-check PASS. Real final drill evidence `/private/tmp/homecloud-backup-dr.c9ipSH/result.json`: offsite authoritative после удаления local copy, exact DB snapshots/quotas/shares/uploads и SHA256 bytes, readiness200, leakage/own cleanup PASS. Independent review APPROVE после bounded corrections validation signal/retention tie/fixed failure reasons. Реализованный backup checkpoint PASS; OVERALL_PRODUCTION_READINESS NOT_READY.

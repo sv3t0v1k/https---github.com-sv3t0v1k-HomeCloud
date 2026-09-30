@@ -1,3 +1,5 @@
+> Production entry points: `scripts/backup-production.sh` и `scripts/restore-offsite.sh`. Legacy plaintext v1 workflow ниже сохранён для maintenance и внутренних проверок. Полный контракт шифрования, offsite, keys, retention и failure semantics: [Backup Productionization](./backup-productionization.md).
+
 # Резервное копирование и восстановление HomeCloud
 
 ## Обзор
@@ -315,7 +317,9 @@ tar -xzf backups/homecloud_storage_YYYYMMDD_HHMMSS_<suffix>.tar.gz -C "$STAGE"
 cd backend && npm test
 ```
 
-## Retention
+## Legacy retention
+
+Production wrapper использует собственный verified-set retention из [нового контракта](./backup-productionization.md). Ниже политика plaintext `backup.sh`:
 
 Политика по умолчанию:
 - **Максимальный возраст**: 7 дней (`RETENTION_DAYS`, настраивается).
@@ -327,8 +331,7 @@ cd backend && npm test
 
 Старые backup удаляются вместе с соответствующими `.meta`, `.meta.sha256` и архивами.
 Возраст определяется по timestamp/random-suffix в имени backup, а не по filesystem mtime;
-`touch` не влияет на retention. Malformed names, `.staging`, incomplete sets, symlinks и служебные
-markers игнорируются. Ошибки удаления/проверки retention видимы и не скрываются.
+`touch` не влияет на retention. Legacy считает filename-valid `.meta` без полной проверки набора; incomplete/corrupt наборы могут попасть в счётчик. Production retention проверяет полный encrypted set. Malformed names, `.staging`, symlinks и служебные markers игнорируются. Ошибки удаления/проверки retention видимы и не скрываются.
 
 ## Ограничения
 
@@ -336,7 +339,7 @@ markers игнорируются. Ошибки удаления/проверки
 - Backup PostgreSQL и storage **не атомарны**. `pg_dump` и `tar` выполняются последовательно.
 - Возможное окно неконсистентности: если upload происходит между созданием дампа и архива.
 - DB dump может содержать metadata без соответствующего физического файла, или наоборот.
-- Для полной согласованности рекомендуется использовать окно с низкой активности пользователей.
+- Production требует остановки writers и maintenance write barrier на весь backup; низкая активность сама по себе не обеспечивает согласованность.
 
 ### Redis
 - Redis данные не backupятся (кэш, rate limiting). После restore они будут пустыми.
@@ -346,8 +349,8 @@ markers игнорируются. Ошибки удаления/проверки
 - Для production необходим offsite backup.
 
 ### Шифрование
-- Backup хранится в открытом виде.
-- Для production рекомендуется шифрование backup'ов.
+- Legacy `backup.sh` хранит backup в открытом виде; production wrapper шифрует весь paired set age и удаляет private plaintext staging.
+- Для production обязателен encrypted/offsite wrapper с подтверждённым внешним target.
 - Backup имеет права `600`.
 
 ### Disk space check
@@ -390,10 +393,12 @@ markers игнорируются. Ошибки удаления/проверки
 
 ## Планирование
 
-Для автоматического backup добавьте в crontab:
+Production schedule настраивается после проверки mount, write barrier, exit-code monitoring и RPO; простого cron вызова plaintext entry point недостаточно:
 ```bash
 # Ежедневный backup в 2:00
-0 2 * * * cd /path/to/homecloud && ./scripts/backup.sh >> /var/log/homecloud-backup.log 2>&1
+# Production scheduler обязан выполнить write barrier и mount checks;
+# затем вызвать scripts/backup-production.sh и обработать nonzero/age alert.
+# Plaintext backup.sh не является production-success job.
 ```
 
 ## Troubleshooting
