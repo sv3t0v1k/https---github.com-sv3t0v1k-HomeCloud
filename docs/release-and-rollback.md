@@ -6,7 +6,7 @@
 
 Оператор фиксирует commit, результаты full gates, новый и предыдущий backend/frontend image digest, конфигурацию без раскрытия секретов, schema compatibility decision и пару DB/storage backup. Образы уже собраны/проверены и доступны registry. На deployment не пересобирать их из меняющегося checkout.
 
-Рабочий deployment каталог — защищённый checkout выбранного release commit: здесь находятся docker-compose.yml, scripts/backup.sh, scripts/restore.sh, scripts/reconcile.py, backend/package.json, .env с production секретами и release-images.yml. Все команды ниже выполняются из этого корня; scripts читают именно его .env. Каталог с одними Compose файлами недостаточен:
+Рабочий deployment каталог — защищённый checkout выбранного release commit: здесь находятся docker-compose.production.yml, deploy/ingress/, scripts/backup.sh, scripts/restore.sh, scripts/reconcile.py, backend/package.json, .env с production секретами и release-images.yml. Все команды ниже выполняются из этого корня; scripts читают именно его .env. Каталог с одними Compose файлами недостаточен:
 
 ```yaml
 services:
@@ -16,12 +16,14 @@ services:
     image: ${RELEASE_FRONTEND_IMAGE:?immutable frontend digest required}
 ```
 
-Значения — `registry/path@sha256:…`, не mutable tags. Предыдущая пара записана отдельно как PREVIOUS_BACKEND_IMAGE/PREVIOUS_FRONTEND_IMAGE. Существующие фиксированные container_name означают, что этот Compose нельзя параллельно запускать рядом с другим deployment. Внешний ingress maintenance должен оставаться закрытым даже при старте frontend скриптом restore.
+Значения — `registry/path@sha256:…`, не mutable tags. Предыдущая пара записана отдельно как PREVIOUS_BACKEND_IMAGE/PREVIOUS_FRONTEND_IMAGE. Production Compose не использует фиксированные container_name. Статические proxy subnet/IP нельзя параллельно повторять на одном host. Исходный docker-compose.yml остаётся legacy/development, не production override; не смешивать эти файлы. При переходе сохранить COMPOSE_PROJECT_NAME и реальные volume names, сверить существующие data mounts; смена project name создаёт пустые volumes, а не переносит данные. Внешний ingress maintenance должен оставаться закрытым даже при старте frontend скриптом restore.
 
 ```bash
-export COMPOSE_FILE="$PWD/docker-compose.yml:$PWD/release-images.yml"
+export COMPOSE_FILE="$PWD/docker-compose.production.yml:$PWD/release-images.yml"
 export COMPOSE_PROJECT_NAME=homecloud
 # RELEASE_BACKEND_IMAGE и RELEASE_FRONTEND_IMAGE задаёт оператор из manifest.
+# PUBLIC_HOST — lowercase bare hostname; TLS_CERT_DIR содержит fullchain.pem/privkey.pem.
+# FRONTEND_URL в production Compose выводится из PUBLIC_HOST как HTTPS origin.
 docker compose config --quiet
 docker compose pull backend frontend
 ```
@@ -70,9 +72,13 @@ CLI migration errors могут содержать SQL/data: только защ
 docker compose up -d --no-build --no-deps backend
 docker compose exec -T backend node -e 'fetch("http://localhost:3000/api/v1/health/ready").then(r=>{if(r.status!==200)process.exit(1)}).catch(()=>process.exit(1))'
 docker compose up -d --no-build --no-deps frontend
+# Внешний operator maintenance barrier ещё закрыт; запуск ingress его не заменяет.
+docker compose up -d --no-build --no-deps ingress
+docker compose exec -T frontend nginx -t
+docker compose exec -T ingress nginx -t
 ```
 
-7. Через закрытый operator ingress выполнить runtime gate и representative smoke: register/login тестового аккаунта, upload, download exact bytes/checksum, quota/metadata consistency. Зафиксировать cleanup smoke данных. Новый frontend должен корректно обращаться к `/api/v1` и WebSocket. Release acceptance window: минимум 15 минут наблюдения readiness, ошибок, latency и disk; любое подтверждённое отклонение блокирует открытие.
+7. Runtime gate live/ready/metrics выполнять по внутреннему backend HTTP из operator/orchestrator network, а не public ingress (nginx закрывает эти маршруты даже оператору с token). Не публиковать backend port ради gate. Через TLS operator ingress при закрытом public traffic выполнить representative smoke: register/login тестового аккаунта, upload, download exact bytes/checksum, quota/metadata consistency. Зафиксировать cleanup smoke данных. Новый frontend должен корректно обращаться к `/api/v1` и WebSocket. Release acceptance window: минимум 15 минут наблюдения readiness, ошибок, latency и disk; любое подтверждённое отклонение блокирует открытие.
 8. Открыть трафик только после всех blocking checks и отдельного go-live допуска TLS/secrets/offsite backup. Сам Architecture & Release checkpoint такого допуска не даёт.
 
 ## Что проверяет release-gate.cjs
@@ -81,7 +87,7 @@ docker compose up -d --no-build --no-deps frontend
 NODE_ENV=production node scripts/release-gate.cjs config
 node scripts/release-gate.cjs artifact
 node scripts/release-gate.cjs migrations
-RELEASE_BASE_URL="$OPERATOR_BASE_URL" node scripts/release-gate.cjs runtime
+RELEASE_BASE_URL="$INTERNAL_BACKEND_BASE_URL" node scripts/release-gate.cjs runtime
 ```
 
 | Проверка | Blocking смысл / предел |
@@ -135,8 +141,12 @@ Restore разрушительно заменяет DB/storage; требуетс
 
 Это recovery drill того же artifact, не доказательство previous-version rollback, frontend rollback, TLS ingress, rollback destructive migration или восстановления backup. Результаты и фактический путь evidence фиксируются отдельно checkpoint; выполнение скрипта требуется для заявления PASS. Failure/Security restore evidence сохраняется отдельным ранее завершённым checkpoint.
 
+## TLS ingress gate
+
+Перед открытием трафика проверить `nginx -t` в frontend/ingress, hostname validation, публичный HTTP308 и HTTPS certificate chain/hostname/expiry, отсутствие HSTS на HTTP, secure headers на HTTPS, private health/metrics и spoofed forwarded headers. Ingress не подключён к backend_proxy, frontend/backend не имеют published ports. Проверенный локальный harness `python3 scripts/tests/tls-proxy-runtime.py` использует disposable self-signed certificate и отдельные ресурсы; точные prerequisites описаны в его docstring. Это не подтверждает public CA provisioning или recovery конечного production узла. Maintenance barrier остаётся отдельным operator input: обычная ingress конфигурация сама его не реализует.
+
 ## Backup productionization: follow-up
 
 До go-live: encryption at rest и независимая offsite копия пары DB/storage; ограниченный доступ операторов/backup identity, сохранность ключа и проверяемое recovery ключа; политика retention/RPO/RTO, мониторинг возраста последней успешной копии и alert failure; scheduled backup при согласованном write barrier; регулярный isolated restore с checksums, quota и migration/schema verification. Минимум ежемесячный drill и после изменения backup/restore, с владельцем и журналом результата; окончательные RPO/RTO утверждает владелец.
 
-Incremental backup — отдельный выбор по объёму и RPO, допустимое улучшение после go-live при доказанной достаточности full backup. Локальные retention defaults (7 дней, минимум 2 копии) не являются утверждённой production политикой. Offsite/encryption/secrets lifecycle/TLS здесь не реализованы; общий статус production остаётся NOT_READY.
+Incremental backup — отдельный выбор по объёму и RPO, допустимое улучшение после go-live при доказанной достаточности full backup. Локальные retention defaults (7 дней, минимум 2 копии) не являются утверждённой production политикой. Offsite/encryption/secrets lifecycle здесь не реализованы; TLS/proxy baseline реализован отдельным checkpoint, public certificate lifecycle остаётся operator obligation; общий статус production остаётся NOT_READY.

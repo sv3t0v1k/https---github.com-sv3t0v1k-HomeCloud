@@ -20,9 +20,9 @@ HomeCloud — самостоятельно размещаемое облачно
 
 `docker-compose.yml` описывает PostgreSQL, Redis, backend и frontend. Backend хранит файлы в volume `storage_data`; база и Redis используют отдельные volumes. PostgreSQL, Redis, backend и frontend имеют Compose healthchecks; backend endpoint `/api/v1/health` проверяет только состояние процесса (liveness), а `/api/v1/health/ready` — готовность: PostgreSQL (`SELECT 1` через отдельное ограниченное соединение) и реальное чтение/запись storage root и `.tmp` через собственные эксклюзивные probe-артефакты. Совместимый `/api/v1/health/live` также доступен. Readiness объединяет параллельные проверки, кэширует результат на 1 s и ограничивает HTTP-ожидание 3 s; filesystem I/O не отменяется таймером. При общем timeout dependency status консервативно unavailable. Backend healthcheck в compose использует readiness-endpoint `/api/v1/health/ready`. Backend `depends_on` только на PostgreSQL (`service_healthy`); Redis не блокирует запуск backend.
 
-Redis package и runtime-конфигурация присутствуют, но backend не создаёт Redis-клиент и не обращается к Redis — не является хранилищем сессий или кэшем приложения. Volume `uploads_data` объявлен, но не подключён. Production readiness, TLS, внешнее хранение резервных копий и управление секретами пока не подтверждены.
+Redis package и runtime-конфигурация присутствуют, но backend не создаёт Redis-клиент и не обращается к Redis — не является хранилищем сессий или кэшем приложения. Volume `uploads_data` объявлен, но не подключён. Общая production readiness, внешнее хранение резервных копий и управление секретами пока не подтверждены. TLS/proxy baseline см. отдельный checkpoint ниже.
 
-Backend пишет структурированные JSON-логи с безопасными operational messages и HTTP completion. `X-Request-Id` принимается только в консервативном формате и возвращается в response; AsyncLocalStorage сохраняет request context. Сырые SQL query logs отключены. `/api/v1/metrics` выдаёт Prometheus text с bounded HTTP labels и runtime signals; endpoint выключен без `METRICS_TOKEN`, иначе требует отдельный Bearer token. Он проксируется nginx, поэтому внутренний backend port не заменяет эту защиту. [Runbook](./operations-runbook.md) описывает triage и ограничения.
+Backend пишет структурированные JSON-логи с безопасными operational messages и HTTP completion. `X-Request-Id` принимается только в консервативном формате и возвращается в response; AsyncLocalStorage сохраняет request context. Сырые SQL query logs отключены. `/api/v1/metrics` выдаёт Prometheus text с bounded HTTP labels и runtime signals; endpoint выключен без `METRICS_TOKEN`, иначе требует отдельный Bearer token. Текущие frontend/production ingress nginx закрывают metrics от публичного маршрута; private scrape обращается напрямую к backend и сохраняет Bearer protection. [Runbook](./operations-runbook.md) описывает triage и ограничения.
 
 ## Подтверждённые завершённые этапы
 
@@ -73,7 +73,7 @@ Phase 10 завершена: listing, scoped download и ZIP реализова�
 
 - Автоматический retry для serialization/deadlock конфликтов в транзакционных folder operations, если появится эксплуатационная необходимость.
 - Внешние scrape/alerts/log shipping и дополнительные сценарии отказов и нагрузочные проверки за пределами завершённой Phase 12. Базовый ненумерованный Observability & Operations checkpoint завершён; централизованный мониторинг не установлен.
-- Production deployment: TLS, secrets, offsite/encrypted/incremental backup и проверенный rollback/DR.
+- Production deployment: public certificate provisioning/renewal, secrets, offsite/encrypted backup и финальный recovery/acceptance; incremental strategy — отдельное решение.
 
 Подробные статусы и критерии приёмки находятся только в [`ROADMAP.md`](./ROADMAP.md); этот раздел не заменяет roadmap.
 
@@ -87,3 +87,8 @@ Phase 10 завершена: listing, scoped download и ZIP реализова�
 ## Production Architecture & Release Gate
 
 Добавлены ранняя fail-closed production config validation до DB initialization и release helpers config/artifact/migrations/runtime. Redis production startup больше не требует, readiness остаётся DB+storage. [Topology](./production-topology.md), [release/rollback](./release-and-rollback.md), [evidence](./production-readiness-checkpoint.md): full backend 674 PASS и production same-artifact recovery drill PASS. Независимый review APPROVE. Общая production readiness NOT_READY; previous-version/schema/frontend rollback этим drill не доказаны. Никакой TLS/secrets/offsite rollout не выполнен.
+
+
+## Production TLS / Proxy Boundary & Private Operational Exposure
+
+Ненумерованный checkpoint: COMPLETE после full gates, runtime evidence и independent review APPROVE. Добавлены standalone production Compose и TLS ingress HTTP308/secure headers; frontend/backend не публикуются, trusted forwarding ограничен точными socket IP двух отдельных сетей. Общий clientIp применяется к существующим process-local лимитам; spoofed headers не меняют client/proto/host от untrusted socket и не обходят budgets. Health/readiness/metrics закрыты обоими nginx, internal metrics сохраняет Bearer. Full backend 59 suites / 686 tests PASS; focused 54 PASS; lint/build/typecheck/config validation PASS. Реальный nginx self-signed TLS smoke и Chromium login/files/fonts/CSP PASS. [Evidence и ограничения](./production-readiness-checkpoint.md). Public CA provisioning/renewal и конечный production deployment не заявляются. Общая готовность NOT_READY: secret lifecycle, encrypted/offsite backup и final recovery/acceptance остаются блокерами. Предыдущие COMPLETE checkpoints сохранены; новая Phase не создана, следующий блок автоматически не начинается.

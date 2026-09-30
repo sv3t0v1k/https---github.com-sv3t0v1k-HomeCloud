@@ -598,13 +598,17 @@ Evidence: focused 64/64 PASS; full backend 609 PASS / 15 SKIPPED (51 suites PASS
 
 ### Production Readiness — Architecture & Release Gate
 
-Ненумерованный checkpoint: COMPLETE; independent review APPROVE. Production topology contract, maintenance release/migration/rollback policy, early production config validation и narrow release helpers добавлены. Full backend 674 PASS; limited same-artifact recovery drill PASS. [Evidence и пределы](./production-readiness-checkpoint.md). Общий Production Readiness INCOMPLETE; TLS/proxy, secret lifecycle и offsite/encrypted backup остаются blocking follow-up. Phase 13 и предыдущие operational checkpoints COMPLETE сохранены.
+Ненумерованный checkpoint: COMPLETE; independent review APPROVE. Production topology contract, maintenance release/migration/rollback policy, early production config validation и narrow release helpers добавлены. Full backend 674 PASS; limited same-artifact recovery drill PASS. [Evidence и пределы](./production-readiness-checkpoint.md). Общий Production Readiness INCOMPLETE; на момент Architecture checkpoint TLS/proxy, secret lifecycle и offsite/encrypted backup оставались blocking follow-up; актуальное состояние TLS/proxy см. следующий ненумерованный checkpoint. Phase 13 и предыдущие operational checkpoints COMPLETE сохранены.
+
+### Production Readiness — TLS / Proxy Boundary & Private Operational Exposure
+
+Ненумерованный checkpoint: COMPLETE; independent review APPROVE. Standalone production ingress завершает TLS, HTTP308 и secure headers, не публикует frontend/backend; exact trusted socket peers и общий normalized clientIp защищают существующие process-local лимиты от forwarded spoofing. Health/readiness/metrics приватны, internal metrics дополнительно Bearer. Focused 54 PASS; full backend 59 suites / 686 tests PASS без skipped integrations; lint/build/typecheck/config gates PASS. Реальные два nginx, self-signed TLS, auth/upload/download/public share, rate-limit spoofing и Chromium fonts/CSP PASS. [Evidence и пределы](./production-readiness-checkpoint.md). Public CA lifecycle/конечный deployment не подтверждены. OVERALL_PRODUCTION_READINESS: NOT_READY; secret lifecycle, encrypted/offsite backup и final recovery/acceptance остаются blocking follow-up. Предыдущие COMPLETE checkpoints сохранены; новая Phase не создана.
 
 ## Planned
 
 Эти направления остаются будущей работой без новых номеров Phase; завершённые backend hardening и frontend здесь не дублируются:
 
-- **Production readiness — INCOMPLETE:** TLS/proxy exposure и client-IP trust, secret lifecycle, encrypted/offsite backup, production deployment acceptance; incremental strategy — отдельное решение. Architecture & Release Gate см. checkpoint выше.
+- **Production readiness — INCOMPLETE:** secret lifecycle, encrypted/offsite backup, final recovery/production deployment acceptance и public certificate lifecycle; TLS/proxy baseline см. checkpoint выше; incremental strategy — отдельное решение. Architecture & Release Gate см. checkpoint выше.
 
 Ни одно planned-направление не разрешено начинать автоматически.
 
