@@ -9,6 +9,8 @@ import { SharingModule } from "./sharing/sharing.module";
 import { PreviewsModule } from "./previews/previews.module";
 import { StorageModule } from "./storage/storage.module";
 import { CommonModule } from "./common/common.module";
+import { MetricsController } from "./common/observability/metrics.controller";
+import { MetricsService } from "./common/observability/metrics.service";
 import { HealthController } from "./common/health.controller";
 
 @Module({
@@ -24,7 +26,7 @@ import { HealthController } from "./common/health.controller";
         type: "postgres",
         url: configService.get("DATABASE_URL"),
         synchronize: process.env.NODE_ENV !== "production",
-        logging: process.env.NODE_ENV !== "production",
+        logging: false,
         entities: [__dirname + "/**/*.entity{.js,.ts}"],
         migrations: [__dirname + "/migrations/*{.ts,.js}"],
         cli: {
@@ -46,6 +48,7 @@ import { HealthController } from "./common/health.controller";
     StorageModule,
     CommonModule,
   ],
-  controllers: [HealthController],
+  controllers: [HealthController, MetricsController],
+  providers: [MetricsService],
 })
 export class AppModule {}

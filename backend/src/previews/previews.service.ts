@@ -58,11 +58,8 @@ export class PreviewsService {
         .toBuffer();
 
       return thumbnail;
-    } catch (error) {
-      this.logger.error(
-        `Failed to generate thumbnail for file ${fileId}`,
-        error,
-      );
+    } catch {
+      this.logger.error("Failed to generate thumbnail for file");
       throw new BadRequestException("Failed to generate thumbnail");
     }
   }

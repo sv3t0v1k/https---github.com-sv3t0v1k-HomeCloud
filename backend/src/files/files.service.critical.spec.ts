@@ -688,10 +688,9 @@ describe("FilesService - Critical Findings (F-01, F-02, MISS-01, MISS-02, MISS-0
       expect(qr.rollbackTransaction).not.toHaveBeenCalled();
       expect(mockStorageService.deleteFile).toHaveBeenNthCalledWith(1, "/s/a");
       expect(mockStorageService.deleteFile).toHaveBeenNthCalledWith(2, "/s/b");
-      expect(logSpy).toHaveBeenCalledWith(
-        "Failed to delete physical file /s/a",
-        error,
-      );
+      expect(logSpy).toHaveBeenCalledWith("Failed to delete physical file");
+      expect(JSON.stringify(logSpy.mock.calls)).not.toContain("/s/a");
+      expect(JSON.stringify(logSpy.mock.calls)).not.toContain("unlink failed");
     });
 
     it("deleteFolderPermanently waits for a successful physical deletion", async () => {
@@ -744,10 +743,9 @@ describe("FilesService - Critical Findings (F-01, F-02, MISS-01, MISS-02, MISS-0
 
       expect(qr.commitTransaction).toHaveBeenCalledTimes(1);
       expect(qr.rollbackTransaction).not.toHaveBeenCalled();
-      expect(logSpy).toHaveBeenCalledWith(
-        "Failed to delete physical file /s/a.txt",
-        error,
-      );
+      expect(logSpy).toHaveBeenCalledWith("Failed to delete physical file");
+      expect(JSON.stringify(logSpy.mock.calls)).not.toContain("/s/a.txt");
+      expect(JSON.stringify(logSpy.mock.calls)).not.toContain("unlink failed");
     });
 
     it("emptyTrash awaits deletions sequentially with one unlink in flight", async () => {
@@ -825,10 +823,9 @@ describe("FilesService - Critical Findings (F-01, F-02, MISS-01, MISS-02, MISS-0
       });
 
       expect(mockStorageService.deleteFile).toHaveBeenCalledTimes(2);
-      expect(logSpy).toHaveBeenCalledWith(
-        "Failed to delete physical file /s/a",
-        error,
-      );
+      expect(logSpy).toHaveBeenCalledWith("Failed to delete physical file");
+      expect(JSON.stringify(logSpy.mock.calls)).not.toContain("/s/a");
+      expect(JSON.stringify(logSpy.mock.calls)).not.toContain("unlink failed");
       expect(qr.rollbackTransaction).not.toHaveBeenCalled();
     });
   });

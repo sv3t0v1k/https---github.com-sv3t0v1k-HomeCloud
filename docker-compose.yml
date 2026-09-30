@@ -49,6 +49,8 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       STORAGE_PATH: /storage
+      # Метрики выключены без отдельного токена; endpoint требует Bearer.
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
       MAX_FILE_SIZE: ${MAX_FILE_SIZE:-1073741824}
       MAX_TOTAL_SIZE: ${MAX_TOTAL_SIZE:-10737418240}
       CHUNK_SIZE: ${CHUNK_SIZE:-10485760}

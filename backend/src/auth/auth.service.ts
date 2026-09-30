@@ -56,12 +56,12 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit(): void {
-    this.cleanupExpiredTokens().catch((error) => {
-      this.logger.error(`Initial expired token cleanup failed: ${error.message}`);
+    this.cleanupExpiredTokens().catch(() => {
+      this.logger.error("Initial expired token cleanup failed");
     });
     this.cleanupInterval = setInterval(() => {
-      this.cleanupExpiredTokens().catch((error) => {
-        this.logger.error(`Periodic expired token cleanup failed: ${error.message}`);
+      this.cleanupExpiredTokens().catch(() => {
+        this.logger.error("Periodic expired token cleanup failed");
       });
     }, 3600_000);
   }

@@ -26,6 +26,7 @@ export function buildCorsOptions(configService: ConfigService) {
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: [
       "Content-Type",
+      "X-Request-Id",
       "Authorization",
       "X-Requested-With",
       "X-Share-Password",
@@ -33,6 +34,7 @@ export function buildCorsOptions(configService: ConfigService) {
     ],
     exposedHeaders: [
       "Content-Disposition",
+      "X-Request-Id",
       "Content-Length",
       "Content-Range",
       "Accept-Ranges",

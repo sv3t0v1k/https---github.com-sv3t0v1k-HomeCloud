@@ -521,11 +521,8 @@ export class FilesService {
       if (fileToDelete.storagePath) {
         try {
           await this.storageService.deleteFile(fileToDelete.storagePath);
-        } catch (error) {
-          this.logger.error(
-            `Failed to delete physical file ${fileToDelete.storagePath}`,
-            error,
-          );
+        } catch {
+          this.logger.error("Failed to delete physical file");
         }
       }
 
@@ -640,11 +637,8 @@ export class FilesService {
         if (file.storagePath) {
           try {
             await this.storageService.deleteFile(file.storagePath);
-          } catch (error) {
-            this.logger.error(
-              `Failed to delete physical file ${file.storagePath}`,
-              error,
-            );
+          } catch {
+            this.logger.error("Failed to delete physical file");
           }
         }
       }
@@ -766,11 +760,8 @@ export class FilesService {
         if (file.storagePath) {
           try {
             await this.storageService.deleteFile(file.storagePath);
-          } catch (error) {
-            this.logger.error(
-              `Failed to delete physical file ${file.storagePath}`,
-              error,
-            );
+          } catch {
+            this.logger.error("Failed to delete physical file");
           }
         }
       }
@@ -812,11 +803,8 @@ export class FilesService {
     const cleanupDestination = async () => {
       try {
         await this.storageService.deleteFile(targetPath);
-      } catch (cleanupError) {
-        this.logger.error(
-          `Failed to clean up copied file ${targetPath}`,
-          cleanupError,
-        );
+      } catch {
+        this.logger.error("Failed to clean up copied file");
       }
     };
 
@@ -855,21 +843,17 @@ export class FilesService {
           if (!persistedCopy) {
             await cleanupDestination();
           }
-        } catch (reconciliationError) {
+        } catch {
           this.logger.error(
-            `Failed to reconcile copied file after ambiguous commit ${targetPath}`,
-            reconciliationError,
+            "Failed to reconcile copied file after ambiguous commit",
           );
         }
       } else {
         if (transactionStarted && queryRunner) {
           try {
             await queryRunner.rollbackTransaction();
-          } catch (rollbackError) {
-            this.logger.error(
-              "Failed to roll back copied file transaction",
-              rollbackError,
-            );
+          } catch {
+            this.logger.error("Failed to roll back copied file transaction");
           }
         }
         await cleanupDestination();
@@ -879,11 +863,8 @@ export class FilesService {
       if (queryRunner) {
         try {
           await queryRunner.release();
-        } catch (releaseError) {
-          this.logger.error(
-            "Failed to release copied file transaction",
-            releaseError,
-          );
+        } catch {
+          this.logger.error("Failed to release copied file transaction");
         }
       }
     }

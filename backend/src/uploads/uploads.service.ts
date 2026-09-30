@@ -302,10 +302,8 @@ export class UploadsService {
       if (!fs.existsSync(sessionTempDir)) {
         fs.mkdirSync(sessionTempDir, { recursive: true });
       }
-    } catch (err) {
-      this.logger.error(
-        `Failed to create temp dir for session ${uploadId}: ${(err as Error).message}`,
-      );
+    } catch {
+      this.logger.error("Failed to create temp dir for session");
       // Best-effort cleanup of the orphaned session row.
       await this.uploadSessionRepository.delete(savedSession!.id);
       throw new BadRequestException("Failed to prepare upload session");
@@ -521,8 +519,7 @@ export class UploadsService {
         cleanupIngressFile(
           chunkData.path,
           this.storageService.getTempPath(),
-          (error) =>
-            this.logger.warn(`Failed to clean ingress file: ${error.message}`),
+          () => this.logger.warn("Failed to clean ingress file"),
         );
       }
     }
@@ -936,10 +933,8 @@ export class UploadsService {
         .select("session.tempPath", "tempPath")
         .getRawMany<{ tempPath: string }>();
       referenced = new Set(rows.map((row) => row.tempPath));
-    } catch (err) {
-      this.logger.error(
-        `Orphaned temp dir cleanup failed: ${(err as Error).message}`,
-      );
+    } catch {
+      this.logger.error("Orphaned temp dir cleanup failed");
       return 0;
     }
 
@@ -964,10 +959,8 @@ export class UploadsService {
         this.deleteTempFiles(entryPath);
         cleaned++;
       }
-    } catch (err) {
-      this.logger.error(
-        `Orphaned temp dir cleanup failed: ${(err as Error).message}`,
-      );
+    } catch {
+      this.logger.error("Orphaned temp dir cleanup failed");
     }
 
     return cleaned;
@@ -987,7 +980,7 @@ export class UploadsService {
         }
       } catch (error) {
         if ((error as { code?: string }).code !== "ENOENT") {
-          this.logger.warn(`Failed to inspect stale ingress file ${candidate}`);
+          this.logger.warn("Failed to inspect stale ingress file");
         }
       }
     }
@@ -1002,8 +995,8 @@ export class UploadsService {
           `Startup cleanup: removed ${cleaned} orphaned temp directories`,
         );
       }
-    } catch (err) {
-      this.logger.error(`Startup cleanup failed: ${(err as Error).message}`);
+    } catch {
+      this.logger.error("Startup cleanup failed");
     }
 
     try {
@@ -1013,17 +1006,15 @@ export class UploadsService {
           `Startup cleanup: removed ${cleaned} expired upload sessions`,
         );
       }
-    } catch (err) {
-      this.logger.error(`Startup cleanup failed: ${(err as Error).message}`);
+    } catch {
+      this.logger.error("Startup cleanup failed");
     }
 
     // Start periodic cleanup (every 1 hour).
     this.cleanupTimer = setInterval(
       () => {
-        this.cleanupExpiredSessions().catch((err) =>
-          this.logger.error(
-            `Periodic cleanup failed: ${(err as Error).message}`,
-          ),
+        this.cleanupExpiredSessions().catch(() =>
+          this.logger.error("Periodic cleanup failed"),
         );
       },
       60 * 60 * 1000,
@@ -1044,7 +1035,7 @@ export class UploadsService {
       }
       fs.rmSync(tempPath, { recursive: true, force: true });
     } catch {
-      this.logger.warn(`Failed to delete temp files at ${tempPath}`);
+      this.logger.warn("Failed to delete temp files at");
     }
   }
 }
