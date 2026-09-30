@@ -1,5 +1,6 @@
 import { Injectable, Logger, INestApplication } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { validateProductionConfig } from "./production-config";
 
 @Injectable()
 export class StartupValidationService {
@@ -9,7 +10,8 @@ export class StartupValidationService {
 
   async validateDatabaseCredentials(): Promise<void> {
     const dbPassword = this.configService.get<string>("DB_PASSWORD") || "";
-    const redisPassword = this.configService.get<string>("REDIS_PASSWORD") || "";
+    const redisPassword =
+      this.configService.get<string>("REDIS_PASSWORD") || "";
 
     const weakCredentials = new Set([
       "changeme",
@@ -89,6 +91,23 @@ export async function validateStartupConfiguration(
 ): Promise<ConfigService> {
   const configService = app.get(ConfigService);
   const startupValidation = app.get(StartupValidationService);
+  if (configService.get("NODE_ENV") === "production") {
+    validateProductionConfig(
+      Object.fromEntries(
+        [
+          "NODE_ENV",
+          "JWT_SECRET",
+          "JWT_REFRESH_SECRET",
+          "DATABASE_URL",
+          "DB_PASSWORD",
+          "METRICS_TOKEN",
+          "STORAGE_PATH",
+          "FRONTEND_URL",
+        ].map((name) => [name, configService.get(name)]),
+      ),
+    );
+    return configService;
+  }
   await startupValidation.validateDatabaseCredentials();
   await startupValidation.validateJwtSecrets();
   return configService;

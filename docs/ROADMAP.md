@@ -596,11 +596,15 @@ Evidence: focused 64/64 PASS; full backend 609 PASS / 15 SKIPPED (51 suites PASS
 
 Статус: `COMPLETE`. Owner-approved направление после Observability & Operations, без новой Phase. Реальные disposable backup/restore с проверкой строк/байтов/квоты, DB/storage failure и recovery, representative ownership/share/session/rate-limit abuse gates пройдены. Focused 34 suites / 453 tests и full 57 suites / 651 tests PASS без пропусков; build/typecheck/lint PASS. Independent review APPROVE. [Evidence, команды и ограничения](./failure-security-checkpoint.md). Phase 13 и observability checkpoint сохраняются COMPLETE; production readiness не заявляется.
 
+### Production Readiness — Architecture & Release Gate
+
+Ненумерованный checkpoint: COMPLETE; independent review APPROVE. Production topology contract, maintenance release/migration/rollback policy, early production config validation и narrow release helpers добавлены. Full backend 674 PASS; limited same-artifact recovery drill PASS. [Evidence и пределы](./production-readiness-checkpoint.md). Общий Production Readiness INCOMPLETE; TLS/proxy, secret lifecycle и offsite/encrypted backup остаются blocking follow-up. Phase 13 и предыдущие operational checkpoints COMPLETE сохранены.
+
 ## Planned
 
 Эти направления остаются будущей работой без новых номеров Phase; завершённые backend hardening и frontend здесь не дублируются:
 
-- **Production readiness:** topology, TLS, secrets, deployment/migration/rollback procedure, encrypted/offsite/incremental backup и release gate.
+- **Production readiness — INCOMPLETE:** TLS/proxy exposure и client-IP trust, secret lifecycle, encrypted/offsite backup, production deployment acceptance; incremental strategy — отдельное решение. Architecture & Release Gate см. checkpoint выше.
 
 Ни одно planned-направление не разрешено начинать автоматически.
 

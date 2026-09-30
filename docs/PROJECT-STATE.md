@@ -83,3 +83,7 @@ Phase 10 завершена: listing, scoped download и ZIP реализова�
 2. Проверять `git status`, текущий commit и статус активной работы перед изменениями.
 3. Не выводить завершённость этапа из названия ветки или коммита без подтверждённого результата и обновления roadmap.
 4. Не дублировать детальные контракты backup, auth или sharing в этом файле.
+
+## Production Architecture & Release Gate
+
+Добавлены ранняя fail-closed production config validation до DB initialization и release helpers config/artifact/migrations/runtime. Redis production startup больше не требует, readiness остаётся DB+storage. [Topology](./production-topology.md), [release/rollback](./release-and-rollback.md), [evidence](./production-readiness-checkpoint.md): full backend 674 PASS и production same-artifact recovery drill PASS. Независимый review APPROVE. Общая production readiness NOT_READY; previous-version/schema/frontend rollback этим drill не доказаны. Никакой TLS/secrets/offsite rollout не выполнен.

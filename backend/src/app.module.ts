@@ -1,3 +1,4 @@
+import { validateProductionConfig } from "./common/production-config";
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
@@ -17,6 +18,7 @@ import { HealthController } from "./common/health.controller";
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      validate: validateProductionConfig,
       envFilePath: [".env", ".env.local"],
     }),
     TypeOrmModule.forRootAsync({

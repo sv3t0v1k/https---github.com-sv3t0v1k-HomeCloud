@@ -1,20 +1,32 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { INestApplication } from "@nestjs/common";
-import { StartupValidationService, validateStartupConfiguration } from "./startup-validation.service";
+import {
+  StartupValidationService,
+  validateStartupConfiguration,
+} from "./startup-validation.service";
+
+const initialEnvironment = { ...process.env };
+afterEach(() => {
+  process.env = { ...initialEnvironment };
+});
 
 const PRODUCTION_CONFIG = {
   NODE_ENV: "production",
   FRONTEND_URL: "https://app.example.ru",
-  JWT_SECRET: "strong-access-secret-1234567890ab",
-  JWT_REFRESH_SECRET: "strong-refresh-secret-1234567890ab",
+  JWT_SECRET: "access-A7s9K2v6P4n8Q1r5T3u0W9x2Y6z8",
+  JWT_REFRESH_SECRET: "refresh-B8t0L3w7Q5o9R2s6U4v1X0y3Z7a9",
   JWT_EXPIRES_IN: "15m",
   JWT_REFRESH_EXPIRES_IN: "7d",
-  DB_PASSWORD: "strong-db-password-2026!",
+  DB_PASSWORD: "D4b7N9p2R6s8T1u5",
+  DATABASE_URL: "postgresql://homecloud:D4b7N9p2R6s8T1u5@postgres/homecloud",
+  STORAGE_PATH: "/storage",
   REDIS_PASSWORD: "strong-redis-password-2026!",
 };
 
-async function createApp(envValues: Record<string, string>): Promise<INestApplication> {
+async function createApp(
+  envValues: Record<string, string>,
+): Promise<INestApplication> {
   const moduleFixture: TestingModule = await Test.createTestingModule({
     imports: [
       ConfigModule.forRoot({
@@ -28,6 +40,8 @@ async function createApp(envValues: Record<string, string>): Promise<INestApplic
 
   const app = moduleFixture.createNestApplication();
   await app.init();
+  const config = app.get(ConfigService);
+  for (const [key, value] of Object.entries(envValues)) config.set(key, value);
   return app;
 }
 
@@ -44,7 +58,7 @@ describe("validateStartupConfiguration helper (real wiring)", () => {
       JWT_SECRET: "change-me-in-production",
     });
     await expect(validateStartupConfiguration(app)).rejects.toThrow(
-      /JWT_SECRET is weak or default/,
+      /JWT_SECRET/,
     );
     await app.close();
   });
@@ -57,7 +71,7 @@ describe("validateStartupConfiguration helper (real wiring)", () => {
       JWT_REFRESH_SECRET: sameSecret,
     });
     await expect(validateStartupConfiguration(app)).rejects.toThrow(
-      /JWT_SECRET and JWT_REFRESH_SECRET must be different values/,
+      /JWT_SECRET \/ JWT_REFRESH_SECRET/,
     );
     await app.close();
   });
@@ -68,7 +82,7 @@ describe("validateStartupConfiguration helper (real wiring)", () => {
       DB_PASSWORD: "change-me-in-production",
     });
     await expect(validateStartupConfiguration(app)).rejects.toThrow(
-      /DB_PASSWORD is weak or default/,
+      /DB_PASSWORD/,
     );
     await app.close();
   });
@@ -89,6 +103,8 @@ describe("StartupValidationService (unit, real ConfigModule)", () => {
     }).compile();
 
     const configService = module.get<ConfigService>(ConfigService);
+    for (const [key, value] of Object.entries(envValues))
+      configService.set(key, value);
     // Verify real ConfigService is used (not a mock)
     expect(configService.get).toBeDefined();
     return module.get<StartupValidationService>(StartupValidationService);
@@ -104,7 +120,9 @@ describe("StartupValidationService (unit, real ConfigModule)", () => {
     });
 
     it("should pass DB/Redis credential validation", async () => {
-      await expect(service.validateDatabaseCredentials()).resolves.not.toThrow();
+      await expect(
+        service.validateDatabaseCredentials(),
+      ).resolves.not.toThrow();
     });
   });
 
