@@ -1,0 +1,580 @@
+{
+  "after_rollback": {
+    "migrations": "1746824900000|CreateUsersTable1746824900000\n1746824910000|CreateFoldersTable1746824910000\n1746824920000|CreateFilesTable1746824920000\n1746824930000|CreateShareLinksTable1746824930000\n1746824940000|CreateUploadSessionsTable1746824940000\n1746825000000|CreateRefreshTokensTable1746825000000\n1746825010000|AddMissingIndexes1746825010000\n1746825020000|AddStorageUsedCheck1746825020000\n1746825030000|AddParentIdForeignKeys1746825030000\n1746825040000|ShareLinksTokenUnique1746825040000\n1746825050000|UploadSessionStatusCheck1746825050000\n1746825060000|AddNameNotEmptyCheck1746825060000\n1746825070000|UploadedChunksJsonb1746825070000\n1746825080000|AddFileUploadId1746825080000\n1746825090000|AddShareMaxDownloads1746825090000\n1746825100000|AddShareFailedAttempts1746825100000\n1746825110000|AddFileFolderIdMirrorLink1746825110000\n1746825120000|ShareLockedUntilTimestamptz1746825120000",
+    "quota": "136|1048576",
+    "schema_sha256": "e4af46c173f161484758a3d7775c2ceca8c3d6cf1ca7480f8f127372262a466e",
+    "storage_sha256": "2f611254a7e6682aa91b64e3a2d767717bbb49ca5a76bc7c676f1b1404145725",
+    "tables_sha256": {
+      "files": "27b172d79ae53be379a38abefea31384a074c3125f0faa8397b17ac2f002ddfc",
+      "folders": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "migrations": "e1d218aeff427d10747ba31831360f434f8292ddfefff791796e695f60af38e8",
+      "refresh_tokens": "fb35414fa30551c4bfc4840c2fa7b3b2ddf29765aad8dc3306d2fc9d1d4c8f2c",
+      "share_links": "f843aee360150c0462d5103834572227dccdce92432356bb4b45561dbd500d73",
+      "upload_sessions": "6cfeb4e0a35686944b718207b92a1ceabff58e1db9b277b1ab0662c3fde696a6",
+      "users": "d2c25998ec8d36738862216591417ee151b03876a94ac38cb3d735bd2af269b1"
+    }
+  },
+  "after_rollforward": {
+    "migrations": "1746824900000|CreateUsersTable1746824900000\n1746824910000|CreateFoldersTable1746824910000\n1746824920000|CreateFilesTable1746824920000\n1746824930000|CreateShareLinksTable1746824930000\n1746824940000|CreateUploadSessionsTable1746824940000\n1746825000000|CreateRefreshTokensTable1746825000000\n1746825010000|AddMissingIndexes1746825010000\n1746825020000|AddStorageUsedCheck1746825020000\n1746825030000|AddParentIdForeignKeys1746825030000\n1746825040000|ShareLinksTokenUnique1746825040000\n1746825050000|UploadSessionStatusCheck1746825050000\n1746825060000|AddNameNotEmptyCheck1746825060000\n1746825070000|UploadedChunksJsonb1746825070000\n1746825080000|AddFileUploadId1746825080000\n1746825090000|AddShareMaxDownloads1746825090000\n1746825100000|AddShareFailedAttempts1746825100000\n1746825110000|AddFileFolderIdMirrorLink1746825110000\n1746825120000|ShareLockedUntilTimestamptz1746825120000",
+    "quota": "136|1048576",
+    "schema_sha256": "e4af46c173f161484758a3d7775c2ceca8c3d6cf1ca7480f8f127372262a466e",
+    "storage_sha256": "2f611254a7e6682aa91b64e3a2d767717bbb49ca5a76bc7c676f1b1404145725",
+    "tables_sha256": {
+      "files": "27b172d79ae53be379a38abefea31384a074c3125f0faa8397b17ac2f002ddfc",
+      "folders": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "migrations": "e1d218aeff427d10747ba31831360f434f8292ddfefff791796e695f60af38e8",
+      "refresh_tokens": "fb35414fa30551c4bfc4840c2fa7b3b2ddf29765aad8dc3306d2fc9d1d4c8f2c",
+      "share_links": "f843aee360150c0462d5103834572227dccdce92432356bb4b45561dbd500d73",
+      "upload_sessions": "6cfeb4e0a35686944b718207b92a1ceabff58e1db9b277b1ab0662c3fde696a6",
+      "users": "d2c25998ec8d36738862216591417ee151b03876a94ac38cb3d735bd2af269b1"
+    }
+  },
+  "application_tree_limitation": "Same application/migration source; exact distinct source revision labels qualify artifact-pair switching, not cross-schema compatibility.",
+  "auth_denial_verified": true,
+  "before": {
+    "migrations": "1746824900000|CreateUsersTable1746824900000\n1746824910000|CreateFoldersTable1746824910000\n1746824920000|CreateFilesTable1746824920000\n1746824930000|CreateShareLinksTable1746824930000\n1746824940000|CreateUploadSessionsTable1746824940000\n1746825000000|CreateRefreshTokensTable1746825000000\n1746825010000|AddMissingIndexes1746825010000\n1746825020000|AddStorageUsedCheck1746825020000\n1746825030000|AddParentIdForeignKeys1746825030000\n1746825040000|ShareLinksTokenUnique1746825040000\n1746825050000|UploadSessionStatusCheck1746825050000\n1746825060000|AddNameNotEmptyCheck1746825060000\n1746825070000|UploadedChunksJsonb1746825070000\n1746825080000|AddFileUploadId1746825080000\n1746825090000|AddShareMaxDownloads1746825090000\n1746825100000|AddShareFailedAttempts1746825100000\n1746825110000|AddFileFolderIdMirrorLink1746825110000\n1746825120000|ShareLockedUntilTimestamptz1746825120000",
+    "quota": "136|1048576",
+    "schema_sha256": "e4af46c173f161484758a3d7775c2ceca8c3d6cf1ca7480f8f127372262a466e",
+    "storage_sha256": "2f611254a7e6682aa91b64e3a2d767717bbb49ca5a76bc7c676f1b1404145725",
+    "tables_sha256": {
+      "files": "27b172d79ae53be379a38abefea31384a074c3125f0faa8397b17ac2f002ddfc",
+      "folders": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "migrations": "e1d218aeff427d10747ba31831360f434f8292ddfefff791796e695f60af38e8",
+      "refresh_tokens": "fb35414fa30551c4bfc4840c2fa7b3b2ddf29765aad8dc3306d2fc9d1d4c8f2c",
+      "share_links": "f843aee360150c0462d5103834572227dccdce92432356bb4b45561dbd500d73",
+      "upload_sessions": "6cfeb4e0a35686944b718207b92a1ceabff58e1db9b277b1ab0662c3fde696a6",
+      "users": "d2c25998ec8d36738862216591417ee151b03876a94ac38cb3d735bd2af269b1"
+    }
+  },
+  "clean_daemon_empty_before_pull": true,
+  "cleanup_complete": true,
+  "cleanup_networks_removed": true,
+  "cleanup_volume_removed": true,
+  "compose_effective": [
+    {
+      "build_absent": true,
+      "immutable_images": {
+        "backend": "registry.local:5000/hc/backend@sha256:59a609d268e2a3a0370e425a2807fb26044884a5b3f8ea630b1325ced69c35b9",
+        "frontend": "registry.local:5000/hc/frontend@sha256:c5e5e47b9cd1b3beea195d786a63f5d44707803cb3493b7610a852d16a5d46a3"
+      },
+      "pull_policy": "always",
+      "release": "current"
+    },
+    {
+      "build_absent": true,
+      "immutable_images": {
+        "backend": "registry.local:5000/hc/backend@sha256:62fd9b1206373e59c5cb3a71d5f5f80ee564edaa1652b64299817b7cc4f603cd",
+        "frontend": "registry.local:5000/hc/frontend@sha256:837d77529cc39b64c7cd04f10dfb4b0bc4d1778d5f8ea36b228e237009c78031"
+      },
+      "pull_policy": "always",
+      "release": "previous"
+    },
+    {
+      "build_absent": true,
+      "immutable_images": {
+        "backend": "registry.local:5000/hc/backend@sha256:59a609d268e2a3a0370e425a2807fb26044884a5b3f8ea630b1325ced69c35b9",
+        "frontend": "registry.local:5000/hc/frontend@sha256:c5e5e47b9cd1b3beea195d786a63f5d44707803cb3493b7610a852d16a5d46a3"
+      },
+      "pull_policy": "always",
+      "release": "current"
+    }
+  ],
+  "controlled_regression": true,
+  "current_deployed": {
+    "backend": "sha256:e77123424fc1ea854a40cdb28fe5e63a521e7843f1d9455eea6d81baf7bc638f",
+    "frontend": "sha256:f6a13632c48fa979fabcda4f599cdcdfa50c6d023413f7e06c22338a47e2b630"
+  },
+  "current_flows": true,
+  "daemon_port": 61186,
+  "data_preservation": true,
+  "dependencies_loaded_only": [
+    "postgres:16-alpine",
+    "nginx:alpine",
+    "alpine:latest"
+  ],
+  "evidence": "/var/folders/mg/0kv7ncvj7x33c4gkz6d9k47r0000gn/T/hc-pair-drill-e92xie1c",
+  "external_production_registry": "NOT_QUALIFIED",
+  "failure_cases": {
+    "auth_denied_simulated_401": {
+      "active_pair_unchanged": true,
+      "readiness200": true,
+      "rejected": true
+    },
+    "malformed_digest": {
+      "active_pair_unchanged": true,
+      "readiness200": true,
+      "rejected": true
+    },
+    "nonexistent_digest": {
+      "active_pair_unchanged": true,
+      "readiness200": true,
+      "rejected": true
+    },
+    "registry_unavailable": {
+      "active_pair_unchanged": true,
+      "readiness200": true,
+      "rejected": true
+    },
+    "substituted_pair": {
+      "active_pair_unchanged": true,
+      "readiness200": true,
+      "rejected": true
+    }
+  },
+  "ingress_port": 61187,
+  "live_incompatible_migration_blocked": true,
+  "login_after_preservation_proof": true,
+  "manifests": {
+    "current": {
+      "compose_sha256": "dac5dfc90e8e1f05157024b9ae194d5f0ff25616d1a3da8af886dc03a1df785f",
+      "distribution": "registry-digest",
+      "format": "homecloud-release-v1",
+      "images": {
+        "backend": {
+          "digest": "sha256:59a609d268e2a3a0370e425a2807fb26044884a5b3f8ea630b1325ced69c35b9",
+          "pair": "37b2eae7f8375a01c0b7207f70317c57ee3ae01d",
+          "repository": "registry.local:5000/hc/backend",
+          "role": "backend",
+          "source_commit": "37b2eae7f8375a01c0b7207f70317c57ee3ae01d"
+        },
+        "frontend": {
+          "digest": "sha256:c5e5e47b9cd1b3beea195d786a63f5d44707803cb3493b7610a852d16a5d46a3",
+          "pair": "37b2eae7f8375a01c0b7207f70317c57ee3ae01d",
+          "repository": "registry.local:5000/hc/frontend",
+          "role": "frontend",
+          "source_commit": "37b2eae7f8375a01c0b7207f70317c57ee3ae01d"
+        }
+      },
+      "release_id": "sha256:0f6c45d1230874b68c47ddba57c51e1a6028bd4790dc4b1920e98337e9e45114",
+      "schema": {
+        "mappings": [
+          {
+            "name": "backend/src/data-source.ts",
+            "sha256": "dbb58463d9792f22684213302a03f88ae13034b84ed5b938c2870d8ec3792302"
+          },
+          {
+            "name": "backend/src/entities/file.entity.ts",
+            "sha256": "420dbcd210e0d03e0b66dbae2ca87ac3b9b0abfa161684d33b7bb7075e60bafc"
+          },
+          {
+            "name": "backend/src/entities/folder.entity.ts",
+            "sha256": "ff8a9949e6f42d462c614e242de2b33e94aa182383e8aa7d9f7a71b6b42b1c6c"
+          },
+          {
+            "name": "backend/src/entities/refresh-token.entity.ts",
+            "sha256": "1c4cb5a0c96ad51a40ac3cc6827126a28291a84019a846c567e581420ce8f99a"
+          },
+          {
+            "name": "backend/src/entities/share-link.entity.ts",
+            "sha256": "62c5ae39e4f98184e4628ce6dccbf46d2db666ca282e349cf920ee4caf401020"
+          },
+          {
+            "name": "backend/src/entities/upload-session.entity.ts",
+            "sha256": "af2743ba823e29808b4c0d6aa3bac2506eb96d3eda5a853d92263268980b0d52"
+          },
+          {
+            "name": "backend/src/entities/user.entity.ts",
+            "sha256": "c5fae2f394f6f81d92c111800c6635fa2c3f4ac081beb8a4530334576e280c96"
+          }
+        ],
+        "marker": "e1eae37cea895571b6484200e021ae3fac0626467bfe52cbd7a5ad5517a16112",
+        "migrations": [
+          {
+            "class_name": "CreateUsersTable1746824900000",
+            "name": "1746824900000-CreateUsersTable.ts",
+            "sha256": "3a9cf0e797b9cee5e2a05670ea856ad9b6eddcf8e92f225fe63222ae80fdb1fb"
+          },
+          {
+            "class_name": "CreateFoldersTable1746824910000",
+            "name": "1746824910000-CreateFoldersTable.ts",
+            "sha256": "a3215fb3ae30714d8004b74c5eb7fd805fde83e979176ac488fcd02ebc252b10"
+          },
+          {
+            "class_name": "CreateFilesTable1746824920000",
+            "name": "1746824920000-CreateFilesTable.ts",
+            "sha256": "0ccfeff8774fcbd46a31914deda949b59a13abb34fab014869b7c8492865a955"
+          },
+          {
+            "class_name": "CreateShareLinksTable1746824930000",
+            "name": "1746824930000-CreateShareLinksTable.ts",
+            "sha256": "55c3f5292a5995d12d02417ea80da5ece7300de3b02242832735dea923a52eab"
+          },
+          {
+            "class_name": "CreateUploadSessionsTable1746824940000",
+            "name": "1746824940000-CreateUploadSessionsTable.ts",
+            "sha256": "1bf3e9163184e551c8d355d796c8f2d33d583b7736dd96b4c17b6f8e87bd48ed"
+          },
+          {
+            "class_name": "CreateRefreshTokensTable1746825000000",
+            "name": "1746825000000-CreateRefreshTokensTable.ts",
+            "sha256": "fa5d2d0780a3a55da9678b73c3891bbea6b4deff36a8977f7b1b80959b3146a9"
+          },
+          {
+            "class_name": "AddMissingIndexes1746825010000",
+            "name": "1746825010000-AddMissingIndexes.ts",
+            "sha256": "b1d6ac1a49f531c87af38d4d143d012cd1ceb2c3ab0f1debddfb32079cd6903a"
+          },
+          {
+            "class_name": "AddStorageUsedCheck1746825020000",
+            "name": "1746825020000-AddStorageUsedCheck.ts",
+            "sha256": "ce24f21f54d5bc34516f112c9c19f419d6551b1a2daeb820f16f6bf63da24f53"
+          },
+          {
+            "class_name": "AddParentIdForeignKeys1746825030000",
+            "name": "1746825030000-AddParentIdForeignKeys.ts",
+            "sha256": "cc3fde18e5f2f459ee9714a91b161ac98c97730e08950cbb103bc9aae1dc8b4b"
+          },
+          {
+            "class_name": "ShareLinksTokenUnique1746825040000",
+            "name": "1746825040000-ShareLinksTokenUnique.ts",
+            "sha256": "c7c48d4cefdccd69ca2da7b452d346d7b3d1ef9e3604998cf920faa8ba08b1b1"
+          },
+          {
+            "class_name": "UploadSessionStatusCheck1746825050000",
+            "name": "1746825050000-UploadSessionStatusCheck.ts",
+            "sha256": "e8d9173868c8e2b227d1a1cd7c02ddfef1cad7921fccf97b6bf6a132cd795147"
+          },
+          {
+            "class_name": "AddNameNotEmptyCheck1746825060000",
+            "name": "1746825060000-AddNameNotEmptyCheck.ts",
+            "sha256": "8cf0eafe2c58d62628ea8825e31b0b5769d052ce3bedda392e83671fb9d24fa1"
+          },
+          {
+            "class_name": "UploadedChunksJsonb1746825070000",
+            "name": "1746825070000-UploadedChunksJsonb.ts",
+            "sha256": "987f489b388de8498cbbd2d57309540aa629cc469e737308e6058ace425e48c3"
+          },
+          {
+            "class_name": "AddFileUploadId1746825080000",
+            "name": "1746825080000-AddFileUploadId.ts",
+            "sha256": "ca0328bc9e594c6fcf36a356b766c2f1c46d9e2d7f00988bfa879d09174bc2d9"
+          },
+          {
+            "class_name": "AddShareMaxDownloads1746825090000",
+            "name": "1746825090000-AddShareMaxDownloads.ts",
+            "sha256": "a058b590a17ce041bb9373fb1e580718144b56103d873dc0eda4e5a88b23fc9a"
+          },
+          {
+            "class_name": "AddShareFailedAttempts1746825100000",
+            "name": "1746825100000-AddShareFailedAttempts.ts",
+            "sha256": "e43b37916c439ba52ea0f8c34b05cd2b7f2c99de60fa28f74bb700d84ae639c4"
+          },
+          {
+            "class_name": "AddFileFolderIdMirrorLink1746825110000",
+            "name": "1746825110000-AddFileFolderIdMirrorLink.ts",
+            "sha256": "e7374b7e44055e99b2a4b8c701976a47c266bf014ffe76f654aeb9103036ec02"
+          },
+          {
+            "class_name": "ShareLockedUntilTimestamptz1746825120000",
+            "name": "1746825120000-ShareLockedUntilTimestamptz.ts",
+            "sha256": "8da5f7c875d12b0929e14410f12e819a8a802ca611402615482ed402d79087ff"
+          }
+        ],
+        "policy": "exact-source-contract-v1"
+      },
+      "source_commit": "37b2eae7f8375a01c0b7207f70317c57ee3ae01d",
+      "source_sha256": "ad91345cdf6ccc8ce1c60a760bdec5de5805f0014e7d46cd7198f2f6ae62396b"
+    },
+    "previous": {
+      "compose_sha256": "dac5dfc90e8e1f05157024b9ae194d5f0ff25616d1a3da8af886dc03a1df785f",
+      "distribution": "registry-digest",
+      "format": "homecloud-release-v1",
+      "images": {
+        "backend": {
+          "digest": "sha256:62fd9b1206373e59c5cb3a71d5f5f80ee564edaa1652b64299817b7cc4f603cd",
+          "pair": "647aa7b949698f9b84feee3ce5134cb2a7b542de",
+          "repository": "registry.local:5000/hc/backend",
+          "role": "backend",
+          "source_commit": "647aa7b949698f9b84feee3ce5134cb2a7b542de"
+        },
+        "frontend": {
+          "digest": "sha256:837d77529cc39b64c7cd04f10dfb4b0bc4d1778d5f8ea36b228e237009c78031",
+          "pair": "647aa7b949698f9b84feee3ce5134cb2a7b542de",
+          "repository": "registry.local:5000/hc/frontend",
+          "role": "frontend",
+          "source_commit": "647aa7b949698f9b84feee3ce5134cb2a7b542de"
+        }
+      },
+      "release_id": "sha256:ab24f6f1e826b306c67eed6fed5393469318f80fee309d6c487262ffbcbc50aa",
+      "schema": {
+        "mappings": [
+          {
+            "name": "backend/src/data-source.ts",
+            "sha256": "dbb58463d9792f22684213302a03f88ae13034b84ed5b938c2870d8ec3792302"
+          },
+          {
+            "name": "backend/src/entities/file.entity.ts",
+            "sha256": "420dbcd210e0d03e0b66dbae2ca87ac3b9b0abfa161684d33b7bb7075e60bafc"
+          },
+          {
+            "name": "backend/src/entities/folder.entity.ts",
+            "sha256": "ff8a9949e6f42d462c614e242de2b33e94aa182383e8aa7d9f7a71b6b42b1c6c"
+          },
+          {
+            "name": "backend/src/entities/refresh-token.entity.ts",
+            "sha256": "1c4cb5a0c96ad51a40ac3cc6827126a28291a84019a846c567e581420ce8f99a"
+          },
+          {
+            "name": "backend/src/entities/share-link.entity.ts",
+            "sha256": "62c5ae39e4f98184e4628ce6dccbf46d2db666ca282e349cf920ee4caf401020"
+          },
+          {
+            "name": "backend/src/entities/upload-session.entity.ts",
+            "sha256": "af2743ba823e29808b4c0d6aa3bac2506eb96d3eda5a853d92263268980b0d52"
+          },
+          {
+            "name": "backend/src/entities/user.entity.ts",
+            "sha256": "c5fae2f394f6f81d92c111800c6635fa2c3f4ac081beb8a4530334576e280c96"
+          }
+        ],
+        "marker": "e1eae37cea895571b6484200e021ae3fac0626467bfe52cbd7a5ad5517a16112",
+        "migrations": [
+          {
+            "class_name": "CreateUsersTable1746824900000",
+            "name": "1746824900000-CreateUsersTable.ts",
+            "sha256": "3a9cf0e797b9cee5e2a05670ea856ad9b6eddcf8e92f225fe63222ae80fdb1fb"
+          },
+          {
+            "class_name": "CreateFoldersTable1746824910000",
+            "name": "1746824910000-CreateFoldersTable.ts",
+            "sha256": "a3215fb3ae30714d8004b74c5eb7fd805fde83e979176ac488fcd02ebc252b10"
+          },
+          {
+            "class_name": "CreateFilesTable1746824920000",
+            "name": "1746824920000-CreateFilesTable.ts",
+            "sha256": "0ccfeff8774fcbd46a31914deda949b59a13abb34fab014869b7c8492865a955"
+          },
+          {
+            "class_name": "CreateShareLinksTable1746824930000",
+            "name": "1746824930000-CreateShareLinksTable.ts",
+            "sha256": "55c3f5292a5995d12d02417ea80da5ece7300de3b02242832735dea923a52eab"
+          },
+          {
+            "class_name": "CreateUploadSessionsTable1746824940000",
+            "name": "1746824940000-CreateUploadSessionsTable.ts",
+            "sha256": "1bf3e9163184e551c8d355d796c8f2d33d583b7736dd96b4c17b6f8e87bd48ed"
+          },
+          {
+            "class_name": "CreateRefreshTokensTable1746825000000",
+            "name": "1746825000000-CreateRefreshTokensTable.ts",
+            "sha256": "fa5d2d0780a3a55da9678b73c3891bbea6b4deff36a8977f7b1b80959b3146a9"
+          },
+          {
+            "class_name": "AddMissingIndexes1746825010000",
+            "name": "1746825010000-AddMissingIndexes.ts",
+            "sha256": "b1d6ac1a49f531c87af38d4d143d012cd1ceb2c3ab0f1debddfb32079cd6903a"
+          },
+          {
+            "class_name": "AddStorageUsedCheck1746825020000",
+            "name": "1746825020000-AddStorageUsedCheck.ts",
+            "sha256": "ce24f21f54d5bc34516f112c9c19f419d6551b1a2daeb820f16f6bf63da24f53"
+          },
+          {
+            "class_name": "AddParentIdForeignKeys1746825030000",
+            "name": "1746825030000-AddParentIdForeignKeys.ts",
+            "sha256": "cc3fde18e5f2f459ee9714a91b161ac98c97730e08950cbb103bc9aae1dc8b4b"
+          },
+          {
+            "class_name": "ShareLinksTokenUnique1746825040000",
+            "name": "1746825040000-ShareLinksTokenUnique.ts",
+            "sha256": "c7c48d4cefdccd69ca2da7b452d346d7b3d1ef9e3604998cf920faa8ba08b1b1"
+          },
+          {
+            "class_name": "UploadSessionStatusCheck1746825050000",
+            "name": "1746825050000-UploadSessionStatusCheck.ts",
+            "sha256": "e8d9173868c8e2b227d1a1cd7c02ddfef1cad7921fccf97b6bf6a132cd795147"
+          },
+          {
+            "class_name": "AddNameNotEmptyCheck1746825060000",
+            "name": "1746825060000-AddNameNotEmptyCheck.ts",
+            "sha256": "8cf0eafe2c58d62628ea8825e31b0b5769d052ce3bedda392e83671fb9d24fa1"
+          },
+          {
+            "class_name": "UploadedChunksJsonb1746825070000",
+            "name": "1746825070000-UploadedChunksJsonb.ts",
+            "sha256": "987f489b388de8498cbbd2d57309540aa629cc469e737308e6058ace425e48c3"
+          },
+          {
+            "class_name": "AddFileUploadId1746825080000",
+            "name": "1746825080000-AddFileUploadId.ts",
+            "sha256": "ca0328bc9e594c6fcf36a356b766c2f1c46d9e2d7f00988bfa879d09174bc2d9"
+          },
+          {
+            "class_name": "AddShareMaxDownloads1746825090000",
+            "name": "1746825090000-AddShareMaxDownloads.ts",
+            "sha256": "a058b590a17ce041bb9373fb1e580718144b56103d873dc0eda4e5a88b23fc9a"
+          },
+          {
+            "class_name": "AddShareFailedAttempts1746825100000",
+            "name": "1746825100000-AddShareFailedAttempts.ts",
+            "sha256": "e43b37916c439ba52ea0f8c34b05cd2b7f2c99de60fa28f74bb700d84ae639c4"
+          },
+          {
+            "class_name": "AddFileFolderIdMirrorLink1746825110000",
+            "name": "1746825110000-AddFileFolderIdMirrorLink.ts",
+            "sha256": "e7374b7e44055e99b2a4b8c701976a47c266bf014ffe76f654aeb9103036ec02"
+          },
+          {
+            "class_name": "ShareLockedUntilTimestamptz1746825120000",
+            "name": "1746825120000-ShareLockedUntilTimestamptz.ts",
+            "sha256": "8da5f7c875d12b0929e14410f12e819a8a802ca611402615482ed402d79087ff"
+          }
+        ],
+        "policy": "exact-source-contract-v1"
+      },
+      "source_commit": "647aa7b949698f9b84feee3ce5134cb2a7b542de",
+      "source_sha256": "ad91345cdf6ccc8ce1c60a760bdec5de5805f0014e7d46cd7198f2f6ae62396b"
+    }
+  },
+  "migration_preflight": [
+    {
+      "no_pending": true,
+      "release": "current"
+    },
+    {
+      "no_pending": true,
+      "release": "previous"
+    },
+    {
+      "no_pending": true,
+      "release": "current"
+    }
+  ],
+  "migration_source_hashes": {
+    "1746824900000-CreateUsersTable.ts": "3a9cf0e797b9cee5e2a05670ea856ad9b6eddcf8e92f225fe63222ae80fdb1fb",
+    "1746824910000-CreateFoldersTable.ts": "a3215fb3ae30714d8004b74c5eb7fd805fde83e979176ac488fcd02ebc252b10",
+    "1746824920000-CreateFilesTable.ts": "0ccfeff8774fcbd46a31914deda949b59a13abb34fab014869b7c8492865a955",
+    "1746824930000-CreateShareLinksTable.ts": "55c3f5292a5995d12d02417ea80da5ece7300de3b02242832735dea923a52eab",
+    "1746824940000-CreateUploadSessionsTable.ts": "1bf3e9163184e551c8d355d796c8f2d33d583b7736dd96b4c17b6f8e87bd48ed",
+    "1746825000000-CreateRefreshTokensTable.ts": "fa5d2d0780a3a55da9678b73c3891bbea6b4deff36a8977f7b1b80959b3146a9",
+    "1746825010000-AddMissingIndexes.ts": "b1d6ac1a49f531c87af38d4d143d012cd1ceb2c3ab0f1debddfb32079cd6903a",
+    "1746825020000-AddStorageUsedCheck.ts": "ce24f21f54d5bc34516f112c9c19f419d6551b1a2daeb820f16f6bf63da24f53",
+    "1746825030000-AddParentIdForeignKeys.ts": "cc3fde18e5f2f459ee9714a91b161ac98c97730e08950cbb103bc9aae1dc8b4b",
+    "1746825040000-ShareLinksTokenUnique.ts": "c7c48d4cefdccd69ca2da7b452d346d7b3d1ef9e3604998cf920faa8ba08b1b1",
+    "1746825050000-UploadSessionStatusCheck.ts": "e8d9173868c8e2b227d1a1cd7c02ddfef1cad7921fccf97b6bf6a132cd795147",
+    "1746825060000-AddNameNotEmptyCheck.ts": "8cf0eafe2c58d62628ea8825e31b0b5769d052ce3bedda392e83671fb9d24fa1",
+    "1746825070000-UploadedChunksJsonb.ts": "987f489b388de8498cbbd2d57309540aa629cc469e737308e6058ace425e48c3",
+    "1746825080000-AddFileUploadId.ts": "ca0328bc9e594c6fcf36a356b766c2f1c46d9e2d7f00988bfa879d09174bc2d9",
+    "1746825090000-AddShareMaxDownloads.ts": "a058b590a17ce041bb9373fb1e580718144b56103d873dc0eda4e5a88b23fc9a",
+    "1746825100000-AddShareFailedAttempts.ts": "e43b37916c439ba52ea0f8c34b05cd2b7f2c99de60fa28f74bb700d84ae639c4",
+    "1746825110000-AddFileFolderIdMirrorLink.ts": "e7374b7e44055e99b2a4b8c701976a47c266bf014ffe76f654aeb9103036ec02",
+    "1746825120000-ShareLockedUntilTimestamptz.ts": "8da5f7c875d12b0929e14410f12e819a8a802ca611402615482ed402d79087ff"
+  },
+  "mutable_tag_movement_digest_stable": true,
+  "operation_logs_secret_scan": true,
+  "outer_cleanup_complete": true,
+  "pairs": {
+    "current": {
+      "backend": "registry.local:5000/hc/backend@sha256:59a609d268e2a3a0370e425a2807fb26044884a5b3f8ea630b1325ced69c35b9",
+      "frontend": "registry.local:5000/hc/frontend@sha256:c5e5e47b9cd1b3beea195d786a63f5d44707803cb3493b7610a852d16a5d46a3"
+    },
+    "previous": {
+      "backend": "registry.local:5000/hc/backend@sha256:62fd9b1206373e59c5cb3a71d5f5f80ee564edaa1652b64299817b7cc4f603cd",
+      "frontend": "registry.local:5000/hc/frontend@sha256:837d77529cc39b64c7cd04f10dfb4b0bc4d1778d5f8ea36b228e237009c78031"
+    }
+  },
+  "previous_deployed": {
+    "backend": "sha256:24e04c19260998e207da22b8d5c0ee7ce3ba0a6c13c99a67310f276f35a0e1e3",
+    "frontend": "sha256:682c1e8c33a869454d6fcccaa3f12db5e548d391436383c89bbdcbd0ba27ad6c"
+  },
+  "registry_distribution": "LOCAL_MECHANICS_PASS",
+  "registry_port": 61185,
+  "registry_raw": {
+    "current": {
+      "backend": {
+        "absent_before_pull": true,
+        "expected_config_id": "sha256:e77123424fc1ea854a40cdb28fe5e63a521e7843f1d9455eea6d81baf7bc638f",
+        "http_body_sha256": "59a609d268e2a3a0370e425a2807fb26044884a5b3f8ea630b1325ced69c35b9",
+        "outer_image_id": "sha256:59a609d268e2a3a0370e425a2807fb26044884a5b3f8ea630b1325ced69c35b9",
+        "pulled_config_id": "sha256:e77123424fc1ea854a40cdb28fe5e63a521e7843f1d9455eea6d81baf7bc638f",
+        "push_digest": "sha256:59a609d268e2a3a0370e425a2807fb26044884a5b3f8ea630b1325ced69c35b9",
+        "reference": "registry.local:5000/hc/backend@sha256:59a609d268e2a3a0370e425a2807fb26044884a5b3f8ea630b1325ced69c35b9",
+        "registry_digest": "sha256:59a609d268e2a3a0370e425a2807fb26044884a5b3f8ea630b1325ced69c35b9"
+      },
+      "frontend": {
+        "absent_before_pull": true,
+        "expected_config_id": "sha256:f6a13632c48fa979fabcda4f599cdcdfa50c6d023413f7e06c22338a47e2b630",
+        "http_body_sha256": "c5e5e47b9cd1b3beea195d786a63f5d44707803cb3493b7610a852d16a5d46a3",
+        "outer_image_id": "sha256:c5e5e47b9cd1b3beea195d786a63f5d44707803cb3493b7610a852d16a5d46a3",
+        "pulled_config_id": "sha256:f6a13632c48fa979fabcda4f599cdcdfa50c6d023413f7e06c22338a47e2b630",
+        "push_digest": "sha256:c5e5e47b9cd1b3beea195d786a63f5d44707803cb3493b7610a852d16a5d46a3",
+        "reference": "registry.local:5000/hc/frontend@sha256:c5e5e47b9cd1b3beea195d786a63f5d44707803cb3493b7610a852d16a5d46a3",
+        "registry_digest": "sha256:c5e5e47b9cd1b3beea195d786a63f5d44707803cb3493b7610a852d16a5d46a3"
+      }
+    },
+    "previous": {
+      "backend": {
+        "absent_before_pull": true,
+        "expected_config_id": "sha256:24e04c19260998e207da22b8d5c0ee7ce3ba0a6c13c99a67310f276f35a0e1e3",
+        "http_body_sha256": "62fd9b1206373e59c5cb3a71d5f5f80ee564edaa1652b64299817b7cc4f603cd",
+        "outer_image_id": "sha256:62fd9b1206373e59c5cb3a71d5f5f80ee564edaa1652b64299817b7cc4f603cd",
+        "pulled_config_id": "sha256:24e04c19260998e207da22b8d5c0ee7ce3ba0a6c13c99a67310f276f35a0e1e3",
+        "push_digest": "sha256:62fd9b1206373e59c5cb3a71d5f5f80ee564edaa1652b64299817b7cc4f603cd",
+        "reference": "registry.local:5000/hc/backend@sha256:62fd9b1206373e59c5cb3a71d5f5f80ee564edaa1652b64299817b7cc4f603cd",
+        "registry_digest": "sha256:62fd9b1206373e59c5cb3a71d5f5f80ee564edaa1652b64299817b7cc4f603cd"
+      },
+      "frontend": {
+        "absent_before_pull": true,
+        "expected_config_id": "sha256:682c1e8c33a869454d6fcccaa3f12db5e548d391436383c89bbdcbd0ba27ad6c",
+        "http_body_sha256": "837d77529cc39b64c7cd04f10dfb4b0bc4d1778d5f8ea36b228e237009c78031",
+        "outer_image_id": "sha256:837d77529cc39b64c7cd04f10dfb4b0bc4d1778d5f8ea36b228e237009c78031",
+        "pulled_config_id": "sha256:682c1e8c33a869454d6fcccaa3f12db5e548d391436383c89bbdcbd0ba27ad6c",
+        "push_digest": "sha256:837d77529cc39b64c7cd04f10dfb4b0bc4d1778d5f8ea36b228e237009c78031",
+        "reference": "registry.local:5000/hc/frontend@sha256:837d77529cc39b64c7cd04f10dfb4b0bc4d1778d5f8ea36b228e237009c78031",
+        "registry_digest": "sha256:837d77529cc39b64c7cd04f10dfb4b0bc4d1778d5f8ea36b228e237009c78031"
+      }
+    }
+  },
+  "retained_local_pairs": {
+    "current": {
+      "backend": "sha256:59a609d268e2a3a0370e425a2807fb26044884a5b3f8ea630b1325ced69c35b9",
+      "frontend": "sha256:c5e5e47b9cd1b3beea195d786a63f5d44707803cb3493b7610a852d16a5d46a3"
+    },
+    "previous": {
+      "backend": "sha256:62fd9b1206373e59c5cb3a71d5f5f80ee564edaa1652b64299817b7cc4f603cd",
+      "frontend": "sha256:837d77529cc39b64c7cd04f10dfb4b0bc4d1778d5f8ea36b228e237009c78031"
+    }
+  },
+  "rollback": true,
+  "rollforward": true,
+  "schema_down_migration": false,
+  "source_current": "37b2eae7f8375a01c0b7207f70317c57ee3ae01d",
+  "source_previous": "647aa7b949698f9b84feee3ce5134cb2a7b542de",
+  "transitions": [
+    {
+      "actual_images": {
+        "backend": "sha256:e77123424fc1ea854a40cdb28fe5e63a521e7843f1d9455eea6d81baf7bc638f",
+        "frontend": "sha256:f6a13632c48fa979fabcda4f599cdcdfa50c6d023413f7e06c22338a47e2b630"
+      },
+      "release": "current"
+    },
+    {
+      "actual_images": {
+        "backend": "sha256:24e04c19260998e207da22b8d5c0ee7ce3ba0a6c13c99a67310f276f35a0e1e3",
+        "frontend": "sha256:682c1e8c33a869454d6fcccaa3f12db5e548d391436383c89bbdcbd0ba27ad6c"
+      },
+      "release": "previous"
+    },
+    {
+      "actual_images": {
+        "backend": "sha256:e77123424fc1ea854a40cdb28fe5e63a521e7843f1d9455eea6d81baf7bc638f",
+        "frontend": "sha256:f6a13632c48fa979fabcda4f599cdcdfa50c6d023413f7e06c22338a47e2b630"
+      },
+      "release": "current"
+    }
+  ],
+  "ui_artifact_checks": [
+    {
+      "assets_verified": 2,
+      "index_sha256": "5ad74b77ff7cf60834022748e1c3b3f1f2000c7b818dad4a4b4b8bb13b48f6ef"
+    },
+    {
+      "assets_verified": 2,
+      "index_sha256": "5ad74b77ff7cf60834022748e1c3b3f1f2000c7b818dad4a4b4b8bb13b48f6ef"
+    },
+    {
+      "assets_verified": 2,
+      "index_sha256": "5ad74b77ff7cf60834022748e1c3b3f1f2000c7b818dad4a4b4b8bb13b48f6ef"
+    }
+  ]
+}

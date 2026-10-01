@@ -75,3 +75,6 @@ Local cert10/10, scheduler22 tests/1 age integration SKIP, hostname/syntax/quiet
 **OVERALL_PRODUCTION_READINESS: NOT_READY / NO_GO.** Остались actual Linux/DNS/public CA/native bind, registry distribution, scheduler production recipient/target, независимый offsite/key custody/approved measured recovery budgets и final browser/operator/host-recovery acceptance. Минимальные operator inputs перечислены в certificate doc; credentials только target/out-of-band. Новая Phase не создана. Следующий blocker автоматически не начинается.
 
 INDEPENDENT_REVIEW: APPROVE — reviewer не автор; final docs diff, raw runtime JSON, focused10/10 log, discovery и действующие source/mount/nginx/systemd contracts проверены. Подтверждённых дефектов нет, correction cycle не потребовался; production blocker OPEN и общий NOT_READY сохранены. git diff --check PASS.
+
+
+Linux/DNS/public CA/native bind: **DEFERRED_OWNER_INFRASTRUCTURE_INPUT / OPEN** по решению владельца; независимая registry qualification продолжается. Перед READY публичного endpoint обязательны все прежние [operator inputs](./certificate-lifecycle.md#target_input_discovery--operator_inputs_required); PASS не установлен. Общий NOT_READY / NO_GO.

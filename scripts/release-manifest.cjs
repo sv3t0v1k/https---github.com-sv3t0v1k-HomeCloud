@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 'use strict';
-// Local immutable pair contract. Registry distribution requires separate digest qualification.
+// Immutable local and registry pair contracts; external target qualification is separate.
 const fs = require('node:fs');
 const path = require('node:path');
 const cp = require('node:child_process');
@@ -28,9 +28,48 @@ function source(root, explicitCommit) {
   return {commit, schema: {policy:'exact-source-contract-v1', migrations, mappings, marker:hash(canonical({migrations,mappings}))}, compose_sha256:hash(fs.readFileSync(path.join(root,'docker-compose.production.yml'))), source_sha256:hash(canonical(source_files))};
 }
 function dockerInspect(id) {
-  if (!ID.test(id)) fail('immutable local image ID required');
+  if (!ID.test(id) && !registryRef(id)) fail('immutable image reference required');
   try { return JSON.parse(cp.execFileSync('docker',['image','inspect',id], {encoding:'utf8',stdio:['ignore','pipe','pipe']}))[0]; }
   catch { fail('image unavailable'); }
+}
+const REPOSITORY = /^(?:localhost|[a-z0-9]+(?:[.-][a-z0-9]+)+)(?::[1-9][0-9]{0,4})?\/[a-z0-9]+(?:[._-][a-z0-9]+)*(?:\/[a-z0-9]+(?:[._-][a-z0-9]+)*)*$/;
+function registryRef(ref) {
+  if (typeof ref !== 'string') return false;
+  const parts=ref.split('@');
+  const port=parts[0].split('/')[0].split(':')[1];
+  return parts.length===2 && (!port || Number(port)<=65535) && REPOSITORY.test(parts[0]) && ID.test(parts[1]);
+}
+function reference(manifest,role) {
+  const e=manifest.images[role];
+  return manifest.distribution==='registry-digest' ? e.repository+'@'+e.digest : e.image_id;
+}
+function registryImage(ref,role,commit,inspect=dockerInspect) {
+  if (!registryRef(ref)) fail('invalid registry digest reference');
+  const found=inspect(ref);
+  if (!found?.RepoDigests?.includes(ref)) fail('image registry digest mismatch');
+  image(found.Id,role,commit,()=>found);
+  const [repository,digest]=ref.split('@');
+  return {repository,digest,source_commit:commit,role,pair:commit};
+}
+function distribute(manifest,backend,frontend,inspect=dockerInspect) {
+  shape(manifest);
+  if (manifest.distribution!=='local-image-id') fail('unsupported distribution');
+  for (const [role,ref] of [['backend',backend],['frontend',frontend]]) {
+    if (!registryRef(ref)) fail('invalid registry digest reference');
+    const found=inspect(ref);
+    if (found?.Id!==manifest.images[role].image_id && ref.split('@')[1]!==manifest.images[role].image_id) fail('image qualified artifact mismatch');
+  }
+  const body={...manifest,distribution:'registry-digest',images:{backend:registryImage(backend,'backend',manifest.source_commit,inspect),frontend:registryImage(frontend,'frontend',manifest.source_commit,inspect)}};
+  delete body.release_id;
+  return {...body,release_id:identity(body)};
+}
+// Pull the complete pair and verify provenance before an operator changes active services.
+function prepare(manifest,pull=ref=>cp.execFileSync('docker',['pull',ref],{stdio:['ignore','pipe','pipe']}),inspect=dockerInspect) {
+  shape(manifest);
+  if (manifest.distribution!=='registry-digest') fail('unsupported distribution');
+  for (const role of ['backend','frontend']) pull(reference(manifest,role));
+  validate(manifest,null,inspect);
+  return true;
 }
 function image(id, role, commit, inspect = dockerInspect) {
   if (!ID.test(id || '')) fail('immutable local image ID required');
@@ -55,7 +94,7 @@ function generate(root, backend, frontend, inspect = dockerInspect, explicitComm
 }
 function shape(manifest) {
   if (!manifest || manifest.format !== 'homecloud-release-v1' || !COMMIT.test(manifest.source_commit || '')) fail('invalid manifest format');
-  if (manifest.distribution !== 'local-image-id') fail('unsupported distribution');
+  if (!['local-image-id','registry-digest'].includes(manifest.distribution)) fail('unsupported distribution');
   const allowed = ['format','source_commit','images','schema','source_sha256','compose_sha256','distribution','release_id'];
   if (Object.keys(manifest).some(key => !allowed.includes(key))) fail('unexpected manifest field');
   if (!/^[a-f0-9]{64}$/.test(manifest.source_sha256 || '') || !/^[a-f0-9]{64}$/.test(manifest.compose_sha256 || '')) fail('invalid compose checksum');
@@ -72,7 +111,10 @@ function shape(manifest) {
   if (!manifest.images || Object.keys(manifest.images).join(',') !== 'backend,frontend') fail('full image pair required');
   for (const role of ['backend','frontend']) {
     const entry = manifest.images[role];
-    if (!entry || Object.keys(entry).join(',') !== 'image_id,source_commit,role,pair' || !ID.test(entry.image_id || '')) fail('immutable full pair required');
+    if (!entry) fail('immutable full pair required');
+    if (manifest.distribution==='local-image-id') {
+      if (Object.keys(entry).join(',') !== 'image_id,source_commit,role,pair' || !ID.test(entry.image_id || '')) fail('immutable full pair required');
+    } else if (Object.keys(entry).join(',') !== 'repository,digest,source_commit,role,pair' || !registryRef(entry.repository+'@'+entry.digest)) fail('invalid registry digest reference');
     if (entry.role !== role || entry.source_commit !== manifest.source_commit || entry.pair !== manifest.source_commit) fail('mixed image pair');
   }
   if (manifest.release_id !== identity(manifest)) fail('manifest identity mismatch');
@@ -91,7 +133,10 @@ function validate(manifest, root, inspect = dockerInspect, current = null, expli
     if (canonical(inputs.schema) !== canonical(manifest.schema)) fail('incompatible source schema');
     if (inputs.compose_sha256 !== manifest.compose_sha256) fail('compose checksum mismatch');
   }
-  for (const role of ['backend','frontend']) image(manifest.images[role].image_id,role,manifest.source_commit,inspect);
+  for (const role of ['backend','frontend']) {
+    if (manifest.distribution==='registry-digest') registryImage(reference(manifest,role),role,manifest.source_commit,inspect);
+    else image(manifest.images[role].image_id,role,manifest.source_commit,inspect);
+  }
   if (current) compatible(manifest,current);
   if (applied !== undefined) {
     const expected=manifest.schema.migrations.map(item=>item.class_name).sort();
@@ -101,20 +146,26 @@ function validate(manifest, root, inspect = dockerInspect, current = null, expli
 }
 function override(manifest) {
   shape(manifest);
-  return {services: Object.fromEntries(['backend','frontend'].map(role => [role,{image:manifest.images[role].image_id, build:null, pull_policy:'never', labels:{'io.homecloud.release':manifest.release_id}}]))};
+  return {services: Object.fromEntries(['backend','frontend'].map(role => [role,{image:reference(manifest,role), build:null, pull_policy:manifest.distribution==='registry-digest'?'always':'never', labels:{'io.homecloud.release':manifest.release_id}}]))};
 }
 function renderOverride(manifest) {
   shape(manifest);
-  return 'services:\n'+['backend','frontend'].map(role => '  '+role+':\n    image: '+manifest.images[role].image_id+'\n    build: !reset null\n    pull_policy: never\n    labels:\n      io.homecloud.release: '+manifest.release_id+'\n').join('');
+  return 'services:\n'+['backend','frontend'].map(role => '  '+role+':\n    image: '+reference(manifest,role)+'\n    build: !reset null\n    pull_policy: '+(manifest.distribution==='registry-digest'?'always':'never')+'\n    labels:\n      io.homecloud.release: '+manifest.release_id+'\n').join('');
 }
 function read(file) { return JSON.parse(fs.readFileSync(file,'utf8')); }
 function write(file, value) { fs.writeFileSync(file,JSON.stringify(value,null,2)+'\n',{mode:0o600}); }
 function main(argv) {
   const mode = argv.shift(); const opts = {};
   while (argv.length) { const key = argv.shift(); if (!/^--[a-z-]+$/.test(key) || !argv.length || opts[key]) fail('invalid arguments'); opts[key] = argv.shift(); }
-  const allowed = mode === 'generate' ? ['--source-root','--source-commit','--backend','--frontend','--output'] : ['--manifest','--source-root','--source-commit','--compatibility-manifest','--applied-migrations','--output'];
+  const allowed = mode === 'distribute' ? ['--manifest','--backend','--frontend','--output'] : mode === 'prepare' ? ['--manifest'] : mode === 'generate' ? ['--source-root','--source-commit','--backend','--frontend','--output'] : ['--manifest','--source-root','--source-commit','--compatibility-manifest','--applied-migrations','--output'];
   if (Object.keys(opts).some(key => !allowed.includes(key))) fail('unknown argument');
-  if (mode === 'generate') {
+  if (mode === 'distribute') {
+    if (!opts['--manifest'] || !opts['--output']) fail('missing manifest or output');
+    write(opts['--output'],distribute(read(opts['--manifest']),opts['--backend'],opts['--frontend']));
+  } else if (mode === 'prepare') {
+    if (!opts['--manifest']) fail('manifest required');
+    prepare(read(opts['--manifest']));
+  } else if (mode === 'generate') {
     if (!opts['--source-root'] || !opts['--output']) fail('source root and output required');
     write(opts['--output'],generate(path.resolve(opts['--source-root']),opts['--backend'],opts['--frontend'],dockerInspect,opts['--source-commit']));
   } else if (mode === 'validate' || mode === 'override') {
@@ -125,10 +176,10 @@ function main(argv) {
     if (mode === 'override' && (!current || !opts['--applied-migrations'])) fail('missing rollback compatibility inputs');
     validate(manifest,opts['--source-root'] && path.resolve(opts['--source-root']),dockerInspect,current,opts['--source-commit'],opts['--applied-migrations'] ? read(opts['--applied-migrations']) : undefined);
     if (mode === 'override') { if (!opts['--output']) fail('output required'); fs.writeFileSync(opts['--output'],renderOverride(manifest),{mode:0o600}); }
-  } else fail('usage: release-manifest.cjs generate|validate|override');
+  } else fail('usage: release-manifest.cjs generate|distribute|prepare|validate|override');
   console.log('RELEASE_MANIFEST: PASS');
 }
-module.exports = {hash, identity, source, generate, shape, compatible, validate, override, renderOverride, image};
+module.exports = {hash, identity, source, generate, shape, compatible, validate, override, renderOverride, image, registryRef, reference, registryImage, distribute, prepare};
 if (require.main === module) {
   try { main(process.argv.slice(2)); } catch (error) {
     // Docker/config logs may contain sensitive metadata; expose only controlled errors.

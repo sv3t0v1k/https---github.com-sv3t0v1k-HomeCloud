@@ -14,13 +14,13 @@ HEAD `bb01b5f35ace220e9bf34b8984297784edf629e8`; status содержал тол�
 |---|---|---|
 | Чистый source и release builds | BLOCKING | PASS: git archive ожидаемого HEAD, lockfile npm ci в Docker builds; immutable local image IDs ниже. Bit-for-bit reproducibility не заявляется |
 | Release manifest / предыдущая image pair | BLOCKING | RESOLVED локально: immutable manifest, full prior release pair rollback/rollforward PASS; одинаковые app trees, границы и evidence ниже |
-| Target registry distribution | BLOCKING | NOT_QUALIFIED: push/pull registry manifest digests и target platform binding не проверены |
+| Target registry distribution | BLOCKING | PARTIALLY_RESOLVED: disposable push/pull/current→previous→current PASS; external production provider/auth/TLS/retention/target platform NOT_QUALIFIED |
 | Production config / Compose | BLOCKING | PASS на disposable inputs; target production inputs не проверены |
 | Migrations / preflight | BLOCKING | PASS в backend rollback fixture, no pending; target manifest/schema gate не упражнялся |
 | Полная deployment последовательность / readiness | BLOCKING | SKIPPED: полный documented release drill не выполнен |
 | TLS ingress / client-IP / private endpoints | BLOCKING | Prior qualified baseline; fresh полный TLS harness остановился на occupied subnets до deployment; logging correction проверяется отдельно |
-| Реальный public DNS/CA / renewal / chain/SAN | BLOCKING | INCONCLUSIVE: нет qualified domain/DNS/public ACME evidence; local CA не заменяет этот gate |
-| Native Linux bind на целевом host | BLOCKING | INCONCLUSIVE: previous native daemon-side mechanics PASS, target host не проверен |
+| Реальный public DNS/CA / renewal / chain/SAN | DEFERRED_OWNER_INFRASTRUCTURE_INPUT; обязателен перед READY | OPEN / INCONCLUSIVE: нет qualified domain/DNS/public ACME evidence; local CA не заменяет этот gate |
+| Native Linux bind на целевом host | DEFERRED_OWNER_INFRASTRUCTURE_INPUT; обязателен перед READY | OPEN / INCONCLUSIVE: previous native daemon-side mechanics PASS, target host не проверен |
 | Secret delivery/rotation/custody | BLOCKING | Prior mechanics PASS; реальные operator/recovery custody inputs не квалифицированы |
 | Encrypted backup / isolated restore | BLOCKING | PASS свежий fixture, строки/quota/shares/uploads/bytes/readiness совпали |
 | Физический offsite / аварийный доступ к keys | BLOCKING | INCONCLUSIVE: same-host target не доказывает независимый failure domain |
@@ -249,8 +249,42 @@ Local cert10/10, scheduler22 tests/1 age integration SKIP, hostname/syntax/quiet
 | PUBLIC_CA_ISSUANCE | SKIPPED |
 | NATIVE_CERT_BIND_RELOAD | SKIPPED |
 | REAL_RENEWAL_PATH | SKIPPED |
-| PRODUCTION_BLOCKER_LINUX_DNS_CA | OPEN |
+| PRODUCTION_BLOCKER_LINUX_DNS_CA | DEFERRED_OWNER_INFRASTRUCTURE_INPUT / OPEN |
 
 **OVERALL_PRODUCTION_READINESS: NOT_READY / NO_GO.** Остались actual Linux/DNS/public CA/native bind, registry distribution, scheduler production recipient/target, независимый offsite/key custody/approved measured recovery budgets и final browser/operator/host-recovery acceptance. Минимальные operator inputs перечислены в certificate doc; credentials только target/out-of-band. Новая Phase не создана. Следующий blocker автоматически не начинается.
 
 INDEPENDENT_REVIEW: APPROVE — reviewer не автор; final docs diff, raw runtime JSON, focused10/10 log, discovery и действующие source/mount/nginx/systemd contracts проверены. Подтверждённых дефектов нет, correction cycle не потребовался; production blocker OPEN и общий NOT_READY сохранены. git diff --check PASS.
+
+
+## Отложенные входы Linux / DNS / public CA — 2026-10-01
+
+По решению владельца **LINUX_DNS_CA_OWNER_INPUT: DEFERRED / OPEN; DEFERRED_OWNER_INFRASTRUCTURE_INPUT**. Это не PASS и не устранение blocker. Он не препятствует независимой registry qualification; повторный target/CA drill в этом workstream не выполняется. Перед READY для принятой политики публичного production endpoint все прежние критерии обязательны. Точный неизменённый список SSH/user/IP, FQDN/A/AAAA control, timezone, NAT/firewall/HTTP-01, ACME account/contact и абсолютных external paths сохранён в [certificate prerequisites](./certificate-lifecycle.md#target_input_discovery--operator_inputs_required). Общий **NOT_READY / NO_GO**.
+
+
+## Registry distribution immutable pair — 2026-10-01
+
+Ненумерованный bounded workstream; исходный HEAD `2f6767983d27f8996ccc4f86d254ac2c7e470fd0`, status только запрещённый untracked audit. Audit не открывался/не менялся/не staged; старые containers и preview не затрагивались. **OVERALL_PRODUCTION_READINESS: NOT_READY / NO_GO**. Linux/DNS/CA: **DEFERRED_OWNER_INFRASTRUCTURE_INPUT / OPEN**; точные прежние operator prerequisites сохранены.
+
+| Исходный registry gap | Итог |
+|---|---|
+| Manifest хранит local image_id, repository/tag/digest отсутствуют | registry-digest mode: repository + sha256 digest обеих ролей под одним release_id; прежний schema/source contract сохранён |
+| Local override never, нет pull boundary | prepare загружает всю пару/проверяет provenance до изменения active services; registry default always, переход после prepare с обязательным --pull never |
+| External registry/provider/auth отсутствуют | Disposable HTTP registry:2 и чистый docker:27-dind; EXTERNAL_PRODUCTION_REGISTRY NOT_QUALIFIED |
+| Current/previous outputs удержаны только локально | Оба pairs retag/push без rebuild; pull обеих пар в отдельный daemon, app refs отсутствовали до pull |
+| Registry/config/local IDs смешивались | Push result = Registry API digest = SHA256 raw manifest bytes; platform config digest отдельно сопоставлен с pulled actual Image |
+
+[Registry contract и operator sequence](./release-manifest.md#registry-digest-contract). [Сохранённое evidence](./evidence/registry-distribution/qualification.json), [current registry manifest](./evidence/registry-distribution/current-manifest.json), [previous registry manifest](./evidence/registry-distribution/previous-manifest.json), raw registry/platform manifest bytes и [focused gates](./evidence/registry-distribution/gates.tap). Исходные distributed manifests сохранены byte-identical; embedded manifests в sorted qualification JSON служат только evidence, не operator input.
+
+Чистый nested Docker daemon первоначально image-empty. Затем импортированы только вспомогательные PostgreSQL/nginx/Alpine, чтобы исключить внешний network dependency; ни один app image не импортировался. Все четыре app digest refs отсутствовали перед фактическим pull. Host retained outputs не удалялись и не использовались как deploy identity. Outer registry push исходных qualified IDs и nested pull происходили в разных image stores: Desktop/containerd ID здесь равен OCI manifest digest, nested classic Image — config digest. Оба значения выведены из registry response, не выдуманы из local ID. Конвертация fail closed требует original qualified ID = pulled config ID либо registry digest; same-label иной artifact отвергается. Provenance labels/manifest канал предполагают trusted builder; криптографическая подпись и multi-platform target не заявляются.
+
+Current → previous → current: оба container Config.Image равны manifest repository@digest (asserted harness), actual Image равны expected registry config digests. Production Compose merged3/3 без build, pull_policy:always; отдельная isolated topology с random networks и self-signed ingress развёрнута из resolved refs. Это не запуск public production host. Readiness200, ingress index +2 assets SHA256, bearer download, sharing/public/trash flows и final login PASS. Все public table row hashes, migration table, schema dump, storage tree SHA256 и quota136/1048576 сохранены; no pending migrations3/3. Down migrations не выполнялись. Current/previous application/schema trees совпадают: квалифицированы различные release artifact pairs, не evolving-schema compatibility.
+
+Failures: registry stop, nonexistent digest, malformed digest, previous backend substitution в current, controlled HTTP401 auth denial — отказ prepare, container IDs active pair неизменны, readiness200. Auth denial подтверждён отдельным actual Docker pull stderr; test registry не содержит real secrets. Mutable current tags обоих repositories перемещены на previous content; current digest pulls/deploy stable. Focused tests дополнительно отвергают tag-only refs, mixed metadata, RepoDigests mismatch, identity tampering, unknown credential fields и same-label content substitution. Failed second pull не запускает inspection/deploy. Никаких stop/app update при failed prepare.
+
+Gates: release6 + manifest26 + registry17 = **49/49 PASS**; actual merged Compose3/3, live migration/schema guard, deploy/rollback/rollforward, Node/Python syntax и git diff --check PASS. Production app images не пересобирались: retained qualified outputs доступны. Full application suites не повторялись: app source не менялся. Credentials/account не обнаружены в authoritative registry contract; их поиск/печать не выполнялись. Manifest содержит только repositories/digests/provenance/schema hashes. Runtime logs secret scan PASS; TLS keys, own containers/networks/volumes и outer daemon/registry удалены. Unencrypted daemon API только disposable loopback, operator/root-equivalent trust, без mount Docker socket; auth401 fixture симулирует denial, не реальный provider flow.
+
+**REGISTRY_DISTRIBUTION_MECHANICS: PASS; REGISTRY_MANIFEST_DIGESTS: PASS; REGISTRY_PUSH_PULL_MECHANICS: PASS; CURRENT_PAIR_FROM_REGISTRY: PASS; PREVIOUS_PAIR_ROLLBACK_FROM_REGISTRY: PASS; DIGEST_IMMUTABILITY: PASS. EXTERNAL_PRODUCTION_REGISTRY: NOT_QUALIFIED; PRODUCTION_BLOCKER_REGISTRY_DISTRIBUTION: PARTIALLY_RESOLVED.** Политика запуска не принимает disposable HTTP registry как production target.
+
+Требуемые внешние operator inputs: registry hostname и backend/frontend repositories; auth method и credential helper/DOCKER_CONFIG placement вне repo; TLS/CA trust requirements; retention/GC и immutability policy, сохранение current+previous blobs/digests; target architecture/platform и доступность с deployment host. Credentials в чат/Git не передавать. External auth/TLS/availability/retention ещё не квалифицированы.
+
+Remaining: deferred Linux/DNS/public CA/native bind; внешний registry; target scheduler/maintenance и human alert recipient; independent offsite/key custody/approved measured recovery budgets; final browser/operator/host-recovery acceptance. Следующий blocker автоматически не начинается. **INDEPENDENT_REVIEW: APPROVE.** [Независимый review](./evidence/registry-distribution/review.md): raw digests/byte-identical manifests, clean pull, полный pair transition/data retention и failures проверены; focused17/17 повторены, full49/49 evidence inspected. Замечания о позднем pull, same-label content substitution и historical wording устранены.

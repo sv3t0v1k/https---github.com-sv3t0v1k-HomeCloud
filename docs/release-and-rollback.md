@@ -16,7 +16,7 @@ services:
     image: ${RELEASE_FRONTEND_IMAGE:?immutable frontend digest required}
 ```
 
-Значения — `registry/path@sha256:…`, не mutable tags. Предыдущая пара записана целиком в previous manifest; два ID вручную не подбирать. Локальный qualified override использует полные image IDs, build: !reset null и pull_policy:never; registry refs выше описывают ещё не квалифицированную distribution boundary. Production Compose не использует фиксированные container_name. Статические proxy subnet/IP нельзя параллельно повторять на одном host. Исходный docker-compose.yml остаётся legacy/development, не production override; не смешивать эти файлы. При переходе сохранить COMPOSE_PROJECT_NAME и реальные volume names, сверить существующие data mounts; смена project name создаёт пустые volumes, а не переносит данные. Внешний ingress maintenance должен оставаться закрытым даже при старте frontend скриптом restore.
+Значения — `registry/path@sha256:…`, не mutable tags. Предыдущая пара записана целиком в previous manifest; два ID вручную не подбирать. Локальный qualified override использует полные image IDs, build: !reset null и pull_policy:never; registry режим helper связывает обе repository@digest в один manifest, сбрасывает build и задаёт pull_policy:always; внешний production registry требует отдельной qualification. Production Compose не использует фиксированные container_name. Статические proxy subnet/IP нельзя параллельно повторять на одном host. Исходный docker-compose.yml остаётся legacy/development, не production override; не смешивать эти файлы. При переходе сохранить COMPOSE_PROJECT_NAME и реальные volume names, сверить существующие data mounts; смена project name создаёт пустые volumes, а не переносит данные. Внешний ingress maintenance должен оставаться закрытым даже при старте frontend скриптом restore.
 
 ```bash
 export HOMECLOUD_ENV_FILE=/secure/homecloud/recovery.env
@@ -163,3 +163,6 @@ Production delivery, generation, custody, maintenance rotation и rollback оп�
 
 
 Полная локальная immutable-pair qualification выполняется `scripts/tests/release-pair-runtime.py`; контракт, schema guard, exact source checkpoints и честные границы описаны в [manifest runbook](./release-manifest.md). Это дополняет исторический same-artifact drill, не меняет его доказательства. Общий go-live статус остаётся NOT_READY / NO_GO.
+
+
+Registry rollout/rollback выполняется по [digest contract](./release-manifest.md#registry-digest-contract): сначала `prepare` всей выбранной пары, затем live schema guard/quiet Compose validation, maintenance barrier и app transition с обязательным `docker compose up --pull never --no-build --no-deps` после prepare (backend → readiness → frontend). Повторный сетевой pull после stop запрещён. При failed pull active backend/frontend не останавливать. Credentials вне repo; новая Phase не создаётся.

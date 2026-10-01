@@ -43,7 +43,7 @@ docker inspect --format '{{.Image}}' "$(docker compose ps -q frontend)"
 
 ## Distribution boundary
 
-Локальный image ID — hash image configuration/content graph, не registry manifest digest. Production distribution должна отдельно push оба проверенных artifacts, зафиксировать каждый `repository@sha256:registry-manifest-digest`, pull на target, проверить platform-specific local image IDs/provenance и сохранить связь этих refs с квалифицированным manifest. Registry/multi-platform manifest и target pull не квалифицированы этой задачей; текущий helper поддерживает только local-image-id и не принимает registry refs вместо IDs. Qualified manifests и outputs сохранять вне transient host state по operator custody policy. Registry deployment не выполнен.
+Значение локального image ID зависит от Docker image store: classic хранит config digest, containerd может выдавать manifest/index digest. Нельзя объявлять его registry digest без подтверждения push/Registry API и manifest bytes. Production distribution должна отдельно push оба проверенных artifacts, зафиксировать каждый `repository@sha256:registry-manifest-digest`, pull на target, проверить platform-specific local image IDs/provenance и сохранить связь этих refs с квалифицированным manifest. Прежним локальным checkpoint registry/multi-platform manifest и target pull не квалифицированы; на момент предыдущего локального checkpoint helper поддерживал только local-image-id. Registry extension и новая qualification описаны ниже. Qualified manifests и outputs сохранять вне transient host state по operator custody policy. На момент локального checkpoint registry deployment не выполнялся.
 
 ## Воспроизводимый drill
 
@@ -53,3 +53,30 @@ Previous `647aa7b949698f9b84feee3ce5134cb2a7b542de` — предыдущий kno
 
 
 Финальное qualification evidence: [current manifest](./evidence/immutable-release/current-manifest.json), [previous manifest](./evidence/immutable-release/previous-manifest.json), [переходы и snapshots](./evidence/immutable-release/qualification.json). Оба IDs реально переключились, rollback и rollforward PASS; qualified local outputs удержаны. Raw logs/source contexts временные, sanitized evidence сохранено в repo. INDEPENDENT_REVIEW: APPROVE. Reviewer не автор: actual final code/docs/raw evidence проверены; focused32/32 и обе actual Docker manifest/source validation PASS, diff-check PASS. Sanitized evidence сверено с raw, оба сохранённых manifest byte-identical originals.
+
+
+## Registry digest contract
+
+`homecloud-release-v1` поддерживает `distribution: registry-digest` наряду с прежним `local-image-id`. Каждая запись images содержит строго `repository,digest,source_commit,role,pair`; deploy identity — `repository@sha256:…`, локальный config image ID не входит в distributed manifest. Общий release_id охватывает обе записи и прежний schema/source/Compose contract. Manifest не содержит auth. Repository требует явного hostname и lowercase path, без scheme, userinfo, tag и whitespace. Digest строго sha256 + 64 hex. Labels доверенного builder проверяются после pull; identity/hash не являются подписью и не заменяют доверенный build/manifest канал.
+
+После push получить digest из Registry API и сверить SHA256 manifest bytes и push result. Pull по digest должен дать ожидаемый config image ID и RepoDigests. Конвертация дополнительно требует совпадения исходного qualified local ID с pulled config ID либо registry manifest digest (Docker Desktop/containerd image store). Другой rebuild с теми же labels отвергается; multi-platform преобразование без такого совпадения fail closed и требует отдельной qualification. Только после этого преобразовать исходный проверенный local manifest:
+
+```sh
+node scripts/release-manifest.cjs distribute --manifest "$LOCAL_MANIFEST" --backend "$BACKEND_REGISTRY_DIGEST_REF" --frontend "$FRONTEND_REGISTRY_DIGEST_REF" --output "$REGISTRY_MANIFEST"
+node scripts/release-manifest.cjs prepare --manifest "$REGISTRY_MANIFEST"
+```
+
+`prepare` загружает всю пару и проверяет digest/provenance до любой остановки активных services. При ошибке не продолжать rollout/rollback и не закрывать known-good pair. Затем выполняется прежний live schema preflight и guarded `override` с одним manifest. Registry override сбрасывает build и использует `pull_policy: always`; локальный режим сохраняет never. До maintenance/stop обязательно успешное prepare, schema/migration checks и quiet Compose validation. После перехода сверить container Config.Image с обеими digest refs, actual Image с config ID pulled artifact и RepoDigests с manifest. Отказ pull не даёт разрешения на остановку active pair. Запуск services последовательно допускает bounded outage, не обещает атомарность runtime/zero downtime.
+
+Credential helper/DOCKER_CONFIG и login устанавливаются оператором вне repo; credential values не передавать в чат, CLI arguments или manifest. Root/operator Docker trust и network access входят в deployment boundary. Для production нужен отдельный квалифицированный TLS/auth registry target; локальный HTTP registry и пустой disposable daemon доказывают только механику на проверенной платформе.
+
+
+После успешного prepare и schema/config preflight registry переход выполняется без повторного сетевого pull:
+
+```sh
+docker compose up -d --no-build --no-deps --pull never backend
+# readiness200 и no pending migrations
+docker compose up -d --no-build --no-deps --pull never frontend
+```
+
+`--pull never` здесь обязателен: он переопределяет default pull_policy:always только после свежего prepare всей пары. Иначе поздний отказ registry после maintenance/stop способен создать outage. При любой ошибке prepare active pair остаётся работать. Cache не подменяет первичную проверку: deploy refs остаются repository@digest, validated RepoDigests/provenance обязателен. Не удалять prepared images между prepare и переходом.

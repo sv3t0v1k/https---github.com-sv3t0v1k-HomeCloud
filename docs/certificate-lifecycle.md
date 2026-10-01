@@ -93,7 +93,7 @@ Focused10/10, hostname/syntax/quiet Compose/diff gates PASS. Повторный 
 
 ## Реальный Linux / DNS / public CA: входы и qualification — 2026-10-01
 
-Ненумерованный checkpoint после scheduler/alerts. Исходный HEAD `30f13a98a1c312d9e5c11e1811d690c725d04b4d`; исходный status только запрещённый audit, содержимое не открывалось. **PRODUCTION_BLOCKER_LINUX_DNS_CA: OPEN; OVERALL: NOT_READY / NO_GO.** Реальный target не предоставлен; ниже prerequisites и будущие operator commands, а не результаты production deployment.
+Ненумерованный checkpoint после scheduler/alerts. Исходный HEAD `30f13a98a1c312d9e5c11e1811d690c725d04b4d`; исходный status только запрещённый audit, содержимое не открывалось. **PRODUCTION_BLOCKER_LINUX_DNS_CA: DEFERRED_OWNER_INFRASTRUCTURE_INPUT / OPEN; OVERALL: NOT_READY / NO_GO.** По решению владельца target qualification отложена до реальных host/domain inputs; независимые workstreams продолжаются. Для READY с публичным production endpoint критерии остаются обязательными. Реальный target не предоставлен; ниже prerequisites и будущие operator commands, а не результаты production deployment.
 
 ### TARGET_INPUT_DISCOVERY / OPERATOR_INPUTS_REQUIRED
 

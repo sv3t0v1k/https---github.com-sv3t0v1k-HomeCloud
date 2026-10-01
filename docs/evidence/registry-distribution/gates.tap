@@ -1,0 +1,255 @@
+TAP version 13
+# Subtest: registry pair binds repositories and digests, omits local identity and secrets
+ok 1 - registry pair binds repositories and digests, omits local identity and secrets
+  ---
+  duration_ms: 1.315625
+  ...
+# Subtest: invalid ref rejected hc/backend:latest
+ok 2 - invalid ref rejected hc/backend:latest
+  ---
+  duration_ms: 0.05475
+  ...
+# Subtest: invalid ref rejected localhost:5000/hc/backend:latest
+ok 3 - invalid ref rejected localhost:5000/hc/backend:latest
+  ---
+  duration_ms: 0.040542
+  ...
+# Subtest: invalid ref rejected https://registry.example/hc/backend@sha256:1111111111111111111111111111111111111111111111111111111111111111
+ok 4 - invalid ref rejected https://registry.example/hc/backend@sha256:1111111111111111111111111111111111111111111111111111111111111111
+  ---
+  duration_ms: 0.036875
+  ...
+# Subtest: invalid ref rejected user:password@registry.example/hc/backend@sha256:1111111111111111111111111111111111111111111111111111111111111111
+ok 5 - invalid ref rejected user:password@registry.example/hc/backend@sha256:1111111111111111111111111111111111111111111111111111111111111111
+  ---
+  duration_ms: 0.088167
+  ...
+# Subtest: invalid ref rejected registry.example/../backend@sha256:1111111111111111111111111111111111111111111111111111111111111111
+ok 6 - invalid ref rejected registry.example/../backend@sha256:1111111111111111111111111111111111111111111111111111111111111111
+  ---
+  duration_ms: 0.036917
+  ...
+# Subtest: invalid ref rejected registry.example/hc/backend@sha256:bad
+ok 7 - invalid ref rejected registry.example/hc/backend@sha256:bad
+  ---
+  duration_ms: 0.463916
+  ...
+# Subtest: digest tampering rejected by identity
+ok 8 - digest tampering rejected by identity
+  ---
+  duration_ms: 0.310458
+  ...
+# Subtest: registry digest mismatch rejected
+ok 9 - registry digest mismatch rejected
+  ---
+  duration_ms: 0.160208
+  ...
+# Subtest: mixed artifact role and pair rejected
+ok 10 - mixed artifact role and pair rejected
+  ---
+  duration_ms: 0.165375
+  ...
+# Subtest: mixed manifest pair rejected
+ok 11 - mixed manifest pair rejected
+  ---
+  duration_ms: 0.133166
+  ...
+# Subtest: unexpected credential field rejected
+ok 12 - unexpected credential field rejected
+  ---
+  duration_ms: 0.120666
+  ...
+# Subtest: prepare pulls both before validation, cannot change active services
+ok 13 - prepare pulls both before validation, cannot change active services
+  ---
+  duration_ms: 0.433166
+  ...
+# Subtest: failed second pull stops preparation
+ok 14 - failed second pull stops preparation
+  ---
+  duration_ms: 0.128958
+  ...
+# Subtest: out of range registry port rejected
+ok 15 - out of range registry port rejected
+  ---
+  duration_ms: 0.041708
+  ...
+# Subtest: same labels with different qualified content rejected
+ok 16 - same labels with different qualified content rejected
+  ---
+  duration_ms: 0.164
+  ...
+# Subtest: registry reconversion cannot replace bound artifacts
+ok 17 - registry reconversion cannot replace bound artifacts
+  ---
+  duration_ms: 0.092
+  ...
+# Subtest: config fails closed without production settings and suppresses values
+ok 18 - config fails closed without production settings and suppresses values
+  ---
+  duration_ms: 29.34975
+  ...
+# Subtest: unknown mode fails
+ok 19 - unknown mode fails
+  ---
+  duration_ms: 25.632625
+  ...
+# Subtest: runtime ready=200 metrics=401
+ok 20 - runtime ready=200 metrics=401
+  ---
+  duration_ms: 94.001708
+  ...
+# Subtest: runtime ready=200 metrics=404
+ok 21 - runtime ready=200 metrics=404
+  ---
+  duration_ms: 73.7245
+  ...
+# Subtest: runtime ready=503 metrics=401
+ok 22 - runtime ready=503 metrics=401
+  ---
+  duration_ms: 71.225167
+  ...
+# Subtest: runtime ready=200 metrics=200
+ok 23 - runtime ready=200 metrics=200
+  ---
+  duration_ms: 71.338542
+  ...
+# Subtest: generation is deterministic, full pair validates and override pins IDs without build/pull
+ok 24 - generation is deterministic, full pair validates and override pins IDs without build/pull
+  ---
+  duration_ms: 9.652208
+  ...
+# Subtest: missing backend rejected
+ok 25 - missing backend rejected
+  ---
+  duration_ms: 2.918334
+  ...
+# Subtest: missing frontend rejected
+ok 26 - missing frontend rejected
+  ---
+  duration_ms: 2.306584
+  ...
+# Subtest: mutable tags rejected
+ok 27 - mutable tags rejected
+  ---
+  duration_ms: 2.313291
+  ...
+# Subtest: wrong immutable image content rejected
+ok 28 - wrong immutable image content rejected
+  ---
+  duration_ms: 2.497083
+  ...
+# Subtest: nonexistent previous artifact rejected
+ok 29 - nonexistent previous artifact rejected
+  ---
+  duration_ms: 1.944333
+  ...
+# Subtest: mixed pair in manifest rejected
+ok 30 - mixed pair in manifest rejected
+  ---
+  duration_ms: 2.014375
+  ...
+# Subtest: mixed pair image provenance rejected
+ok 31 - mixed pair image provenance rejected
+  ---
+  duration_ms: 2.479917
+  ...
+# Subtest: image source commit mismatch rejected
+ok 32 - image source commit mismatch rejected
+  ---
+  duration_ms: 2.140208
+  ...
+# Subtest: source archive commit mismatch rejected
+ok 33 - source archive commit mismatch rejected
+  ---
+  duration_ms: 2.350584
+  ...
+# Subtest: changed source files rejected
+ok 34 - changed source files rejected
+  ---
+  duration_ms: 2.391958
+  ...
+# Subtest: modified migration marker rejected
+ok 35 - modified migration marker rejected
+  ---
+  duration_ms: 2.082667
+  ...
+# Subtest: changed migrations block compatibility
+ok 36 - changed migrations block compatibility
+  ---
+  duration_ms: 2.240667
+  ...
+# Subtest: changed entity mappings block compatibility
+ok 37 - changed entity mappings block compatibility
+  ---
+  duration_ms: 2.296917
+  ...
+# Subtest: missing live migrations block rollback
+ok 38 - missing live migrations block rollback
+  ---
+  duration_ms: 2.528375
+  ...
+# Subtest: extra live migrations block rollback
+ok 39 - extra live migrations block rollback
+  ---
+  duration_ms: 2.522917
+  ...
+# Subtest: duplicate live migrations block rollback
+ok 40 - duplicate live migrations block rollback
+  ---
+  duration_ms: 1.89275
+  ...
+# Subtest: manifest identity tampering rejected
+ok 41 - manifest identity tampering rejected
+  ---
+  duration_ms: 1.96875
+  ...
+# Subtest: missing production compose fails generation
+ok 42 - missing production compose fails generation
+  ---
+  duration_ms: 2.688167
+  ...
+# Subtest: unexpected secret-bearing field rejected
+ok 43 - unexpected secret-bearing field rejected
+  ---
+  duration_ms: 2.148333
+  ...
+# Subtest: unsupported TypeScript migration filename blocks generation
+ok 44 - unsupported TypeScript migration filename blocks generation
+  ---
+  duration_ms: 2.137375
+  ...
+# Subtest: JavaScript migration outside source policy blocks generation
+ok 45 - JavaScript migration outside source policy blocks generation
+  ---
+  duration_ms: 2.091459
+  ...
+# Subtest: duplicate migration classes block generation
+ok 46 - duplicate migration classes block generation
+  ---
+  duration_ms: 2.377
+  ...
+# Subtest: duplicate classes in manifest rejected
+ok 47 - duplicate classes in manifest rejected
+  ---
+  duration_ms: 2.111459
+  ...
+# Subtest: rendered Compose override explicitly resets build and retains immutable full pair
+ok 48 - rendered Compose override explicitly resets build and retains immutable full pair
+  ---
+  duration_ms: 2.025792
+  ...
+# Subtest: actual Compose merge removes both inherited build contexts
+ok 49 - actual Compose merge removes both inherited build contexts
+  ---
+  duration_ms: 98.772708
+  ...
+1..49
+# tests 49
+# suites 0
+# pass 49
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 401.794125
