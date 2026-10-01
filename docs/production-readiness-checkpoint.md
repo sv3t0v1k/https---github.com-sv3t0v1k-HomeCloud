@@ -175,3 +175,10 @@ PUBLIC_CERT_ISSUANCE_CONTRACT: PASS; CERT_RUNTIME_PERMISSIONS: PASS; CERT_RENEWA
 Остались public CA/domain qualification, production Linux bind/scheduler/alerts, final recovery/acceptance, previous-version rollback, production offsite/key custody/full-volume RPO/RTO и remaining operator/release checks. Новая Phase не создана; предыдущие COMPLETE сохранены. Следующий рекомендуемый блок — final acceptance/go-live gate, автоматически не начинается.
 
 Independent reviewer (не автор) проверил окончательный harness/diff/native-bind evidence, повторил focused10/10 и diff-check PASS. Public Certificate Lifecycle COMPLETE в ограниченных границах implementation/contract/mechanics.
+
+
+## Final Production Acceptance / Go-Live Gate — 2026-10-01
+
+Ненумерованная финальная кампания; новая Phase не создана. **OVERALL_PRODUCTION_READINESS: NOT_READY**. Fresh backend702/702 и frontend96/96, locked Docker builds, previous-backend compiled rollback и encrypted same-host offsite recovery PASS в явно ограниченных границах. Полный production deployment/TLS E2E остановлен occupied fixed proxy subnets; существующее preview не менялось. Public DNS/CA/target bind, operational scheduler/alert delivery, independent offsite/key custody/approved measured budgets и полный previous backend/frontend immutable-pair/operator acceptance остаются BLOCKING. Исправлен подтверждённый raw-URI/token logging дефект обоих nginx; raw proxy error diagnostics исключены, status/time и backend безопасные logs сохранены. [Матрица, raw evidence, классификации и operator checklist](./final-production-acceptance.md). Предыдущие COMPLETE checkpoints сохранены; запуск не разрешён, следующий workstream автоматически не начинается.
+
+Independent final review: **NO_GO** по raw evidence. Дополнительно unresolved external-only secret input path legacy backup/restore versus checkout .env; workaround не применён. Dependency audit finding/exposure см. final acceptance.

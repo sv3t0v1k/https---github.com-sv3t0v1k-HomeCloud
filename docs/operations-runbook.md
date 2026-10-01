@@ -1,6 +1,6 @@
 # HomeCloud — эксплуатационная диагностика
 
-Этот runbook описывает базовую наблюдаемость одного backend-процесса. Он не является production release gate. TLS, deployment/migration/rollback, управление секретами, offsite/encrypted/incremental backup и отдельная failure/security campaign остаются backlog.
+Этот runbook описывает наблюдаемость одного backend-процесса. Реализованные TLS/secrets/backup checkpoints и их boundaries перечислены в production-readiness-checkpoint.md. Финальный launch gate и operator checklist: [Final Production Acceptance](./final-production-acceptance.md); overall readiness NOT_READY.
 
 ## Запуск и health
 
@@ -62,3 +62,8 @@ Backend пишет JSON по одной записи на строку в stdout
 Дважды в сутки запускается `certificate-lifecycle.py renew`; ежедневно независимо запускается `check`. Любой nonzero renew/install, warning/critical/invalid check требует operator signaling; alert delivery и scheduler квалифицируются на целевом host. Failed renewal не повод останавливать valid ingress. При config/reload/probe failure проверить current, nginx config и served fingerprint, затем выполнить validated rollback/install по linked runbook. Не публиковать keys/ACME account/resolved env в диагностике.
 
 HTTP01 challenge exception не содержит HSTS; HTTPS policy сохранена. Initial HTTP01 issuance использует standalone на свободном port80 до запуска ingress. DNS01 automation/provider plugins не реализованы. Local CA smoke не доказывает public CA issuance. Общая Production Readiness остаётся NOT_READY до final recovery/acceptance и remaining operator/release checks.
+
+
+## Privacy proxy logs и финальный operator gate
+
+Ingress/frontend access logs содержат только status, bytes и duration, без URI/query/headers/share tokens. Raw nginx error logs подавлены, поскольку nginx может включать request/upstream URI. Диагностика proxy: `nginx -t`, aggregate statuses/time, private health и безопасные backend JSON logs с request ID; отсутствие raw proxy errors ограничивает диагностику и должно учитываться оператором. Не передавать secrets в request ID. [Final acceptance/checklist](./final-production-acceptance.md) фиксирует обязательные scheduler/alert/offsite/public CA и release blockers; скрипты и exit codes сами по себе не являются alert delivery.
