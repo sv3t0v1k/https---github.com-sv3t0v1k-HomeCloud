@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Disposable production-mode migration/same-artifact restart drill, no deployment .env."""
+import secrets
 import base64, os, pathlib, socket, subprocess, tempfile, time, urllib.request, urllib.error, json, uuid, hashlib
 urllib.request.install_opener(urllib.request.build_opener(urllib.request.ProxyHandler({})))
 repo=pathlib.Path(__file__).resolve().parents[2]; backend=repo/'backend'
@@ -28,7 +29,7 @@ try:
   try: docker('exec',name,'pg_isready','-U','postgres','-d','hc_release'); break
   except subprocess.CalledProcessError:time.sleep(.3)
  env={k:os.environ[k] for k in ['PATH','HOME','TMPDIR','USER'] if k in os.environ}
- env.update(NODE_ENV='production',PORT=str(appport),DATABASE_URL=f'postgres://postgres:release-db-938475abcdef@127.0.0.1:{dbport}/hc_release',DB_PASSWORD='release-db-938475abcdef',JWT_SECRET='release-access-938475abcdefghijklmnopqrstuvwxyz',JWT_REFRESH_SECRET='release-refresh-938475abcdefghijklmnopqrstuvwxyz',STORAGE_PATH=str(storage),FRONTEND_URL='https://release.example.invalid',METRICS_TOKEN='release-metrics-938475abcdefghijklmnopqrstuvwxyz')
+ env.update(NODE_ENV='production',PORT=str(appport),DATABASE_URL=f'postgres://postgres:release-db-938475abcdef@127.0.0.1:{dbport}/hc_release',DB_PASSWORD='release-db-938475abcdef',JWT_SECRET=secrets.token_hex(32),JWT_REFRESH_SECRET=secrets.token_hex(32),STORAGE_PATH=str(storage),FRONTEND_URL='https://release.example.invalid',METRICS_TOKEN=secrets.token_hex(32))
  with open(root/'runtime.log','w') as log:
   cli=str(backend/'node_modules/typeorm/cli.js'); ds=str(backend/'dist/data-source.js')
   probe='const {Client}=require('+json.dumps(str(backend/'node_modules/pg'))+');const c=new Client({connectionString:process.env.DATABASE_URL});c.connect().then(()=>c.query("SELECT 1")).then(()=>c.end()).catch(()=>process.exit(1))'

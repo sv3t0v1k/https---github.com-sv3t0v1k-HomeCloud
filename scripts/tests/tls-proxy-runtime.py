@@ -4,6 +4,7 @@ Requires built backend/dist and frontend/dist, Docker, openssl, curl, and
 local homecloud-frontend:latest nginx and postgres:16-alpine images. Builds disposable current backend dependencies. No public CA proof.
 Only uniquely named containers/networks created by this script are removed.
 """
+import secrets
 import base64, hashlib, json, os, pathlib, socket, subprocess, tempfile, time, uuid
 repo = pathlib.Path(__file__).resolve().parents[2]
 root = pathlib.Path(tempfile.mkdtemp(prefix='hc-tls-proxy-'))
@@ -61,7 +62,7 @@ try:
     for _ in range(100):
         try: docker('exec',db,'pg_isready','-U','postgres','-d','hc_tls'); break
         except subprocess.CalledProcessError: time.sleep(.3)
-    env = dict(NODE_ENV='production',PORT='3000',DATABASE_URL='postgres://postgres:tls-db-938475abcdef@db/hc_tls',DB_PASSWORD='tls-db-938475abcdef',JWT_SECRET='tls-access-938475abcdefghijklmnopqrstuvwxyz',JWT_REFRESH_SECRET='tls-refresh-938475abcdefghijklmnopqrstuvwxyz',STORAGE_PATH='/tmp/storage',FRONTEND_URL='https://proxy.example.invalid',METRICS_TOKEN='tls-metrics-938475abcdefghijklmnopqrstuvwxyz',TRUSTED_PROXY_IP='172.30.0.10')
+    env = dict(NODE_ENV='production',PORT='3000',DATABASE_URL='postgres://postgres:tls-db-938475abcdef@db/hc_tls',DB_PASSWORD='tls-db-938475abcdef',JWT_SECRET=secrets.token_hex(32),JWT_REFRESH_SECRET=secrets.token_hex(32),STORAGE_PATH='/tmp/storage',FRONTEND_URL='https://proxy.example.invalid',METRICS_TOKEN=secrets.token_hex(32),TRUSTED_PROXY_IP='172.30.0.10')
     envargs = sum((['-e',k+'='+v] for k,v in env.items()),[])
     mounts = ['-v',str(repo/'backend/dist')+':/app/dist:ro']
     docker('run','--rm','--network',internal,*envargs,*mounts,runtime_image,'node','node_modules/typeorm/cli.js','migration:run','-d','dist/data-source.js','--transaction','all')

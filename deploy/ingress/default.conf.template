@@ -1,5 +1,11 @@
+# Не журналировать URI, query, заголовки и share tokens на proxy.
+log_format homecloud_private 'status=$status bytes=$body_bytes_sent duration=$request_time';
+# nginx error records могут содержать raw request/upstream URI.
+# Диагностика: nginx -t, status/access counters и безопасные backend logs.
 # PUBLIC_HOST is a bare lowercase DNS hostname. Terminate public TLS at this boundary.
 server {
+  access_log /dev/stdout homecloud_private;
+  error_log /dev/null;
   listen 80 default_server;
   server_name _;
   # Only challenge tokens are exposed; directory listing and nested paths are denied.
@@ -12,6 +18,8 @@ server {
   location / { return 308 https://${PUBLIC_HOST}$request_uri; }
 }
 server {
+  access_log /dev/stdout homecloud_private;
+  error_log /dev/null;
   listen 443 ssl default_server;
   server_name ${PUBLIC_HOST};
   ssl_certificate /etc/nginx/tls/current/fullchain.pem;
