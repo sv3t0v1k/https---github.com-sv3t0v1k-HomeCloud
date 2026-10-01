@@ -13,7 +13,8 @@ HEAD `bb01b5f35ace220e9bf34b8984297784edf629e8`; status содержал тол�
 | Критерий | Класс | Факт / итог |
 |---|---|---|
 | Чистый source и release builds | BLOCKING | PASS: git archive ожидаемого HEAD, lockfile npm ci в Docker builds; immutable local image IDs ниже. Bit-for-bit reproducibility не заявляется |
-| Release manifest / предыдущая image pair | BLOCKING | INCONCLUSIVE: registry digests и предыдущая backend/frontend пара для deployment не квалифицированы |
+| Release manifest / предыдущая image pair | BLOCKING | RESOLVED локально: immutable manifest, full prior release pair rollback/rollforward PASS; одинаковые app trees, границы и evidence ниже |
+| Target registry distribution | BLOCKING | NOT_QUALIFIED: push/pull registry manifest digests и target platform binding не проверены |
 | Production config / Compose | BLOCKING | PASS на disposable inputs; target production inputs не проверены |
 | Migrations / preflight | BLOCKING | PASS в backend rollback fixture, no pending; target manifest/schema gate не упражнялся |
 | Полная deployment последовательность / readiness | BLOCKING | SKIPPED: полный documented release drill не выполнен |
@@ -24,7 +25,7 @@ HEAD `bb01b5f35ace220e9bf34b8984297784edf629e8`; status содержал тол�
 | Encrypted backup / isolated restore | BLOCKING | PASS свежий fixture, строки/quota/shares/uploads/bytes/readiness совпали |
 | Физический offsite / аварийный доступ к keys | BLOCKING | INCONCLUSIVE: same-host target не доказывает независимый failure domain |
 | Scheduler / delivered alerts / retries | BLOCKING | INCONCLUSIVE: команды и JSON exits есть, wired timer/cron и доставка оператору не представлены |
-| Previous-version application rollback | BLOCKING | FAIL как полный gate: previous backend compiled-artifact subtest PASS; предыдущая frontend/image pair и documented deployment rollback не проверены |
+| Previous release backend/frontend pair rollback | BLOCKING | RESOLVED локально: оба immutable artifacts переключились, data/schema unchanged; different application/schema evolution не заявляется |
 | Интегрированный recovery | BLOCKING | PASS в encrypted same-host offsite fixture; target disaster recovery не заявляется |
 | Полный E2E / desktop/mobile | BLOCKING | SKIPPED: fresh full supported ingress smoke не состоялся; unit/UI suites не заменяют его |
 | Logs/metrics/readiness privacy / operations | BLOCKING | INCONCLUSIVE общего gate: baseline и отдельное proxy privacy исправление; target observation/alerts не квалифицированы |
@@ -108,7 +109,7 @@ Checklist выполняется на выбранном Linux host, из защ
 7. `docker compose up -d --no-build --no-deps backend`; private readiness200 и storage writable. Затем frontend, ingress; оба `nginx -t`. Maintenance остаётся закрыт.
 8. Проверить externally trusted HTTPS `/`, headers/challenge, public health/metrics404; internal ready200/metrics bearer policy; spoofed forwarded headers. Выполнить login, root/nested/list/grid/folder/upload/download bytes/preview/share create+revoke/trash+restore/logout+relogin; desktop/mobile rendering.
 9. Проверить actual scheduler timers/jobs: renew дважды/сутки, check ежедневно, backup по approved RPO с write barrier/validate/retention и freshness. Выполнить failure/stale alert injection, подтвердить получение оператором, acknowledgement, bounded retry и escalation владельцу. Скриптов/exit code без доставки недостаточно.
-10. Rollback trigger: config/migration/readiness/smoke/privacy failure или устойчивый рост5xx после release. Barrier закрыт, stop backend/frontend; export RELEASE_BACKEND_IMAGE/PREVIOUS и frontend pair по runbook, pull и up backend→ready→frontend→smoke. Не rollback schema без доказанного плана; DB/storage не удалять.
+10. Rollback trigger: config/migration/readiness/smoke/privacy failure или устойчивый рост5xx после release. Barrier закрыт, stop backend/frontend; guarded previous manifest override с exact applied migration inputs по runbook, up без build backend→ready→frontend→smoke; registry pull требует отдельной distribution qualification. Не rollback schema без доказанного плана; DB/storage не удалять.
 11. Recovery entry: `bash scripts/restore-offsite.sh GENERATION --validate-only`, затем при явном incident decision `--yes` в закрытом isolated/maintenance target; проверить migrations/reconciliation, rows/quota/shares/uploads/bytes и ready200. Restore может стартовать backend до migrations; внешний barrier обязателен независимо от exit.
 12. Post-launch: только после GO/all blockers, owner sign-off и recorded prerequisites. Наблюдать минимум согласованное окно (minimum15min по release runbook; выбранный checklist input30min, не SLA): external HTTPS, private ready,5xx/latency/storage capacity, backup freshness и реально served cert. При trigger закрыть barrier и rollback. Назначить on-call и следующий restore/expiry контроль.
 
@@ -125,7 +126,7 @@ SECURITY_OPS_ACCEPTANCE: INCONCLUSIVE.
 INDEPENDENT_FINAL_REVIEW: NO_GO. Независимый reviewer проверил raw suite/build/runtime/proxy evidence и actual diff: все BLOCKING критерии не доказаны; топология ясна; previous rollback только backend; recovery только same-host fixture; lifecycle не полностью operationalized; owner risk acceptance не приписывается.
 OVERALL_PRODUCTION_READINESS: NOT_READY.
 
-Минимальные оставшиеся группы блокеров: (1) реальный Linux production target/DNS/public CA/native bind; (2) wired scheduler и delivered alerts; (3) физически независимый offsite/key custody и approved measured recovery budgets; (4) полный immutable-pair release/previous-version rollback/TLS E2E/operator host-recovery acceptance. External-only helper config integration закрыт bounded remediation ниже. Runtime React Router advisory закрыт bounded review ниже; перечисленные четыре группы остаются blocking. Следующая работа автоматически не начинается; production deployment не выполнен.
+Минимальные оставшиеся группы блокеров: (1) реальный Linux production target/DNS/public CA/native bind; (2) wired scheduler и delivered alerts; (3) физически независимый offsite/key custody и approved measured recovery budgets; (4) target registry distribution/TLS и browser E2E/operator host-recovery acceptance. Локальная immutable previous release pair mechanics закрыта дополнением ниже; evolving schema compatibility не заявляется. External-only helper config integration закрыт bounded remediation ниже. Runtime React Router advisory закрыт bounded review ниже; перечисленные четыре группы остаются blocking. Следующая работа автоматически не начинается; production deployment не выполнен.
 
 
 ## Финальное raw evidence и оставшиеся input gaps
@@ -191,3 +192,30 @@ Final disposable smoke evidence: `/private/tmp/homecloud-backup-dr.ldiKuX/result
 Fresh gates: external contract11/11, production backup34/34, backup safety27/27, restore validation15 PASS/0 FAIL/1 integration SKIP (заменён реальным paired drill выше). Python AST4/4, Bash syntax9/9, local docs references и diff-check PASS. Backend/frontend suites не запускались: app sources не изменены. Независимый review финальных diff/docs/evidence: APPROVE; предварительный evidence gap исправлен повтором с чистым окружением.
 
 CHECKOUT_ENV_DEPENDENCY: RESOLVED. EXTERNAL_CONFIG_CONTRACT: PASS. ARBITRARY_CWD: PASS. SECRET_LEAKAGE: PASS. REAL_BACKUP_RESTORE_EXTERNAL_CONFIG_SMOKE: PASS. PRODUCTION_BLOCKER_EXTERNAL_BACKUP_CONFIG: RESOLVED. Общий **NOT_READY / NO_GO**: real Linux/DNS/public CA/native bind, scheduler/delivered alerts, independent offsite/key custody/measured budgets и immutable release/previous-pair rollback/operator acceptance остаются открыты. Новая Phase не создана; следующая задача автоматически не запущена.
+
+
+## Immutable release manifest / previous pair rollback — 2026-10-01
+
+Ненумерованная bounded remediation; исходный HEAD `37b2eae7f8375a01c0b7207f70317c57ee3ae01d`, status только запрещённый audit. Audit не читался/не менялся; старые containers `29c17227fd0a`, `983714f1deaa` и preview не затрагивались. [Контракт/operator sequence](./release-manifest.md), [сохранённое sanitized evidence](./evidence/immutable-release/qualification.json), [current manifest](./evidence/immutable-release/current-manifest.json), [previous manifest](./evidence/immutable-release/previous-manifest.json).
+
+| Исходный gap | Итог |
+|---|---|
+| Только ручные digest inputs | Machine-readable deterministic manifest связывает пару IDs, commit, source/Compose hashes и schema contract |
+| Compose содержит build contexts | Guarded YAML override с `build: !reset null`, `pull_policy: never`; реальный merged production config не содержит build |
+| Previous rollback только backend | Current → previous → current: оба actual image IDs совпали с выбранной manifest pair |
+| Нет executable schema guard | Exact migrations + entities/data-source hashes + live applied classes; unexpected migration блокирует rollback |
+| Target registry не доказан | Отдельная NOT_QUALIFIED distribution boundary сохранена; local IDs не объявлены RepoDigests |
+
+Current source `37b2eae7f8375a01c0b7207f70317c57ee3ae01d`: backend `sha256:59a609d268e2a3a0370e425a2807fb26044884a5b3f8ea630b1325ced69c35b9`, frontend `sha256:c5e5e47b9cd1b3beea195d786a63f5d44707803cb3493b7610a852d16a5d46a3`. Previous source `647aa7b949698f9b84feee3ce5134cb2a7b542de`: backend `sha256:62fd9b1206373e59c5cb3a71d5f5f80ee564edaa1652b64299817b7cc4f603cd`, frontend `sha256:837d77529cc39b64c7cd04f10dfb4b0bc4d1778d5f8ea36b228e237009c78031`. Оба checkpoint собраны стандартными production Dockerfiles из exact-commit archives, без checkout env/audit. Это retained outputs, не обещание bit-for-bit rebuild: свежие build timestamps/base resolution могут менять IDs.
+
+Previous — known-good checkpoint исправленного React Router. Backend/frontend application trees, 18 migration sources и entities совпадают с current. Это full previous **release artifact pair** qualification; совместимость различных application generations или изменённой схемы не заявляется. Исторический backend-version drill выше остаётся отдельным доказательством. Выбор identical application checkpoint сознательный: older vulnerable frontend не рекомендован для production rollback.
+
+Final raw root `/var/folders/mg/0kv7ncvj7x33c4gkz6d9k47r0000gn/T/hc-pair-drill-uhgs8ns8/`; reproducible harness `scripts/tests/release-pair-runtime.py`. Current migrations applied один раз до app; exact no-pending current/previous/current и actual live extra migration refusal PASS. Controlled app outage не менял DB/storage. Readiness200, ingress root/index+2 referenced assets exact SHA256, bearer file download, representative share/trash API PASS на всех трёх этапах. Все public table row hashes, schema dump, migration table, storage SHA256 tree и quota `136/1048576` совпали. Login отдельно после invariance proof PASS (нормальная запись refresh token не выдаётся за unchanged snapshot). Down migrations не выполнялись. Собственные containers, три networks и storage volume удалены; TLS private keys удалены, operation logs secret scan PASS. Квалифицированные локальные images удержаны как rollback artifacts.
+
+Fixture использует self-signed TLS ingress и случайные сети с dynamic trusted proxy substitution, а не production fixed subnets/public DNS/CA/native target bind. UI artifact HTTP checks не заменяют desktop/mobile browser acceptance. Guard предполагает reviewed migration discipline и trusted builder; manual DDL drift, подписанная provenance и registry/multi-platform pull не квалифицированы. Manifest/JSON evidence не содержит secret values; raw logs в commit не включены.
+
+Gates: release helper6/6, manifest26/26 (включая real Compose reset merge, missing/mutable/mixed/source/ID/nonexistent/schema/applied/unsupported-name/duplicate-class failures), обе пары production builds, production Compose effective configs3/3, migration preflight3/3, final rollback+rollforward, Node/Python syntax и diff-check PASS. Application sources не менялись; full suites не повторялись: latest passing backend59 suites/702 и frontend12 files/96 записаны выше. Первый fixture stop ожидал502 вместо timeout; исправлен test-only критерий outage. Независимая Compose-проверка выявила JSON null merge flaw; заменён явным YAML reset и финальный drill повторён на окончательном коде.
+
+INDEPENDENT_REVIEW: APPROVE. Reviewer не автор: actual final code/docs/raw evidence проверены; focused32/32 и обе actual Docker manifest/source validation PASS, diff-check PASS. Sanitized evidence сверено с raw, оба сохранённых manifest byte-identical originals.
+
+IMMUTABLE_RELEASE_MANIFEST: PASS; CURRENT_PAIR_QUALIFIED: PASS; PREVIOUS_PAIR_QUALIFIED: PASS; SCHEMA_COMPATIBILITY_GUARD: PASS; FULL_PAIR_ROLLBACK: PASS; DATA_PRESERVATION: PASS; REGISTRY_DISTRIBUTION: NOT_QUALIFIED; PRODUCTION_BLOCKER_PREVIOUS_PAIR_ROLLBACK: RESOLVED (локальная full prior release pair mechanics). Общий **NOT_READY / NO_GO**: real Linux/DNS/public CA/native bind, target registry distribution, scheduler/delivered alerts, independent offsite/key custody/approved measured budgets и final browser/operator/host-recovery acceptance остаются открыты. Новая Phase не создана; следующая задача не запущена. Следующий рекомендуемый меньший блок — scheduler и delivered alerts, после выбора target/receiver inputs.

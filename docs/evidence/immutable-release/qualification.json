@@ -1,0 +1,166 @@
+{
+  "after_rollback": {
+    "migrations": "1746824900000|CreateUsersTable1746824900000\n1746824910000|CreateFoldersTable1746824910000\n1746824920000|CreateFilesTable1746824920000\n1746824930000|CreateShareLinksTable1746824930000\n1746824940000|CreateUploadSessionsTable1746824940000\n1746825000000|CreateRefreshTokensTable1746825000000\n1746825010000|AddMissingIndexes1746825010000\n1746825020000|AddStorageUsedCheck1746825020000\n1746825030000|AddParentIdForeignKeys1746825030000\n1746825040000|ShareLinksTokenUnique1746825040000\n1746825050000|UploadSessionStatusCheck1746825050000\n1746825060000|AddNameNotEmptyCheck1746825060000\n1746825070000|UploadedChunksJsonb1746825070000\n1746825080000|AddFileUploadId1746825080000\n1746825090000|AddShareMaxDownloads1746825090000\n1746825100000|AddShareFailedAttempts1746825100000\n1746825110000|AddFileFolderIdMirrorLink1746825110000\n1746825120000|ShareLockedUntilTimestamptz1746825120000",
+    "quota": "136|1048576",
+    "schema_sha256": "e4af46c173f161484758a3d7775c2ceca8c3d6cf1ca7480f8f127372262a466e",
+    "storage_sha256": "d684e6f08f337ce5e2ba444502e4589a64431f61f14821145758723cd2ba082b",
+    "tables_sha256": {
+      "files": "9566233c9ff3690aa7d34ab3be8c686781bba52d250a1f53a2211b1196bb4ead",
+      "folders": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "migrations": "e1d218aeff427d10747ba31831360f434f8292ddfefff791796e695f60af38e8",
+      "refresh_tokens": "c071f50ccbf029c21f59e5baee8f968deb9221d9ec12e3220ea1e89cd963c3fd",
+      "share_links": "864add0c550c4ace9bedd5aa54d4d185632f1cfc05938c76dd9e2603ca180ebc",
+      "upload_sessions": "deb674941f15344802016afeb1f4e2a5f1ebd674a6b15718695264d9c97d0f87",
+      "users": "91645b527d480e996f7c318983cbb9a905a41f97a3266211f39844a2f4ce954d"
+    }
+  },
+  "after_rollforward": {
+    "migrations": "1746824900000|CreateUsersTable1746824900000\n1746824910000|CreateFoldersTable1746824910000\n1746824920000|CreateFilesTable1746824920000\n1746824930000|CreateShareLinksTable1746824930000\n1746824940000|CreateUploadSessionsTable1746824940000\n1746825000000|CreateRefreshTokensTable1746825000000\n1746825010000|AddMissingIndexes1746825010000\n1746825020000|AddStorageUsedCheck1746825020000\n1746825030000|AddParentIdForeignKeys1746825030000\n1746825040000|ShareLinksTokenUnique1746825040000\n1746825050000|UploadSessionStatusCheck1746825050000\n1746825060000|AddNameNotEmptyCheck1746825060000\n1746825070000|UploadedChunksJsonb1746825070000\n1746825080000|AddFileUploadId1746825080000\n1746825090000|AddShareMaxDownloads1746825090000\n1746825100000|AddShareFailedAttempts1746825100000\n1746825110000|AddFileFolderIdMirrorLink1746825110000\n1746825120000|ShareLockedUntilTimestamptz1746825120000",
+    "quota": "136|1048576",
+    "schema_sha256": "e4af46c173f161484758a3d7775c2ceca8c3d6cf1ca7480f8f127372262a466e",
+    "storage_sha256": "d684e6f08f337ce5e2ba444502e4589a64431f61f14821145758723cd2ba082b",
+    "tables_sha256": {
+      "files": "9566233c9ff3690aa7d34ab3be8c686781bba52d250a1f53a2211b1196bb4ead",
+      "folders": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "migrations": "e1d218aeff427d10747ba31831360f434f8292ddfefff791796e695f60af38e8",
+      "refresh_tokens": "c071f50ccbf029c21f59e5baee8f968deb9221d9ec12e3220ea1e89cd963c3fd",
+      "share_links": "864add0c550c4ace9bedd5aa54d4d185632f1cfc05938c76dd9e2603ca180ebc",
+      "upload_sessions": "deb674941f15344802016afeb1f4e2a5f1ebd674a6b15718695264d9c97d0f87",
+      "users": "91645b527d480e996f7c318983cbb9a905a41f97a3266211f39844a2f4ce954d"
+    }
+  },
+  "application_tree_limitation": "Same application/migration source; exact distinct source revision labels qualify artifact-pair switching, not cross-schema compatibility.",
+  "before": {
+    "migrations": "1746824900000|CreateUsersTable1746824900000\n1746824910000|CreateFoldersTable1746824910000\n1746824920000|CreateFilesTable1746824920000\n1746824930000|CreateShareLinksTable1746824930000\n1746824940000|CreateUploadSessionsTable1746824940000\n1746825000000|CreateRefreshTokensTable1746825000000\n1746825010000|AddMissingIndexes1746825010000\n1746825020000|AddStorageUsedCheck1746825020000\n1746825030000|AddParentIdForeignKeys1746825030000\n1746825040000|ShareLinksTokenUnique1746825040000\n1746825050000|UploadSessionStatusCheck1746825050000\n1746825060000|AddNameNotEmptyCheck1746825060000\n1746825070000|UploadedChunksJsonb1746825070000\n1746825080000|AddFileUploadId1746825080000\n1746825090000|AddShareMaxDownloads1746825090000\n1746825100000|AddShareFailedAttempts1746825100000\n1746825110000|AddFileFolderIdMirrorLink1746825110000\n1746825120000|ShareLockedUntilTimestamptz1746825120000",
+    "quota": "136|1048576",
+    "schema_sha256": "e4af46c173f161484758a3d7775c2ceca8c3d6cf1ca7480f8f127372262a466e",
+    "storage_sha256": "d684e6f08f337ce5e2ba444502e4589a64431f61f14821145758723cd2ba082b",
+    "tables_sha256": {
+      "files": "9566233c9ff3690aa7d34ab3be8c686781bba52d250a1f53a2211b1196bb4ead",
+      "folders": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "migrations": "e1d218aeff427d10747ba31831360f434f8292ddfefff791796e695f60af38e8",
+      "refresh_tokens": "c071f50ccbf029c21f59e5baee8f968deb9221d9ec12e3220ea1e89cd963c3fd",
+      "share_links": "864add0c550c4ace9bedd5aa54d4d185632f1cfc05938c76dd9e2603ca180ebc",
+      "upload_sessions": "deb674941f15344802016afeb1f4e2a5f1ebd674a6b15718695264d9c97d0f87",
+      "users": "91645b527d480e996f7c318983cbb9a905a41f97a3266211f39844a2f4ce954d"
+    }
+  },
+  "cleanup_complete": true,
+  "cleanup_networks_removed": true,
+  "cleanup_volume_removed": true,
+  "compose_effective": [
+    {
+      "build_absent": true,
+      "immutable_images": {
+        "backend": "sha256:59a609d268e2a3a0370e425a2807fb26044884a5b3f8ea630b1325ced69c35b9",
+        "frontend": "sha256:c5e5e47b9cd1b3beea195d786a63f5d44707803cb3493b7610a852d16a5d46a3"
+      },
+      "pull_policy": "never",
+      "release": "current"
+    },
+    {
+      "build_absent": true,
+      "immutable_images": {
+        "backend": "sha256:62fd9b1206373e59c5cb3a71d5f5f80ee564edaa1652b64299817b7cc4f603cd",
+        "frontend": "sha256:837d77529cc39b64c7cd04f10dfb4b0bc4d1778d5f8ea36b228e237009c78031"
+      },
+      "pull_policy": "never",
+      "release": "previous"
+    },
+    {
+      "build_absent": true,
+      "immutable_images": {
+        "backend": "sha256:59a609d268e2a3a0370e425a2807fb26044884a5b3f8ea630b1325ced69c35b9",
+        "frontend": "sha256:c5e5e47b9cd1b3beea195d786a63f5d44707803cb3493b7610a852d16a5d46a3"
+      },
+      "pull_policy": "never",
+      "release": "current"
+    }
+  ],
+  "controlled_regression": true,
+  "current_deployed": {
+    "backend": "sha256:59a609d268e2a3a0370e425a2807fb26044884a5b3f8ea630b1325ced69c35b9",
+    "frontend": "sha256:c5e5e47b9cd1b3beea195d786a63f5d44707803cb3493b7610a852d16a5d46a3"
+  },
+  "current_flows": true,
+  "data_preservation": true,
+  "evidence": "/var/folders/mg/0kv7ncvj7x33c4gkz6d9k47r0000gn/T/hc-pair-drill-uhgs8ns8",
+  "live_incompatible_migration_blocked": true,
+  "login_after_preservation_proof": true,
+  "migration_preflight": [
+    {
+      "no_pending": true,
+      "release": "current"
+    },
+    {
+      "no_pending": true,
+      "release": "previous"
+    },
+    {
+      "no_pending": true,
+      "release": "current"
+    }
+  ],
+  "operation_logs_secret_scan": true,
+  "pairs": {
+    "current": {
+      "backend": "sha256:59a609d268e2a3a0370e425a2807fb26044884a5b3f8ea630b1325ced69c35b9",
+      "frontend": "sha256:c5e5e47b9cd1b3beea195d786a63f5d44707803cb3493b7610a852d16a5d46a3"
+    },
+    "previous": {
+      "backend": "sha256:62fd9b1206373e59c5cb3a71d5f5f80ee564edaa1652b64299817b7cc4f603cd",
+      "frontend": "sha256:837d77529cc39b64c7cd04f10dfb4b0bc4d1778d5f8ea36b228e237009c78031"
+    }
+  },
+  "previous_deployed": {
+    "backend": "sha256:62fd9b1206373e59c5cb3a71d5f5f80ee564edaa1652b64299817b7cc4f603cd",
+    "frontend": "sha256:837d77529cc39b64c7cd04f10dfb4b0bc4d1778d5f8ea36b228e237009c78031"
+  },
+  "registry_distribution": "NOT_QUALIFIED",
+  "rollback": true,
+  "rollforward": true,
+  "schema_down_migration": false,
+  "source_current": "37b2eae7f8375a01c0b7207f70317c57ee3ae01d",
+  "source_previous": "647aa7b949698f9b84feee3ce5134cb2a7b542de",
+  "transitions": [
+    {
+      "actual_images": {
+        "backend": "sha256:59a609d268e2a3a0370e425a2807fb26044884a5b3f8ea630b1325ced69c35b9",
+        "frontend": "sha256:c5e5e47b9cd1b3beea195d786a63f5d44707803cb3493b7610a852d16a5d46a3"
+      },
+      "release": "current"
+    },
+    {
+      "actual_images": {
+        "backend": "sha256:62fd9b1206373e59c5cb3a71d5f5f80ee564edaa1652b64299817b7cc4f603cd",
+        "frontend": "sha256:837d77529cc39b64c7cd04f10dfb4b0bc4d1778d5f8ea36b228e237009c78031"
+      },
+      "release": "previous"
+    },
+    {
+      "actual_images": {
+        "backend": "sha256:59a609d268e2a3a0370e425a2807fb26044884a5b3f8ea630b1325ced69c35b9",
+        "frontend": "sha256:c5e5e47b9cd1b3beea195d786a63f5d44707803cb3493b7610a852d16a5d46a3"
+      },
+      "release": "current"
+    }
+  ],
+  "ui_artifact_checks": [
+    {
+      "assets_verified": 2,
+      "index_sha256": "5ad74b77ff7cf60834022748e1c3b3f1f2000c7b818dad4a4b4b8bb13b48f6ef"
+    },
+    {
+      "assets_verified": 2,
+      "index_sha256": "5ad74b77ff7cf60834022748e1c3b3f1f2000c7b818dad4a4b4b8bb13b48f6ef"
+    },
+    {
+      "assets_verified": 2,
+      "index_sha256": "5ad74b77ff7cf60834022748e1c3b3f1f2000c7b818dad4a4b4b8bb13b48f6ef"
+    }
+  ],
+  "manifest_files": {
+    "current": "current-manifest.json",
+    "previous": "previous-manifest.json"
+  }
+}

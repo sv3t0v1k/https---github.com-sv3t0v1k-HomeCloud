@@ -4,7 +4,7 @@
 
 ## Входы и immutable artifacts
 
-Оператор фиксирует commit, результаты full gates, новый и предыдущий backend/frontend image digest, конфигурацию без раскрытия секретов, schema compatibility decision и пару DB/storage backup. Образы уже собраны/проверены и доступны registry. На deployment не пересобирать их из меняющегося checkout.
+Оператор фиксирует commit, результаты full gates, новый и предыдущий backend/frontend image digest, конфигурацию без раскрытия секретов, schema compatibility decision и пару DB/storage backup. Образы уже собраны/проверены; target registry availability требует отдельной qualification. Исполняемый локальный контракт и guarded override: [неизменяемый manifest](./release-manifest.md). На deployment не пересобирать их из меняющегося checkout.
 
 Рабочий deployment каталог — защищённый checkout выбранного release commit: здесь находятся docker-compose.production.yml, deploy/ingress/, scripts/backup.sh, scripts/restore.sh, scripts/reconcile.py, backend/package.json и release-images.yml. Production secrets находятся только во внешнем файле. Release команды ниже выполняются из этого корня; recovery helpers поддерживают произвольный CWD через [единый внешний config](./backup-productionization.md#единый-внешний-config-для-recovery-helpers). Каталог с одними Compose файлами недостаточен:
 
@@ -16,7 +16,7 @@ services:
     image: ${RELEASE_FRONTEND_IMAGE:?immutable frontend digest required}
 ```
 
-Значения — `registry/path@sha256:…`, не mutable tags. Предыдущая пара записана отдельно как PREVIOUS_BACKEND_IMAGE/PREVIOUS_FRONTEND_IMAGE. Production Compose не использует фиксированные container_name. Статические proxy subnet/IP нельзя параллельно повторять на одном host. Исходный docker-compose.yml остаётся legacy/development, не production override; не смешивать эти файлы. При переходе сохранить COMPOSE_PROJECT_NAME и реальные volume names, сверить существующие data mounts; смена project name создаёт пустые volumes, а не переносит данные. Внешний ingress maintenance должен оставаться закрытым даже при старте frontend скриптом restore.
+Значения — `registry/path@sha256:…`, не mutable tags. Предыдущая пара записана целиком в previous manifest; два ID вручную не подбирать. Локальный qualified override использует полные image IDs, build: !reset null и pull_policy:never; registry refs выше описывают ещё не квалифицированную distribution boundary. Production Compose не использует фиксированные container_name. Статические proxy subnet/IP нельзя параллельно повторять на одном host. Исходный docker-compose.yml остаётся legacy/development, не production override; не смешивать эти файлы. При переходе сохранить COMPOSE_PROJECT_NAME и реальные volume names, сверить существующие data mounts; смена project name создаёт пустые volumes, а не переносит данные. Внешний ingress maintenance должен оставаться закрытым даже при старте frontend скриптом restore.
 
 ```bash
 export HOMECLOUD_ENV_FILE=/secure/homecloud/recovery.env
@@ -25,7 +25,7 @@ SCRIPT_DIR="$PWD/scripts"
 source "$SCRIPT_DIR/recovery-config.sh"
 export COMPOSE_FILE="$PWD/docker-compose.production.yml:$PWD/release-images.yml"
 export COMPOSE_PROJECT_NAME=homecloud
-# RELEASE_BACKEND_IMAGE и RELEASE_FRONTEND_IMAGE задаёт оператор из manifest.
+# release-images.yml генерирует guarded manifest helper; порядок ниже — registry runbook boundary.
 # PUBLIC_HOST — lowercase bare hostname; TLS_CERT_DIR содержит fullchain.pem/privkey.pem.
 # FRONTEND_URL в production Compose выводится из PUBLIC_HOST как HTTPS origin.
 docker compose config --quiet
@@ -119,16 +119,18 @@ App/frontend rollback с совместимой схемой:
 
 ```bash
 docker compose stop frontend backend
-export RELEASE_BACKEND_IMAGE="$PREVIOUS_BACKEND_IMAGE"
-export RELEASE_FRONTEND_IMAGE="$PREVIOUS_FRONTEND_IMAGE"
-docker compose pull backend frontend
+# APPLIED_MIGRATIONS — свежий JSON array migrations.name из DB (см. manifest runbook).
+node scripts/release-manifest.cjs override --manifest "$PREVIOUS_MANIFEST" --source-root "$PREVIOUS_SOURCE" --source-commit "$PREVIOUS_COMMIT" --compatibility-manifest "$CURRENT_MANIFEST" --applied-migrations "$APPLIED_MIGRATIONS" --output "$RELEASE_IMAGES"
+# При nonzero остановиться; stale override не использовать.
+export COMPOSE_FILE="$RELEASE_SOURCE/docker-compose.production.yml:$RELEASE_IMAGES"
+docker compose config --quiet
 docker compose up -d --no-build --no-deps backend
 # readiness и smoke backend до следующей команды
 docker compose up -d --no-build --no-deps frontend
 # runtime gate, frontend smoke и acceptance window; ingress ещё закрыт
 ```
 
-При откате только frontend менять только RELEASE_FRONTEND_IMAGE и пересоздать только frontend. Не менять DB major version как часть application rollback.
+Qualified rollback возвращает полную manifest pair. Отдельный frontend-only откат требует отдельной compatibility qualification и этим drill не доказан. Не менять DB major version как часть application rollback.
 
 Paired restore выполняется с выбранной предыдущей парой images и выбранным каталогом backup:
 
@@ -158,3 +160,6 @@ Incremental backup — отдельный выбор по объёму и RPO, �
 ## Secret Lifecycle baseline
 
 Production delivery, generation, custody, maintenance rotation и rollback определены в [secret lifecycle](./secret-lifecycle.md). Использовать только явный external env-file 0600 в каталоге0700, quiet Compose validation и recreate consumers. Runtime environment доступен Docker/root администраторам. JWT planned cutover явно инвалидирует старые tokens; DB env change не изменяет password существующей role. Overall readiness остаётся NOT_READY; public CA lifecycle и encrypted/offsite recovery этим контрактом не закрыты.
+
+
+Полная локальная immutable-pair qualification выполняется `scripts/tests/release-pair-runtime.py`; контракт, schema guard, exact source checkpoints и честные границы описаны в [manifest runbook](./release-manifest.md). Это дополняет исторический same-artifact drill, не меняет его доказательства. Общий go-live статус остаётся NOT_READY / NO_GO.
