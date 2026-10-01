@@ -55,3 +55,23 @@ Production отвергает отсутствующие/очевидно сла
 ## Secret Lifecycle baseline
 
 Production delivery, generation, custody, maintenance rotation и rollback определены в [secret lifecycle](./secret-lifecycle.md). Использовать только явный external env-file 0600 в каталоге0700, quiet Compose validation и recreate consumers. Runtime environment доступен Docker/root администраторам. JWT planned cutover явно инвалидирует старые tokens; DB env change не изменяет password существующей role. Overall readiness остаётся NOT_READY; public CA/domain qualification и final acceptance этим контрактом не закрыты; актуальные ненумерованные checkpoints см. [checkpoint](./production-readiness-checkpoint.md).
+
+## Реальный Linux / DNS / public CA — discovery 2026-10-01
+
+Исходный HEAD `30f13a98a1c312d9e5c11e1811d690c725d04b4d`, исходный status только запрещённый audit, не открывался/не менялся. [Discovery, prerequisites и operator commands](./certificate-lifecycle.md#реальный-linux--dns--public-ca-входы-и-qualification--2026-10-01). Реальные SSH target/public IP/FQDN/timezone/ACME contact/external paths отсутствуют; contract ports80/443, whole-directory bind, /opt/homecloud и root scheduler paths найдены. Example values не являются deployment inputs. Текущий unattended cert renew поддерживает HTTP-01 webroot; DNS-01 требует отдельного plugin flow qualification.
+
+Local cert10/10, scheduler22 tests/1 age integration SKIP, hostname/syntax/quiet Compose PASS. Fresh disposable Linux daemon-side native bind smoke:18 healthy requests during reload; rotation/idempotency/mismatch/config/simulated renewal failure retention и cleanup PASS, raw `/private/tmp/hc-cert-runtime-b35yp793/result.json`. Это прежняя поддерживаемая локальная механика, не production target и не public CA. Application sources не менялись; full app suites не запускались. Target systemd timers не квалифицированы.
+
+| Production classification | Итог |
+|---|---|
+| REAL_LINUX_TARGET | NOT_AVAILABLE |
+| PUBLIC_DNS | NOT_AVAILABLE |
+| PUBLIC_REACHABILITY_80_443 | INCONCLUSIVE |
+| PUBLIC_CA_ISSUANCE | SKIPPED |
+| NATIVE_CERT_BIND_RELOAD | SKIPPED |
+| REAL_RENEWAL_PATH | SKIPPED |
+| PRODUCTION_BLOCKER_LINUX_DNS_CA | OPEN |
+
+**OVERALL_PRODUCTION_READINESS: NOT_READY / NO_GO.** Остались actual Linux/DNS/public CA/native bind, registry distribution, scheduler production recipient/target, независимый offsite/key custody/approved measured recovery budgets и final browser/operator/host-recovery acceptance. Минимальные operator inputs перечислены в certificate doc; credentials только target/out-of-band. Новая Phase не создана. Следующий blocker автоматически не начинается.
+
+INDEPENDENT_REVIEW: APPROVE — reviewer не автор; final docs diff, raw runtime JSON, focused10/10 log, discovery и действующие source/mount/nginx/systemd contracts проверены. Подтверждённых дефектов нет, correction cycle не потребовался; production blocker OPEN и общий NOT_READY сохранены. git diff --check PASS.

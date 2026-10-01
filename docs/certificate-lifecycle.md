@@ -90,3 +90,123 @@ Focused10/10, hostname/syntax/quiet Compose/diff gates PASS. Повторный 
 ## Scheduler / delivered alerts — bounded remediation
 
 Расписание, external-only config, maintenance-wrapper, retry/dedup/recovery и delivery boundary: [scheduler-alerting](./scheduler-alerting.md). Backup retention/integrity остаются в existing transaction, cert lifecycle/reload contract сохранён. Production recipient и target host не квалифицированы; общий **NOT_READY / NO_GO**.
+
+## Реальный Linux / DNS / public CA: входы и qualification — 2026-10-01
+
+Ненумерованный checkpoint после scheduler/alerts. Исходный HEAD `30f13a98a1c312d9e5c11e1811d690c725d04b4d`; исходный status только запрещённый audit, содержимое не открывалось. **PRODUCTION_BLOCKER_LINUX_DNS_CA: OPEN; OVERALL: NOT_READY / NO_GO.** Реальный target не предоставлен; ниже prerequisites и будущие operator commands, а не результаты production deployment.
+
+### TARGET_INPUT_DISCOVERY / OPERATOR_INPUTS_REQUIRED
+
+| Вход | Результат |
+|---|---|
+| Реальный Linux host/IP/SSH и deployment login | MISSING |
+| Реальный public FQDN и DNS control | MISSING |
+| Timezone целевого host | MISSING; Asia/Vladivostok — дата evidence, не выбор production |
+| ACME contact/account | MISSING; operator@example.com — пример |
+| Фактические external env/TLS/ACME/webroot paths | MISSING; /srv/homecloud и /secure/homecloud — примеры |
+| Checkout / scheduler contract | FOUND: /opt/homecloud, root-owned /etc/homecloud/scheduler.json, /var/lib/homecloud/scheduler |
+| Published ports / mount contract | FOUND: ingress TCP80/443, whole TLS directory read-only, отдельный challenge webroot |
+
+Минимальные входы оператора:
+1. SSH target, авторизованный deployment user и ожидаемые публичные IPv4/IPv6 endpoint(s).
+2. Точный FQDN и подтверждение контроля DNS A/AAAA; hostname должен соответствовать SAN. Для текущего HTTP-01 provider/zone credentials не нужны в чате.
+3. Timezone production host.
+4. Подтверждение прямой топологии ingress и маршрута TCP80/443 через firewall/NAT, без дополнительного CDN/proxy; при иной топологии нужен отдельный пересмотр trust contract. Выбор HTTP-01 и доступность challenge без authentication/rewrite.
+5. ACME contact email для документированной первой выдачи либо наличие уже настроенного подходящего account.
+6. Фактические абсолютные external deployment env, TLS_CERT_DIR, ACME_DIR, ACME_WEBROOT_DIR paths. Checkout для существующих units — /opt/homecloud. Credentials/account/private keys настраиваются безопасно на target/out-of-band, не в чате/Git.
+
+DNS-01 — не готовая альтернативная scheduler-интеграция: текущий renew явно вызывает Certbot `--webroot`. При выборе DNS-01 нужны provider/zone и отдельно квалифицированный unattended plugin/activation flow; текущую команду renew для него не использовать. Manual DNS renewal не закрывает этот gate.
+
+### Первые команды на выбранном target
+
+Доверенный оператор сначала выполняет read-only аудит; не устанавливать packages, не менять firewall и не останавливать чужие services в рамках этих команд:
+
+```sh
+cat /etc/os-release
+uname -srm
+id
+docker version
+docker compose version
+systemctl --version
+timedatectl status
+ss -ltnp '( sport = :80 or sport = :443 )'
+ip route
+ip -6 route
+python3 --version
+openssl version
+certbot --version
+```
+
+Сверить поддержку distro/kernel/architecture выбранными Docker и release images; версии записать, универсальный minimum из локального PASS не выводить. Compose должен поддерживать guarded release `!reset` override. Python lifecycle использует ssl.match_hostname: текущие подтверждённые версии3.9/3.11 не доказывают совместимость нового Python. На target повторить focused suite до issuance. Нужны CA trust bundle, Python3, OpenSSL, Docker Engine/Compose CLI, Certbot, systemd; для диагностики curl, dig, ss, findmnt. systemd scope/root runner и Docker operator — привилегированные доверенные роли.
+
+После задания реальных paths (значения не выводить вместе с secrets):
+
+```sh
+: "${TLS_CERT_DIR:?}" "${ACME_DIR:?}" "${ACME_WEBROOT_DIR:?}" "${HOMECLOUD_ENV_FILE:?}"
+stat -c '%a %U:%G %n' "$TLS_CERT_DIR" "$ACME_DIR" "$ACME_WEBROOT_DIR" "$HOMECLOUD_ENV_FILE"
+findmnt -T "$TLS_CERT_DIR"
+findmnt -T "$ACME_DIR"
+df -h "$TLS_CERT_DIR" "$ACME_DIR" "$ACME_WEBROOT_DIR"
+df -i "$TLS_CERT_DIR" "$ACME_DIR" "$ACME_WEBROOT_DIR"
+```
+
+Проверить persistence Docker data root и DB/storage volumes отдельно, capacity относительно фактических данных/retention, отсутствие конфликтов172.29.0.0/24 и172.30.0.0/24. Не объявлять диск пригодным по одному наличию свободного места. Host timezone и NTP synchronized обязательны для validity/timers. Owner root для TLS/ACME и scheduler; state/generations0700, key0600, external env0600 в protected0700 parent. Challenge path755/tokens0644 с traversable parent для nginx worker; не делать private ACME/TLS dirs readable для worker. Root master ingress читает ключ через read-only whole-directory bind. На target сверить effective mount type/source с ожидаемым каталогом, readlink current внутри и снаружи после switch; macOS shared bind не поддерживается.
+
+Firewall/NAT: входящие TCP80/443 только к ingress; SSH ограничен утверждёнными operator sources; PostgreSQL5432/backend3000/Redis6379/health/metrics не публикуются. ACME client нужны исходящие DNS и HTTPS443 к CA. HTTP-01 требует80 также для renewal. Существующие listeners не останавливать без отдельного безопасного deployment window.
+
+### DNS / внешний vantage / staging
+
+На host и независимом внешнем узле после получения реального FQDN:
+
+```sh
+: "${PUBLIC_HOST:?}"
+dig "$PUBLIC_HOST" A +noall +answer
+dig "$PUBLIC_HOST" AAAA +noall +answer
+dig "$PUBLIC_HOST" CAA +noall +answer
+curl -4 --connect-timeout 5 --max-time 15 -I "http://$PUBLIC_HOST/"
+curl -4 --connect-timeout 5 --max-time 15 -I "https://$PUBLIC_HOST/"
+```
+
+Сверить каждый A/AAAA с выбранными endpoints, TTL и ответы authoritative NS/независимых recursive resolvers; CAA включая наследуемую policy не должна запрещать выбранную CA. При AAAA повторить curl с `-6`, проверить nginx IPv6 listener и весь IPv6 route/firewall/NAT: текущий template не содержит явного `[::]` listen, публикация порта сама не доказывает IPv6. Broken AAAA — FAIL/operator action, не игнорировать. Внешний доступ через каждый опубликованный endpoint проверять отдельно. Если нет независимого внешнего vantage, PUBLIC_REACHABILITY остаётся INCONCLUSIVE.
+
+После bootstrap и старта ingress положить безопасный случайный token0644 только в challenge directory; внешний GET должен вернуть exact bytes200 без redirect/HSTS, затем удалить только этот token. Остальной HTTP должен вернуть308 на canonical HTTPS; HTTP без HSTS. HTTPS /api/v1/health/ready и /api/v1/metrics должны вернуть404, HTTPS / — здоровый frontend. Не использовать auth/metrics tokens для публичной проверки.
+
+Для первого bootstrap с остановленным только HomeCloud ingress и свободным80 сначала выполнить документированный standalone issuance с `--staging` и **отдельным** ACME_STAGING_DIR0700 вместо ACME_DIR. Staging cert не устанавливать в TLS_CERT_DIR. Затем production issuance/install выполнить по первой секции только после DNS/reachability gates. Если уже есть valid ingress, standalone не запускать: staging/dry-run через webroot без остановки TLS.
+
+После наличия production lineage выполнить отдельно Certbot dry-run:
+
+```sh
+: "${PUBLIC_HOST:?}" "${ACME_DIR:?}" "${ACME_WEBROOT_DIR:?}"
+certbot renew --dry-run --non-interactive --cert-name "$PUBLIC_HOST" \
+  --webroot -w "$ACME_WEBROOT_DIR" --config-dir "$ACME_DIR" \
+  --work-dir "$ACME_DIR/work" --logs-dir "$ACME_DIR/logs"
+```
+
+Это staging validation, не production rotation; deployment hooks не добавлять. Lifecycle CLI не принимает --dry-run/--staging. Actual renew/install по командам выше использует production trust store, без --ca-file staging/local CA. Certbot/account logs хранить защищённо; в evidence только sanitized exit/results и public certificate metadata.
+
+### Native bind / reload / renewal acceptance
+
+Для actual ingress получить ID из правильных explicit Compose project/config/external env по release runbook; не угадывать homecloud-ingress-1. Выполнить nginx -t. Для сохранённого предыдущего и нового **валидного доверенного** поколения recorded expected fingerprint/SAN/expiry. Safe install нового candidate с --container и прямым --probe-host/port должен показать switched readlink и новую served fingerprint; previous valid generation установить тем же guarded install для rollback, затем вернуть новое. Candidate paths вне repo, ключ0600. Если второго валидного candidate нет, fingerprint-change/rollback остаются INCONCLUSIVE; dry-run их не доказывает.
+
+Внешняя проверка без insecure bypass:
+
+```sh
+openssl s_client -connect "$PUBLIC_HOST:443" -servername "$PUBLIC_HOST" \
+  -verify_hostname "$PUBLIC_HOST" -verify_return_error </dev/null
+openssl x509 -in "$TLS_CERT_DIR/current/fullchain.pem" -noout \
+  -fingerprint -sha256 -issuer -dates -ext subjectAltName
+python3 /opt/homecloud/scripts/certificate-lifecycle.py check \
+  --state-dir "$TLS_CERT_DIR" --hostname "$PUBLIC_HOST"
+```
+
+Сверить served leaf fingerprint с диском, real public CA chain/trust/SAN, TLS1.2/1.3 и действующие nginx cipher defaults; проверка старых протоколов должна провалиться. Runtime fingerprint probe сам использует unverified TLS, поэтому не заменяет внешний trust/hostname check. Failure drills missing/unreadable/mismatched candidate, invalid nginx config и simulated CA failure сначала выполнять на disposable copy target; не повреждать active config публичного ingress. Проверить nonzero, unchanged current/served cert и восстановление. Реальную CA ошибку не провоцировать ценой rate limits/доступности.
+
+Existing cert services проверить systemd-analyze verify по /opt/homecloud/ops/systemd; focused suites и scheduler --validate повторить на target. Manual cert service execution разрешён только после secure scheduler config/настоящего alert endpoint readiness; запуск timer может немедленно выполнить Persistent job. Target timer/production alert delivery сейчас SKIPPED и не квалифицированы.
+
+### Свежие bounded gates / пределы
+
+Local cert suite10/10; scheduler22 tests,1 SKIP (age integration: local age отсутствует); ingress hostname, Python AST3, ingress sh syntax и isolated fake-input quiet Compose5.1.3 PASS. Disposable runtime raw `/private/tmp/hc-cert-runtime-b35yp793/result.json`: native daemon-side bind,18 healthy requests during reload,45→90days, new served fingerprint, idempotency, mismatch/config/simulated renewal failure retention PASS; isolated resources/private material cleaned. Fixture — self-signed local cert и simulated Certbot, не actual target/CA. OS может удалить temporary evidence, harness воспроизводим. Native target/systemd checks SKIPPED (нет target; macOS не systemd host). App sources не менялись, full app suites не повторялись.
+
+REAL_LINUX_TARGET: NOT_AVAILABLE; PUBLIC_DNS: NOT_AVAILABLE; PUBLIC_REACHABILITY_80_443: INCONCLUSIVE; PUBLIC_CA_ISSUANCE: SKIPPED; NATIVE_CERT_BIND_RELOAD: SKIPPED (production target); REAL_RENEWAL_PATH: SKIPPED. Следующий шаг — только предоставить минимальные inputs; следующий blocker не запускается.
+
+INDEPENDENT_REVIEW: APPROVE — reviewer не автор; final docs diff, raw runtime JSON, focused10/10 log, discovery и действующие source/mount/nginx/systemd contracts проверены. Подтверждённых дефектов нет, correction cycle не потребовался; production blocker OPEN и общий NOT_READY сохранены. git diff --check PASS.
