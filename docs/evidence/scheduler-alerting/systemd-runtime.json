@@ -1,0 +1,163 @@
+{
+  "boundary": "DISPOSABLE_LINUX_SYSTEMD_NOT_PRODUCTION_HOST",
+  "systemd_version": "systemd 252 (252.39-1~deb12u2)",
+  "install": {
+    "exit_code": 0,
+    "stdout": "{\"event\": \"scheduler_config_valid\"}\n",
+    "stderr": ""
+  },
+  "timers": {
+    "exit_code": 0,
+    "stdout": "NEXT                        LEFT         LAST                        PASSED   UNIT                       ACTIVATES\nThu 2026-10-01 10:00:00 UTC 6s left      Thu 2026-10-01 09:53:50 UTC 6min ago homecloud-freshness.timer  homecloud-freshness.service\nThu 2026-10-01 12:00:00 UTC 2h 0min left Thu 2026-10-01 09:53:50 UTC 6min ago homecloud-cert-renew.timer homecloud-cert-renew.service\nFri 2026-10-02 02:00:00 UTC 16h left     Thu 2026-10-01 09:53:52 UTC 6min ago homecloud-backup.timer     homecloud-backup.service\nFri 2026-10-02 06:00:00 UTC 20h left     Thu 2026-10-01 09:53:50 UTC 6min ago homecloud-cert-check.timer homecloud-cert-check.service\n\n4 timers listed.\n",
+    "stderr": ""
+  },
+  "persistent": {
+    "exit_code": 0,
+    "stdout": "TimersCalendar={ OnCalendar=*-*-* 02:00:00 ; next_elapse=Fri 2026-10-02 02:00:00 UTC }\nPersistent=yes\n",
+    "stderr": ""
+  },
+  "manual_failure": {
+    "exit_code": 1,
+    "stdout": "",
+    "stderr": "Job for homecloud-backup.service failed because the control process exited with error code.\nSee \"systemctl status homecloud-backup.service\" and \"journalctl -xeu homecloud-backup.service\" for details.\n"
+  },
+  "failed_result": {
+    "exit_code": 0,
+    "stdout": "Result=exit-code\nExecMainStartTimestamp=Thu 2026-10-01 09:59:54 UTC\nExecMainStatus=14\n",
+    "stderr": ""
+  },
+  "dedup": true,
+  "manual_success": {
+    "exit_code": 0,
+    "stdout": "Result=success\nExecMainStartTimestamp=Thu 2026-10-01 09:59:54 UTC\nExecMainStatus=0\n",
+    "stderr": ""
+  },
+  "accelerated_timer": {
+    "before": "Result=success\nExecMainStartTimestamp=Thu 2026-10-01 09:59:54 UTC\nExecMainStatus=0\n",
+    "after": "Result=success\nExecMainStartTimestamp=Thu 2026-10-01 09:59:56 UTC\nExecMainStatus=0\n",
+    "properties": {
+      "exit_code": 0,
+      "stdout": "LastTriggerUSec=Thu 2026-10-01 09:59:56 UTC\n",
+      "stderr": ""
+    }
+  },
+  "concurrent_block": {
+    "exit_code": 0,
+    "stdout": "Result=exit-code\nExecMainStartTimestamp=Thu 2026-10-01 09:59:56 UTC\nExecMainStatus=75\n",
+    "stderr": ""
+  },
+  "delivery_failure": {
+    "exit_code": 0,
+    "stdout": "Result=exit-code\nExecMainStartTimestamp=Thu 2026-10-01 09:59:56 UTC\nExecMainStatus=70\n",
+    "stderr": ""
+  },
+  "journal": {
+    "exit_code": 0,
+    "stdout": "Starting homecloud-backup.service - HomeCloud backup...\n{\"attempt\": 1, \"event\": \"alert_delivered\", \"event_type\": \"failure\", \"run_id\": \"4af59d4581f44311ad4d4c3621634b2b\"}\n{\"event\": \"job_completed\", \"exit_code\": 14, \"run_id\": \"4af59d4581f44311ad4d4c3621634b2b\", \"service\": \"backup\"}\nhomecloud-backup.service: Main process exited, code=exited, status=14/n/a\nhomecloud-backup.service: Failed with result 'exit-code'.\nFailed to start homecloud-backup.service - HomeCloud backup.\nStarting homecloud-backup.service - HomeCloud backup...\n{\"event\": \"alert_suppressed\", \"run_id\": \"a7e4d364ba434c66a7f556d8facece1a\", \"service\": \"backup\"}\n{\"event\": \"job_completed\", \"exit_code\": 14, \"run_id\": \"a7e4d364ba434c66a7f556d8facece1a\", \"service\": \"backup\"}\nhomecloud-backup.service: Main process exited, code=exited, status=14/n/a\nhomecloud-backup.service: Failed with result 'exit-code'.\nFailed to start homecloud-backup.service - HomeCloud backup.\nStarting homecloud-backup.service - HomeCloud backup...\n{\"attempt\": 1, \"event\": \"alert_delivered\", \"event_type\": \"recovery\", \"run_id\": \"7b053e2eb55346cb8b7d9a1627556231\"}\n{\"event\": \"job_completed\", \"exit_code\": 0, \"run_id\": \"7b053e2eb55346cb8b7d9a1627556231\", \"service\": \"backup\"}\nhomecloud-backup.service: Deactivated successfully.\nFinished homecloud-backup.service - HomeCloud backup.\nStarting homecloud-backup.service - HomeCloud backup...\n{\"event\": \"job_busy\"}\nhomecloud-backup.service: Main process exited, code=exited, status=75/TEMPFAIL\nhomecloud-backup.service: Failed with result 'exit-code'.\nFailed to start homecloud-backup.service - HomeCloud backup.\nStarting homecloud-backup.service - HomeCloud backup...\n{\"attempt\": 1, \"event\": \"alert_attempt_failed\", \"run_id\": \"05eced42b7794686b157ccba7122db24\"}\n{\"attempt\": 2, \"event\": \"alert_attempt_failed\", \"run_id\": \"05eced42b7794686b157ccba7122db24\"}\n{\"attempt\": 3, \"event\": \"alert_attempt_failed\", \"run_id\": \"05eced42b7794686b157ccba7122db24\"}\n{\"event\": \"scheduled_operation_failed\", \"reason\": \"configuration_state_job_or_delivery_failure\"}\nhomecloud-backup.service: Main process exited, code=exited, status=70/SOFTWARE\nhomecloud-backup.service: Failed with result 'exit-code'.\nFailed to start homecloud-backup.service - HomeCloud backup.\nStarting homecloud-backup.service - HomeCloud backup...\n{\"attempt\": 1, \"event\": \"alert_delivered\", \"event_type\": \"failure\", \"run_id\": \"34e85e6f64da4dfbbd8a29854ce8d4bc\"}\n{\"event\": \"job_completed\", \"exit_code\": 14, \"run_id\": \"34e85e6f64da4dfbbd8a29854ce8d4bc\", \"service\": \"backup\"}\nhomecloud-backup.service: Main process exited, code=exited, status=14/n/a\nhomecloud-backup.service: Failed with result 'exit-code'.\nFailed to start homecloud-backup.service - HomeCloud backup.\nStarting homecloud-backup.service - HomeCloud backup...\n{\"event\": \"alert_suppressed\", \"run_id\": \"607452f35d45444fbf350b9776a1b6c9\", \"service\": \"backup\"}\n{\"event\": \"job_completed\", \"exit_code\": 14, \"run_id\": \"607452f35d45444fbf350b9776a1b6c9\", \"service\": \"backup\"}\nhomecloud-backup.service: Main process exited, code=exited, status=14/n/a\nhomecloud-backup.service: Failed with result 'exit-code'.\nFailed to start homecloud-backup.service - HomeCloud backup.\nStarting homecloud-backup.service - HomeCloud backup...\n{\"attempt\": 1, \"event\": \"alert_delivered\", \"event_type\": \"recovery\", \"run_id\": \"3fb321fb9a11403a943f812ce9109ccd\"}\n{\"event\": \"job_completed\", \"exit_code\": 0, \"run_id\": \"3fb321fb9a11403a943f812ce9109ccd\", \"service\": \"backup\"}\nhomecloud-backup.service: Deactivated successfully.\nFinished homecloud-backup.service - HomeCloud backup.\nStarting homecloud-backup.service - HomeCloud backup...\n{\"attempt\": 1, \"event\": \"alert_delivered\", \"event_type\": \"failure\", \"run_id\": \"5f3d8731687043df9d2d499c5a7841b1\"}\n{\"event\": \"job_completed\", \"exit_code\": 14, \"run_id\": \"5f3d8731687043df9d2d499c5a7841b1\", \"service\": \"backup\"}\nhomecloud-backup.service: Main process exited, code=exited, status=14/n/a\nhomecloud-backup.service: Failed with result 'exit-code'.\nFailed to start homecloud-backup.service - HomeCloud backup.\nStarting homecloud-backup.service - HomeCloud backup...\n{\"event\": \"alert_suppressed\", \"run_id\": \"81347848ac6d4f589288a4d4c18066c3\", \"service\": \"backup\"}\n{\"event\": \"job_completed\", \"exit_code\": 14, \"run_id\": \"81347848ac6d4f589288a4d4c18066c3\", \"service\": \"backup\"}\nhomecloud-backup.service: Main process exited, code=exited, status=14/n/a\nhomecloud-backup.service: Failed with result 'exit-code'.\nFailed to start homecloud-backup.service - HomeCloud backup.\nStarting homecloud-backup.service - HomeCloud backup...\n{\"attempt\": 1, \"event\": \"alert_delivered\", \"event_type\": \"recovery\", \"run_id\": \"a3fb5d2a468f42a2af083f5347fee391\"}\n{\"event\": \"job_completed\", \"exit_code\": 0, \"run_id\": \"a3fb5d2a468f42a2af083f5347fee391\", \"service\": \"backup\"}\nhomecloud-backup.service: Deactivated successfully.\nFinished homecloud-backup.service - HomeCloud backup.\nStarting homecloud-backup.service - HomeCloud backup...\n{\"event\": \"job_busy\"}\nhomecloud-backup.service: Main process exited, code=exited, status=75/TEMPFAIL\nhomecloud-backup.service: Failed with result 'exit-code'.\nFailed to start homecloud-backup.service - HomeCloud backup.\nStarting homecloud-backup.service - HomeCloud backup...\n{\"attempt\": 1, \"event\": \"alert_attempt_failed\", \"run_id\": \"a351b314dd9242549a98fd96cb615f63\"}\n{\"attempt\": 2, \"event\": \"alert_attempt_failed\", \"run_id\": \"a351b314dd9242549a98fd96cb615f63\"}\n{\"attempt\": 3, \"event\": \"alert_attempt_failed\", \"run_id\": \"a351b314dd9242549a98fd96cb615f63\"}\n{\"event\": \"scheduled_operation_failed\", \"reason\": \"configuration_state_job_or_delivery_failure\"}\nhomecloud-backup.service: Main process exited, code=exited, status=70/SOFTWARE\nhomecloud-backup.service: Failed with result 'exit-code'.\nFailed to start homecloud-backup.service - HomeCloud backup.\n",
+    "stderr": ""
+  },
+  "receiver_requests": [
+    {
+      "body": {
+        "event_type": "failure",
+        "host": "homecloud",
+        "reason": "backup_replication_failed",
+        "run_id": "5f3d8731687043df9d2d499c5a7841b1",
+        "service": "backup",
+        "severity": "critical",
+        "timestamp": "2026-10-01T09:59:54.022984+00:00"
+      },
+      "headers": {
+        "Accept-Encoding": "identity",
+        "Content-Length": "225",
+        "Host": "127.0.0.1:39355",
+        "User-Agent": "Python-urllib/3.11",
+        "Content-Type": "application/json",
+        "Connection": "close"
+      },
+      "status": 200
+    },
+    {
+      "body": {
+        "event_type": "recovery",
+        "host": "homecloud",
+        "reason": "ok",
+        "run_id": "a3fb5d2a468f42a2af083f5347fee391",
+        "service": "backup",
+        "severity": "info",
+        "timestamp": "2026-10-01T09:59:54.086070+00:00"
+      },
+      "headers": {
+        "Accept-Encoding": "identity",
+        "Content-Length": "199",
+        "Host": "127.0.0.1:39355",
+        "User-Agent": "Python-urllib/3.11",
+        "Content-Type": "application/json",
+        "Connection": "close"
+      },
+      "status": 200
+    },
+    {
+      "body": {
+        "event_type": "failure",
+        "host": "homecloud",
+        "reason": "backup_replication_failed",
+        "run_id": "a351b314dd9242549a98fd96cb615f63",
+        "service": "backup",
+        "severity": "critical",
+        "timestamp": "2026-10-01T09:59:56.372513+00:00"
+      },
+      "headers": {
+        "Accept-Encoding": "identity",
+        "Content-Length": "225",
+        "Host": "127.0.0.1:39355",
+        "User-Agent": "Python-urllib/3.11",
+        "Content-Type": "application/json",
+        "Connection": "close"
+      },
+      "status": 500
+    },
+    {
+      "body": {
+        "event_type": "failure",
+        "host": "homecloud",
+        "reason": "backup_replication_failed",
+        "run_id": "a351b314dd9242549a98fd96cb615f63",
+        "service": "backup",
+        "severity": "critical",
+        "timestamp": "2026-10-01T09:59:56.372513+00:00"
+      },
+      "headers": {
+        "Accept-Encoding": "identity",
+        "Content-Length": "225",
+        "Host": "127.0.0.1:39355",
+        "User-Agent": "Python-urllib/3.11",
+        "Content-Type": "application/json",
+        "Connection": "close"
+      },
+      "status": 500
+    },
+    {
+      "body": {
+        "event_type": "failure",
+        "host": "homecloud",
+        "reason": "backup_replication_failed",
+        "run_id": "a351b314dd9242549a98fd96cb615f63",
+        "service": "backup",
+        "severity": "critical",
+        "timestamp": "2026-10-01T09:59:56.372513+00:00"
+      },
+      "headers": {
+        "Accept-Encoding": "identity",
+        "Content-Length": "225",
+        "Host": "127.0.0.1:39355",
+        "User-Agent": "Python-urllib/3.11",
+        "Content-Type": "application/json",
+        "Connection": "close"
+      },
+      "status": 500
+    }
+  ],
+  "reboot_boundary": "Persistent=yes inspected; real host reboot/missed-run replay NOT_QUALIFIED",
+  "SYSTEMD_RUNTIME": "PASS"
+}

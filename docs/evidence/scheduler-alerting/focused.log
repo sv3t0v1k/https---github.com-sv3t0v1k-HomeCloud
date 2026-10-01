@@ -1,0 +1,9 @@
+..{"attempt": 1, "event": "alert_delivered", "event_type": "failure", "run_id": "5cb28e045f244026a4c5684cb386a49a"}
+{"event": "job_completed", "exit_code": 3, "run_id": "5cb28e045f244026a4c5684cb386a49a", "service": "cert-renew"}
+{"attempt": 1, "event": "alert_delivered", "event_type": "recovery", "run_id": "c81f6c7f99864ef6bd96984d29ed0fa9"}
+{"event": "job_completed", "exit_code": 0, "run_id": "c81f6c7f99864ef6bd96984d29ed0fa9", "service": "cert-renew"}
+....................
+----------------------------------------------------------------------
+Ran 22 tests in 3.362s
+
+OK

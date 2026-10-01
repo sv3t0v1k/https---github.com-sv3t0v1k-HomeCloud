@@ -1,0 +1,60 @@
+
+=== Generating test fixtures ===
+Created 11 test fixture directories in /tmp/homecloud-restore-fixtures-21218:
+  corrupted-archive         -> /tmp/homecloud-restore-fixtures-21218/corrupted-archive
+  corrupted-dump            -> /tmp/homecloud-restore-fixtures-21218/corrupted-dump
+  empty-storage             -> /tmp/homecloud-restore-fixtures-21218/empty-storage
+  file-count-mismatch       -> /tmp/homecloud-restore-fixtures-21218/file-count-mismatch
+  invalid-checksum          -> /tmp/homecloud-restore-fixtures-21218/invalid-checksum
+  malformed-meta            -> /tmp/homecloud-restore-fixtures-21218/malformed-meta
+  malicious-archive         -> /tmp/homecloud-restore-fixtures-21218/malicious-archive
+  missing-checksum          -> /tmp/homecloud-restore-fixtures-21218/missing-checksum
+  partial-dump              -> /tmp/homecloud-restore-fixtures-21218/partial-dump
+  unsupported-version       -> /tmp/homecloud-restore-fixtures-21218/unsupported-version
+  valid                     -> /tmp/homecloud-restore-fixtures-21218/valid
+
+=== Phase A Validation Tests ===
+
+--- Test: valid backup ---
+  PASS: valid backup
+--- Test: legacy backup without .meta.sha256 ---
+  PASS: legacy backup without .meta.sha256 (exit=1, msg matched)
+--- Test: tampered .meta.sha256 ---
+  PASS: tampered .meta.sha256 (exit=1, msg not matched but exit non-zero)
+--- Test: sidecar references wrong metadata ---
+  PASS: sidecar references wrong metadata (exit=1, msg matched)
+--- Test: malformed .meta JSON ---
+  PASS: malformed .meta JSON (exit=1, msg matched)
+--- Test: missing checksum fields ---
+  PASS: missing checksum fields (exit=1, msg matched)
+--- Test: invalid checksum value ---
+  PASS: invalid checksum value (exit=1, msg matched)
+--- Test: unsafe artifact permissions ---
+  PASS: unsafe artifact permissions (exit=1, msg matched)
+--- Test: unsupported format version ---
+  PASS: unsupported format version (exit=1, msg matched)
+--- Test: corrupted storage archive ---
+  PASS: corrupted storage archive (exit=1, msg matched)
+--- Test: corrupted DB dump (gzip) ---
+  PASS: corrupted DB dump (gzip) (exit=1, msg matched)
+--- Test: malicious archive ---
+  PASS: malicious archive (exit=1, msg matched)
+--- Test: empty storage backup (valid) ---
+  PASS: empty storage backup (valid)
+--- Test: file count mismatch ---
+  PASS: file count mismatch (exit=1, msg matched)
+--- Test: missing backup file ---
+  PASS: missing backup file — fails as expected (exit=1)
+  SKIP: integration tests (skipped via --skip-integration)
+
+=== Phase A Summary ===
+  Passed: 15
+  Failed: 0
+  Skipped: 1
+
+========================================
+=== Final Summary ===
+  Passed:  15
+  Failed:  0
+  Skipped: 1
+========================================

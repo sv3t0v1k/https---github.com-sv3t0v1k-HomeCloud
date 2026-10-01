@@ -1,0 +1,787 @@
+{
+  "boundary": "CONTROLLED_TEST_RECEIVER_NOT_PRODUCTION_HUMAN",
+  "scenarios": [
+    {
+      "scenario": "test_bounded_stdout",
+      "requests": []
+    },
+    {
+      "scenario": "test_cert_real_expiry_mapping_and_recovery",
+      "requests": [
+        {
+          "body": {
+            "event_type": "failure",
+            "host": "homecloud",
+            "reason": "expiry_warning",
+            "run_id": "dae2414061d3473097e4b0cbaafc246c",
+            "service": "cert-check",
+            "severity": "warning",
+            "timestamp": "2026-10-01T10:01:28.804909+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "217",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 200
+        },
+        {
+          "body": {
+            "event_type": "failure",
+            "host": "homecloud",
+            "reason": "expiry_critical",
+            "run_id": "35f0ac9374024711ab71fa4e1b6d242f",
+            "service": "cert-check",
+            "severity": "critical",
+            "timestamp": "2026-10-01T10:01:28.913617+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "219",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 200
+        },
+        {
+          "body": {
+            "event_type": "recovery",
+            "host": "homecloud",
+            "reason": "ok",
+            "run_id": "e3cc68954b0e4c81aecd4122f621781d",
+            "service": "cert-check",
+            "severity": "info",
+            "timestamp": "2026-10-01T10:01:29.018191+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "203",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 200
+        },
+        {
+          "body": {
+            "event_type": "failure",
+            "host": "homecloud",
+            "reason": "certificate_failed",
+            "run_id": "7a164e7c5bad40908b55baab7ad10123",
+            "service": "cert-check",
+            "severity": "critical",
+            "timestamp": "2026-10-01T10:01:29.131052+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "222",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 200
+        },
+        {
+          "body": {
+            "event_type": "failure",
+            "host": "homecloud",
+            "reason": "renewal_failed",
+            "run_id": "229536dd37f84814bbe3542fb68fcaf4",
+            "service": "cert-renew",
+            "severity": "critical",
+            "timestamp": "2026-10-01T10:01:29.183363+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "218",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "scenario": "test_cert_renew_success_and_recovery_contract",
+      "requests": [
+        {
+          "body": {
+            "event_type": "failure",
+            "host": "homecloud",
+            "reason": "renewal_failed",
+            "run_id": "5cb28e045f244026a4c5684cb386a49a",
+            "service": "cert-renew",
+            "severity": "critical",
+            "timestamp": "2026-10-01T10:01:29.215837+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "218",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 200
+        },
+        {
+          "body": {
+            "event_type": "recovery",
+            "host": "homecloud",
+            "reason": "ok",
+            "run_id": "c81f6c7f99864ef6bd96984d29ed0fa9",
+            "service": "cert-renew",
+            "severity": "info",
+            "timestamp": "2026-10-01T10:01:29.217813+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "203",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "scenario": "test_concurrency",
+      "requests": [
+        {
+          "body": {
+            "event_type": "failure",
+            "host": "homecloud",
+            "reason": "backup_replication_failed",
+            "run_id": "98217d5c5a484c64a2c300b6e803fb01",
+            "service": "backup",
+            "severity": "critical",
+            "timestamp": "2026-10-01T10:01:29.239498+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "225",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "scenario": "test_corrupt_state_machine_visible",
+      "requests": []
+    },
+    {
+      "scenario": "test_existing_encrypted_backup_wiring",
+      "requests": [
+        {
+          "body": {
+            "event_type": "failure",
+            "host": "homecloud",
+            "reason": "backup_replication_failed",
+            "run_id": "4355f41aeb9042ddaa5f4acbcfc6c639",
+            "service": "backup",
+            "severity": "critical",
+            "timestamp": "2026-10-01T10:01:30.377440+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "225",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 200
+        },
+        {
+          "body": {
+            "event_type": "recovery",
+            "host": "homecloud",
+            "reason": "ok",
+            "run_id": "0aa727a8b30147a99ecbd8fb01a45bc4",
+            "service": "backup",
+            "severity": "info",
+            "timestamp": "2026-10-01T10:01:30.443352+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "199",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "scenario": "test_failure_dedup_repeat_recovery",
+      "requests": [
+        {
+          "body": {
+            "event_type": "failure",
+            "host": "homecloud",
+            "reason": "backup_replication_failed",
+            "run_id": "e58d80b65b1d4703a2e00a3e2b1e57fb",
+            "service": "backup",
+            "severity": "critical",
+            "timestamp": "2026-10-01T10:01:30.510314+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "225",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 200
+        },
+        {
+          "body": {
+            "event_type": "repeat",
+            "host": "homecloud",
+            "reason": "backup_replication_failed",
+            "run_id": "2ab2a83ecf484d6696e5c7b1e2669af3",
+            "service": "backup",
+            "severity": "critical",
+            "timestamp": "2026-10-01T10:01:30.561552+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "224",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 200
+        },
+        {
+          "body": {
+            "event_type": "recovery",
+            "host": "homecloud",
+            "reason": "ok",
+            "run_id": "2be8536573c1477ba66964a21849c29f",
+            "service": "backup",
+            "severity": "info",
+            "timestamp": "2026-10-01T10:01:30.590389+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "199",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "scenario": "test_false_offsite_marker_stale",
+      "requests": [
+        {
+          "body": {
+            "event_type": "failure",
+            "host": "homecloud",
+            "reason": "stale",
+            "run_id": "5a1fa33540574cb6a85917a01b246659",
+            "service": "backup-stale",
+            "severity": "critical",
+            "timestamp": "2026-10-01T10:01:30.667771+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "211",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 200
+        },
+        {
+          "body": {
+            "event_type": "failure",
+            "host": "homecloud",
+            "reason": "stale",
+            "run_id": "5a1fa33540574cb6a85917a01b246659",
+            "service": "cert-check-stale",
+            "severity": "critical",
+            "timestamp": "2026-10-01T10:01:30.667771+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "215",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "scenario": "test_insecure_nonloopback_rejected",
+      "requests": []
+    },
+    {
+      "scenario": "test_job_timeout",
+      "requests": [
+        {
+          "body": {
+            "event_type": "failure",
+            "host": "homecloud",
+            "reason": "timeout",
+            "run_id": "7f7c44fb07ee4f72b8b04c09cd944ac0",
+            "service": "backup",
+            "severity": "critical",
+            "timestamp": "2026-10-01T10:01:30.695768+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "207",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "scenario": "test_marker_semantics_required",
+      "requests": [
+        {
+          "body": {
+            "event_type": "failure",
+            "host": "homecloud",
+            "reason": "backup_failed",
+            "run_id": "fcc592a912734a3ca549eab1fb1110eb",
+            "service": "backup",
+            "severity": "critical",
+            "timestamp": "2026-10-01T10:01:30.783760+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "213",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "scenario": "test_missing_config_and_permissions",
+      "requests": []
+    },
+    {
+      "scenario": "test_receiver_500_retry_not_deduplicated",
+      "requests": [
+        {
+          "body": {
+            "event_type": "failure",
+            "host": "homecloud",
+            "reason": "backup_replication_failed",
+            "run_id": "8e56a58020974634a98c913109b61335",
+            "service": "backup",
+            "severity": "critical",
+            "timestamp": "2026-10-01T10:01:30.843599+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "225",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 500
+        },
+        {
+          "body": {
+            "event_type": "failure",
+            "host": "homecloud",
+            "reason": "backup_replication_failed",
+            "run_id": "8e56a58020974634a98c913109b61335",
+            "service": "backup",
+            "severity": "critical",
+            "timestamp": "2026-10-01T10:01:30.843599+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "225",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 500
+        },
+        {
+          "body": {
+            "event_type": "failure",
+            "host": "homecloud",
+            "reason": "backup_replication_failed",
+            "run_id": "8e56a58020974634a98c913109b61335",
+            "service": "backup",
+            "severity": "critical",
+            "timestamp": "2026-10-01T10:01:30.843599+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "225",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 500
+        },
+        {
+          "body": {
+            "event_type": "failure",
+            "host": "homecloud",
+            "reason": "backup_replication_failed",
+            "run_id": "58ecd0d1e4b14b299ba10db6fa25d98a",
+            "service": "backup",
+            "severity": "critical",
+            "timestamp": "2026-10-01T10:01:30.872816+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "225",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "scenario": "test_receiver_timeout",
+      "requests": [
+        {
+          "body": {
+            "event_type": "failure",
+            "host": "homecloud",
+            "reason": "backup_replication_failed",
+            "run_id": "638dc2b025db4cbd9dbbeb3dbcd4b806",
+            "service": "backup",
+            "severity": "critical",
+            "timestamp": "2026-10-01T10:01:30.901676+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "225",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 200
+        },
+        {
+          "body": {
+            "event_type": "failure",
+            "host": "homecloud",
+            "reason": "backup_replication_failed",
+            "run_id": "638dc2b025db4cbd9dbbeb3dbcd4b806",
+            "service": "backup",
+            "severity": "critical",
+            "timestamp": "2026-10-01T10:01:30.901676+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "225",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 200
+        },
+        {
+          "body": {
+            "event_type": "failure",
+            "host": "homecloud",
+            "reason": "backup_replication_failed",
+            "run_id": "638dc2b025db4cbd9dbbeb3dbcd4b806",
+            "service": "backup",
+            "severity": "critical",
+            "timestamp": "2026-10-01T10:01:30.901676+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "225",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "scenario": "test_redirect_rejected",
+      "requests": [
+        {
+          "body": {
+            "event_type": "failure",
+            "host": "homecloud",
+            "reason": "backup_replication_failed",
+            "run_id": "9dd88469b9ab41dcbebd7869814664e6",
+            "service": "backup",
+            "severity": "critical",
+            "timestamp": "2026-10-01T10:01:31.264608+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "225",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 302
+        },
+        {
+          "body": {
+            "event_type": "failure",
+            "host": "homecloud",
+            "reason": "backup_replication_failed",
+            "run_id": "9dd88469b9ab41dcbebd7869814664e6",
+            "service": "backup",
+            "severity": "critical",
+            "timestamp": "2026-10-01T10:01:31.264608+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "225",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 302
+        },
+        {
+          "body": {
+            "event_type": "failure",
+            "host": "homecloud",
+            "reason": "backup_replication_failed",
+            "run_id": "9dd88469b9ab41dcbebd7869814664e6",
+            "service": "backup",
+            "severity": "critical",
+            "timestamp": "2026-10-01T10:01:31.264608+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "225",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 302
+        }
+      ]
+    },
+    {
+      "scenario": "test_retention_warning_preserves_success",
+      "requests": [
+        {
+          "body": {
+            "event_type": "failure",
+            "host": "homecloud",
+            "reason": "retention_warning",
+            "run_id": "d9685d36572348e6bb7521767509d309",
+            "service": "backup-retention",
+            "severity": "warning",
+            "timestamp": "2026-10-01T10:01:31.298912+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "226",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 200
+        },
+        {
+          "body": {
+            "event_type": "recovery",
+            "host": "homecloud",
+            "reason": "ok",
+            "run_id": "883d33cda65c4058a75223bda82eccd0",
+            "service": "backup-retention",
+            "severity": "info",
+            "timestamp": "2026-10-01T10:01:31.350542+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "209",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "scenario": "test_stale_and_recovery",
+      "requests": [
+        {
+          "body": {
+            "event_type": "failure",
+            "host": "homecloud",
+            "reason": "stale",
+            "run_id": "8655c9279ec64343a41a3718ba9c767d",
+            "service": "backup-stale",
+            "severity": "critical",
+            "timestamp": "2026-10-01T10:01:31.388613+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "211",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 200
+        },
+        {
+          "body": {
+            "event_type": "failure",
+            "host": "homecloud",
+            "reason": "stale",
+            "run_id": "8655c9279ec64343a41a3718ba9c767d",
+            "service": "cert-check-stale",
+            "severity": "critical",
+            "timestamp": "2026-10-01T10:01:31.388613+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "215",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 200
+        },
+        {
+          "body": {
+            "event_type": "recovery",
+            "host": "homecloud",
+            "reason": "ok",
+            "run_id": "6458527fb43742a7b83d05b7091cbaf2",
+            "service": "backup-stale",
+            "severity": "info",
+            "timestamp": "2026-10-01T10:01:31.415546+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "205",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 200
+        },
+        {
+          "body": {
+            "event_type": "recovery",
+            "host": "homecloud",
+            "reason": "ok",
+            "run_id": "6458527fb43742a7b83d05b7091cbaf2",
+            "service": "cert-check-stale",
+            "severity": "info",
+            "timestamp": "2026-10-01T10:01:31.415546+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "209",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "scenario": "test_success_signal_required",
+      "requests": [
+        {
+          "body": {
+            "event_type": "failure",
+            "host": "homecloud",
+            "reason": "backup_failed",
+            "run_id": "a8d457b3631e4858b4cc7ad89407cc7c",
+            "service": "backup",
+            "severity": "critical",
+            "timestamp": "2026-10-01T10:01:31.442405+00:00"
+          },
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Content-Length": "213",
+            "Host": "127.0.0.1:40133",
+            "User-Agent": "Python-urllib/3.11",
+            "Content-Type": "application/json",
+            "Connection": "close"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "scenario": "test_unavailable_receiver",
+      "requests": []
+    },
+    {
+      "scenario": "test_units",
+      "requests": []
+    },
+    {
+      "scenario": "test_unknown_config_and_external_only",
+      "requests": []
+    },
+    {
+      "scenario": "test_validate_does_not_require_heartbeat",
+      "requests": []
+    }
+  ]
+}

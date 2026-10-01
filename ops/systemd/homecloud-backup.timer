@@ -1,0 +1,11 @@
+[Unit]
+Description=HomeCloud backup schedule
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+AccuracySec=1min
+Unit=homecloud-backup.service
+
+[Install]
+WantedBy=timers.target

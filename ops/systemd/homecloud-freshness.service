@@ -1,0 +1,15 @@
+[Unit]
+Description=HomeCloud freshness
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+WorkingDirectory=/
+ExecStart=/usr/bin/python3 /opt/homecloud/scripts/scheduled-operations.py /etc/homecloud/scheduler.json freshness
+TimeoutStartSec=1200
+KillMode=control-group
+StandardOutput=journal
+StandardError=journal

@@ -67,3 +67,8 @@ HTTP01 challenge exception не содержит HSTS; HTTPS policy сохран
 ## Privacy proxy logs и финальный operator gate
 
 Ingress/frontend access logs содержат только status, bytes и duration, без URI/query/headers/share tokens. Raw nginx error logs подавлены, поскольку nginx может включать request/upstream URI. Диагностика proxy: `nginx -t`, aggregate statuses/time, private health и безопасные backend JSON logs с request ID; отсутствие raw proxy errors ограничивает диагностику и должно учитываться оператором. Не передавать secrets в request ID. [Final acceptance/checklist](./final-production-acceptance.md) фиксирует обязательные scheduler/alert/offsite/public CA и release blockers; скрипты и exit codes сами по себе не являются alert delivery.
+
+
+## Scheduler / delivered alerts — bounded remediation
+
+Расписание, external-only config, maintenance-wrapper, retry/dedup/recovery и delivery boundary: [scheduler-alerting](./scheduler-alerting.md). Backup retention/integrity остаются в existing transaction, cert lifecycle/reload contract сохранён. Production recipient и target host не квалифицированы; общий **NOT_READY / NO_GO**.

@@ -1,0 +1,11 @@
+[Unit]
+Description=HomeCloud cert-check schedule
+
+[Timer]
+OnCalendar=*-*-* 06:00:00
+Persistent=true
+AccuracySec=1min
+Unit=homecloud-cert-check.service
+
+[Install]
+WantedBy=timers.target

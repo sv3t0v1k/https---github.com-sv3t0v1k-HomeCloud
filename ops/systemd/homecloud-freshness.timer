@@ -1,0 +1,11 @@
+[Unit]
+Description=HomeCloud freshness schedule
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+AccuracySec=1min
+Unit=homecloud-freshness.service
+
+[Install]
+WantedBy=timers.target

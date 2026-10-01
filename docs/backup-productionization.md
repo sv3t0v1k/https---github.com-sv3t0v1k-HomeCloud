@@ -94,3 +94,8 @@ Safe JSON events различают configuration, legacy backup (фиксиро
 Production focused34PASS; legacy backup safety27PASS; legacy restore validation15PASS (1 destructive integration skipped и заменена real isolated drill). Bash/Python syntax и diff-check PASS. Real final drill evidence `/private/tmp/homecloud-backup-dr.c9ipSH/result.json`: offsite authoritative после удаления local copy, exact DB snapshots/quotas/shares/uploads и SHA256 bytes, readiness200, leakage/own cleanup PASS. Independent review APPROVE после bounded corrections validation signal/retention tie/fixed failure reasons. Реализованный backup checkpoint PASS; OVERALL_PRODUCTION_READINESS NOT_READY.
 
 External-only config qualification: contract11/11, production34/34, safety27/27, restore15 PASS/1 integration SKIP; fresh encrypted paired drill `/private/tmp/homecloud-backup-dr.ldiKuX/result.json` с чистым env, custom DB и actual helpers вне checkout PASS. [Итоговый checkpoint](./final-production-acceptance.md#external-only-backuprestore-config--2026-10-01). Общий NOT_READY.
+
+
+## Scheduler / delivered alerts — bounded remediation
+
+Расписание, external-only config, maintenance-wrapper, retry/dedup/recovery и delivery boundary: [scheduler-alerting](./scheduler-alerting.md). Backup retention/integrity остаются в existing transaction, cert lifecycle/reload contract сохранён. Production recipient и target host не квалифицированы; общий **NOT_READY / NO_GO**.

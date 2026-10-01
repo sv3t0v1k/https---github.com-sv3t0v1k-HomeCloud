@@ -1,0 +1,82 @@
+=== Phase 5.3 Backup Safety Tests ===
+Test root: /tmp/homecloud-backup-test.LwPeFe
+
+--- SUCCESS Scenarios ---
+
+--- Test 1: Full successful backup ---
+  [0;32mPASS[0m: Full backup completed successfully (exit 0)
+  [0;32mPASS[0m: Exactly 1 backup set published
+  [0;32mPASS[0m: No staging directory left behind
+  [0;32mPASS[0m: No lock directory left behind
+
+--- Test 2: .meta matches artifacts (checksums, sizes, file count) ---
+  [0;32mPASS[0m: All metadata fields consistent with artifacts
+
+--- Test 3: .meta has enriched fields (app_version, migration_count, pg_version) ---
+  [0;32mPASS[0m: Enriched metadata fields present and valid
+
+--- Test 4: Artifact permissions are 600 ---
+  [0;32mPASS[0m: All artifacts have 600 permissions
+
+--- Test 5: Structured JSON summary logged on success ---
+  [0;32mPASS[0m: JSON summary logged on success
+
+--- FAILURE Scenarios ---
+
+--- Test 6: DB dump failure → no artifacts, exit non-zero ---
+  [0;32mPASS[0m: DB dump failure exits non-zero (exit 1)
+  [0;32mPASS[0m: No artifacts published on DB dump failure (atomicity holds)
+  [0;32mPASS[0m: Failure marker written
+  [0;32mPASS[0m: Lock cleaned up on failure
+
+--- Test 7: Storage failure → no artifacts, exit non-zero ---
+  [0;32mPASS[0m: Storage failure exits non-zero (exit 1)
+  [0;32mPASS[0m: No artifacts published on storage failure (atomicity holds)
+  [0;32mPASS[0m: Failure marker written
+
+--- Test 8: Existing backups preserved on failure ---
+  [0;32mPASS[0m: Existing backup preserved on failure (1 → 1)
+
+--- Test 9: Re-run after failed backup → succeeds ---
+  [0;32mPASS[0m: Failed run left 0 artifacts; successful re-run created 1 backup set
+
+--- Concurrency Scenarios ---
+
+--- Test 10: Two simultaneous backups → second blocked by lock ---
+  [0;32mPASS[0m: Second backup blocked by lock (exit 2)
+
+--- Test 11: Stale lock (dead PID) cleaned on next backup ---
+  [0;32mPASS[0m: Stale lock cleaned; backup succeeded
+
+--- Retention Scenarios ---
+
+--- Test 12: Retention keeps at least 2 backups ---
+  [0;32mPASS[0m: Retention kept at least 2 backups (3 → 4)
+  [0;32mPASS[0m: Retention ignored filesystem mtime and used filename timestamp
+
+--- Test 13: Retention does not delete fresh backups ---
+  [0;32mPASS[0m: Fresh backup preserved; old backups kept by floor (total=3)
+
+--- Test 14: Retention ignores staging directory ---
+  [0;32mPASS[0m: Staging .meta excluded from backup set count
+
+--- Atomicity Scenarios ---
+
+--- Test 15: All 4 artifacts published together (atomic finalize) ---
+  [0;32mPASS[0m: All 4 artifacts published together (db=1 stor=1 meta=1 sidecar=1)
+
+--- Test 16: Legacy backup without sidecar fails closed ---
+  [0;32mPASS[0m: Legacy backup without sidecar rejected before destructive operations
+
+--- Test 18: Disk-space units and fail-closed df path ---
+  [0;32mPASS[0m: Disk-space check uses df -Pk KiB and exits 3 when space is insufficient
+
+--- Test 17: Retention selects filename timestamp ---
+  [0;32mPASS[0m: Retention selected filename timestamp and preserved the minimum set
+
+========================================
+=== Final Summary ===
+  Passed:  27
+  Failed:  0
+  Skipped: 0
+========================================

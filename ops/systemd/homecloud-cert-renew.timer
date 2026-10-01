@@ -1,0 +1,11 @@
+[Unit]
+Description=HomeCloud cert-renew schedule
+
+[Timer]
+OnCalendar=*-*-* 00,12:00:00
+Persistent=true
+AccuracySec=1min
+Unit=homecloud-cert-renew.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,35 @@
+PASS: real age encryption and verified replication
+PASS: one completed offsite generation
+PASS: standard age artifact
+PASS: plaintext not published locally
+PASS: offsite encrypted artifact and metadata only
+PASS: restore fetched from offsite after deleting local copy
+PASS: wrong identity fails before target mutation
+PASS: missing identity fails before target mutation
+PASS: corrupt offsite artifact rejected before mutation
+PASS: partial generation rejected
+PASS: missing recipients fail closed
+PASS: invalid recipients fail closed
+PASS: replication target failure preserves newest verified offsite backup
+PASS: offsite acknowledgement required
+PASS: legacy pg_dump_failed failure propagates with fixed reason
+PASS: legacy storage_tar_failed failure propagates with fixed reason
+PASS: legacy meta_sidecar_hash_mismatch failure propagates with fixed reason
+PASS: additional generation completed
+PASS: additional generation completed
+PASS: additional generation completed
+PASS: additional generation completed
+PASS: retention preserves two verified generations locally and offsite
+PASS: newest retained generation remains decryptable
+PASS: validate-only reports validation and preserves restore success marker
+PASS: validate-only never creates restore success marker
+PASS: post-copy checksum mismatch rejects publication and cleans partial
+PASS: copy failure leaves no completed or partial generation
+PASS: authenticated decryption rejects tamper even with recomputed checksum
+PASS: retention deletes old complete sets, preserves newest two and ignores partial
+PASS: invalid retention generation emits warning
+PASS: same-second retention respects count and protects just-published generation
+PASS: cleanup failure warns and preserves newest valid restore points
+PASS: write barrier acknowledgement required
+PASS: identity never leaks in logs
+Production backup focused tests: 34 PASS, 0 FAIL

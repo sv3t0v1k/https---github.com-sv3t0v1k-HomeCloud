@@ -1,0 +1,44 @@
+/opt/homecloud/scripts/certificate-lifecycle.py:18: DeprecationWarning: ssl.match_hostname() is deprecated
+  ssl.match_hostname(decoded,host)
+/opt/homecloud/scripts/certificate-lifecycle.py:18: DeprecationWarning: ssl.match_hostname() is deprecated
+  ssl.match_hostname(decoded,host)
+/opt/homecloud/scripts/certificate-lifecycle.py:18: DeprecationWarning: ssl.match_hostname() is deprecated
+  ssl.match_hostname(decoded,host)
+/opt/homecloud/scripts/certificate-lifecycle.py:18: DeprecationWarning: ssl.match_hostname() is deprecated
+  ssl.match_hostname(decoded,host)
+../opt/homecloud/scripts/certificate-lifecycle.py:18: DeprecationWarning: ssl.match_hostname() is deprecated
+  ssl.match_hostname(decoded,host)
+/opt/homecloud/scripts/certificate-lifecycle.py:18: DeprecationWarning: ssl.match_hostname() is deprecated
+  ssl.match_hostname(decoded,host)
+/opt/homecloud/scripts/certificate-lifecycle.py:18: DeprecationWarning: ssl.match_hostname() is deprecated
+  ssl.match_hostname(decoded,host)
+/opt/homecloud/scripts/certificate-lifecycle.py:18: DeprecationWarning: ssl.match_hostname() is deprecated
+  ssl.match_hostname(decoded,host)
+/opt/homecloud/scripts/certificate-lifecycle.py:18: DeprecationWarning: ssl.match_hostname() is deprecated
+  ssl.match_hostname(decoded,host)
+../opt/homecloud/scripts/certificate-lifecycle.py:18: DeprecationWarning: ssl.match_hostname() is deprecated
+  ssl.match_hostname(decoded,host)
+../opt/homecloud/scripts/certificate-lifecycle.py:18: DeprecationWarning: ssl.match_hostname() is deprecated
+  ssl.match_hostname(decoded,host)
+./opt/homecloud/scripts/certificate-lifecycle.py:18: DeprecationWarning: ssl.match_hostname() is deprecated
+  ssl.match_hostname(decoded,host)
+/opt/homecloud/scripts/certificate-lifecycle.py:18: DeprecationWarning: ssl.match_hostname() is deprecated
+  ssl.match_hostname(decoded,host)
+/opt/homecloud/scripts/certificate-lifecycle.py:18: DeprecationWarning: ssl.match_hostname() is deprecated
+  ssl.match_hostname(decoded,host)
+/opt/homecloud/scripts/certificate-lifecycle.py:18: DeprecationWarning: ssl.match_hostname() is deprecated
+  ssl.match_hostname(decoded,host)
+../opt/homecloud/scripts/certificate-lifecycle.py:18: DeprecationWarning: ssl.match_hostname() is deprecated
+  ssl.match_hostname(decoded,host)
+.
+----------------------------------------------------------------------
+Ran 10 tests in 1.967s
+
+OK
+{"fingerprint": "215f636115acb77883ebae54c81f36180bceca5a99290a78819ae23aeba8ee7e", "reloaded": false, "status": "installed"}
+{"fingerprint": "c9961afafe0e7c2156ca300371c309b105b13f6d2355bc9cf4650c5a6a688ff4", "reloaded": false, "status": "installed"}
+{"days_remaining": 45.0, "status": "ok"}
+{"days_remaining": 45.0, "status": "warning"}
+{"days_remaining": 45.0, "status": "critical"}
+{"fingerprint": "d1907d4f0d8156f70c6f603f4f8be116edfe18d32325e1716b3ff42ab78bf135", "reloaded": false, "status": "installed"}
+{"fingerprint": "d1907d4f0d8156f70c6f603f4f8be116edfe18d32325e1716b3ff42ab78bf135", "status": "unchanged"}

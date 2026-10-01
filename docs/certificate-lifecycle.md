@@ -85,3 +85,8 @@ Public staging/domain issuance, production host native bind qualification, produ
 ## Проверенное evidence
 
 Focused10/10, hostname/syntax/quiet Compose/diff gates PASS. Повторный runtime основного исполнителя: `/private/tmp/hc-cert-runtime-nbsg0jx_/result.json`,17 healthy requests during reload,expiry45→90days,rotation/failure retention/cleanup PASS. Temporary evidence может удалить ОС; harness воспроизводим. Python квалифицирован на3.9.6(host focused) и3.11(Linux smoke), другие версии требуют qualification (ssl.match_hostname API).
+
+
+## Scheduler / delivered alerts — bounded remediation
+
+Расписание, external-only config, maintenance-wrapper, retry/dedup/recovery и delivery boundary: [scheduler-alerting](./scheduler-alerting.md). Backup retention/integrity остаются в existing transaction, cert lifecycle/reload contract сохранён. Production recipient и target host не квалифицированы; общий **NOT_READY / NO_GO**.
