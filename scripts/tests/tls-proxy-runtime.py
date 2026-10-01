@@ -75,7 +75,9 @@ try:
     docker('exec','-d',backend,'node','-e',diagnostic)
     frontend = start('frontend','--network',internal,'--ip','172.30.0.10','--network-alias','frontend','-v',str(root/'frontend.conf')+':/etc/nginx/conf.d/default.conf:ro','-v',str(repo/'frontend/dist')+':/usr/share/nginx/html:ro','homecloud-frontend:latest')
     docker('network','connect','--ip','172.29.0.20','--alias','frontend',edge,frontend)
-    run('openssl','req','-x509','-newkey','rsa:2048','-nodes','-days','1','-subj','/CN=proxy.example.invalid','-keyout',str(root/'privkey.pem'),'-out',str(root/'fullchain.pem'))
+    (root/'current').mkdir(mode=0o700)
+    run('openssl','req','-x509','-newkey','rsa:2048','-nodes','-days','1','-subj','/CN=proxy.example.invalid','-keyout',str(root/'current/privkey.pem'),'-out',str(root/'current/fullchain.pem'))
+    (root/'current/privkey.pem').chmod(0o600)
     (root/'ingress.conf').write_text((repo/'deploy/ingress/default.conf.template').read_text().replace('${PUBLIC_HOST}','proxy.example.invalid'))
     ingress = start('ingress','--network',edge,'--ip','172.29.0.10','-p',f'127.0.0.1:{httpport}:80','-p',f'127.0.0.1:{httpsport}:443','-v',str(root/'ingress.conf')+':/etc/nginx/conf.d/default.conf:ro','-v',str(repo/'deploy/ingress/upgrade.conf')+':/etc/nginx/conf.d/upgrade.conf:ro','-v',str(root)+':/etc/nginx/tls:ro','homecloud-frontend:latest')
     for _ in range(40):

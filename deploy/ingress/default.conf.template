@@ -2,13 +2,20 @@
 server {
   listen 80 default_server;
   server_name _;
-  return 308 https://${PUBLIC_HOST}$request_uri;
+  # Only challenge tokens are exposed; directory listing and nested paths are denied.
+  location ~ ^/\.well-known/acme-challenge/[A-Za-z0-9_-]+$ {
+    root /var/www/acme;
+    default_type text/plain;
+    disable_symlinks on;
+    try_files $uri =404;
+  }
+  location / { return 308 https://${PUBLIC_HOST}$request_uri; }
 }
 server {
   listen 443 ssl default_server;
   server_name ${PUBLIC_HOST};
-  ssl_certificate /etc/nginx/tls/fullchain.pem;
-  ssl_certificate_key /etc/nginx/tls/privkey.pem;
+  ssl_certificate /etc/nginx/tls/current/fullchain.pem;
+  ssl_certificate_key /etc/nginx/tls/current/privkey.pem;
   ssl_protocols TLSv1.2 TLSv1.3;
   if ($host != "${PUBLIC_HOST}") { return 421; }
 

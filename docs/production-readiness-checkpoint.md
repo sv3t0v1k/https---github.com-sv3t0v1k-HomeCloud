@@ -148,3 +148,30 @@ Gates: production focused34PASS0FAIL; legacy backup safety27PASS0FAIL0SKIP; lega
 INDEPENDENT_REVIEW: APPROVE после одного bounded correction cycle: validation-only отделён от restore completion, same-second retention стабилен, fixed legacy failure reasons проверены. Основной исполнитель независимо повторил focused34 и real drill на окончательном коде. Security/privacy PASS в описанных границах; private identity/credentials не включены в commit, plaintext staging после штатного завершения отсутствует, offsite содержит только ciphertext+несекретный manifest.
 
 BACKUP_ENCRYPTION_AT_REST: PASS; OFFSITE_REPLICATION: PASS (filesystem transport contract); RETENTION_ROTATION: PASS; BACKUP_FAILURE_SIGNALING: PASS; ENCRYPTED_OFFSITE_RESTORE: PASS; REAL_RESTORE_DRILL: PASS; PRODUCTION_READINESS_BACKUP_CHECKPOINT: PASS. Backup Productionization: COMPLETE в границах реализации/isolated qualification; физический production offsite и remaining operator acceptance не объявлены завершёнными.
+
+## Public Certificate Lifecycle — 2026-10-01
+
+Ненумерованный owner-approved checkpoint после Backup Productionization. Исходный HEAD `7c893e927ddc3711cf1b5b490937c34e52d6d9cd`; status только forbidden audit, не читался/не изменялся/не staged. [Контракт/recovery](./certificate-lifecycle.md).
+
+| Исходный gap | Реализация |
+|---|---|
+| Flat PEM без activation | External generations0700/current atomic symlink; read-only whole-root mount; key0600 |
+| Нет issuance/renewal | Certbot standalone bootstrap, HTTP01 webroot renew; DNS01 contract без provider automation |
+| Нет validation/reload | SAN/time/trust/key match/permissions; nginx-test → graceful reload → served fingerprint; rollback/idempotence |
+| HTTP308 блокировал HTTP01 | Token exception, symlink denial, missing404; остальной HTTP308; HSTS только HTTPS |
+| Нет expiry/failure | JSON; check0/1/2/3 OK/warning/critical/invalid; thresholds30/7days; install/renew failure3 |
+| Нет runtime | Native Linux daemon-side read-only bind; local certificates; simulated client result |
+
+Gates: focused10/10 PASS, включая реальный expired2000–2001 fixture; hostname validation, syntax, quiet Compose и diff-check PASS. Backend/frontend source/build path не менялись: full backend/lint/build и frontend build не требовались. Legacy TLS smoke fixture адаптирована к current/ и key0600, полный auth/browser drill не повторялся.
+
+Основной исполнитель повторил runtime: `/private/tmp/hc-cert-runtime-nbsg0jx_/result.json`. Initial install, served fingerprint rotation, expiry45→90days,17 successful health requests during reload, mismatched install, simulated Certbot failure, idempotence, invalid config rollback, HTTP01/redirect/HSTS, key600 PASS. Собственные containers/network/volume/operator image и sensitive fixtures удалены; старые containers не затрагивались.
+
+Docker Desktop/macOS host bind smoke выявил stale symlink после atomic replacement; probe отверг activation. Mac shared bind не поддерживается. Итоговый harness использует native daemon Linux bind из disposable volume mountpoint в ingress read-only, operator volume RW. Это доказывает Linux bind механику, не конечный production host. Docker socket operator root-equivalent trust ограничен controlled CLI.
+
+SECURITY_REVIEW APPROVE. Подтверждённые дефекты corrected bounded cycle: LibreSSL compatibility, current guard до unchanged, fullchain idempotence, served drift reconciliation, external-only state/key. Public CA success не заявляется: ACME protocol не упражнялся.
+
+PUBLIC_CERT_ISSUANCE_CONTRACT: PASS; CERT_RUNTIME_PERMISSIONS: PASS; CERT_RENEWAL_WORKFLOW: PASS; CERT_SAFE_RELOAD: PASS; CERT_EXPIRY_MONITORING: PASS; HTTP01_HSTS_COMPATIBILITY: PASS; CERT_LIFECYCLE_RUNTIME_SMOKE: PASS; INDEPENDENT_REVIEW: APPROVE; PRODUCTION_READINESS_CERT_LIFECYCLE_CHECKPOINT: PASS; OVERALL_PRODUCTION_READINESS: NOT_READY.
+
+Остались public CA/domain qualification, production Linux bind/scheduler/alerts, final recovery/acceptance, previous-version rollback, production offsite/key custody/full-volume RPO/RTO и remaining operator/release checks. Новая Phase не создана; предыдущие COMPLETE сохранены. Следующий рекомендуемый блок — final acceptance/go-live gate, автоматически не начинается.
+
+Independent reviewer (не автор) проверил окончательный harness/diff/native-bind evidence, повторил focused10/10 и diff-check PASS. Public Certificate Lifecycle COMPLETE в ограниченных границах implementation/contract/mechanics.

@@ -112,7 +112,8 @@ services:
       - ./deploy/ingress/19-validate-public-host.sh:/docker-entrypoint.d/19-validate-public-host.sh:ro
       - ./deploy/ingress/default.conf.template:/etc/nginx/templates/default.conf.template:ro
       - ./deploy/ingress/upgrade.conf:/etc/nginx/conf.d/upgrade.conf:ro
-      - ${TLS_CERT_DIR:?Set TLS_CERT_DIR to the certificate directory}:/etc/nginx/tls:ro
+      - ${TLS_CERT_DIR:?Set TLS_CERT_DIR to the certificate lifecycle directory}:/etc/nginx/tls:ro
+      - ${ACME_WEBROOT_DIR:?Set ACME_WEBROOT_DIR to the external challenge webroot}:/var/www/acme:ro
     depends_on:
       frontend:
         condition: service_healthy
