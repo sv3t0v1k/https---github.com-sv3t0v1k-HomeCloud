@@ -1,0 +1,6 @@
+Final two-run corrected execution completed before process cleanup. No source or replacement scratch remains.
+Restore aggregate metrics were originally named legacy_backup by the measurement wrapper. Renamed legacy_restore below because these metrics were emitted around the restore.sh subprocess; timing values unchanged.
+Failure case DB/table inventory and actual storage sentinel SHA256 equality were asserted before/after each failure but raw fingerprint bytes were not persisted.
+Source Docker container/volume inventory emptiness was asserted after compose down -v; raw command stdout was not retained.
+Legacy backup safety and restore safety --skip-integration passed in both source environments; raw logs were deleted by cleanup before collection. Gate verdict fields are observed subprocess-success assertions, not retained raw logs.
+Full source/replacement DB row snapshot equality was asserted; row snapshot bytes and their digests were not persisted. File SHA256 lists are retained below.

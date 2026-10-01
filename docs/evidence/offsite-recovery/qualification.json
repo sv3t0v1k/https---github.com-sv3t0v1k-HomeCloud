@@ -1,0 +1,317 @@
+{
+  "scope": "logical isolated Docker volumes; same physical host and Docker administrator",
+  "runs": [
+    {
+      "iteration": 1,
+      "dataset_bytes": 134217728,
+      "files": 8,
+      "users": 2,
+      "shares": 1,
+      "trash": 1,
+      "snapshot_time": "2026-10-01T21:16:29.983229+00:00",
+      "artifact_selected_at": "2026-10-01T21:16:44.048960+00:00",
+      "last_success_age_seconds": 0.0555472500000036,
+      "offsite_completed": "2026-10-01T21:16:38.303633+00:00",
+      "incident_start": "2026-10-01T21:16:38.359203+00:00",
+      "backup_seconds": 4.934639791000009,
+      "replication_seconds": 3.370724999999993,
+      "incident_to_artifact_selected_seconds": 5.689745000000002,
+      "artifact_fetch_seconds": 2.2478628749999956,
+      "validation_seconds": 0.776141832999997,
+      "restore_seconds": 22.178877833,
+      "rto_readiness_seconds": 30.680818290999994,
+      "rto_verified_seconds": 31.383936415999997,
+      "rpo_snapshot_age_seconds": 8.375836583999998,
+      "escrow_inventory_sha256": "87bfcf230a9b1331249448498a9b3f9af59d2ec535a74626d8f8e3c92ec1a5e0",
+      "secret_leakage_scan": "PASS",
+      "legacy_backup_safety": "PASS",
+      "legacy_restore_safety": "PASS",
+      "failed_restore_db_storage_fingerprint_equal": true,
+      "source_destroyed": true,
+      "source_volumes_absent": true,
+      "source_private_key_absent": true,
+      "restored_from_custody_b": true,
+      "rows_equal": true,
+      "sha256_equal": true,
+      "readiness_http": 200,
+      "missing_wrong_key_corrupt_blocked_before_mutation": true,
+      "offsite_unavailable_failed": true,
+      "manifest": {
+        "created_at": "2026-10-01T21:16:34Z",
+        "format": 1,
+        "generation": "hc_20261001T211634Z_8642c64992654dfa",
+        "sha256": "87bfcf230a9b1331249448498a9b3f9af59d2ec535a74626d8f8e3c92ec1a5e0",
+        "size": 134289608
+      },
+      "metrics": [
+        {
+          "label": "decrypt",
+          "start": 0.144946666,
+          "end": 0.2999425,
+          "seconds": 0.154995834
+        },
+        {
+          "label": "legacy_restore",
+          "start": 0.330505125,
+          "end": 0.725947416,
+          "seconds": 0.395442291,
+          "original_label": "legacy_backup"
+        },
+        {
+          "label": "decrypt",
+          "start": 0.135573291,
+          "end": 0.278668875,
+          "seconds": 0.14309558399999997
+        },
+        {
+          "label": "stop",
+          "start": 0.748799791,
+          "end": 1.081841083,
+          "seconds": 0.333041292
+        },
+        {
+          "label": "db_restore",
+          "start": 1.081841083,
+          "end": 1.599013541,
+          "seconds": 0.5171724579999999
+        },
+        {
+          "label": "db_validation",
+          "start": 1.599013541,
+          "end": 2.517183541,
+          "seconds": 0.9181700000000002
+        },
+        {
+          "label": "storage_restore",
+          "start": 2.517183541,
+          "end": 3.83351575,
+          "seconds": 1.316332209
+        },
+        {
+          "label": "app_start_migrations",
+          "start": 3.83351575,
+          "end": 21.158156083,
+          "seconds": 17.324640333
+        },
+        {
+          "label": "reconciliation",
+          "start": 21.158156083,
+          "end": 22.008385541,
+          "seconds": 0.8502294579999976
+        },
+        {
+          "label": "health",
+          "start": 22.008385541,
+          "end": 22.148771541,
+          "seconds": 0.14038599999999946
+        },
+        {
+          "label": "legacy_restore",
+          "start": 0.308681458,
+          "end": 22.148957583,
+          "seconds": 21.840276125000003,
+          "original_label": "legacy_backup"
+        }
+      ],
+      "backup_metrics": [
+        {
+          "label": "legacy_backup",
+          "start": 0.025506458,
+          "end": 4.241091375,
+          "seconds": 4.215584917
+        },
+        {
+          "label": "encrypt",
+          "start": 4.293822833,
+          "end": 4.431356833,
+          "seconds": 0.1375339999999996
+        },
+        {
+          "label": "helper_publication_local",
+          "start": 4.5285015,
+          "end": 4.647146791,
+          "seconds": 0.11864529099999999
+        },
+        {
+          "label": "helper_publication_offsite_staging",
+          "start": 4.647242541,
+          "end": 4.76551875,
+          "seconds": 0.11827620900000024
+        }
+      ],
+      "file_sha256": [
+        "675cc0c9ef6cfe9448dd963ac0d31c25f43ead18687ae5c5e91cf93d984e1c5e  ./2/file-6.bin",
+        "7d63378947a4fbadee66aa88f5ff4bb7ffec0cd5932ef11e54dc585e61176ba9  ./1/file-2.bin",
+        "8592b7c264e44dc937e452b5aff2c8f0f33877c239918fdb143f1fbf54bbd683  ./2/file-7.bin",
+        "95ff4bf78931bf01fbaa87e109ee0a152bd15855fea8351375b290a3d43a681e  ./1/file-1.bin",
+        "9764d96ae7723b593f0ac6d8bcfc4d9ac795fc046ce2d0cb79736dba46330028  ./1/file-3.bin",
+        "97ebce1dc132b853d6a270e055468b0e343f3e682b6952d3fbff096adae47cfc  ./2/file-8.bin",
+        "ab1806aa490c1d11189f31387137b34a1fd589f5b787b8ab0504aaf6866796ac  ./2/file-5.bin",
+        "f4d9ed6789c4e40da87703116c040c4d2af7164af943a13048366acf986c8395  ./1/file-4.bin"
+      ]
+    },
+    {
+      "iteration": 2,
+      "dataset_bytes": 134217728,
+      "files": 8,
+      "users": 2,
+      "shares": 1,
+      "trash": 1,
+      "snapshot_time": "2026-10-01T21:18:59.666244+00:00",
+      "artifact_selected_at": "2026-10-01T21:19:14.067254+00:00",
+      "last_success_age_seconds": 0.056795832999995355,
+      "offsite_completed": "2026-10-01T21:19:08.206150+00:00",
+      "incident_start": "2026-10-01T21:19:08.262959+00:00",
+      "backup_seconds": 5.098453332999981,
+      "replication_seconds": 3.427534250000008,
+      "incident_to_artifact_selected_seconds": 5.804283042000009,
+      "artifact_fetch_seconds": 2.2438365840000074,
+      "validation_seconds": 0.7710751670000207,
+      "restore_seconds": 22.15956129099999,
+      "rto_readiness_seconds": 30.84000500000002,
+      "rto_verified_seconds": 31.543150249999997,
+      "rpo_snapshot_age_seconds": 8.596746083,
+      "escrow_inventory_sha256": "aa5fec32c146ae997bd99e1f1b400d1136f9de5d8105205e22e4eef2f8132475",
+      "secret_leakage_scan": "PASS",
+      "legacy_backup_safety": "PASS",
+      "legacy_restore_safety": "PASS",
+      "failed_restore_db_storage_fingerprint_equal": true,
+      "source_destroyed": true,
+      "source_volumes_absent": true,
+      "source_private_key_absent": true,
+      "restored_from_custody_b": true,
+      "rows_equal": true,
+      "sha256_equal": true,
+      "readiness_http": 200,
+      "missing_wrong_key_corrupt_blocked_before_mutation": true,
+      "offsite_unavailable_failed": true,
+      "manifest": {
+        "created_at": "2026-10-01T21:19:04Z",
+        "format": 1,
+        "generation": "hc_20261001T211904Z_0a125e61fd624a71",
+        "sha256": "aa5fec32c146ae997bd99e1f1b400d1136f9de5d8105205e22e4eef2f8132475",
+        "size": 134289608
+      },
+      "metrics": [
+        {
+          "label": "decrypt",
+          "start": 0.14401125,
+          "end": 0.295841458,
+          "seconds": 0.151830208
+        },
+        {
+          "label": "legacy_restore",
+          "start": 0.334163083,
+          "end": 0.737856416,
+          "seconds": 0.40369333299999993,
+          "original_label": "legacy_backup"
+        },
+        {
+          "label": "decrypt",
+          "start": 0.135077875,
+          "end": 0.279573041,
+          "seconds": 0.14449516600000004
+        },
+        {
+          "label": "stop",
+          "start": 0.748250458,
+          "end": 1.136036,
+          "seconds": 0.38778554200000004
+        },
+        {
+          "label": "db_restore",
+          "start": 1.136036,
+          "end": 1.651094541,
+          "seconds": 0.5150585409999999
+        },
+        {
+          "label": "db_validation",
+          "start": 1.651094541,
+          "end": 2.550858166,
+          "seconds": 0.8997636249999998
+        },
+        {
+          "label": "storage_restore",
+          "start": 2.550858166,
+          "end": 3.884451541,
+          "seconds": 1.333593375
+        },
+        {
+          "label": "app_start_migrations",
+          "start": 3.884451541,
+          "end": 21.151950875,
+          "seconds": 17.267499334
+        },
+        {
+          "label": "reconciliation",
+          "start": 21.151950875,
+          "end": 21.995423,
+          "seconds": 0.8434721249999981
+        },
+        {
+          "label": "health",
+          "start": 21.995423,
+          "end": 22.128858625,
+          "seconds": 0.1334356250000006
+        },
+        {
+          "label": "legacy_restore",
+          "start": 0.3109745,
+          "end": 22.129050916,
+          "seconds": 21.818076416,
+          "original_label": "legacy_backup"
+        }
+      ],
+      "backup_metrics": [
+        {
+          "label": "legacy_backup",
+          "start": 0.031087875,
+          "end": 4.355344666,
+          "seconds": 4.324256791
+        },
+        {
+          "label": "encrypt",
+          "start": 4.411520041,
+          "end": 4.575255416,
+          "seconds": 0.1637353749999999
+        },
+        {
+          "label": "helper_publication_local",
+          "start": 4.673758958,
+          "end": 4.798463208,
+          "seconds": 0.12470425000000063
+        },
+        {
+          "label": "helper_publication_offsite_staging",
+          "start": 4.79855875,
+          "end": 4.923271333,
+          "seconds": 0.12471258299999999
+        }
+      ],
+      "file_sha256": [
+        "2ac7f874416806f56d46a6a634f5849f58dd90355fe6db65689b92a17a712b06  ./2/file-5.bin",
+        "60b4c6d5ab2574cd31c13bb33e6b5c23c527bf9675564d412830b9bba82e5c37  ./2/file-6.bin",
+        "713bedcefa5dc0ac43085c32d12b6257a68592e74747e1b8bd527218f01e892b  ./2/file-7.bin",
+        "8a47b5b5b9338764381fc0220612a5e9d7ba2b57d9738af697401bb9e0007882  ./1/file-3.bin",
+        "8b3acf5dcafbe28ce32288461fb8ad782946f85e7609b8be9a2a1f97051e7a5e  ./1/file-2.bin",
+        "9fb0a32942850f91117463f909fab5b51957fab705995b76e51ca964d51be299  ./1/file-1.bin",
+        "a430c3189c016eef182a06008fded52a18209e2b52ffb0e507932838a80c54e9  ./2/file-8.bin",
+        "bd356d5cc8c99cecebce8987a07ab63376c8a28f49487eb56d06d795616e8ab9  ./1/file-4.bin"
+      ]
+    }
+  ],
+  "custody_copy_a_deleted": true,
+  "verdict": "PASS",
+  "all_custody_copies_lost": "unrecoverable; no alternate key path claimed",
+  "source_compromise_retention": "NOT_QUALIFIED: shared Docker administrator can erase escrow; source app has no vault mount or Docker socket",
+  "cleanup": true,
+  "original_evidence_sha256": "e6123b1e057f7a6d949bb0f449928337d3ab4441c6b7a067f1c8bcfc5af4019f",
+  "evidence_notes": [
+    "Final two-run corrected execution completed before process cleanup. No source or replacement scratch remains.",
+    "Restore aggregate metrics were originally named legacy_backup by the measurement wrapper. Renamed legacy_restore below because these metrics were emitted around the restore.sh subprocess; timing values unchanged.",
+    "Failure case DB/table inventory and actual storage sentinel SHA256 equality were asserted before/after each failure but raw fingerprint bytes were not persisted.",
+    "Source Docker container/volume inventory emptiness was asserted after compose down -v; raw command stdout was not retained.",
+    "Legacy backup safety and restore safety --skip-integration passed in both source environments; raw logs were deleted by cleanup before collection. Gate verdict fields are observed subprocess-success assertions, not retained raw logs.",
+    "Full source/replacement DB row snapshot equality was asserted; row snapshot bytes and their digests were not persisted. File SHA256 lists are retained below."
+  ]
+}
