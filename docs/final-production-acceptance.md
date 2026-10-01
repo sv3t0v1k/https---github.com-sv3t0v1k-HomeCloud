@@ -30,7 +30,7 @@ HEAD `bb01b5f35ace220e9bf34b8984297784edf629e8`; status содержал тол�
 | Logs/metrics/readiness privacy / operations | BLOCKING | INCONCLUSIVE общего gate: baseline и отдельное proxy privacy исправление; target observation/alerts не квалифицированы |
 | Operator commands / maintenance / host restart | BLOCKING | Checklist ниже; реальный external barrier, DB restart/recovery mechanism не упражнялись |
 | External-only backup/restore input integration | BLOCKING | INCONCLUSIVE: legacy checkout .env/custom DB identifier boundary не квалифицирован; нельзя копировать secrets в checkout как workaround |
-| Runtime dependency exposure review | BLOCKING security-review input | INCONCLUSIVE: React Router bundled advisory; exploit не подтверждён, review exposure/owner decision не завершён |
+| Runtime dependency exposure review | BLOCKING security-review input | RESOLVED для GHSA-wrjc-x8rr-h8h6: React Router 7.18.2, bounded review и regression ниже; общий SECURITY_OPS_ACCEPTANCE остаётся INCONCLUSIVE |
 | Backup volume / disk / maintenance / agreed RPO/RTO | BLOCKING | INCONCLUSIVE: нет approved launch-volume budgets и замеров; fixture не доказывает24h/30min |
 
 Отсутствующее evidence не понижено до advisory. Runbook policy требует real public CA/domain/bind qualification до go-live: [certificate lifecycle](./certificate-lifecycle.md), [topology](./production-topology.md). Исполняемая процедура и local smoke недостаточны.
@@ -125,7 +125,7 @@ SECURITY_OPS_ACCEPTANCE: INCONCLUSIVE.
 INDEPENDENT_FINAL_REVIEW: NO_GO. Независимый reviewer проверил raw suite/build/runtime/proxy evidence и actual diff: все BLOCKING критерии не доказаны; топология ясна; previous rollback только backend; recovery только same-host fixture; lifecycle не полностью operationalized; owner risk acceptance не приписывается.
 OVERALL_PRODUCTION_READINESS: NOT_READY.
 
-Минимальные оставшиеся группы блокеров: (1) реальный Linux production target/DNS/public CA/native bind; (2) wired scheduler и delivered alerts; (3) физически независимый offsite/key custody и approved measured recovery budgets; (4) полный immutable-pair release/previous-version rollback/TLS E2E/operator host-recovery acceptance; (5) external-only helper config integration; (6) завершение runtime React Router exposure review/решение по риску, без утверждения подтверждённого exploit. Следующая работа автоматически не начинается; production deployment не выполнен.
+Минимальные оставшиеся группы блокеров: (1) реальный Linux production target/DNS/public CA/native bind; (2) wired scheduler и delivered alerts; (3) физически независимый offsite/key custody и approved measured recovery budgets; (4) полный immutable-pair release/previous-version rollback/TLS E2E/operator host-recovery acceptance; (5) external-only helper config integration. Runtime React Router advisory закрыт bounded review ниже; перечисленные пять групп остаются blocking. Следующая работа автоматически не начинается; production deployment не выполнен.
 
 
 ## Финальное raw evidence и оставшиеся input gaps
@@ -142,3 +142,41 @@ Independent reviewer: **NO_GO**. Общий итог остаётся **NOT_READ
 Read-only dependency exposure review (`frontend-npm-audit.json`, `frontend-dependency-paths.log`): high brace-expansion и moderate Vitest/mocker относятся к dev/build tooling; frontend runtime nginx не содержит их node_modules. React Router6.30.6 — bundled runtime: [backslash redirect advisory](https://github.com/remix-run/react-router/security/advisories/GHSA-wrjc-x8rr-h8h6). SSR hydration advisory не соответствует текущему static CSR deployment. Login return path отвергает `//`, но не backslash; источник history state.from не доказан как remotely attacker-controlled, поэтому exploit не подтверждён, а exposure review остаётся незакрытым input final SECURITY_OPS_ACCEPTANCE. Не утверждать все findings dev-only и не принимать риск без owner decision. Upgrades не выполнялись.
 
 Независимый security reviewer отдельно подтвердил bounded proxy correction PASS по actual diff/effective configs/raw200/504 marker scan; overall ops INCONCLUSIVE. Финальный frontend image пересобран после server-level correction; backend image unchanged. Только исправленная пара IDs выше относится к итоговому candidate. Final image evidence `final-images-corrected.txt`; superseded image96feeeff не считать окончательным.
+
+
+## Закрытие React Router advisory — 2026-10-01
+
+Исходный HEAD `2ca166f5d9969520b0573415fd260edf15160805` и единственный untracked запрещённый audit совпали с заданием. Audit не открывался и не изменялся. Ненумерованная ограниченная задача; backend, инфраструктура и контейнеры не изменялись. Исторический read-only finding выше относится к прежнему candidate.
+
+**GHSA_WRJC_X8RR_H8H6_PACKAGE_AFFECTED: YES до обновления / NO после. HOMECLOUD_RUNTIME_EXPOSURE: NOT_CONFIRMED. REMEDIATION_REQUIRED: YES (package finding). REACT_ROUTER_ADVISORY_ITEM: RESOLVED. OVERALL_PRODUCTION_READINESS: NOT_READY / NO_GO.** Закрытие относится к source/lockfile; существующие release images не пересобирались и не объявляются исправленными этим checkpoint.
+
+[GitHub advisory](https://github.com/advisories/GHSA-wrjc-x8rr-h8h6) подтверждает affected `>=6.0.0,<7.18.0`, patched `7.18.0`; исправленный 6.x в источнике не указан. До изменений `npm ls`: react-router-dom/react-router **6.30.6**, React/react-dom **18.3.1**, Vite **6.4.3**. Lockfile и установленное дерево совпадали; успешный сетевой `npm audit --json` подтвердил finding (первый sandbox запуск не достиг registry, не принят как audit evidence).
+
+Минимальная доступная major-линия с исправлением — 7.x. Итог exact `react-router-dom: 7.18.2`, транзитивный react-router **7.18.2**. Начальная 7.18.0 устраняла целевой advisory, но current audit выявил RSC-only [GHSA-qwww-vcr4-c8h2](https://github.com/advisories/GHSA-qwww-vcr4-c8h2), affected `>=7.12.0,<7.18.2`; поэтому выбран минимальный дополнительный patch 7.18.2. Этот RSC finding не применим к режиму HomeCloud. Не выполнен переход на Framework/Data mode; imports/API и application source сохранены. Изменения lockfile ограничены Router pair, удалением прежнего @remix-run/router и добавлением обязательных cookie/set-cookie-parser; прочие версии не менялись.
+
+Совместимость: peer React/react-dom >=18, Node >=20; React18.3.1 и локальный Node20.19.4/существующий Docker node:20-alpine подходят. [Changelog v7](https://github.com/remix-run/react-router/blob/v7/CHANGELOG.md) проверен: react-router-dom сохраняется как re-export, новые требования Node/React соблюдены. HomeCloud не использует splat-relative navigation, lazy React imports внутри компонентов, loaders/actions/fetchers/manual hydration; Framework CSRF/proxy изменения не относятся к static CSR. Existing gate проверяет реальные auth/file/breadcrumb flows. Browser E2E на production host в этот bounded gate не входит.
+
+### Матрица навигации
+
+| Источник | Доверие / контроль | API | Экспозиция HomeCloud |
+|---|---|---|---|
+| App sidebar/root, error links, authenticated login | Константы /files, /files/trash, /login | Link, NavLink, Navigate | Внешний target не поступает |
+| Выбор папки из API | id от сервера, имя может быть пользовательским; destination всегда /files/folders/${id} | useNavigate | Имя не используется как путь, нет attacker-controlled leading separators |
+| Breadcrumbs | history crumbs фильтруются positive safe integer id, API ancestry; фиксированный /files/folders/ prefix | Link | Внешний destination не найден |
+| ProtectedRoute → LoginPage | from = same-origin location.pathname в локальном history state, не query/API redirect URL | Navigate → useNavigate | Локальный state можно подменить; удалённый источник внешнего target не обнаружен. Старый readReturnPath пропускал /\target; это недостаточная проверка формы, но не доказательство remote exploit |
+| URL folderId / public share token | folderId positive safe integer, token кодируется для sharing URL; ни один не передаётся как navigation target | Route params / URL construction | Advisory-style external navigation surface не найден |
+
+Declarative mode: BrowserRouter + Routes/Route, createRoot без SSR. Redirect helpers/Data/Framework/RSC APIs отсутствуют. App-level sanitizer не добавлялся: genuine remotely controlled navigation target не обнаружен; обновление пакета исправляет выявленное поведение без расширения scope.
+
+### Воспроизведение и gate
+
+`frontend/src/routing/router-security.test.tsx`: package-level BrowserRouter/useNavigate probe, без нового публичного ввода. На 6.30.6 нормальные /files, /files/folders/7, /files/trash и //target проходили; три смешанных slash/backslash target проваливали проверку внутреннего pathname, browser history отвергал cross-origin URL и Router пытался вызвать location.assign. jsdom не выполняет внешнюю загрузку: это подтверждает unsafe navigation attempt, не полноценный browser exploit. На исправленном пакете все targets остаются на исходном origin с ожидаемым внутренним pathname. Дополнительно существующий LoginPage проверяется с локально injected history state: internal folder/trash сохраняются, protocol-relative/https отклоняются существующей проверкой, slash-backslash target безопасно обрабатывается пакетом. Эти synthetic local state tests не доказывают remote controllability.
+
+- Focused advisory: **12/12 PASS**; auth/protected/file focused до дополнительного patch: **43/43 PASS**.
+- После финального 7.18.2 и `npm ci --ignore-scripts --no-audit`: полный frontend **13 files /108 tests PASS**, lint PASS, TypeScript + Vite build PASS. Ignore-scripts используется для проверки lockfile/install, обычная сборка отдельно PASS.
+- `npm ls` после чистой установки: единственная Router pair 7.18.2, React18.3.1/Vite6.4.3 сохранены. `git diff --check` PASS.
+- Финальный npm audit: react-router/react-router-dom findings отсутствуют; остаются прежние dev tooling findings @vitest/mocker, Vitest, brace-expansion, не исправляемые этой задачей. Raw audit `/private/tmp/homecloud-router-audit-final.json` временный, классификация сохранена здесь.
+
+Related Router review: [SSR hydration GHSA-337j-9hxr-rhxg](https://github.com/advisories/GHSA-337j-9hxr-rhxg) не применим к Declarative mode и исправлен7.18.0; [RSC XSS GHSA-h8fp-f39c-q6mh](https://github.com/advisories/GHSA-h8fp-f39c-q6mh) и RSC CSRF выше не применимы без unstable RSC; [Framework DoS GHSA-chx6-hx7r-mcp5](https://github.com/advisories/GHSA-chx6-hx7r-mcp5) не применим к CSR и исправлен7.18.0. [GHSA-jjmj-jmhj-qwj2](https://github.com/advisories/GHSA-jjmj-jmhj-qwj2) по актуальному диапазону уже исправлен исходным dom6.30.6 (affected6.30.2–6.30.5; v7 affected7.9.6–7.12.0, patched7.13.0). Новых применимых Router findings в итоговом resolved tree audit не выявлено; отсутствие любого будущего advisory не обещается.
+
+Независимый security reviewer: **APPROVE** по actual final diff, официальным диапазонам advisories, минимальности Router graph, CSR exposure matrix и regression evidence. Blocking замечаний нет; ограничения jsdom и старых release images сохранены. Остальные production blockers без изменений. Следующий рекомендуемый минимальный blocker — external-only backup/restore helper config integration; автоматически не запускается.
