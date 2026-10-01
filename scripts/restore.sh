@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set +x
 set -euo pipefail
 
 # ===========================================================================
@@ -24,7 +25,7 @@ set -euo pipefail
 #   STORAGE_VOLUME   - explicit Docker named volume to restore storage into.
 #   BACKEND_IMAGE    - Docker image for throwaway extraction container
 #                      (default: homecloud-backend)
-#   DB_NAME / DB_USER / DB_PASSWORD - loaded from .env
+#   DB_NAME / DB_USER / DB_PASSWORD - explicit recovery configuration
 #
 # Operation phases:
 #   Phase A: pre-validation (READ-ONLY) — backup integrity + volume validation.
@@ -35,7 +36,6 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-BACKUP_DIR="${BACKUP_DIR:-$PROJECT_ROOT/backups}"
 SUPPORTED_FORMAT_VERSIONS="1"
 EXPECTED_TABLES=7
 EXPECTED_TABLE_NAMES="users files folders share_links upload_sessions refresh_tokens migrations"
@@ -60,26 +60,10 @@ for arg in "$@"; do
 done
 
 # ---------------------------------------------------------------------------
-# Load .env WITHOUT set -a to avoid leaking secrets into child process env
+# Explicit external recovery configuration (shared with coordinator/reconcile).
 # ---------------------------------------------------------------------------
-DB_NAME=""
-DB_USER=""
-DB_PASSWORD=""
-if [ -f "$PROJECT_ROOT/.env" ]; then
-  while IFS='=' read -r key value || [ -n "$key" ]; do
-    key="${key%%#*}"
-    [ -z "$key" ] && continue
-    key="$(echo "$key" | tr -d '[:space:]')"
-    value="${value//\"/}"
-    value="${value//\'/}"
-    value="$(echo "$value" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
-    case "$key" in
-      DB_NAME) DB_NAME="$value" ;;
-      DB_USER) DB_USER="$value" ;;
-      DB_PASSWORD) DB_PASSWORD="$value" ;;
-    esac
-  done < "$PROJECT_ROOT/.env"
-fi
+source "$SCRIPT_DIR/recovery-config.sh"
+BACKUP_DIR="${BACKUP_DIR:-$PROJECT_ROOT/backups}"
 
 DB_NAME="${DB_NAME:-homecloud}"
 DB_USER="${DB_USER:-homecloud}"
@@ -581,7 +565,7 @@ docker image inspect "$BACKEND_IMAGE" >/dev/null 2>&1 \
 log "  Backend image '$BACKEND_IMAGE': OK"
 
 # A16 — Verify DB credentials are available
-[ -n "$DB_PASSWORD" ] || log "  WARNING: DB_PASSWORD not set in .env (restore may fail at DB connection)"
+[ -n "$DB_PASSWORD" ] || log "  WARNING: DB_PASSWORD not set in recovery configuration (restore may fail at DB connection)"
 
 log "  All pre-validation checks passed."
 

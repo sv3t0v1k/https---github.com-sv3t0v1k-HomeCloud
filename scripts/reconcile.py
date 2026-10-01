@@ -20,6 +20,7 @@ import argparse
 import subprocess
 import sys
 import os
+from recovery_config import load_config, compose_command, ConfigError
 
 CRITICAL_ISSUES = "CRITICAL"
 WARNING_ISSUES = "WARNING"
@@ -48,7 +49,7 @@ def sanitize_storage_path(rel_path):
 def psql(query, db_user, db_name):
     """Run a SQL query against the DB container via docker compose."""
     cmd = [
-        "docker", "compose", "exec", "-T", "db", "psql",
+        *compose_command(), "exec", "-T", "db", "psql",
         "-U", db_user, "-d", db_name, "-tA", "-c", query,
     ]
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
@@ -120,6 +121,14 @@ def main():
     parser.add_argument("--storage-volume", required=True)
     parser.add_argument("--backend-image", required=True)
     args = parser.parse_args()
+
+    try:
+        os.environ.update(load_config())
+        if args.db_user != os.environ["DB_USER"] or args.db_name != os.environ["DB_NAME"]:
+            raise ConfigError("CLI DB identifiers must match recovery configuration")
+    except ConfigError as exc:
+        print("ERROR: recovery configuration: " + str(exc), file=sys.stderr)
+        return 2
 
     if os.environ.get("SKIP_RECONCILE") == "1":
         print("RECONCILE: skipped (SKIP_RECONCILE=1)")
@@ -304,4 +313,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

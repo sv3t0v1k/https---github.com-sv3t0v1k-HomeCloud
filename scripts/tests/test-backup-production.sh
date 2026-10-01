@@ -9,7 +9,7 @@ source=pathlib.Path(sys.argv[1]).parent
 passed=0
 with tempfile.TemporaryDirectory(prefix='homecloud-production-test-',dir=str(pathlib.Path(tempfile.gettempdir()).resolve())) as temp:
     root=pathlib.Path(temp); scripts=root/'project'/'scripts'; scripts.mkdir(parents=True)
-    for name in ('backup-production.sh','restore-offsite.sh','backup-production.py'):
+    for name in ('backup-production.sh','restore-offsite.sh','backup-production.py','recovery_config.py'):
         shutil.copy2(source/name,scripts/name)
     fixtures=root/'fixtures'
     subprocess.run([sys.executable,str(source/'tests/create_fixtures.py'),str(fixtures)],check=True,stdout=subprocess.DEVNULL)
@@ -34,6 +34,8 @@ printf restored > "$TARGET"
     recipient=subprocess.check_output(['age-keygen','-y',str(identity)],text=True).strip()
     recipients.write_text(recipient+'\n'); recipients.chmod(0o600)
     env=dict(os.environ,BACKUP_PRODUCTION_DIR=str(local),BACKUP_OFFSITE_DIR=str(offsite),BACKUP_OFFSITE_CONFIRMED='1',BACKUP_AGE_RECIPIENTS_FILE=str(recipients),BACKUP_AGE_IDENTITY_FILE=str(identity),BACKUP_RETAIN_COUNT='2',BACKUP_RETENTION_DAYS='0',FIXTURE=str(fixtures/'valid'),TARGET=str(target),BACKUP_WRITE_BARRIER_CONFIRMED='1')
+    manifest=root/'compose.yml'; manifest.write_text('services: {}\n')
+    env.update(HOMECLOUD_CONFIG_MODE='environment',DB_NAME='homecloud',DB_USER='homecloud',DB_PASSWORD='synthetic-private',COMPOSE_FILE=str(manifest),COMPOSE_PROJECT_NAME='hc-focused')
     logs=[]
     def run(script,args=(),updates=None):
         current=env.copy(); current.update(updates or {})
@@ -81,6 +83,7 @@ printf restored > "$TARGET"
     p=run('restore-offsite.sh',[newest,'--validate-only'])
     check(p.returncode==0 and not marker.exists(),'validate-only never creates restore success marker')
     # Direct helper fault injection exercises post-copy verification, without production hooks.
+    sys.path.insert(0,str(scripts))
     spec=importlib.util.spec_from_file_location('backup_production',scripts/'backup-production.py')
     helper=importlib.util.module_from_spec(spec); spec.loader.exec_module(helper)
     from unittest import mock

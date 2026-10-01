@@ -24,13 +24,39 @@ Encrypted full backups являются минимальным baseline; increme
 
 Offsite содержит ciphertext и ограниченный manifest (id, размер/hash ciphertext, время/format); DB counts, user filenames и SQL metadata внутри ciphertext. SHA256 проверяет corruption/transport, не authenticity против замены artifact+manifest атакующим. Age authentication проверяется до target mutation; источник/target ACL и custody остаются обязательными. Удаление plaintext staging — unlink, не гарантированное secure erase SSD/COW/snapshot. Использовать encrypted staging disk; при SIGKILL/host crash могут остаться private staging remnants, нужен контролируемый operator cleanup после проверки отсутствия активного job. Не выполнять автоматическое удаление неизвестных partial artifacts.
 
+## Единый внешний config для recovery helpers
+
+`backup.sh`, `restore.sh`, production wrappers и `reconcile.py` используют общий `scripts/recovery_config.py`. Checkout `.env` никогда не читается ими и не открывается Compose автоматически. Работа из любого CWD поддержана абсолютными Compose manifest paths и собственным script directory.
+
+Основной production режим: `HOMECLOUD_ENV_FILE=/secure/homecloud/recovery.env`. Файл должен находиться вне checkout, иметь абсолютный путь, быть regular/readable, без конечного symlink. Права0600/0640; read-only0400/0440 тоже допустимы. World-readable, group-writable, executable и special-bit modes отклоняются до любых backup/restore операций. Parent directory защищает оператор (предпочтительно0700); ancestor symlinks допустимы для доверенного локального deployment, canonical path не может оказаться внутри checkout. Это ACL контракт доверенного Linux host, не sandbox против root или конкурентного изменения конфигурации администратором.
+
+Формат: отдельные `KEY=value` строки, blank lines и отдельные `#` comments. Крайние одиночные/двойные кавычки снимаются; shell expansion, escape decoding, multiline и inline comments не поддержаны. Файл не исполняется через `source`. Unknown/duplicate keys и malformed quoting отклоняются без вывода значений. Allowlist находится в `KEYS` loader; не включать посторонние application настройки. После обновления config повторить qualification.
+
+Обязательны `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `COMPOSE_FILE`, `COMPOSE_PROJECT_NAME`. DB identifiers: `[A-Za-z_][A-Za-z0-9_]{0,62}`; сложные quoted PostgreSQL identifiers вне контракта. `COMPOSE_FILE` — существующие абсолютные manifest paths, разделённые `:`; первый файл задаёт Compose-relative resources. `COMPOSE_PROJECT_NAME` — явное имя существующего target, иначе новый проект создаст пустые volumes. Compose paths с `:` не поддержаны. Coordinator дополнительно требует backup roots, acknowledgements и соответствующий age key file по контракту ниже; production manifest требует JWT/TLS/host и другие settings из secret/topology runbooks.
+
+Приоритет: уже экспортированное окружение **выше** файла, включая пустое значение (пустой required input вызывает failure). Это сохраняет runtime `BACKUP_DIR` staging override coordinator и явные operator overrides. Перед запуском удалить stale exports; для единственного источника использовать чистое окружение:
+
+```sh
+env -i PATH="$PATH" HOME="$HOME" HOMECLOUD_ENV_FILE=/secure/homecloud/recovery.env \
+  bash /opt/homecloud/scripts/backup-production.sh
+env -i PATH="$PATH" HOME="$HOME" HOMECLOUD_ENV_FILE=/secure/homecloud/recovery.env \
+  bash /opt/homecloud/scripts/restore-offsite.sh GENERATION --validate-only
+```
+
+Альтернатива для полностью подготовленного exported environment: явно `HOMECLOUD_CONFIG_MODE=environment`, без `HOMECLOUD_ENV_FILE`. Отсутствие file path без этого opt-in — ошибка; оба режима одновременно запрещены. Implicit development fallback отсутствует. Missing/unreadable файл не заменяется окружением.
+
+Все nested Compose вызовы используют `--env-file /dev/null`; loader экспортирует проверенные file settings и запрещает auto dotenv discovery. Поэтому Compose и helper видят одинаковые значения; CLI DB identifiers reconcile обязаны совпадать с конфигурацией. Secrets (`DB_PASSWORD`, JWT/Redis/metrics tokens, age identity contents) не печатаются loader и errors; config path и отсутствующие variable names не являются secrets. Значения доступны child environment/Docker/root по существующей secret-lifecycle модели; это не secret-manager isolation. Shell tracing отключён в helpers. Не включать tracing/diagnostic env dumps в caller и не писать secrets в обычные path/image settings.
+
+Историческая схема: backup читал шесть DB/Redis/JWT ключей checkout `.env` поверх окружения; restore обнулял DB keys и читал только `.env`; coordinator принимал exported settings, но nested helper терял DB input; reconcile имел явные CLI identifiers и CWD-dependent Compose. `STORAGE_PATH`/image/retention/roots — обычная конфигурация; возрастные key-file paths — обычные paths, их содержимое секретно. Текущая схема устраняет эти различия без изменения backup format/encryption/offsite.
+
 ## Исполняемый контракт
 
 Все paths абсолютные; локальный и внешний root различаются и не вложены друг в друга. Внешний root provisioned заранее; автоматическое создание потерянного mount недопустимо. Recipient/identity файлы вне repo и обоих backup roots, без symlink, права0600. Структура generation: `hc_YYYYMMDDTHHMMSSZ_<random16>/backup.age` + `manifest.json`. На внешнем root нет plaintext v1 metadata. Незавершённые `.partial_*` не являются restore points.
 
-Настройки backup job:
+Настройки backup job (DB/Compose/secrets входят в внешний recovery.env):
 
 ```sh
+export HOMECLOUD_ENV_FILE=/secure/homecloud/recovery.env
 export BACKUP_PRODUCTION_DIR=/var/lib/homecloud/encrypted-backups
 export BACKUP_OFFSITE_DIR=/mnt/homecloud-offsite/backups
 export BACKUP_AGE_RECIPIENTS_FILE=/secure/backup/recipients.txt
@@ -66,3 +92,5 @@ Safe JSON events различают configuration, legacy backup (фиксиро
 ## Проверка checkpoint
 
 Production focused34PASS; legacy backup safety27PASS; legacy restore validation15PASS (1 destructive integration skipped и заменена real isolated drill). Bash/Python syntax и diff-check PASS. Real final drill evidence `/private/tmp/homecloud-backup-dr.c9ipSH/result.json`: offsite authoritative после удаления local copy, exact DB snapshots/quotas/shares/uploads и SHA256 bytes, readiness200, leakage/own cleanup PASS. Independent review APPROVE после bounded corrections validation signal/retention tie/fixed failure reasons. Реализованный backup checkpoint PASS; OVERALL_PRODUCTION_READINESS NOT_READY.
+
+External-only config qualification: contract11/11, production34/34, safety27/27, restore15 PASS/1 integration SKIP; fresh encrypted paired drill `/private/tmp/homecloud-backup-dr.ldiKuX/result.json` с чистым env, custom DB и actual helpers вне checkout PASS. [Итоговый checkpoint](./final-production-acceptance.md#external-only-backuprestore-config--2026-10-01). Общий NOT_READY.

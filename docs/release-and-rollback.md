@@ -6,7 +6,7 @@
 
 Оператор фиксирует commit, результаты full gates, новый и предыдущий backend/frontend image digest, конфигурацию без раскрытия секретов, schema compatibility decision и пару DB/storage backup. Образы уже собраны/проверены и доступны registry. На deployment не пересобирать их из меняющегося checkout.
 
-Рабочий deployment каталог — защищённый checkout выбранного release commit: здесь находятся docker-compose.production.yml, deploy/ingress/, scripts/backup.sh, scripts/restore.sh, scripts/reconcile.py, backend/package.json, .env с production секретами и release-images.yml. Все команды ниже выполняются из этого корня; scripts читают именно его .env. Каталог с одними Compose файлами недостаточен:
+Рабочий deployment каталог — защищённый checkout выбранного release commit: здесь находятся docker-compose.production.yml, deploy/ingress/, scripts/backup.sh, scripts/restore.sh, scripts/reconcile.py, backend/package.json и release-images.yml. Production secrets находятся только во внешнем файле. Release команды ниже выполняются из этого корня; recovery helpers поддерживают произвольный CWD через [единый внешний config](./backup-productionization.md#единый-внешний-config-для-recovery-helpers). Каталог с одними Compose файлами недостаточен:
 
 ```yaml
 services:
@@ -19,6 +19,10 @@ services:
 Значения — `registry/path@sha256:…`, не mutable tags. Предыдущая пара записана отдельно как PREVIOUS_BACKEND_IMAGE/PREVIOUS_FRONTEND_IMAGE. Production Compose не использует фиксированные container_name. Статические proxy subnet/IP нельзя параллельно повторять на одном host. Исходный docker-compose.yml остаётся legacy/development, не production override; не смешивать эти файлы. При переходе сохранить COMPOSE_PROJECT_NAME и реальные volume names, сверить существующие data mounts; смена project name создаёт пустые volumes, а не переносит данные. Внешний ingress maintenance должен оставаться закрытым даже при старте frontend скриптом restore.
 
 ```bash
+export HOMECLOUD_ENV_FILE=/secure/homecloud/recovery.env
+SCRIPT_DIR="$PWD/scripts"
+# Loader экспортирует проверенные settings и обёртку Compose без auto dotenv.
+source "$SCRIPT_DIR/recovery-config.sh"
 export COMPOSE_FILE="$PWD/docker-compose.production.yml:$PWD/release-images.yml"
 export COMPOSE_PROJECT_NAME=homecloud
 # RELEASE_BACKEND_IMAGE и RELEASE_FRONTEND_IMAGE задаёт оператор из manifest.
@@ -28,7 +32,7 @@ docker compose config --quiet
 docker compose pull backend frontend
 ```
 
-COMPOSE_FILE/PROJECT_NAME сохраняются и для backup/restore, которые вызывают Compose без `-f`. Deployment .env и volume names должны совпадать с существующей установкой. Перед первой установкой storage volume подготавливается с правами UID 1001; readiness fail закрывает релиз при неверных правах.
+COMPOSE_FILE/PROJECT_NAME сохраняются и для backup/restore, которые вызывают Compose без `-f`. External config, project и volume names должны совпадать с существующей установкой. Перед первой установкой storage volume подготавливается с правами UID 1001; readiness fail закрывает релиз при неверных правах.
 
 ## Последовательность и blocking gates
 
@@ -41,7 +45,7 @@ BACKUP_DIR="$RELEASE_BACKUP_DIR" BACKEND_IMAGE="$PREVIOUS_BACKEND_IMAGE" bash sc
 BACKUP_DIR="$RELEASE_BACKUP_DIR" BACKEND_IMAGE="$PREVIOUS_BACKEND_IMAGE" bash scripts/restore.sh --validate-only
 ```
 
-Скрипты находятся в корне checkout с соответствующим .env; секреты не передаются аргументами. Backup helper image должен иметь необходимые tar/sh. Успешный validate-only подтверждает integrity и входы, но не заменяет реальный restore drill.
+Скрипты используют обязательный внешний recovery config; секреты не передаются аргументами. Backup helper image должен иметь необходимые tar/sh. Успешный validate-only подтверждает integrity и входы, но не заменяет реальный restore drill.
 
 3. Проверить production config новым image, не запуская приложение/DB connect:
 

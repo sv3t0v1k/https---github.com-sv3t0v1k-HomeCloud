@@ -30,18 +30,8 @@ fail() { echo -e "  ${RED}FAIL${NC}: $1"; FAIL_COUNT=$((FAIL_COUNT + 1)); }
 skip() { echo -e "  ${YELLOW}SKIP${NC}: $1"; SKIP_COUNT=$((SKIP_COUNT + 1)); }
 
 TEST_ROOT=$(mktemp -d /tmp/homecloud-backup-test.XXXXXX)
-REAL_ENV="$PROJECT_ROOT/.env"
-ENV_BACKED_UP=0
-
 backup_start_time=$(date +%s)
-
-# Cleanup helper: restore .env if it was moved
-test_restore_env() {
-  if [ "$ENV_BACKED_UP" -eq 1 ] && [ -f "$REAL_ENV.bak" ]; then
-    mv "$REAL_ENV.bak" "$REAL_ENV" 2>/dev/null || true
-    ENV_BACKED_UP=0
-  fi
-}
+# No checkout env manipulation: caller supplies explicit recovery configuration.
 
 # Count backup sets (exclude staging and markers)
 count_backup_sets() {
@@ -259,12 +249,10 @@ echo "--- Test 6: DB dump failure → no artifacts, exit non-zero ---"
 if check_docker; then
   T6_DIR="$TEST_ROOT/t6"
   mkdir -p "$T6_DIR"
-  # Temporarily rename .env so env var overrides take effect
-  mv "$REAL_ENV" "$REAL_ENV.bak" 2>/dev/null && ENV_BACKED_UP=1
+  # Explicit environment overrides exercise failure paths
   DB_NAME="nonexistent_db_xyz" DB_USER="baduser" DB_PASSWORD="badpass" \
     BACKUP_DIR="$T6_DIR" bash "$BACKUP_SH" --yes >/dev/null 2>&1
   RC=$?
-  test_restore_env
   
   if [ $RC -ne 0 ]; then
     pass "DB dump failure exits non-zero (exit $RC)"
@@ -304,7 +292,6 @@ if check_docker; then
   BACKEND_IMAGE="nonexistent-image-xyz" BACKUP_DIR="$T7_DIR" \
     bash "$BACKUP_SH" --yes >/dev/null 2>&1
   RC=$?
-  test_restore_env
   
   if [ $RC -ne 0 ]; then
     pass "Storage failure exits non-zero (exit $RC)"
@@ -338,12 +325,8 @@ if check_docker; then
   BACKUP_DIR="$T8_DIR" bash "$BACKUP_SH" --yes >/dev/null 2>&1
   COUNT_BEFORE=$(count_backup_sets "$T8_DIR")
   # Now attempt a failing backup (same dir)
-  mv "$REAL_ENV" "$REAL_ENV.bak" 2>/dev/null && ENV_BACKED_UP=1
   DB_NAME="nonexistent_db_xyz" DB_USER="baduser" DB_PASSWORD="badpass" \
     BACKUP_DIR="$T8_DIR" bash "$BACKUP_SH" --yes >/dev/null 2>&1
-  test_restore_env
-  # Restore env backup if test_restore_env didn't
-  mv "$REAL_ENV.bak" "$REAL_ENV" 2>/dev/null && ENV_BACKED_UP=0
   COUNT_AFTER=$(count_backup_sets "$T8_DIR")
   
   if [ "$COUNT_BEFORE" -eq 1 ] && [ "$COUNT_AFTER" -ge 1 ]; then
@@ -362,11 +345,9 @@ if check_docker; then
   T9_DIR="$TEST_ROOT/t9"
   mkdir -p "$T9_DIR"
   # First: fail
-  mv "$REAL_ENV" "$REAL_ENV.bak" 2>/dev/null && ENV_BACKED_UP=1
   DB_NAME="nonexistent_db_xyz" DB_USER="baduser" DB_PASSWORD="badpass" \
     BACKUP_DIR="$T9_DIR" bash "$BACKUP_SH" --yes >/dev/null 2>&1
   RC1=$?
-  mv "$REAL_ENV.bak" "$REAL_ENV" 2>/dev/null && ENV_BACKED_UP=0
   # Second: succeed
   BACKUP_DIR="$T9_DIR" bash "$BACKUP_SH" --yes >/dev/null 2>&1
   RC2=$?
@@ -661,7 +642,6 @@ echo "  Skipped: $SKIP_COUNT"
 echo "========================================"
 
 # Cleanup
-test_restore_env
 rm -rf "$TEST_ROOT" 2>/dev/null || true
 
 if [ "$FAIL_COUNT" -gt 0 ]; then

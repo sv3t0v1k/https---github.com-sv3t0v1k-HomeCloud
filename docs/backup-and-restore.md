@@ -1,3 +1,5 @@
+> Для всех команд legacy helpers ниже также обязателен `HOMECLOUD_ENV_FILE` либо явный environment mode из [контракта recovery](./backup-productionization.md#единый-внешний-config-для-recovery-helpers).
+
 > Production entry points: `scripts/backup-production.sh` и `scripts/restore-offsite.sh`. Legacy plaintext v1 workflow ниже сохранён для maintenance и внутренних проверок. Полный контракт шифрования, offsite, keys, retention и failure semantics: [Backup Productionization](./backup-productionization.md).
 
 # Резервное копирование и восстановление HomeCloud
@@ -119,7 +121,7 @@ Backup создаётся с гарантией атомарности:
 - `BACKUP_DIR` — папка для backup (по умолчанию `./backups`)
 - `RETENTION_DAYS` — retention в днях (по умолчанию 7)
 - `BACKEND_IMAGE` — Docker image для доступа к storage (по умолчанию `homecloud-backend`)
-- `DB_NAME`, `DB_USER`, `STORAGE_PATH` — загружаются из `.env` (env vars take precedence if .env is absent)
+- `DB_NAME`, `DB_USER`, `DB_PASSWORD` — обязательный явный внешний config; `STORAGE_PATH` — config/default. Окружение имеет приоритет над файлом; checkout `.env` не читается. [Единый контракт](./backup-productionization.md#единый-внешний-config-для-recovery-helpers)
 
 ### Флаги
 
@@ -389,7 +391,7 @@ Production wrapper использует собственный verified-set rete
 - Backup находится с правами `600`
 - Restore проверяет отсутствие path traversal путей в архиве
 - Restore отклоняет device files, FIFO, sockets в архиве
-- Restore не экспортирует secrets в environment (без `set -a` для .env)
+- Restore использует проверенное child environment; secret values не выводятся. Файл не исполняется через source, nested Compose не читает checkout `.env`
 
 ## Планирование
 

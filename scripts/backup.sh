@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set +x
 set -euo pipefail
 
 # ===========================================================================
@@ -35,7 +36,6 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-BACKUP_DIR="${BACKUP_DIR:-$PROJECT_ROOT/backups}"
 DEFAULT_RETENTION_DAYS=7
 BACKUP_FORMAT_VERSION="1"
 MIN_BACKUPS=2
@@ -147,32 +147,10 @@ for arg in "$@"; do
 done
 
 # ---------------------------------------------------------------------------
-# Load .env WITHOUT set -a (do NOT export secrets into process environment)
+# Explicit external recovery configuration (shared with coordinator/reconcile).
 # ---------------------------------------------------------------------------
-DB_NAME="${DB_NAME:-}"
-DB_USER="${DB_USER:-}"
-DB_PASSWORD="${DB_PASSWORD:-}"
-REDIS_PASSWORD="${REDIS_PASSWORD:-}"
-JWT_SECRET="${JWT_SECRET:-}"
-JWT_REFRESH_SECRET="${JWT_REFRESH_SECRET:-}"
-if [ -f "$PROJECT_ROOT/.env" ]; then
-  while IFS='=' read -r key value || [ -n "$key" ]; do
-    key="${key%%#*}"
-    [ -z "$key" ] && continue
-    key="$(echo "$key" | tr -d '[:space:]')"
-    value="${value//\"/}"
-    value="${value//\'/}"
-    value="$(echo "$value" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
-    case "$key" in
-      DB_NAME) DB_NAME="$value" ;;
-      DB_USER) DB_USER="$value" ;;
-      DB_PASSWORD) DB_PASSWORD="$value" ;;
-      REDIS_PASSWORD) REDIS_PASSWORD="$value" ;;
-      JWT_SECRET) JWT_SECRET="$value" ;;
-      JWT_REFRESH_SECRET) JWT_REFRESH_SECRET="$value" ;;
-    esac
-  done < "$PROJECT_ROOT/.env"
-fi
+source "$SCRIPT_DIR/recovery-config.sh"
+BACKUP_DIR="${BACKUP_DIR:-$PROJECT_ROOT/backups}"
 
 DB_NAME="${DB_NAME:-homecloud}"
 DB_USER="${DB_USER:-homecloud}"

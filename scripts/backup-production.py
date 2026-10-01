@@ -13,6 +13,7 @@ import sys
 import tarfile
 import tempfile
 import uuid
+from recovery_config import load_config
 
 NAME = re.compile(r'hc_\d{8}T\d{6}Z_[0-9a-f]{16}')
 MEMBER = re.compile(r'homecloud_(?:db_\d{8}_\d{6}_[0-9a-f]{8}\.sql\.gz|storage_\d{8}_\d{6}_[0-9a-f]{8}\.tar\.gz|\d{8}_\d{6}_[0-9a-f]{8}\.meta(?:\.sha256)?)')
@@ -182,6 +183,7 @@ def operation():
 def main():
     global stage
     os.umask(0o077)
+    os.environ.update(load_config())
     local=root('BACKUP_PRODUCTION_DIR')
     lock=local/'.production.lock'
     lock.mkdir() # stale lock requires operator inspection

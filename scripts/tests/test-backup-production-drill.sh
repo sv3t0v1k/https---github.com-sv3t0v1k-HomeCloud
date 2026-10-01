@@ -6,6 +6,8 @@ DR_ROOT="$(mktemp -d /private/tmp/homecloud-backup-dr.XXXXXX)"
 KEY_ROOT="$(mktemp -d /private/tmp/homecloud-backup-key.XXXXXX)"
 PROJECT="homecloud-backup-dr-$(date +%s)-$$"
 IMAGE="${DR_IMAGE:-homecloud-backup-dr:checkpoint}"
+export DB_NAME=hc_dr_db DB_USER=hc_dr_user
+export COMPOSE_FILE="$DR_ROOT/compose.yml" COMPOSE_ENV_FILES=/dev/null COMPOSE_DISABLE_ENV_FILE=1
 export COMPOSE_PROJECT_NAME="$PROJECT"
 export BACKEND_IMAGE="$IMAGE"
 umask 077
@@ -34,7 +36,6 @@ cleanup() {
  exit "$result"
 }
 trap cleanup EXIT
-mkdir -p "$DR_ROOT/scripts"
 export BACKUP_PRODUCTION_DIR="$DR_ROOT/backups" BACKUP_OFFSITE_DIR="$DR_ROOT/offsite"
 mkdir -m 700 "$BACKUP_OFFSITE_DIR"
 export BACKUP_OFFSITE_CONFIRMED=1 BACKUP_WRITE_BARRIER_CONFIRMED=1
@@ -42,9 +43,14 @@ export BACKUP_AGE_RECIPIENTS_FILE="$KEY_ROOT/recipients.txt" BACKUP_AGE_IDENTITY
 age-keygen -o "$BACKUP_AGE_IDENTITY_FILE" 2> "$DR_ROOT/keygen.log"
 age-keygen -y "$BACKUP_AGE_IDENTITY_FILE" > "$BACKUP_AGE_RECIPIENTS_FILE"
 chmod 600 "$BACKUP_AGE_IDENTITY_FILE" "$BACKUP_AGE_RECIPIENTS_FILE"
-printf "DB_NAME=homecloud\nDB_USER=homecloud\nDB_PASSWORD=%s\n" "$DB_PASSWORD" > "$DR_ROOT/.env"
-cp "$ROOT/scripts/backup.sh" "$ROOT/scripts/restore.sh" "$ROOT/scripts/reconcile.py" "$DR_ROOT/scripts/"
-cp "$ROOT/scripts/backup-production.sh" "$ROOT/scripts/restore-offsite.sh" "$ROOT/scripts/backup-production.py" "$DR_ROOT/scripts/"
+export HOMECLOUD_ENV_FILE="$KEY_ROOT/recovery.env"
+python3 - <<'CONFIG_EOF'
+import os
+from pathlib import Path
+keys=('DB_NAME','DB_USER','DB_PASSWORD','JWT_SECRET','JWT_REFRESH_SECRET','REDIS_PASSWORD','COMPOSE_FILE','COMPOSE_PROJECT_NAME','BACKEND_IMAGE','STORAGE_VOLUME','BACKUP_PRODUCTION_DIR','BACKUP_OFFSITE_DIR','BACKUP_OFFSITE_CONFIRMED','BACKUP_WRITE_BARRIER_CONFIRMED','BACKUP_AGE_RECIPIENTS_FILE','BACKUP_AGE_IDENTITY_FILE')
+Path(os.environ['HOMECLOUD_ENV_FILE']).write_text(''.join(k+'='+os.environ[k]+'\n' for k in keys))
+CONFIG_EOF
+chmod 600 "$HOMECLOUD_ENV_FILE"
 # Only non-secret manifest is copied; no synced or deployment configuration.
 cp "$ROOT/backend/package.json" "$DR_ROOT/package.json"
 if [ -z "${DR_IMAGE:-}" ]; then docker build -t "$IMAGE" "$ROOT/backend" > "$DR_ROOT/build.log" 2>&1; fi
@@ -53,8 +59,8 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: homecloud
-      POSTGRES_USER: homecloud
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - db_data:/var/lib/postgresql/data
@@ -66,7 +72,7 @@ services:
       PORT: 3000
       DB_PASSWORD: ${DB_PASSWORD}
       REDIS_PASSWORD: ${REDIS_PASSWORD}
-      DATABASE_URL: postgres://homecloud:${DB_PASSWORD}@db:5432/homecloud
+      DATABASE_URL: postgres://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       STORAGE_PATH: /storage
@@ -104,12 +110,12 @@ UPDATE users SET name='after-backup' WHERE id=1;
 DR_EOF
 cd "$DR_ROOT"
 docker compose up -d db
-for attempt in $(seq 1 30); do docker compose exec -T db pg_isready -U homecloud -d homecloud >/dev/null 2>&1 && break; sleep 1; done
+for attempt in $(seq 1 30); do docker compose exec -T db pg_isready -U "$DB_USER" -d "$DB_NAME" >/dev/null 2>&1 && break; sleep 1; done
 docker compose run --rm backend npm run migration:run > migrations.log 2>&1
-docker compose exec -T db psql -v ON_ERROR_STOP=1 -U homecloud -d homecloud < fixtures.sql > fixtures.log
+docker compose exec -T db psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" < fixtures.sql > fixtures.log
 docker run --rm --user root -v "$STORAGE_VOLUME:/storage" "$IMAGE" sh -c 'mkdir -p /storage/1 /storage/.tmp; printf "alpha-bytes!!\n" > /storage/1/alpha.txt; printf "beta--bytes!!\n" > /storage/1/beta.txt; chown -R 1001:1001 /storage'
 snapshot() {
- docker compose exec -T db psql -v ON_ERROR_STOP=1 -U homecloud -d homecloud -tA < snapshot.sql > "$1.rows"
+ docker compose exec -T db psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" -tA < snapshot.sql > "$1.rows"
  python3 - "$1.rows" <<'ASSERT_EOF'
 import sys
 rows = open(sys.argv[1]).read().splitlines()
@@ -119,16 +125,18 @@ ASSERT_EOF
  docker run --rm -v "$STORAGE_VOLUME:/storage" "$IMAGE" sh -c 'cd /storage; find . -type f -not -path "./.tmp/*" -exec sha256sum {} \;' | sort > "$1.bytes"
 }
 snapshot before
-bash scripts/backup-production.sh > backup.log 2>&1
+bash "$ROOT/scripts/tests/test-backup-safety.sh" > backup-safety.log 2>&1
+bash "$ROOT/scripts/tests/test-restore-safety.sh" --skip-integration > restore-safety.log 2>&1
+env -i PATH="$PATH" HOME="$HOME" HOMECLOUD_ENV_FILE="$HOMECLOUD_ENV_FILE" bash "$ROOT/scripts/backup-production.sh" > backup.log 2>&1
 GENERATION="$(find "$BACKUP_OFFSITE_DIR" -type d -name 'hc_*' -maxdepth 1 | head -n 1)"
 [ -n "$GENERATION" ]
 GENERATION="${GENERATION##*/}"
 # Delete the entire local encrypted copy: recovery must fetch the offsite set.
 rm -rf "$BACKUP_PRODUCTION_DIR"
 printf 'LOCAL_ENCRYPTED_COPY_REMOVED: PASS\n' > authority.log
-docker compose exec -T db psql -v ON_ERROR_STOP=1 -U homecloud -d homecloud < mutate.sql > mutation.log
+docker compose exec -T db psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" < mutate.sql > mutation.log
 docker run --rm --user root -v "$STORAGE_VOLUME:/storage" "$IMAGE" sh -c 'printf "mutated\n" > /storage/1/alpha.txt; printf "orphan\n" > /storage/1/post-backup.txt'
-bash scripts/restore-offsite.sh "$GENERATION" --yes > restore.log 2>&1
+env -i PATH="$PATH" HOME="$HOME" HOMECLOUD_ENV_FILE="$HOMECLOUD_ENV_FILE" bash "$ROOT/scripts/restore-offsite.sh" "$GENERATION" --yes > restore.log 2>&1
 snapshot after
 diff -u before.rows after.rows
 diff -u before.bytes after.bytes
@@ -144,7 +152,7 @@ for log in root.glob('*.log'):
     data=log.read_text(errors='replace')
     assert not any(secret in data for secret in secrets), 'secret found in drill logs'
 rows=(root/'after.rows').read_text().splitlines()
-result={'verdict':'PASS','source':'encrypted offsite artifact after deletion of local encrypted copy','transport_scope':'same-host isolated filesystem fixture; physical offsite placement remains operator responsibility','row_counts':{name:sum(line.startswith(name+'|') for line in rows) for name in ('users','folders','files','shares','uploads')},'quota_consistent':'quota|t' in rows,'completed_upload_consistent':'upload-consistency|t' in rows,'db_snapshot_identical':(root/'before.rows').read_bytes()==(root/'after.rows').read_bytes(),'file_sha256_identical':(root/'before.bytes').read_bytes()==(root/'after.bytes').read_bytes(),'readiness_http_status':200,'secret_leakage_scan':'PASS'}
+result={'external_config_only':True,'custom_db_identifiers':True,'helper_cwd':str(root),'checkout_env_used':False,'verdict':'PASS','source':'encrypted offsite artifact after deletion of local encrypted copy','transport_scope':'same-host isolated filesystem fixture; physical offsite placement remains operator responsibility','row_counts':{name:sum(line.startswith(name+'|') for line in rows) for name in ('users','folders','files','shares','uploads')},'quota_consistent':'quota|t' in rows,'completed_upload_consistent':'upload-consistency|t' in rows,'db_snapshot_identical':(root/'before.rows').read_bytes()==(root/'after.rows').read_bytes(),'file_sha256_identical':(root/'before.bytes').read_bytes()==(root/'after.bytes').read_bytes(),'readiness_http_status':200,'secret_leakage_scan':'PASS'}
 (root/'result.json').write_text(json.dumps(result,indent=2)+'\n')
 EVIDENCE_EOF
 printf 'TRANSPORT_SCOPE: isolated filesystem target; same-host fixture, no physical offsite disaster claim\n' > scope.txt
