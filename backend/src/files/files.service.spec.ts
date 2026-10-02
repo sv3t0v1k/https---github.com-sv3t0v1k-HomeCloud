@@ -99,6 +99,90 @@ describe("FilesService - Authorization Boundary", () => {
     jest.clearAllMocks();
   });
 
+  describe("display names are independent of storage filenames", () => {
+    beforeEach(() => {
+      mockStorageService.generateSafeFilename.mockImplementation(
+        StorageService.prototype.generateSafeFilename,
+      );
+      mockUsersService.findById.mockResolvedValue({
+        id: 1,
+        storageQuota: 1000,
+        storageUsed: 0,
+      });
+      const qr = mockFileRepository.manager.connection.createQueryRunner();
+      qr.manager.create.mockImplementation((_entity: any, data: any) => ({
+        ...data,
+      }));
+      qr.manager.save.mockImplementation(async (value: any) => value);
+    });
+
+    it.each(["проверено.png", "verified.png"])(
+      "renames to %s without touching its physical path",
+      async (name) => {
+        const file = {
+          id: 1,
+          userId: 1,
+          name: "audit.png",
+          storagePath: "/storage/1/immutable.png",
+          isFolder: false,
+        };
+        mockFileRepository.findOne.mockResolvedValue(file);
+        const result = await service.updateFile(1, 1, { name });
+        expect(result.name).toBe(name);
+        expect(result.storagePath).toBe("/storage/1/immutable.png");
+        expect(mockStorageService.generateSafeFilename).not.toHaveBeenCalled();
+        expect(mockStorageService.generatePath).not.toHaveBeenCalled();
+        expect(mockFileRepository.save).toHaveBeenCalledWith(file);
+      },
+    );
+
+    it("preserves Unicode on creation and copying with unique safe physical paths", async () => {
+      const created = await service.createFile(
+        1,
+        "проверено.png",
+        10,
+        "image/png",
+      );
+      expect(created.name).toBe("проверено.png");
+      expect(created.storagePath).toMatch(
+        /^\/storage\/1\/_+_[a-f0-9]{16}\.png$/,
+      );
+      mockFileRepository.findOne.mockResolvedValue({ ...created, id: 1 });
+      const copied = await service.copyFile(1, 1);
+      expect(copied.name).toBe("проверено.png");
+      expect(copied.storagePath).not.toBe(created.storagePath);
+      expect(mockStorageService.copyFile).toHaveBeenCalledWith(
+        created.storagePath,
+        copied.storagePath,
+      );
+    });
+
+    it.each([
+      "",
+      "   ",
+      "../escape",
+      "a/b",
+      "a\\b",
+      "a\n.txt",
+      ".",
+      "..",
+      "a".repeat(256),
+    ])("rejects unsafe display name %j", async (name) => {
+      mockFileRepository.findOne.mockResolvedValue({
+        id: 1,
+        userId: 1,
+        isFolder: false,
+      });
+      await expect(service.updateFile(1, 1, { name })).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(
+        service.createFile(1, name, 10, "text/plain"),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockFileRepository.save).not.toHaveBeenCalled();
+    });
+  });
+
   describe("findOne", () => {
     it("should return file when it belongs to user", async () => {
       const file = { id: 1, userId: 1, name: "test.txt" };

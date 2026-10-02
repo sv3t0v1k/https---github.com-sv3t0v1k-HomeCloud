@@ -8,7 +8,6 @@ import {
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, In, QueryRunner } from "typeorm";
-import * as fs from "fs";
 import { FileEntity } from "../entities/file.entity";
 import { FolderEntity } from "../entities/folder.entity";
 import { StorageService } from "../storage/storage.service";
@@ -26,6 +25,24 @@ export class FilesService {
     private storageService: StorageService,
     private usersService: UsersService,
   ) {}
+
+  private validateDisplayName(name: string): string {
+    const trimmed = name.trim();
+    if (
+      !trimmed ||
+      trimmed.length > 255 ||
+      /[\\/]/u.test(trimmed) ||
+      Array.from(trimmed).some((character) => {
+        const code = character.charCodeAt(0);
+        return code < 32 || code === 127;
+      }) ||
+      trimmed === "." ||
+      trimmed === ".."
+    ) {
+      throw new BadRequestException("Invalid file name");
+    }
+    return trimmed;
+  }
 
   private sumFileSizes(files: FileEntity[]): number {
     return files.reduce((total, file) => {
@@ -155,11 +172,8 @@ export class FilesService {
     mimeType: string,
     parentId?: number,
   ) {
-    if (!name || !name.trim()) {
-      throw new BadRequestException("File name must not be empty");
-    }
-
-    const safeName = this.storageService.generateSafeFilename(name);
+    const displayName = this.validateDisplayName(name);
+    const safeName = this.storageService.generateSafeFilename(displayName);
     const user = await this.usersService.findById(userId);
     if (!user) {
       throw new ForbiddenException("User not found");
@@ -174,7 +188,7 @@ export class FilesService {
 
     try {
       const file = queryRunner.manager.create(FileEntity, {
-        name: safeName,
+        name: displayName,
         storagePath: this.storageService.generatePath(userId, safeName),
         size,
         mimeType,
@@ -257,20 +271,8 @@ export class FilesService {
       throw new BadRequestException("Cannot update folder via files endpoint");
     }
 
-    if (data.name) {
-      if (!data.name.trim()) {
-        throw new BadRequestException("File name must not be empty");
-      }
-      const safeName = this.storageService.generateSafeFilename(data.name);
-      const oldPath = file.storagePath;
-      const newPath = this.storageService.generatePath(userId, safeName);
-
-      if (this.storageService.fileExists(oldPath)) {
-        fs.renameSync(oldPath, newPath);
-      }
-
-      file.name = safeName;
-      file.storagePath = newPath;
+    if (data.name !== undefined) {
+      file.name = this.validateDisplayName(data.name);
     }
 
     if (data.parentId !== undefined) {
@@ -791,7 +793,8 @@ export class FilesService {
       throw new BadRequestException("Invalid file size metadata");
     }
 
-    const safeName = this.storageService.generateSafeFilename(source.name);
+    const displayName = this.validateDisplayName(source.name);
+    const safeName = this.storageService.generateSafeFilename(displayName);
     const targetPath = this.storageService.generatePath(userId, safeName);
 
     await this.storageService.copyFile(source.storagePath, targetPath);
@@ -811,7 +814,7 @@ export class FilesService {
     try {
       queryRunner = this.fileRepository.manager.connection.createQueryRunner();
       copy = queryRunner.manager.create(FileEntity, {
-        name: safeName,
+        name: displayName,
         storagePath: targetPath,
         size,
         mimeType: source.mimeType,
