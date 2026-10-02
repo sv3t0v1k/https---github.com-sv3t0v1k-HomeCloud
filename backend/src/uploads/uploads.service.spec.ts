@@ -715,6 +715,60 @@ describe("UploadsService - Post-Review Fixes", () => {
     });
   });
 
+  describe("completeUpload — strict unsigned text classification", () => {
+    let root: string;
+    beforeEach(() => {
+      root = fs.mkdtempSync(path.join(os.tmpdir(), "utf8-upload-"));
+      (service as any).allowedMimeTypes = ["text/plain", "image/png"];
+      (fileTypeFromBuffer as jest.Mock).mockResolvedValue(undefined);
+      mockQueryRunner.manager.create.mockImplementation((_entity: unknown, data: Record<string, unknown>) => ({ id: 1, ...data }));
+    });
+    afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
+    function prepare(bytes: Buffer) {
+      const tempPath = path.join(root, "chunks");
+      fs.mkdirSync(tempPath);
+      fs.writeFileSync(path.join(tempPath, "0"), bytes);
+      const session = { uploadId: "plain-text", userId: 1, filename: "arbitrary.bin", totalSize: bytes.length, chunkSize: bytes.length, totalChunks: 1, uploadedChunks: [0], uploadedSize: bytes.length, tempPath, parentId: null, status: "pending", expiresAt: new Date(Date.now() + 86400000) };
+      mockQueryRunner.manager.findOne.mockResolvedValueOnce(session).mockResolvedValueOnce(null);
+      mockStorageService.generateFinalPath.mockReturnValue(path.join(root, "final"));
+      return tempPath;
+    }
+    it.each(["ASCII text\nwith tab\t", "Русский текст\r\n", "a".repeat(65535) + "Я" + "z".repeat(65536)])("accepts valid UTF-8 including chunk boundaries and charges exact bytes", async (text) => {
+      const bytes = Buffer.from(text);
+      prepare(bytes);
+      const file = await service.completeUpload(1, "plain-text");
+      expect(file.mimeType).toBe("text/plain");
+      expect(fs.readFileSync(path.join(root, "final"))).toEqual(bytes);
+      expect(mockUsersService.updateStorageUsed).toHaveBeenCalledWith(1, bytes.length, mockQueryRunner.manager);
+    });
+    it.each([
+      Buffer.from([0xc3, 0x28]),
+      Buffer.concat([Buffer.alloc(70000, 0x61), Buffer.from([0])]),
+      Buffer.concat([Buffer.alloc(70000, 0x61), Buffer.from([0xe2, 0x82])]),
+      Buffer.concat([Buffer.alloc(70000, 0x61), Buffer.from([0x1b])]),
+      Buffer.from("prefix\u0085suffix"),
+    ])("rejects invalid UTF-8 or binary controls anywhere without quota charges", async (bytes) => {
+      const tempPath = prepare(bytes);
+      await expect(service.completeUpload(1, "plain-text")).rejects.toThrow("application/octet-stream");
+      expect(mockUsersService.updateStorageUsed).not.toHaveBeenCalled();
+      expect(mockQueryRunner.manager.create).not.toHaveBeenCalled();
+      expect(fs.existsSync(path.join(root, "final"))).toBe(false);
+      expect(fs.existsSync(tempPath)).toBe(false);
+    });
+    it("preserves binary signature detector results", async () => {
+      prepare(Buffer.from([0, 1, 2, 3]));
+      (fileTypeFromBuffer as jest.Mock).mockResolvedValue({ mime: "image/png" });
+      expect((await service.completeUpload(1, "plain-text")).mimeType).toBe("image/png");
+    });
+    it("retains quota rollback and cleanup for valid text", async () => {
+      prepare(Buffer.from("valid text"));
+      mockUsersService.updateStorageUsed.mockRejectedValue(new ForbiddenException("Storage quota exceeded"));
+      await expect(service.completeUpload(1, "plain-text")).rejects.toThrow("Storage quota exceeded");
+      expect(mockQueryRunner.rollbackTransaction).toHaveBeenCalled();
+      expect(fs.existsSync(path.join(root, "final"))).toBe(false);
+    });
+  });
+
   describe("completeUpload — large file memory safety", () => {
     it("should detect MIME from header only (not full file)", async () => {
       const tempDir = `/tmp/test-mime-header-${Date.now()}`;

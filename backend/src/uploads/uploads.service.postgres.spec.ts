@@ -58,7 +58,7 @@ describePostgres("UploadsService — реальный PostgreSQL", () => {
       MAX_FILE_SIZE: 1024 * 1024,
       MAX_TOTAL_SIZE: 1024 * 1024,
       MAX_CHUNK_SIZE: 1024 * 1024,
-      ALLOWED_UPLOAD_MIME_TYPES: "application/octet-stream",
+      ALLOWED_UPLOAD_MIME_TYPES: "application/octet-stream,text/plain",
     });
     service = new UploadsService(
       dataSource.getRepository(UploadSessionEntity),

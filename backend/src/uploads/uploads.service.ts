@@ -12,6 +12,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { pipeline } from "stream/promises";
 import { fileTypeFromBuffer } from "./file-type.loader";
+import { isUtf8PlainText } from "./utf8-plain-text";
 import { v4 as uuidv4 } from "uuid";
 import { ConfigService } from "@nestjs/config";
 import { UploadSessionEntity } from "../entities/upload-session.entity";
@@ -795,7 +796,10 @@ export class UploadsService {
         fs.readSync(fd, headerBuffer, 0, headerSize, null);
         fs.closeSync(fd);
         const detected = await fileTypeFromBuffer(headerBuffer);
-        const mimeType = detected?.mime || "application/octet-stream";
+        // Signature detection remains authoritative. Unsigned content is plain
+        // text only after strict, bounded-memory validation of the entire file.
+        const mimeType = detected?.mime ||
+          ((await isUtf8PlainText(finalPath)) ? "text/plain" : "application/octet-stream");
 
         if (!this.allowedMimeTypes.includes(mimeType)) {
           if (fs.existsSync(finalPath)) {
