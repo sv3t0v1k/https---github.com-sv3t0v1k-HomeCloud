@@ -27,6 +27,9 @@ export class FilesService {
   ) {}
 
   private validateDisplayName(name: string): string {
+    if (typeof name !== "string") {
+      throw new BadRequestException("Invalid file name");
+    }
     const trimmed = name.trim();
     if (
       !trimmed ||

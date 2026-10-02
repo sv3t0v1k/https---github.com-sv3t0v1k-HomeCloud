@@ -100,6 +100,11 @@ describe("FilesService - Authorization Boundary", () => {
   });
 
   describe("display names are independent of storage filenames", () => {
+    it("rejects a null display name accepted by optional DTO validation", async () => {
+      mockFileRepository.findOne.mockResolvedValue({ id: 1, userId: 1, isFolder: false });
+      await expect(service.updateFile(1, 1, { name: null as unknown as string })).rejects.toThrow(BadRequestException);
+      expect(mockFileRepository.save).not.toHaveBeenCalled();
+    });
     beforeEach(() => {
       mockStorageService.generateSafeFilename.mockImplementation(
         StorageService.prototype.generateSafeFilename,
