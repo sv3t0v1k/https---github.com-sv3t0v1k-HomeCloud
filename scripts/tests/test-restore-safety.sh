@@ -37,11 +37,15 @@ report_pass() { log "  PASS: $1"; PASS=$((PASS+1)); }
 report_fail() { log "  FAIL: $1"; FAIL=$((FAIL+1)); }
 report_skip() { log "  SKIP: $1"; SKIP=$((SKIP+1)); }
 
+OWNED_TEST_VOLUMES=()
 cleanup() {
   rm -rf "$FIXTURES_DIR" 2>/dev/null || true
-  for vol in $(docker volume ls --filter name=homecloud_test_recon --format '{{.Name}}' 2>/dev/null || true); do
-    docker volume rm -f "$vol" 2>/dev/null || true
-  done
+  # Read-only validation has no Docker cleanup; never discover unrelated volumes.
+  if [ "$SKIP_INTEGRATION" -eq 0 ]; then
+    for vol in "${OWNED_TEST_VOLUMES[@]}"; do
+      docker volume rm -f "$vol" 2>/dev/null || true
+    done
+  fi
 }
 trap cleanup EXIT
 
@@ -214,6 +218,7 @@ if [ "$SKIP_INTEGRATION" -eq 0 ]; then
     log "  Pre-populating storage volume with existing data..."
     EXISTING_VOL="homecloud_test_recon_existing_$$"
     docker volume create "$EXISTING_VOL" >/dev/null 2>&1
+    OWNED_TEST_VOLUMES+=("$EXISTING_VOL")
     docker run --rm --user root -v "$EXISTING_VOL:/storage" "homecloud-backend" \
       sh -c 'mkdir -p /storage/user1 /storage/.tmp && echo "important data" > /storage/user1/important.txt' 2>/dev/null
     log "  Existing data: /storage/user1/important.txt"
@@ -250,6 +255,7 @@ if [ "$SKIP_INTEGRATION" -eq 0 ]; then
   log "--- Test: existing storage + failed restore → old data preserved ---"
   STOR_VOL="homecloud_test_recon_safety_$$"
   docker volume create "$STOR_VOL" >/dev/null 2>&1
+  OWNED_TEST_VOLUMES+=("$STOR_VOL")
 
   # Pre-populate storage with known data
   docker run --rm --user root -v "$STOR_VOL:/storage" "homecloud-backend" \
