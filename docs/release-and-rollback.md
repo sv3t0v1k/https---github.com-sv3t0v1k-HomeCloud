@@ -26,15 +26,18 @@ source "$SCRIPT_DIR/recovery-config.sh"
 export COMPOSE_FILE="$PWD/docker-compose.production.yml:$PWD/release-images.yml"
 export COMPOSE_PROJECT_NAME=homecloud
 # release-images.yml генерирует guarded manifest helper; порядок ниже — registry runbook boundary.
-# PUBLIC_HOST — lowercase bare hostname; TLS_CERT_DIR содержит fullchain.pem/privkey.pem.
+# PUBLIC_HOST — lowercase bare hostname; TLS_CERT_DIR — lifecycle root с current/fullchain.pem и current/privkey.pem.
 # FRONTEND_URL в production Compose выводится из PUBLIC_HOST как HTTPS origin.
 docker compose config --quiet
-docker compose pull backend frontend
+node scripts/release-manifest.cjs prepare --manifest "$CURRENT_MANIFEST"
+node scripts/release-manifest.cjs prepare --manifest "$PREVIOUS_MANIFEST"
 ```
 
 COMPOSE_FILE/PROJECT_NAME сохраняются и для backup/restore, которые вызывают Compose без `-f`. External config, project и volume names должны совпадать с существующей установкой. Перед первой установкой storage volume подготавливается с правами UID 1001; readiness fail закрывает релиз при неверных правах.
 
 ## Последовательность и blocking gates
+
+Актуальный standalone entry point: [операторский пакет](./go-live-checklist.md). Legacy plaintext backup ниже — underlying helper contract, не достаточный production encrypted/offsite gate: для go-live использовать production coordinator и custodial validation из пакета.
 
 1. Закрыть ingress, завершить активные записи/uploads, остановить backend и frontend. DB остаётся доступной. Это обеспечивает согласованную пару DB/storage; backup сам не гарантирует согласованность при параллельных записях.
 2. Сделать backup, проверить выбранную пару и сохранить previous image digests. BACKUP_DIR — приватный каталог с единственным выбранным комплектом `.meta`, DB dump и storage archive для данного checkpoint; restore выбирает последнюю metadata, а не принимает ID.
@@ -50,7 +53,7 @@ BACKUP_DIR="$RELEASE_BACKUP_DIR" BACKEND_IMAGE="$PREVIOUS_BACKEND_IMAGE" bash sc
 3. Проверить production config новым image, не запуская приложение/DB connect:
 
 ```bash
-docker compose run --rm --no-deps --entrypoint node backend -e 'require("./dist/common/production-config").validateProductionConfig(process.env)'
+docker compose run --rm --no-deps --pull never --entrypoint node backend -e 'require("./dist/common/production-config").validateProductionConfig(process.env)'
 ```
 
 4. Убедиться, что DB healthy; показать pending migrations новым image и сопоставить точный список с reviewed manifest. Ненулевой CLI exit — стоп. `migration:show` сам по себе не означает отсутствие pending: `[ ]` — ожидающие, `[X]` — применённые.
@@ -58,14 +61,14 @@ docker compose run --rm --no-deps --entrypoint node backend -e 'require("./dist/
 ```bash
 docker compose up -d db
 docker compose exec -T db sh -c 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
-docker compose run --rm --no-deps --entrypoint node backend node_modules/typeorm/cli.js migration:show -d dist/data-source.js
+docker compose run --rm --no-deps --pull never --entrypoint node backend node_modules/typeorm/cli.js migration:show -d dist/data-source.js
 ```
 
 5. Применить только reviewed migrations отдельным job, пока приложения остановлены:
 
 ```bash
-docker compose run --rm --no-deps --entrypoint node backend node_modules/typeorm/cli.js migration:run -d dist/data-source.js --transaction all
-docker compose run --rm --no-deps --entrypoint node backend -e '(async()=>{const d=require("./dist/data-source").default;try{await d.initialize();if(await d.showMigrations())process.exitCode=1}finally{if(d.isInitialized)await d.destroy()}})().catch(()=>{console.error("Migration verification failed");process.exitCode=1})'
+docker compose run --rm --no-deps --pull never --entrypoint node backend node_modules/typeorm/cli.js migration:run -d dist/data-source.js --transaction all
+docker compose run --rm --no-deps --pull never --entrypoint node backend -e '(async()=>{const d=require("./dist/data-source").default;try{await d.initialize();if(await d.showMigrations())process.exitCode=1}finally{if(d.isInitialized)await d.destroy()}})().catch(()=>{console.error("Migration verification failed");process.exitCode=1})'
 ```
 
 CLI migration errors могут содержать SQL/data: только защищённый operator log, не public CI. Startup не auto-runs migrations. Transaction all — защита SQL в транзакции, не гарантия обратимости данных или внешних effects. Destructive/schema migrations всегда требуют backup и явного решения о совместимости старого backend после apply.
@@ -73,9 +76,9 @@ CLI migration errors могут содержать SQL/data: только защ
 6. Запустить backend immutable image, без build; проверить live/ready внутри сети, protected/disabled metrics и writable storage через readiness. Нездоровый backend блокирует frontend rollout.
 
 ```bash
-docker compose up -d --no-build --no-deps backend
+docker compose up -d --no-build --no-deps --pull never backend
 docker compose exec -T backend node -e 'fetch("http://localhost:3000/api/v1/health/ready").then(r=>{if(r.status!==200)process.exit(1)}).catch(()=>process.exit(1))'
-docker compose up -d --no-build --no-deps frontend
+docker compose up -d --no-build --no-deps --pull never frontend
 # Внешний operator maintenance barrier ещё закрыт; запуск ingress его не заменяет.
 docker compose up -d --no-build --no-deps ingress
 docker compose exec -T frontend nginx -t
@@ -109,8 +112,8 @@ Gate migrations запускается из окружения с DATABASE_URL, 
 
 | Сценарий | Действие |
 |---|---|
-| Backend regression, схема совместима | Закрыть ingress; остановить backend/frontend; вернуть previous backend digest, сохранить согласованный frontend; redeploy, readiness/smoke; затем acceptance |
-| Frontend regression | Вернуть previous frontend digest, только если совместим с текущим API; redeploy без изменения DB/storage; smoke |
+| Backend regression, схема совместима | Закрыть ingress; остановить backend/frontend; вернуть полную previous manifest backend/frontend pair; redeploy, readiness/smoke; затем acceptance |
+| Frontend regression | Вернуть полную previous manifest pair при exact-schema guard PASS; частичный frontend-only rollback требует отдельной qualification |
 | Migration failed до app rollout | Оставить трафик закрытым; проверить transaction/migrations table/schema; не запускать app до решения. При полной отмене SQL допустим previous artifact, иначе corrective migration или paired restore |
 | Schema applied и old backend несовместим | Предпочесть reviewed roll-forward. Нельзя просто вернуть image или автоматически migration:revert; down существует не как доказательство безопасного rollback |
 | Data/storage corruption suspicion | Остановить записи; сохранить forensic snapshot отдельно; восстановить проверенную парную DB/storage копию в recovery окружении, сверить строки/quota/checksums; согласовать потерю записей после backup |
@@ -124,9 +127,9 @@ node scripts/release-manifest.cjs override --manifest "$PREVIOUS_MANIFEST" --sou
 # При nonzero остановиться; stale override не использовать.
 export COMPOSE_FILE="$RELEASE_SOURCE/docker-compose.production.yml:$RELEASE_IMAGES"
 docker compose config --quiet
-docker compose up -d --no-build --no-deps backend
+docker compose up -d --no-build --no-deps --pull never backend
 # readiness и smoke backend до следующей команды
-docker compose up -d --no-build --no-deps frontend
+docker compose up -d --no-build --no-deps --pull never frontend
 # runtime gate, frontend smoke и acceptance window; ingress ещё закрыт
 ```
 
@@ -155,7 +158,7 @@ Restore разрушительно заменяет DB/storage; требуетс
 
 До go-live: encryption at rest и независимая offsite копия пары DB/storage; ограниченный доступ операторов/backup identity, сохранность ключа и проверяемое recovery ключа; политика retention/RPO/RTO, мониторинг возраста последней успешной копии и alert failure; scheduled backup при согласованном write barrier; регулярный isolated restore с checksums, quota и migration/schema verification. Минимум ежемесячный drill и после изменения backup/restore, с владельцем и журналом результата; окончательные RPO/RTO утверждает владелец.
 
-Incremental backup — отдельный выбор по объёму и RPO, допустимое улучшение после go-live при доказанной достаточности full backup. Локальные retention defaults (7 дней, минимум 2 копии) не являются утверждённой production политикой. Offsite/encryption/secrets lifecycle здесь не реализованы; TLS/proxy baseline реализован отдельным checkpoint, public certificate lifecycle остаётся operator obligation; общий статус production остаётся NOT_READY.
+Incremental backup — отдельный выбор по объёму и RPO, допустимое улучшение после go-live при доказанной достаточности full backup. Локальные retention defaults (7 дней, минимум 2 копии) не являются утверждённой production политикой. Локальные offsite/encryption/secrets mechanics теперь описаны в [backup productionization](./backup-productionization.md), [recovery objectives](./recovery-objectives.md) и [secret lifecycle](./secret-lifecycle.md); реальные target/custody/approved policy остаются открыты; TLS/proxy baseline реализован отдельным checkpoint, public certificate lifecycle остаётся operator obligation; общий статус production остаётся NOT_READY.
 
 ## Secret Lifecycle baseline
 

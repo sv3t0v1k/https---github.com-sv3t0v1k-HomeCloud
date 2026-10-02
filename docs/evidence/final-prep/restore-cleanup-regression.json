@@ -1,0 +1,7 @@
+{
+  "read_only_skip_zero_docker_calls": true,
+  "integration_only_recorded_owned_volume_removed": true,
+  "no_global_enumeration": true,
+  "unrelated_volume_sentinel": "not targeted",
+  "verdict": "PASS"
+}

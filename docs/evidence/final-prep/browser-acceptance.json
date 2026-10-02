@@ -1,0 +1,39 @@
+{
+  "auth_rate_limit_window_separation_seconds": 61,
+  "ingress_template_sha256": "e98907b6785d113af4271d8c0379240a6bd752d60459d75a7e7ee67548fa5717",
+  "scope": "local self-signed TLS ingress only",
+  "viewports": [
+    {
+      "context_action_dialog": true,
+      "fatal_console_errors": [],
+      "folder_navigation": true,
+      "login": true,
+      "logout_relogin": true,
+      "preview_dialog": true,
+      "production_csp": true,
+      "react_router": true,
+      "session_restore": true,
+      "upload": true,
+      "viewport": {
+        "height": 900,
+        "width": 1440
+      }
+    },
+    {
+      "context_action_dialog": true,
+      "fatal_console_errors": [],
+      "folder_navigation": true,
+      "login": true,
+      "logout_relogin": true,
+      "preview_dialog": true,
+      "production_csp": true,
+      "react_router": true,
+      "session_restore": true,
+      "upload": true,
+      "viewport": {
+        "height": 844,
+        "width": 390
+      }
+    }
+  ]
+}

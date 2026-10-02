@@ -1,3 +1,45 @@
+## Актуальный ненумерованный final-local-prep — 2026-10-02
+
+**OVERALL_PRODUCTION_READINESS: NOT_READY / NO_GO**. Standalone [операторский пакет](./go-live-checklist.md), единственный [external-input master checklist](./external-input-master-checklist.md), [evidence index](./evidence/README.md). Предыдущие матрицы/команды ниже — исторические checkpoint, не текущий порядок deployment. Текущая последовательность требует prepare всей пары до stop и --pull never при переходе; partial rollback не квалифицирован.
+
+### Consolidated blocker matrix
+
+| Критерий | Класс | Local proof / открытая граница |
+|---|---|---|
+| Build/artifact integrity | LOCALLY_QUALIFIED | Exact source archive/immutable builds; trusted builder, не reproducible/signature claim |
+| Migrations/preflight | LOCALLY_QUALIFIED | Reviewed exact-schema/no-pending guard; target initial/evolving schema требует отдельного решения |
+| Immutable release pair | LOCALLY_QUALIFIED | Full pair rollback/rollforward; один manifest |
+| Registry distribution | PARTIALLY_QUALIFIED | Disposable digest push/pull; real provider/auth/TLS/retention/platform external |
+| TLS/proxy/cert lifecycle | PARTIALLY_QUALIFIED | Local lifecycle/ingress mechanics; public CA/native target qualification отсутствует |
+| Linux/DNS/public CA/native bind | DEFERRED | Обязательный перед GO внешний gate, не PASS |
+| Scheduler/alerts | PARTIALLY_QUALIFIED | Disposable systemd/controlled receiver; target wrapper/human recipient/watchdog external |
+| Backup/offsite/custody | PARTIALLY_QUALIFIED | Encrypted/source-loss/copy-B mechanics; real failure domain/ACL/custodian external |
+| RPO/RTO baseline | LOCALLY_QUALIFIED |128MiB/prebuilt fixture verified31.384–31.543seconds; не8.7hours |
+| Recovery budgets/cadence/window | OWNER_APPROVAL_REQUIRED | Candidate12min только local dataset; production volume/approved policy отсутствуют |
+| Secrets | LOCALLY_QUALIFIED | External-only delivery/rotation mechanics; actual target delivery/human custody external |
+| Rollback/recovery | LOCALLY_QUALIFIED | Full exact-schema pair + verified fixture restore; real host/volume recovery external |
+| Local ingress/browser/operator prep | LOCALLY_QUALIFIED | Fresh exact production template API/browser1440×900/390×844 и standalone operator walkthrough PASS; real host acceptance separate |
+| Real host/browser/operator acceptance | EXTERNAL_INPUT_REQUIRED | Named operator, public endpoint,≥15min observation и owner GO |
+
+RPO/RTO: decimal JSON `*_seconds` подтверждает около31seconds, а не31thousand seconds. Candidate12min математически согласован, но только OWNER_APPROVAL_REQUIRED; см. [точные единицы](./recovery-objectives.md#единицы-baseline-исправление-интерпретации). Исторические ephemeral raw пути не являются текущими dependencies; см. index.
+
+### Свежий final local acceptance — итог проверок
+
+Исходный HEAD `0d766777a41493e237b77df18f5597901d5f080e`, status только запрещённый audit; audit не читался/менялся/staged. Новая Phase и tag не создаются. Application sources не менялись; исправления ограничены docs/preflight/test harness и небезопасным общим cleanup теста.
+
+- **LOCAL_DEPLOYMENT_PACKAGE: PASS; PREFLIGHT_AGGREGATOR: PASS; OPERATOR_DOCS_EXECUTABLE: PASS.** Standalone package содержит13 шагов и STOP/rollback/recovery; clean-context operator reviewer APPROVE после одного bounded correction cycle. Preflight read-only, codes2/3/4 разделяют local/external/owner gaps;13 meaningful tests PASS, secret sentinel отсутствует. Code0 не разрешает GO.
+- **LOCAL_PRODUCTION_E2E: PASS; LOCAL_BROWSER_ACCEPTANCE: PASS.** [Exact production ingress/API/pair evidence](./evidence/final-prep/local-production-e2e.json), [desktop/narrow](./evidence/final-prep/browser-acceptance.json). Internal health/ready200/200; public operational endpoints404; login/root+nested/create/upload-download bytes/preview/share revoke/trash restore+permanent delete/logout-relogin PASS. Desktop1440×900 и narrow390×844: session reload, folder navigation, PNG upload, preview/context dialogs, Router и CSP header PASS, fatal console errors0. Auth windows разделены61s без ослабления limiter.
+- Production ingress template/upgrade.conf используются с localhost, self-signed certificate и random isolated networks; backend ports не published. Browser ignoreHTTPSErrors означает public trust/SAN/CA **NOT_QUALIFIED**. Этот fresh run не проверял real registry: retained digest distribution qualification остаётся отдельным local mechanics evidence.
+- Current initialHEAD→previous647aa7b→current immutable full pair PASS; live incompatible migration blocked, no-pending3/3, resolved Compose immutable/no-build3/3, rows/schema/storage/quota fingerprints unchanged. Same application/schema trees, не evolving-schema compatibility. Controlled failed deployment detected; down migration не выполнялась.
+- [Fresh gates](./evidence/final-prep/gates.json): release/manifest/registry49/49; encrypted backup34/34; external config11/11; cert10/10; scheduler21 PASS/1 intentional age integration SKIP на macOS fixed PATH; preflight13/13; cleanup regression1/1; source-fixture legacy backup27/27×2, restore validation15 PASS/1 destructive integration SKIP×2. Fresh two production builds из clean initialHEAD archive и actual manifest validation PASS ([manifest](./evidence/final-prep/current-build-manifest.json)). Latest full backend59/702 и frontend12/96 остаются историческими; app sources unchanged, full suites не повторялись.
+- [Fresh cert runtime](./evidence/final-prep/cert-runtime.json):21 healthy requests during reload, rotation/idempotency/mismatch/config/simulated ACME failure retention PASS, key0600. [Fresh offsite](./evidence/final-prep/offsite-recovery.json):128MiB×2, source destroyed, custodyB, rows/file bytes/SHA equal; verified RTO31.372/31.632seconds. Новое evidence сохраняет row fingerprints; старое не дополняется задним числом. Real offsite/human custody остаются external. Все own containers/networks/volumes/synthetic env/private keys удалены, secret scan PASS; qualified image outputs удержаны.
+- Initial invalid setup attempts (sandbox/age/config), browser folderId/route/MIME/auth-window fixtures и minimal ingress/noCSP не приняты как final evidence. Ошибки harness исправлены bounded; final exact-template run EXIT0. Restore cleanup теперь только owned volumes; --skip-integration не вызывает Docker cleanup ([regression](./evidence/final-prep/restore-cleanup-regression.json)).
+- **EVIDENCE_INDEX: PASS; EXTERNAL_INPUT_CHECKLIST: PASS; RPO_RTO_CONSISTENCY: PASS.** Единственный master checklist содержит только real external/owner work; credentials отсутствуют. Baseline about31seconds, кандидат12min scope-limited/unapproved;8.7hours было ошибкой чтения decimal JSON. Ephemeral paths NON_AUTHORITATIVE, stable repo evidence/index доступны без chat context.
+
+Security/ops review: no real secrets в docs/index/manifests; helper не выводит значения; STOP fail-closed, full-pair rollback и закрытый внешний barrier, destructive restore только explicit incident decision, никаких DB down migration рекомендаций. **INDEPENDENT_REVIEW: APPROVE** — [независимый финальный review](./evidence/final-prep/review.md) проверил все шесть критериев, actual diff/evidence и security/ops. **FINAL_LOCAL_PREP: COMPLETE** в локальном scope; итог фиксируется commit операторского пакета. **OVERALL_PRODUCTION_READINESS: NOT_READY / NO_GO**. Внешняя qualification автоматически не запускается.
+
+---
+
 # Final Production Acceptance / Go-Live Gate
 
 Дата: 2026-10-01, Asia/Vladivostok. Ненумерованная финальная сводная проверка. **OVERALL_PRODUCTION_READINESS: NOT_READY**. Это итог кампании, не новая Phase и не разрешение deployment.

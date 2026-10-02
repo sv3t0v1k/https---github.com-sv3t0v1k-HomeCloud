@@ -1,3 +1,5 @@
+Актуальная последовательность deploy/rollback/recovery: [операторский пакет](./go-live-checklist.md). Единственный текущий список внешних входов: [master checklist](./external-input-master-checklist.md). Overall **NOT_READY / NO_GO**.
+
 # HomeCloud — эксплуатационная диагностика
 
 Этот runbook описывает наблюдаемость одного backend-процесса. Реализованные TLS/secrets/backup checkpoints и их boundaries перечислены в production-readiness-checkpoint.md. Финальный launch gate и operator checklist: [Final Production Acceptance](./final-production-acceptance.md); overall readiness NOT_READY.
@@ -25,7 +27,7 @@ Backend пишет JSON по одной записи на строку в stdout
 
 ## Метрики
 
-`GET /api/v1/metrics` выдаёт текст Prometheus. Без `METRICS_TOKEN` endpoint выключен; при включении требуется `Authorization: Bearer <METRICS_TOKEN>`. Не используйте JWT пользователя или share token как metrics credential. Передавайте секрет через действующий механизм конфигурации, не через URL и не в команды, попадающие в публичные отчёты. Endpoint проксируется обычным `/api/`, поэтому backend-защита обязательна; это не разрешение публично публиковать credentials.
+`GET /api/v1/metrics` выдаёт текст Prometheus. Без `METRICS_TOKEN` endpoint выключен; при включении требуется `Authorization: Bearer <METRICS_TOKEN>`. Не используйте JWT пользователя или share token как metrics credential. Передавайте секрет через действующий механизм конфигурации, не через URL и не в команды, попадающие в публичные отчёты. Production ingress/frontend запрещают публичные health/metrics endpoints. Scrape выполняется только по внутреннему backend HTTP из operator network; backend token-защита также обязательна. Backend port не публиковать.
 
 Основные имена: `homecloud_http_requests_total`, `homecloud_http_request_duration_seconds_{bucket,sum,count}`, `homecloud_http_requests_in_flight`, `homecloud_process_uptime_seconds`, `homecloud_process_resident_memory_bytes`, `homecloud_process_heap_used_bytes`.
 

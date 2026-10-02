@@ -1,0 +1,113 @@
+{
+  "scope": "fresh local focused checks; no external infrastructure qualification",
+  "date": "2026-10-02 Asia/Vladivostok",
+  "gates": {
+    "operator_preflight": {
+      "passed": 13,
+      "failed": 0
+    },
+    "release_manifest_registry": {
+      "passed": 49,
+      "failed": 0,
+      "skipped": 0
+    },
+    "production_backup": {
+      "passed": 34,
+      "failed": 0
+    },
+    "external_recovery_config": {
+      "passed": 11,
+      "failed": 0
+    },
+    "certificate_lifecycle": {
+      "passed": 10,
+      "failed": 0
+    },
+    "scheduler": {
+      "total": 22,
+      "passed": 21,
+      "failed": 0,
+      "skipped": 1,
+      "skip_reason": "real age fixture needs binaries in fixed production runner PATH; cached host path intentionally not inherited"
+    },
+    "legacy_backup_safety": {
+      "passed": 27,
+      "failed": 0,
+      "runs": 2,
+      "boundary": "source fixture explicit unique Compose project; no default user Compose"
+    },
+    "legacy_restore_validation": {
+      "passed": 15,
+      "failed": 0,
+      "skipped": 1,
+      "runs": 2,
+      "boundary": "--skip-integration; safe own-only cleanup"
+    },
+    "independent_offsite_recovery": {
+      "verdict": "PASS",
+      "runs": 2,
+      "dataset_bytes": 134217728,
+      "rto_verified_seconds": [
+        31.37168087500001,
+        31.63174083300001
+      ],
+      "cleanup": true,
+      "boundary": "same physical host/daemon; no external qualification"
+    },
+    "restore_cleanup_regression": {
+      "passed": 1,
+      "failed": 0
+    },
+    "current_production_builds": {
+      "backend": "PASS",
+      "frontend": "PASS",
+      "source_commit": "0d766777a41493e237b77df18f5597901d5f080e",
+      "source": "exact git archive backend/frontend/production Compose; forbidden audit excluded",
+      "manifest_validation": "PASS",
+      "evidence": "current-build-manifest.json"
+    },
+    "certificate_native_bind_runtime": {
+      "verdict": "PASS",
+      "healthy_requests_during_reload": 21,
+      "evidence": "cert-runtime.json",
+      "boundary": "local self-signed simulated ACME; target public CA not qualified"
+    },
+    "syntax_references_diff_check": {
+      "python": "PASS",
+      "bash_scripts": 12,
+      "new_operator_command_blocks": "PASS",
+      "node": "PASS",
+      "local_doc_file_references": "PASS",
+      "git_diff_check": "PASS"
+    },
+    "local_production_e2e": {
+      "verdict": "PASS",
+      "evidence": "local-production-e2e.json",
+      "current_commit": "0d766777a41493e237b77df18f5597901d5f080e",
+      "previous_commit": "647aa7b949698f9b84feee3ce5134cb2a7b542de",
+      "full_pair_rollback_rollforward": "PASS",
+      "data_preservation": "PASS",
+      "internal_health_readiness": "200/200",
+      "private_operational_endpoints": "404",
+      "boundary": "exact production nginx template; local hostname/selfsigned cert/random networks; no production registry in this run"
+    },
+    "local_browser_acceptance": {
+      "verdict": "PASS",
+      "viewports": [
+        "1440x900",
+        "390x844"
+      ],
+      "production_csp": true,
+      "fatal_console_errors": 0,
+      "evidence": "browser-acceptance.json",
+      "boundary": "selfsigned TLS ignoreHTTPSErrors; public trust NOT_QUALIFIED"
+    }
+  },
+  "rejected_attempts": [
+    "Initial scheduler run enabled cached age fixture but fixed runner PATH excludes cached binaries: prerequisite exit2 rather expected replication exit14. Not accepted evidence; supported macOS rerun21 PASS/1 SKIP.",
+    "Initial root attempts without qualified fixture/sandbox access were not accepted: Docker/socket restrictions, missing cached age PATH and missing explicit recovery config. Final supported focused/disposable runs above are authoritative."
+  ],
+  "not_run": {},
+  "overall_production_readiness": "NOT_READY",
+  "full_application_suites": "Not rerun: application sources unchanged; latest backend59/702 and frontend12/96 retained in historical final acceptance"
+}

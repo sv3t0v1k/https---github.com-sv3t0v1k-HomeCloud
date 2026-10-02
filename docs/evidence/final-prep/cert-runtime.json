@@ -1,0 +1,29 @@
+{
+  "public_ca_issuance": "UNPROVEN: disposable local self-signed harness",
+  "runtime_boundary": "Linux daemon-side native bind; Mac host shared bind unsupported (observed stale atomic symlink)",
+  "operator_trust": "Disposable operator has Docker socket root-equivalent access; controlled repository CLI only",
+  "tls_mount_type": "read-only bind from Docker daemon native Linux volume mountpoint",
+  "native_bind_source": "/var/lib/docker/volumes/hc-cert-154474e655-tls/_data",
+  "acme_client": "SIMULATED certbot renewal result; no ACME protocol/public CA exercise",
+  "expiry_check_before": {
+    "days_remaining": 45.0,
+    "status": "ok"
+  },
+  "http01_redirect_hsts": "PASS",
+  "healthy_requests_during_reload": 21,
+  "expiry_check_after": {
+    "days_remaining": 90.0,
+    "status": "ok"
+  },
+  "renewed_expiry_later": true,
+  "initial_install_renewal_graceful_reload": "PASS",
+  "mismatched_install_preserves_active": "PASS",
+  "failed_simulated_acme_renewal_preserves_active": "PASS",
+  "idempotent_renewal": "PASS",
+  "failed_config_test_preserves_active": "PASS",
+  "key_permissions": "600",
+  "isolated_resources_removed": true,
+  "sensitive_test_material_removed": true,
+  "raw_path_non_authoritative": "/private/tmp/hc-cert-runtime-z566t929",
+  "scope": "fresh disposable Linux daemon-side bind mechanics; public endpoint NOT_QUALIFIED"
+}
