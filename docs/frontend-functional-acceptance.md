@@ -170,3 +170,79 @@ PASS ограничен зафиксированными сценариями; �
 NEXT_STEP: закрыть перечисленные доказательные пробелы, выполнить независимую functional приёмку и тогда присвоить окончательные бинарные fields. До этого frontend не объявляется полностью принятым; production readiness остаётся NOT_READY.
 
 Одноразовый основной стенд сохранён для ручной проверки смены пароля и браузерного скачивания владельцем; отдельная тестовая PostgreSQL удаляется после прогона. Это не production deployment.
+
+## Targeted closure checkpoint — 2026-10-02
+
+Verified main, HEAD `06c6d8666001c8c18b3ee8f6d93825f1f63915f5`, only the existing forbidden untracked audit; audit contents never accessed. Preserved stand alive at `http://127.0.0.1:18086`; served HTML/JS/CSS hashes equal current production build. Old runtime source copy is not used as version proof.
+
+Working evidence: `docs/evidence/frontend-functional/closure-checkpoint.json`; control matrix: `closure-controls.json`, 89 rows, 54 bounded prior/new evidence rows, 35 INCONCLUSIVE. Counts do not establish exhaustive PASS.
+
+Fixture1768 bytes, SHA256 `fbfbb3b052fc62f158c5eac87581e549d0bace45f842cde8a23d363426548133`: UI uploaded, Enter renamed, copied into folder5. Browser download event timed out15000ms; no new fixture in Downloads at inspection. Human save requested; saved bytes INCONCLUSIVE; HTTP body is not a substitute.
+
+New keyboard proof: menu Enter/Space/End/Home/ArrowDown/ArrowUp/Escape+focus return; rename ShiftTab/Tab boundaries, Enter+focus return; move select+Space cancel; copy real destination-load error+disabled select/submit+retry+successful nested copy. Error HTTP status not captured. Login invalid Enter+Russian error without spinner+Tab/reverse. Account Enter+modal boundaries+profile Enter saved notice. Password UI_PRESENT, exact form open with empty fields; human credential entry/submission pending. No new credential entered or stored by agent.
+
+Current file endpoints do not produce duplicate-name409; duplicate folder allowed. Generic409 component tests are not runtime409. Remaining error/keyboard/mobile/control evidence and final console/network pass pending. Observed warn/error arrays empty, not an exhaustive final health verdict.
+
+Gate:17/17 suites,130/130 tests; lint PASS; tsc-b PASS; production build PASS; diff check PASS before docs checkpoint. Backend unchanged and not retested. No confirmed new defect. Independent reviewer inspected checkpoint and confirmed evidence incomplete; final verdict not yet requested.
+
+Acceptance remains INCONCLUSIVE. Next: human password/save actions, remaining control/error/keyboard proof, final gate and independent review. No numbered Phase, production blockers unchanged.
+
+## Targeted correction after owner check — 2026-10-03
+
+### INITIAL_STATE
+
+HEAD `06c6d8666001c8c18b3ee8f6d93825f1f63915f5` confirmed. Actual initial status differed from expectation: report already modified; `closure-checkpoint.json` and `closure-controls.json` already untracked, alongside forbidden audit. Existing checkpoint preserved. Forbidden audit contents not accessed; no wildcard staging. Stand and data retained.
+
+### EMPTY_FOLDER_ROOT_CAUSE
+
+Owner Safari actually showed `http://127.0.0.1:8080/files`, user `preview@homecloud.test`, zero files/folders, no Account button, and an earlier quota upload error. This is the older production-preview, not acceptance stand. Fresh hashes prove 8080 HTML/JS/CSS differ from current build; 18086 HTML/JS/CSS match current build exactly. The earlier handoff supplied the wrong stand/account. Acceptance API root already held file65 (previous fixture); owner was inspecting a separate user's separate stack. No product missing-account defect established on current HEAD.
+
+Initial sandbox connection failure did not mean the stand was down: Docker containers were running. Setup requests through environment proxy returned502; direct local requests without external proxy succeeded. A bounded acceptance nginx reload was performed during diagnosis; no data or other stack changed.
+
+### SEEDED_DOWNLOAD_FIXTURE
+
+Work created file67 through normal uploads/session → chunk → complete under existing acceptance user, root folder. Filename `homecloud-acceptance-download-20261003.txt`, UTF-8 deterministic content,1297 bytes, SHA256 `2e503a1657f4dd84936bacc953ad1e9c1b5b5a83f85b1ce65b32894e20b0aeba`. Source `/private/tmp/homecloud-acceptance-download-20261003.txt`. Safari authenticated root visibly shows this file. Owner did not source or upload a fixture. A one-day/max10 temporary public link was created only for disposable fixture data; token omitted from committed evidence.
+
+### BROWSER_DOWNLOAD_BYTES
+
+PASS for this fixture: Safari public Download button, native download permission, then authenticated owner overflow menu ArrowDown+Enter. Safari Downloads shows two completed entries. Real saved file `/Users/aleksejkozemakin/Downloads/homecloud-acceptance-download-20261003.txt` inspected after owner action:1297 bytes, identical SHA256 and filename. Saved mtime is recorded in correction evidence. Server Content-Disposition is `attachment; filename="homecloud-acceptance-download-20261003.txt"`. Owner UI uses Blob plus anchor.download=file.name, so response disposition and saved filename are separate observations. HTTP equality is recorded separately and is not the saved-byte proof. Previous unverified ZIP/download variants do not automatically become PASS.
+
+### PASSWORD_CAPABILITY_CLASSIFICATION
+
+`USER_CAPABILITY_UI_PRESENT_AND_REACHABLE`. Backend POST auth/change-password uses normal JwtGuard and authenticated user's own ID, verifies old password, hashes new password, revokes refresh tokens. This is intended end-user capability, not admin/internal. Current App Navbar already renders Account button opening AccountDialog on protected file/trash routes. Fresh Safari runtime: normal Account button opens live quota, profile and current/new/confirmation fields. Labels/autocomplete and mismatch/error behavior additionally checked in current component tests. Criterion retained.
+
+### ACCOUNT_PROFILE_NAVIGATION
+
+PASS for normal Account entry and dialog contents on current stand; live usage4833/quota1073741824,3 files/54 folders observed. Sidebar name/email are static text, not dead interactive controls. New App integration regression opens dialog from visible navigation, verifies quota/profile/password fields and Escape focus return. Owner manually signed in without sharing credentials in chat.
+
+### PASSWORD_UI_REMEDIATION
+
+No new product UI required: surface already exists and is reachable on correct version. Corrected stand/address/account handoff, added navigation regression. Browser rule requires owner entry, confirmation and submission of new credentials; agent entered none. Exact reachable form prepared for manual change/relogin; result pending.
+
+### REMAINING_CLOSURE_CHECKS
+
+Owner file menu ArrowDown+Enter download observed; public download permission/success verified. IAB public warn/error log arrays empty. Full authenticated final network pass, outstanding control/mobile/error/keyboard rows, password mutation/relogin and ZIP saved bytes still require evidence. No comprehensive already-passed campaign restarted; no forced409 claimed where backend permits duplicate names. Browser DOM read-only API does not expose performance network entries; failed request for them was not counted as network proof.
+
+### FULL_FRONTEND_GATE
+
+Focused19/19; full17 suites131/131; lint PASS; TypeScript via tsc-b PASS; production build PASS. Initial new-test type error (unsupported exact option) fixed before final gate. Backend source unchanged; backend suite not rerun. Final git diff --check PASS.
+
+### INDEPENDENT_REVIEW
+
+Independent reviewer confirmed user capability and existing code reachability; warned that code tests do not substitute authenticated browser evidence and HTTP bytes do not substitute saved bytes. Final independent review: APPROVE correction checkpoint after fixing stale wording in JSON classification. Reviewer explicitly verified fixture responsibility, correct password classification/reachable UI, real saved-byte evidence and evidence-based INCONCLUSIVE. Full functional verdict remains INCONCLUSIVE.
+
+### DOCS_UPDATE
+
+Appended correction without erasing earlier checkpoints. New sanitized `docs/evidence/frontend-functional/correction-20261003.json` records fixture, exact saved bytes, build hashes and limitations; no passwords/refresh tokens/share token included.
+
+### COMMITS / FINAL_HEAD / GIT_STATUS
+
+Correction saved in a separate Russian-message checkpoint commit (SHA reported in final response). Pre-existing closure-checkpoint.json and closure-controls.json retained untracked separately; forbidden audit untouched. Final HEAD/status verified after commit.
+
+### FINAL_FRONTEND_FUNCTIONAL_ACCEPTANCE
+
+INCONCLUSIVE: fixture and current account reachability gaps corrected; tested saved fixture bytes PASS. Password end-to-end and remaining closure matrix are still unverified. Production readiness unchanged.
+
+### REMAINING_GAPS / NEXT_STEP
+
+Complete manual password change/relogin from proven reachable current form; verify result, continue bounded remaining closure and independent final review. Do not send owner back to8080 or ask owner to locate/create download test data.

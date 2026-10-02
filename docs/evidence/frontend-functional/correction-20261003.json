@@ -1,0 +1,102 @@
+{
+  "baseUrl": "http://127.0.0.1:18086/api/v1",
+  "ownerEmail": "audit-user@homecloud.test",
+  "filename": "homecloud-acceptance-download-20261003.txt",
+  "bytes": 1297,
+  "sha256": "2e503a1657f4dd84936bacc953ad1e9c1b5b5a83f85b1ce65b32894e20b0aeba",
+  "fileId": 67,
+  "rootListingBefore": [
+    {
+      "id": 65,
+      "name": "homecloud-closure-fixture-renamed.txt",
+      "size": "1768",
+      "folderId": null,
+      "isDeleted": false
+    }
+  ],
+  "rootListingAfter": [
+    {
+      "id": 67,
+      "name": "homecloud-acceptance-download-20261003.txt",
+      "size": "1297",
+      "folderId": null,
+      "isDeleted": false
+    },
+    {
+      "id": 65,
+      "name": "homecloud-closure-fixture-renamed.txt",
+      "size": "1768",
+      "folderId": null,
+      "isDeleted": false
+    }
+  ],
+  "contentDisposition": "attachment; filename=\"homecloud-acceptance-download-20261003.txt\"",
+  "httpComparisonOnly": true,
+  "browserSavedBytes": {
+    "flow": "Safari public file button, then owner file menu ArrowDown+Enter",
+    "path": "/Users/aleksejkozemakin/Downloads/homecloud-acceptance-download-20261003.txt",
+    "bytes": 1297,
+    "sha256": "2e503a1657f4dd84936bacc953ad1e9c1b5b5a83f85b1ce65b32894e20b0aeba",
+    "matchesFixture": true,
+    "filenameMatches": true,
+    "ownerDownload": "PASS; native Safari Downloads list shows two completed entries; saved file checked after owner action",
+    "mtimeUTC": "2026-10-02T22:16:59.332859+00:00"
+  },
+  "assets": {
+    "8080": {
+      "index.html": {
+        "path": "/index.html",
+        "sha256": "35e194cd1daf2acc6e86167ca9bcccb68959e9f05d72c7595f1b54d77d6fb639",
+        "matchesCurrentBuild": false
+      },
+      "js": {
+        "path": "/assets/index-0IuLqnTf.js",
+        "sha256": "5a44443dd5b72eb67a05e72d20db3dd2656dd1bc6f468d90d96c55e4622428b6",
+        "matchesCurrentBuild": false
+      },
+      "css": {
+        "path": "/assets/index-BVfWkXNp.css",
+        "sha256": "522bf58a75e80126065e87e597f1279b5c5a1b88e25b1b8cd696ce27459ef8fe",
+        "matchesCurrentBuild": false
+      }
+    },
+    "18086": {
+      "index.html": {
+        "path": "/index.html",
+        "sha256": "ea438438714b559f03b94be9363514d39f87490d8a372e0d56fd4713f2e7e844",
+        "matchesCurrentBuild": true
+      },
+      "js": {
+        "path": "/assets/index-D1NNUiEw.js",
+        "sha256": "42477143770d707ad185965bceefb2aaee4b2eb98d8038bb404576e369863e1e",
+        "matchesCurrentBuild": true
+      },
+      "css": {
+        "path": "/assets/index-DMzjSF3y.css",
+        "sha256": "b088a7cb88d108684dd88fc34e0633b03f4db7beb083512b0467dd69143a67d8",
+        "matchesCurrentBuild": true
+      }
+    }
+  },
+  "initialHead": "06c6d8666001c8c18b3ee8f6d93825f1f63915f5",
+  "initialStatus": [
+    "modified docs/frontend-functional-acceptance.md",
+    "untracked closure-checkpoint.json",
+    "untracked closure-controls.json",
+    "forbidden untracked audit (contents not accessed)"
+  ],
+  "gate": {
+    "focused": "19/19",
+    "full": "131/131;17 suites",
+    "lint": "PASS",
+    "typecheck": "PASS via tsc -b",
+    "build": "PASS"
+  },
+  "passwordClassification": "USER_CAPABILITY_UI_PRESENT_AND_REACHABLE (code + integration test + fresh authenticated browser reachability; password mutation/relogin pending)",
+  "uiFixture": "PASS; Safari /files root shows filename, 1.3 KB, owner audit-user@homecloud.test",
+  "accountRuntime": "PASS; normal visible Account button opens profile, live quota, current/new/confirm password fields",
+  "passwordFlow": "MANUAL_HANDOFF_PENDING; no new credential entered by agent",
+  "console": "IAB public page observed warn/error arrays empty; authenticated Safari final network review pending",
+  "independentReview": "APPROVE correction checkpoint after classification wording fix; full functional INCONCLUSIVE",
+  "diffCheck": "PASS"
+}

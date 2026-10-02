@@ -46,6 +46,28 @@ describe('authentication UX', () => {
     vi.unstubAllGlobals()
   })
 
+  it('opens profile, quota and password fields from the visible account navigation', async () => {
+    tokenStorage.set({ accessToken: 'stale', refreshToken: 'refresh' })
+    sessionClient.defaults.adapter = async (config) => response(config, { success: true, data: { accessToken: 'access', refreshToken: 'rotated' } })
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/files/storage-info') return response(config, { success: true, data: { storageUsed: '25', storageQuota: '1000', fileCount: 1, folderCount: 0 } })
+      return isDirectoryRequest(config.url) ? emptyDirectoryResponse(config) : userResponse(config)
+    }
+    renderApp('/files')
+    const user = userEvent.setup()
+    const account = await screen.findByRole('button', { name: 'Аккаунт' })
+    await user.click(account)
+    expect(screen.getByRole('dialog', { name: 'Аккаунт и хранилище' })).toBeInTheDocument()
+    expect(await screen.findByText(/Использовано 25 байт/)).toBeInTheDocument()
+    expect(screen.getByLabelText('Имя')).toBeInTheDocument()
+    expect(screen.getByLabelText('Текущий пароль')).toHaveAttribute('autocomplete', 'current-password')
+    expect(screen.getByLabelText('Новый пароль')).toHaveAttribute('autocomplete', 'new-password')
+    expect(screen.getByLabelText('Повторите новый пароль')).toHaveAttribute('autocomplete', 'new-password')
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Аккаунт и хранилище' })).not.toBeInTheDocument()
+    expect(account).toHaveFocus()
+  })
+
   beforeEach(() => tokenStorage.clear())
   afterEach(cleanup)
 
