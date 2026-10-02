@@ -13,6 +13,7 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose(
   const [password, setPassword] = useState('')
   const [expiresInDays, setExpiresInDays] = useState('7')
   const [maxDownloads, setMaxDownloads] = useState('')
+  const mutationLock = useRef(false)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const dialogRef = useDialogFocus(onClose, closeButtonRef)
 
@@ -40,6 +41,7 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose(
 
   async function submit(event: React.FormEvent) {
     event.preventDefault()
+    if (mutationLock.current) return
     const expiry = Number(expiresInDays)
     const limit = maxDownloads === '' ? undefined : Number(maxDownloads)
     if (!Number.isInteger(expiry) || expiry < 1 || expiry > 36500) {
@@ -50,6 +52,7 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose(
       setError('Лимит скачиваний должен быть положительным целым числом.')
       return
     }
+    mutationLock.current = true
     setBusy(true)
     setError(null)
     setNotice(null)
@@ -68,6 +71,7 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose(
       setPassword('')
       setError(shareErrorMessage(cause))
     } finally {
+      mutationLock.current = false
       setBusy(false)
     }
   }
@@ -87,6 +91,8 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose(
   }
 
   async function revoke(share: OwnerShare) {
+    if (mutationLock.current) return
+    mutationLock.current = true
     setBusy(true)
     setError(null)
     setNotice(null)
@@ -97,6 +103,7 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose(
     } catch (cause) {
       setError(shareErrorMessage(cause))
     } finally {
+      mutationLock.current = false
       setBusy(false)
     }
   }
@@ -132,7 +139,7 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose(
                   <p className="share-status">{shareStatus(share)}</p>
                   <input aria-label={`Публичная ссылка: ${target.name}`} className="input mono" readOnly value={url} />
                   <p className="muted mono">Скачиваний: {String(share.downloadCount)}{share.maxDownloads === null ? '' : ` из ${String(share.maxDownloads)}`}</p>
-                  <div className="share-actions"><button className="button button--ghost" onClick={() => void copy(share)} type="button">Копировать ссылку</button><button className="button button--ghost" onClick={() => open(share)} type="button">Открыть</button><button className="button button--danger" disabled={busy} onClick={() => void revoke(share)} type="button">Закрыть доступ</button></div>
+                  <div className="share-actions"><button className="button button--ghost" onClick={() => void copy(share)} type="button">Копировать ссылку</button><button className="button button--ghost" onClick={() => open(share)} type="button">Открыть</button><button className="button button--danger" disabled={busy || !share.isActive} onClick={() => void revoke(share)} type="button">Закрыть доступ</button></div>
                 </li>
               })}
             </ul>
@@ -144,6 +151,7 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose(
 }
 
 function shareStatus(share: OwnerShare): string {
+  if (!share.isActive) return 'Доступ закрыт'
   if (share.expiresAt && new Date(share.expiresAt).getTime() <= Date.now()) return 'Срок действия истёк'
   if (share.maxDownloads !== null && Number(share.downloadCount) >= Number(share.maxDownloads)) return 'Лимит скачиваний исчерпан'
   return share.expiresAt ? `Действует до ${new Date(share.expiresAt).toLocaleDateString('ru-RU')}` : 'Без срока действия'

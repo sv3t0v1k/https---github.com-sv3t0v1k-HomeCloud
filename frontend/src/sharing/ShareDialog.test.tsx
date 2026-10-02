@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
 import { useState } from 'react'
@@ -137,9 +137,9 @@ describe('ShareDialog', () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
     await user.click(await screen.findByRole('button', { name: 'Копировать ссылку' }))
-    expect(writeText).toHaveBeenCalledWith('http://localhost:3000/api/v1/sharing/public/copy-token')
+    expect(writeText).toHaveBeenCalledWith('http://localhost:3000/share/copy-token')
     await user.click(screen.getByRole('button', { name: 'Открыть' }))
-    expect(open).toHaveBeenCalledWith('http://localhost:3000/api/v1/sharing/public/copy-token', '_blank', 'noopener,noreferrer')
+    expect(open).toHaveBeenCalledWith('http://localhost:3000/share/copy-token', '_blank', 'noopener,noreferrer')
     await user.click(screen.getByRole('button', { name: 'Закрыть доступ' }))
     await waitFor(() => expect(screen.getByText('Для этого объекта пока нет ссылок.')).toBeInTheDocument())
     expect(deleteCalls).toBe(1)
@@ -177,6 +177,27 @@ describe('ShareDialog', () => {
     expect(alert).not.toHaveTextContent(backendMessage)
     expect(screen.getByLabelText('Пароль (необязательно)')).toHaveValue('')
     expect(screen.queryByText('discard me')).not.toBeInTheDocument()
+  })
+
+  it('guards synchronous duplicate form submits before React renders the busy state', async () => {
+    let posts = 0
+    apiClient.defaults.adapter = async (config) => {
+      if (config.method === 'get') return ok(config, [])
+      posts += 1
+      return await new Promise<AxiosResponse>(() => undefined)
+    }
+    render(<ShareDialog onClose={() => undefined} target={{ fileId: 12, name: 'photo.png', isFolder: false }} />)
+    await screen.findByText('Для этого объекта пока нет ссылок.')
+    const form = screen.getByRole('button', { name: 'Создать ссылку' }).closest('form')!
+    fireEvent.submit(form); fireEvent.submit(form)
+    await waitFor(() => expect(posts).toBe(1))
+  })
+
+  it('reports revoked shares and correctly disables repeated revocation', async () => {
+    apiClient.defaults.adapter = async (config) => ok(config, [{ ...share(1, 'revoked', 12), isActive: false }])
+    render(<ShareDialog onClose={() => undefined} target={{ fileId: 12, name: 'photo.png', isFolder: false }} />)
+    expect(await screen.findByText('Доступ закрыт')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Закрыть доступ' })).toBeDisabled()
   })
 
   it('uses the existing session-expiry error model for owner share listing', async () => {

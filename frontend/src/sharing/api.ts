@@ -1,4 +1,4 @@
-import { API_BASE_URL, apiRequest } from '../api/client'
+import { apiRequest } from '../api/client'
 
 export interface ShareTarget {
   fileId: number
@@ -41,6 +41,5 @@ export function revokeShare(id: number) {
 }
 
 export function publicShareUrl(token: string): string {
-  const base = API_BASE_URL.replace(/\/$/, '')
-  return new URL(`${base}/sharing/public/${encodeURIComponent(token)}`, window.location.origin).toString()
+  return new URL(`/share/${encodeURIComponent(token)}`, window.location.origin).toString()
 }

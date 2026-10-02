@@ -9,18 +9,22 @@ import { FileBrowserPage } from './files/FileBrowserPage'
 import { TrashPage } from './files/TrashPage'
 import { ProtectedRoute } from './routing/ProtectedRoute'
 import { Icon } from './ui/Icon'
+import { AccountDialog } from './account/AccountDialog'
+import { PublicSharePage } from './sharing/PublicSharePage'
 
 function App() {
   return (
     <div className="app-root">
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/share/:token" element={<PublicSharePage />} />
         <Route element={<ProtectedRoute />}>
           <Route path="/files" element={<FileBrowserLayout />} />
           <Route path="/files/folders/:folderId" element={<FileBrowserLayout />} />
           <Route path="/files/trash" element={<FileBrowserLayout trash />} />
         </Route>
         <Route path="/" element={<Navigate to="/files" replace />} />
+        <Route path="*" element={<div className="empty-state"><h2>Страница не найдена</h2><Link to="/files">К моим файлам</Link></div>} />
       </Routes>
     </div>
   )
@@ -87,6 +91,7 @@ function SidebarContent({ trash, onNavigate }: { trash: boolean; onNavigate?(): 
 
 function Navbar({ navigationOpen, onOpenNavigation }: { navigationOpen: boolean; onOpenNavigation(): void }) {
   const session = useSession()
+  const [accountOpen, setAccountOpen] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
   const [logoutError, setLogoutError] = useState<string | null>(null)
 
@@ -112,8 +117,10 @@ function Navbar({ navigationOpen, onOpenNavigation }: { navigationOpen: boolean;
       <div className="account-area">
         {logoutError ? <span className="inline-alert" role="alert">{logoutError}</span> : null}
 
+        <button className="button button--ghost" onClick={() => setAccountOpen(true)} type="button">Аккаунт</button>
         <button className="button button--ghost" disabled={loggingOut} onClick={() => void handleLogout()} type="button">{loggingOut ? 'Выходим…' : 'Выйти'}</button>
       </div>
+      {accountOpen ? <AccountDialog onClose={() => setAccountOpen(false)} /> : null}
     </header>
   )
 }

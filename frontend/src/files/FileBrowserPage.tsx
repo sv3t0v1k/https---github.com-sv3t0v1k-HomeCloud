@@ -5,6 +5,7 @@ import { useDialogFocus } from '../accessibility/useDialogFocus'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import { ApiError } from '../api/errors'
+import { apiRequest } from '../api/client'
 import type { FileItem, FolderContents, FolderItem } from '../types/files'
 import { copyFile, createFolder, getFolder, getFolderContents, moveFile, moveFolder, moveToTrash, renameFile, renameFolder } from './api'
 import {
@@ -261,7 +262,7 @@ function DirectoryTable({ contents, currentFolderId, onChanged, onOpenFolder }: 
       {!action && pending ? <p className="muted" role="status">Операция продолжается…</p> : null}
       {!action && error ? <p className="inline-alert" role="alert">{error}</p> : null}
       {shareTarget ? <ShareDialog onClose={() => setShareTarget(null)} target={shareTarget} /> : null}
-      {action ? <OperationDialog action={action} busy={pending} currentFolderId={currentFolderId} destinations={contents.folders} error={error} onClose={() => { setAction(null); setError(null) }} onSubmit={mutate} /> : null}
+      {action ? <OperationDialog action={action} busy={pending} currentFolderId={currentFolderId} error={error} onClose={() => { setAction(null); setError(null) }} onSubmit={mutate} /> : null}
     </div>
   )
 }
@@ -305,19 +306,53 @@ function SmallDialog({ title, children, onClose }: { title: string; children: Re
   return <div className="dialog-overlay"><div aria-labelledby="file-operation-title" aria-modal="true" className="dialog-surface" ref={ref} role="dialog" tabIndex={-1}><div className="dialog-header"><h3 id="file-operation-title">{title}</h3><button aria-label="Закрыть" className="icon-button" onClick={onClose} type="button"><Icon name="close" /></button></div>{children}</div></div>
 }
 
-function OperationDialog({ action, busy, currentFolderId, destinations, error, onClose, onSubmit }: { action: ItemAction; busy: boolean; currentFolderId: number | null; destinations: FolderItem[]; error: string | null; onClose(): void; onSubmit(name: string, destination: string): Promise<void> }) {
+function OperationDialog({ action, busy, currentFolderId, error, onClose, onSubmit }: { action: ItemAction; busy: boolean; currentFolderId: number | null; error: string | null; onClose(): void; onSubmit(name: string, destination: string): Promise<void> }) {
   const [name, setName] = useState(action.item.name)
   const [destination, setDestination] = useState(action.action === 'copy' ? String(currentFolderId ?? '') : '')
   const [validation, setValidation] = useState<string | null>(null)
+  const [destinations, setDestinations] = useState<Array<{ id: number; name: string }>>([])
+  const [destinationLoading, setDestinationLoading] = useState(true)
+  const [destinationError, setDestinationError] = useState<string | null>(null)
+  const [destinationReload, setDestinationReload] = useState(0)
+  useEffect(() => {
+    if (action.action !== 'move' && action.action !== 'copy') return
+    const controller = new AbortController()
+    setDestinationLoading(true)
+    setDestinationError(null)
+    async function load() {
+      const options: Array<{ id: number; name: string }> = []
+      const visited = new Set<number>()
+      async function walk(parentId?: number, prefix = '') {
+        const folders = await apiRequest<FolderItem[]>({ method: 'GET', url: '/files/folders', params: parentId === undefined ? undefined : { parentId }, signal: controller.signal })
+        for (const folder of folders) {
+          if (visited.has(folder.id)) continue
+          visited.add(folder.id)
+          // Do not offer the moved folder or any part of its subtree.
+          if (action.kind === 'folder' && folder.id === action.item.id) continue
+          const name = prefix ? `${prefix} / ${folder.name}` : folder.name
+          options.push({ id: folder.id, name })
+          await walk(folder.id, name)
+        }
+      }
+      await walk()
+      if (!controller.signal.aborted) setDestinations(options)
+    }
+    void load().catch((cause: unknown) => {
+      if (!controller.signal.aborted) setDestinationError(safeOperationError(cause, 'Не удалось загрузить папки назначения.'))
+    }).finally(() => { if (!controller.signal.aborted) setDestinationLoading(false) })
+    return () => controller.abort()
+  }, [action.action, action.kind, action.item.id, destinationReload])
   const titles = { rename: 'Переименовать', move: 'Переместить', copy: 'Копировать', trash: 'Переместить в корзину' }
   const selecting = action.action === 'move' || action.action === 'copy'
-  return <SmallDialog title={titles[action.action]} onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); if (busy) return; if (action.action === 'rename' && (!name.trim() || name.trim().length > 255)) { setValidation('Введите название от 1 до 255 символов.'); return } setValidation(null); void onSubmit(name.trim(), destination) }}>
+  return <SmallDialog title={titles[action.action]} onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); if (busy || (selecting && (destinationLoading || destinationError))) return; if (action.action === 'rename' && (!name.trim() || name.trim().length > 255)) { setValidation('Введите название от 1 до 255 символов.'); return } setValidation(null); void onSubmit(name.trim(), destination) }}>
     <p className="muted dialog-item-name">{action.item.name}</p>
     {action.action === 'rename' ? <label className="field">Новое название<input className="input" disabled={busy} maxLength={255} onChange={(event) => { setName(event.target.value); setValidation(null) }} value={name} /></label> : null}
-    {selecting ? <label className="field">Папка назначения<select className="input" disabled={busy} onChange={(event) => setDestination(event.target.value)} value={destination}><option value="">Мои файлы</option>{action.action === 'copy' && currentFolderId !== null ? <option value={currentFolderId}>Текущая папка</option> : null}{destinations.filter((folder) => action.kind !== 'folder' || folder.id !== action.item.id).map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label> : null}
+    {selecting ? <label className="field">Папка назначения<select className="input" disabled={busy || destinationLoading || destinationError !== null} onChange={(event) => setDestination(event.target.value)} value={destination}><option value="">Мои файлы</option>{destinations.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label> : null}
+    {selecting && destinationLoading ? <p role="status">Загружаем папки назначения…</p> : null}
+    {selecting && destinationError ? <p className="inline-alert" role="alert">{destinationError} <button className="text-link" onClick={() => setDestinationReload((value) => value + 1)} type="button">Повторить</button></p> : null}
     {action.action === 'trash' ? <p>{action.kind === 'folder' ? 'Папка и её содержимое попадут в корзину.' : 'Файл попадёт в корзину.'} Вы сможете восстановить их позже.</p> : null}
     {validation || error ? <p className="inline-alert" role="alert">{validation || error}</p> : null}
-    <div className="dialog-actions"><button className="button button--ghost" onClick={onClose} type="button">{busy ? 'Закрыть' : 'Отмена'}</button><button className={action.action === 'trash' ? 'button button--danger' : 'button button--primary'} disabled={busy} type="submit">{busy ? 'Выполняется…' : titles[action.action]}</button></div>
+    <div className="dialog-actions"><button className="button button--ghost" onClick={onClose} type="button">{busy ? 'Закрыть' : 'Отмена'}</button><button className={action.action === 'trash' ? 'button button--danger' : 'button button--primary'} disabled={busy || (selecting && (destinationLoading || destinationError !== null))} type="submit">{busy ? 'Выполняется…' : titles[action.action]}</button></div>
   </form></SmallDialog>
 }
 
@@ -354,6 +389,7 @@ function UploadControl({ enabled, parentId, onUploaded }: { enabled: boolean; pa
   const [file, setFile] = useState<File | null>(null)
   const [state, setState] = useState<UploadUiState>({ status: 'idle', progress: null, message: null })
   const controllerRef = useRef<AbortController | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => () => controllerRef.current?.abort(), [])
 
@@ -378,6 +414,7 @@ function UploadControl({ enabled, parentId, onUploaded }: { enabled: boolean; pa
       if (controller.signal.aborted || controllerRef.current !== controller) return
       setState({ status: 'success', progress: null, message: `${file.name} — файл загружен.` })
       setFile(null)
+      if (inputRef.current) inputRef.current.value = ''
       onUploaded()
     } catch (error) {
       if (controller.signal.aborted) {
@@ -404,6 +441,7 @@ function UploadControl({ enabled, parentId, onUploaded }: { enabled: boolean; pa
         <label className={`button button--ghost upload-input-label${active || !enabled ? ' is-disabled' : ''}`}>
           <Icon name="plus" />Выбрать файл
         <input
+          ref={inputRef}
           aria-label="Выбрать файл для загрузки"
           className="sr-only upload-input"
           disabled={active || !enabled}

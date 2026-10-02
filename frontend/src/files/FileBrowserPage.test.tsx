@@ -141,6 +141,35 @@ describe('FileBrowserPage', () => {
     expect(await screen.findByText('new.png — файл загружен.')).toBeInTheDocument()
     expect(await screen.findByText('new.png', { selector: 'button' })).toBeInTheDocument()
     expect(sessionPayloads).toEqual([{ filename: 'new.png', totalSize: 4, chunkSize: 10 * 1024 * 1024, parentId: 9 }])
+    await user.upload(screen.getByLabelText('Выбрать файл для загрузки'), selected)
+    expect(screen.getByRole('button', { name: 'Загрузить' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: 'Загрузить' }))
+    await waitFor(() => expect(sessionPayloads).toHaveLength(2))
+  })
+
+  it('offers deep sibling destinations and excludes a moved folder subtree', async () => {
+    const mutations: unknown[] = []
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/files/folders/7') return ok(config, folder(7, 'Source', null))
+      if (config.url === '/files/folders' && config.method === 'get') {
+        const parent = config.params?.parentId
+        return ok(config, parent === undefined ? [folder(7, 'Source', null), folder(8, 'Sibling', null)] : parent === 7 ? [folder(9, 'Moving', 7)] : parent === 8 ? [folder(10, 'Deep', 8)] : parent === 9 ? [folder(11, 'Child', 9)] : [])
+      }
+      if (config.url === '/files') return ok(config, [file(20, 'inside.txt', 4)])
+      if (config.url === '/files/20/move') { mutations.push(JSON.parse(String(config.data))); return ok(config, {}) }
+      throw new Error(`Unexpected request: ${config.url}`)
+    }
+    renderPage('/files/folders/7')
+    const user = userEvent.setup()
+    await chooseAction(user, 'inside.txt', 'Переместить')
+    await screen.findByRole('option', { name: 'Sibling / Deep' })
+    await waitFor(() => expect(screen.getByLabelText('Папка назначения')).toBeEnabled())
+    await user.selectOptions(screen.getByLabelText('Папка назначения'), '10')
+    await user.click(screen.getByRole('button', { name: 'Переместить' }))
+    await waitFor(() => expect(mutations).toContainEqual({ targetParentId: 10 }))
+    await chooseAction(user, 'Moving', 'Переместить')
+    await screen.findByRole('option', { name: 'Sibling / Deep' })
+    expect(screen.queryByRole('option', { name: /Moving|Child/ })).not.toBeInTheDocument()
   })
 
   it('maps upload quota failures to an actionable message', async () => {
@@ -300,10 +329,12 @@ describe('FileBrowserPage', () => {
     await user.click(screen.getByRole('button', { name: 'Переименовать' }))
     await waitFor(() => expect(mutations).toHaveLength(1))
     await chooseAction(user, 'report.txt', 'Переместить')
+    await waitFor(() => expect(screen.getByLabelText('Папка назначения')).toBeEnabled())
     await user.selectOptions(screen.getByLabelText('Папка назначения'), '7')
     await user.click(screen.getByRole('button', { name: 'Переместить' }))
     await waitFor(() => expect(mutations).toHaveLength(2))
     await chooseAction(user, 'report.txt', 'Копировать')
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Копировать' })).toBeEnabled())
     await user.click(screen.getByRole('button', { name: 'Копировать' }))
     await waitFor(() => expect(mutations).toHaveLength(3))
     await chooseAction(user, 'report.txt', 'В корзину')
@@ -407,6 +438,7 @@ describe('FileBrowserPage', () => {
     await user.click(screen.getByRole('button', { name: 'Переименовать' }))
     await waitFor(() => expect(mutations).toHaveLength(1))
     await chooseAction(user, 'Project', 'Переместить')
+    await waitFor(() => expect(screen.getByLabelText('Папка назначения')).toBeEnabled())
     await user.selectOptions(screen.getByLabelText('Папка назначения'), '8')
     await user.click(screen.getByRole('button', { name: 'Переместить' }))
     await waitFor(() => expect(mutations).toHaveLength(2))

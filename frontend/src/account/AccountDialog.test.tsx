@@ -1,0 +1,80 @@
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { AccountDialog } from './AccountDialog'
+import { changePassword, getStorageInfo, updateProfile } from './api'
+const session = vi.hoisted(() => ({ user: { name: 'Алексей', avatar: null }, endSession: vi.fn(), updateUser: vi.fn() }))
+vi.mock('../auth/SessionContext', () => ({ useSession: () => session }))
+vi.mock('./api', () => ({ changePassword: vi.fn(), getStorageInfo: vi.fn(), updateProfile: vi.fn() }))
+describe('AccountDialog', () => {
+  beforeEach(() => { vi.clearAllMocks(); vi.mocked(getStorageInfo).mockResolvedValue({ storageQuota: '1000', storageUsed: '25', fileCount: 2, folderCount: 1 }) })
+  afterEach(cleanup)
+  it('shows persisted quota and saves profile then updates session without unmounting', async () => {
+    const user = userEvent.setup()
+    render(<AccountDialog onClose={vi.fn()} />)
+    expect(await screen.findByText(/Использовано 25 байт/)).toHaveTextContent('Файлов: 2. Папок: 1.')
+    await user.clear(screen.getByLabelText('Имя'))
+    await user.type(screen.getByLabelText('Имя'), ' Новое имя ')
+    await user.click(screen.getByRole('button', { name: 'Сохранить профиль' }))
+    await waitFor(() => expect(updateProfile).toHaveBeenCalledWith('Новое имя', ''))
+    expect(session.updateUser).toHaveBeenCalledOnce()
+    expect(screen.getByRole('status')).toHaveTextContent('Профиль сохранён.')
+  })
+  it('rejects mismatched new passwords without mutation', async () => {
+    const user = userEvent.setup()
+    render(<AccountDialog onClose={vi.fn()} />)
+    await fillPassword(user, 'old', 'newpassword', 'otherpass')
+    await user.click(screen.getByRole('button', { name: 'Изменить пароль' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('Новые пароли не совпадают.')
+    expect(changePassword).not.toHaveBeenCalled()
+    expect(session.endSession).not.toHaveBeenCalled()
+  })
+  it('clears current session only after successful password change', async () => {
+    const user = userEvent.setup()
+    const close = vi.fn()
+    render(<AccountDialog onClose={close} />)
+    await fillPassword(user, 'old', 'newpassword', 'newpassword')
+    await user.click(screen.getByRole('button', { name: 'Изменить пароль' }))
+    await waitFor(() => expect(changePassword).toHaveBeenCalledWith('old', 'newpassword'))
+    expect(session.endSession).toHaveBeenCalledOnce()
+    expect(close).toHaveBeenCalledOnce()
+  })
+  it('keeps session and exposes safe retry after password failure', async () => {
+    vi.mocked(changePassword).mockRejectedValueOnce(new Error('/private/secret'))
+    const user = userEvent.setup()
+    render(<AccountDialog onClose={vi.fn()} />)
+    await fillPassword(user, 'old', 'newpassword', 'newpassword')
+    await user.click(screen.getByRole('button', { name: 'Изменить пароль' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось изменить пароль.')
+    expect(screen.queryByText(/private\/secret/)).not.toBeInTheDocument()
+    expect(session.endSession).not.toHaveBeenCalled()
+  })
+  it('blocks Escape while a mutation is pending and restores close afterwards', async () => {
+    let resolve!: (value: Awaited<ReturnType<typeof updateProfile>>) => void
+    vi.mocked(updateProfile).mockReturnValueOnce(new Promise((done) => { resolve = done }))
+    const close = vi.fn()
+    const user = userEvent.setup()
+    render(<AccountDialog onClose={close} />)
+    await user.click(screen.getByRole('button', { name: 'Сохранить профиль' }))
+    await user.keyboard('{Escape}')
+    expect(close).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Закрыть' })).toBeDisabled()
+    resolve({ id: 1, name: 'Алексей' } as Awaited<ReturnType<typeof updateProfile>>)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Закрыть' })).toBeEnabled())
+    await user.keyboard('{Escape}')
+    expect(close).toHaveBeenCalledOnce()
+  })
+  it('retries failed quota request', async () => {
+    vi.mocked(getStorageInfo).mockRejectedValueOnce(new Error('network'))
+    const user = userEvent.setup()
+    render(<AccountDialog onClose={vi.fn()} />)
+    await user.click(await screen.findByRole('button', { name: 'Повторить загрузку квоты' }))
+    expect(await screen.findByText(/Использовано 25 байт/)).toBeInTheDocument()
+    expect(getStorageInfo).toHaveBeenCalledTimes(2)
+  })
+})
+async function fillPassword(user: ReturnType<typeof userEvent.setup>, old: string, next: string, confirm: string) {
+  await user.type(screen.getByLabelText('Текущий пароль'), old)
+  await user.type(screen.getByLabelText('Новый пароль'), next)
+  await user.type(screen.getByLabelText('Повторите новый пароль'), confirm)
+}

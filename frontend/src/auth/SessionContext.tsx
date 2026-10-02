@@ -22,6 +22,7 @@ type SessionState =
 
 type SessionContextValue = SessionState & {
   establishSession(tokens: Tokens): Promise<void>
+  updateUser(user: User): void
   endSession(): void
   login(email: string, password: string): Promise<void>
   logout(): Promise<void>
@@ -31,12 +32,14 @@ type SessionContextValue = SessionState & {
 type SessionAction =
   | { type: 'BOOTSTRAP' }
   | { type: 'AUTHENTICATED'; user: User }
+  | { type: 'UPDATE_USER'; user: User }
   | { type: 'ANONYMOUS'; notice?: string }
   | { type: 'UNAVAILABLE' }
 
 const SessionContext = createContext<SessionContextValue | null>(null)
 
-function reducer(_state: SessionState, action: SessionAction): SessionState {
+function reducer(state: SessionState, action: SessionAction): SessionState {
+  if (action.type === 'UPDATE_USER') return state.status === 'authenticated' && state.user.id === action.user.id ? { ...state, user: action.user } : state
   if (action.type === 'BOOTSTRAP') return { status: 'bootstrapping', user: null, notice: null }
   if (action.type === 'AUTHENTICATED') {
     return { status: 'authenticated', user: action.user, notice: null }
@@ -93,6 +96,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           dispatch({ type: 'ANONYMOUS' })
           throw error
         }
+      },
+      updateUser(user) {
+        dispatch({ type: 'UPDATE_USER', user })
       },
       endSession() {
         clearSession()
