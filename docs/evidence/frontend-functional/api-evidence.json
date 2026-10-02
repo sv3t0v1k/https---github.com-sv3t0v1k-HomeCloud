@@ -1,0 +1,46 @@
+{
+  "folders": {
+    "1": [
+      {
+        "id": 6,
+        "name": "audit.txt",
+        "size": "81"
+      },
+      {
+        "id": 5,
+        "name": "проверено.png",
+        "size": "68"
+      }
+    ],
+    "2": [
+      {
+        "id": 7,
+        "name": "audit.txt",
+        "size": "81"
+      }
+    ]
+  },
+  "downloads": [
+    {
+      "id": 6,
+      "name": "audit.txt",
+      "sha256": "c223fa92629d5f74cf13c005ad0c062c7772db6ba618eb28e595108ab73f8c35",
+      "matches_fixture": true,
+      "layer": "HTTP API; browser download capture unavailable"
+    },
+    {
+      "id": 5,
+      "name": "проверено.png",
+      "sha256": "f3ec9e14b9c085b55edc96155f7bd26b6fdeda2462f02af4e0279d8319b365e3",
+      "matches_fixture": true,
+      "layer": "HTTP API; browser download capture unavailable"
+    },
+    {
+      "id": 7,
+      "name": "audit.txt",
+      "sha256": "c223fa92629d5f74cf13c005ad0c062c7772db6ba618eb28e595108ab73f8c35",
+      "matches_fixture": true,
+      "layer": "HTTP API; browser download capture unavailable"
+    }
+  ]
+}

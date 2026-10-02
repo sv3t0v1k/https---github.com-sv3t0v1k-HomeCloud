@@ -1,0 +1,135 @@
+{
+  "date": "2026-10-02",
+  "timezone": "Asia/Vladivostok",
+  "runtime_root": "/private/tmp/homecloud-functional-ff036da",
+  "source": "Main browser operator report; independently read HTTP evidence",
+  "gates": {
+    "frontend_tests": {
+      "passed": 130,
+      "failed": 0
+    },
+    "frontend_lint": "PASS",
+    "frontend_build_typecheck": "PASS",
+    "backend_tests": {
+      "passed": 725,
+      "skipped": 0,
+      "suites_passed": 59,
+      "layer": "Final full suite with disposable PostgreSQL, including null-name regression"
+    },
+    "backend_lint": {
+      "result": "PASS",
+      "preexisting_warnings": 15
+    },
+    "backend_focused_files": 108,
+    "backend_focused_uploads": 59,
+    "independent_combined_files_uploads": 122,
+    "backend_final_null_name_regression": {
+      "passed": 64,
+      "failed": 0
+    }
+  },
+  "runtime_confirmed": [
+    "auth redirect/login/Enter/session/logout/relogin",
+    "root/nested/breadcrumb/backforward/reload",
+    "Cyrillic rename/folder move/file sibling move/deep copy",
+    "image/text upload/preview/same-file reselection",
+    "110 MiB progress upload and immediate repeat cancel",
+    "100 MiB download guard/oversized preview error",
+    "profile persistence/quota",
+    "owner share/password wrong-right/write-only input/clipboard/revoke",
+    "public file download prepared/folder children/ZIP prepared/revoked unavailable",
+    "file-folder trash restore/permanent/empty confirmations",
+    "mobile390 drawer keyboard/375 account scroll",
+    "widths1440/1024/768/390/375 no horizontal overflow",
+    "owner masked404/unknownroute recovery",
+    "502 outage create error/restart retry no duplicate",
+    "folder restore preserved children",
+    "copy into nested folder id3",
+    "password share download limit2 exhausted count2/2",
+    "110 MiB observed27percent before completion; repeat cancel shows canceled",
+    "public pagination51: first50/next1/previous50/child/breadcrumb",
+    "expired public share unavailable after disposable expiry update",
+    "actual zero-quota upload error"
+  ],
+  "console": {
+    "observed_errors": [],
+    "observed_warnings": [],
+    "coverage": "Observed dev views, not exhaustive production network qualification"
+  },
+  "http_download_evidence": {
+    "folders": {
+      "1": [
+        {
+          "id": 6,
+          "name": "audit.txt",
+          "size": "81"
+        },
+        {
+          "id": 5,
+          "name": "проверено.png",
+          "size": "68"
+        }
+      ],
+      "2": [
+        {
+          "id": 7,
+          "name": "audit.txt",
+          "size": "81"
+        }
+      ]
+    },
+    "downloads": [
+      {
+        "id": 6,
+        "name": "audit.txt",
+        "sha256": "c223fa92629d5f74cf13c005ad0c062c7772db6ba618eb28e595108ab73f8c35",
+        "matches_fixture": true,
+        "layer": "HTTP API; browser download capture unavailable"
+      },
+      {
+        "id": 5,
+        "name": "проверено.png",
+        "sha256": "f3ec9e14b9c085b55edc96155f7bd26b6fdeda2462f02af4e0279d8319b365e3",
+        "matches_fixture": true,
+        "layer": "HTTP API; browser download capture unavailable"
+      },
+      {
+        "id": 7,
+        "name": "audit.txt",
+        "sha256": "c223fa92629d5f74cf13c005ad0c062c7772db6ba618eb28e595108ab73f8c35",
+        "matches_fixture": true,
+        "layer": "HTTP API; browser download capture unavailable"
+      }
+    ]
+  },
+  "browser_saved_download_bytes": "UNVERIFIED: event capture timeout",
+  "not_executed": [
+    "manual browser password change (autonomous credential-change policy; no handoff)",
+    "forced409",
+    "forced413"
+  ],
+  "review": {
+    "code": "APPROVE",
+    "functional": "REJECT"
+  },
+  "classification": {
+    "BACKEND_UI_PARITY": "INCONCLUSIVE",
+    "ALL_VISIBLE_CONTROLS_FUNCTIONAL": "INCONCLUSIVE",
+    "FINAL_FRONTEND_FUNCTIONAL_ACCEPTANCE": "INCONCLUSIVE",
+    "OVERALL_PRODUCTION_READINESS": "NOT_READY",
+    "AUTH_UI": "PASS",
+    "FILE_BROWSER_UI": "PASS",
+    "FILE_OPERATIONS_UI": "PASS",
+    "UPLOAD_UI": "PASS",
+    "DOWNLOAD_UI": "FAIL",
+    "PREVIEW_UI": "PASS",
+    "SHARING_UI": "PASS",
+    "TRASH_UI": "PASS",
+    "DESKTOP_RUNTIME": "PASS",
+    "MOBILE_RUNTIME": "PASS",
+    "KEYBOARD_ACCESSIBILITY": "INCONCLUSIVE",
+    "CONSOLE_NETWORK_HEALTH": "PASS",
+    "INDEPENDENT_REVIEW": "REJECT"
+  },
+  "classification_basis": "PASS applies to recorded bounded flows. DOWNLOAD_UI FAIL means required exact saved browser-byte acceptance not met, not proven corrupt bytes. Overall remains INCONCLUSIVE; edge states missing."
+}
