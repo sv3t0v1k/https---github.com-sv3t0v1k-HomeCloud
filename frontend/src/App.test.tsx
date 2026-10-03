@@ -26,7 +26,7 @@ describe('authentication UX', () => {
     const opener = await screen.findByRole('button', { name: 'Открыть навигацию' })
     expect(opener).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('dialog', { name: 'Навигация' })).not.toBeInTheDocument()
-    await user.click(opener)
+    act(() => opener.click())
     const drawer = screen.getByRole('dialog', { name: 'Навигация' })
     expect(opener).toHaveAttribute('aria-controls', drawer.id)
     expect(opener).toHaveAttribute('aria-expanded', 'true')

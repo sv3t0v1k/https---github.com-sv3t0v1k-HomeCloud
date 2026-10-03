@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -72,7 +72,7 @@ describe('TrashPage', () => {
     render(<TrashPage />)
     const user = userEvent.setup()
     const button = await screen.findByRole('button', { name: 'Очистить корзину' })
-    await user.click(button)
+    act(() => button.click())
     expect(screen.getByRole('dialog', { name: 'Очистить корзину?' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Отмена' })).toHaveFocus()
     await user.click(screen.getByRole('button', { name: 'Отмена' }))
@@ -93,7 +93,7 @@ describe('TrashPage', () => {
     render(<TrashPage />)
     const user = userEvent.setup()
     const trigger = await screen.findByRole('button', { name: 'Удалить old.txt навсегда' })
-    await user.click(trigger)
+    act(() => trigger.click())
     const cancel = screen.getByRole('button', { name: 'Отмена' })
     expect(cancel).toHaveFocus()
     await user.tab({ shift: true })

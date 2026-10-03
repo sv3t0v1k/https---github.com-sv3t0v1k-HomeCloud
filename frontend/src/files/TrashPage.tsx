@@ -72,11 +72,11 @@ export function TrashPage() {
           <h2 className="page-heading" id="trash-heading">Корзина</h2>
           <p className="page-description">Восстановите нужное или удалите навсегда. Безвозвратное удаление нельзя отменить.</p>
         </div>
-        <button className="button button--danger" disabled={items.length === 0 || pending !== null} onClick={() => setConfirmation({
+        <button className="button button--danger" disabled={items.length === 0 || pending !== null} onClick={(event) => { event.currentTarget.focus(); setConfirmation({
           title: 'Очистить корзину?',
           confirmLabel: 'Удалить всё навсегда',
           run: () => void mutate('empty', emptyTrash),
-        })} type="button"><Icon name="trash" />{pending === 'empty' ? 'Очищаем…' : 'Очистить корзину'}</button>
+        }) }} type="button"><Icon name="trash" />{pending === 'empty' ? 'Очищаем…' : 'Очистить корзину'}</button>
       </header>
       {state.warning ? <div className="alert alert--danger" role="alert">{state.warning} <button className="button button--ghost" onClick={() => setReloadKey((value) => value + 1)} type="button">Повторить</button></div> : null}
       {items.length === 0 ? <div className="empty-state"><Icon name="trash" height={36} width={36} /><h3>Корзина пуста</h3><p className="muted">Здесь появятся удалённые файлы и папки.</p></div> : (
@@ -90,11 +90,11 @@ export function TrashPage() {
             </div>
             <div className="trash-actions">
               <button aria-label={`Восстановить ${item.name}`} className="button button--ghost" disabled={pending !== null} onClick={() => void mutate(`restore:${key}`, () => restoreTrashItem(item.kind, item.id), { kind: item.kind, id: item.id })} type="button">{pending === `restore:${key}` ? 'Восстанавливаем…' : 'Восстановить'}</button>
-              <button aria-label={`Удалить ${item.name} навсегда`} className="button button--danger" disabled={pending !== null} onClick={() => setConfirmation({
+              <button aria-label={`Удалить ${item.name} навсегда`} className="button button--danger" disabled={pending !== null} onClick={(event) => { event.currentTarget.focus(); setConfirmation({
                 title: `Удалить «${item.name}» навсегда?`,
                 confirmLabel: 'Удалить навсегда',
                 run: () => void mutate(`delete:${key}`, () => permanentlyDelete(item.kind, item.id), { kind: item.kind, id: item.id }),
-              })} type="button">{pending === `delete:${key}` ? 'Удаляем…' : 'Удалить навсегда'}</button>
+              }) }} type="button">{pending === `delete:${key}` ? 'Удаляем…' : 'Удалить навсегда'}</button>
             </div>
           </li>
         })}</ul>

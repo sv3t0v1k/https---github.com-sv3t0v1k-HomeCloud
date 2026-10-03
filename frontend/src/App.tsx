@@ -112,7 +112,7 @@ function Navbar({ navigationOpen, onOpenNavigation }: { navigationOpen: boolean;
 
   return (
     <header className="topbar">
-      <button aria-label="Открыть навигацию" aria-expanded={navigationOpen} aria-controls="mobile-navigation" className="icon-button mobile-menu" onClick={onOpenNavigation} type="button"><Icon name="menu" /></button>
+      <button aria-label="Открыть навигацию" aria-expanded={navigationOpen} aria-controls="mobile-navigation" className="icon-button mobile-menu" onClick={(event) => { event.currentTarget.focus(); onOpenNavigation() }} type="button"><Icon name="menu" /></button>
       <div className="topbar-context"><span className="eyebrow">Пространство</span><strong>Личное хранилище</strong></div>
       <div className="account-area">
         {logoutError ? <span className="inline-alert" role="alert">{logoutError}</span> : null}

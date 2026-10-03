@@ -488,6 +488,21 @@ describe('FileBrowserPage', () => {
     expect(screen.getByRole('button', { name: 'report.txt' })).toBeInTheDocument()
     expect(screen.queryByText('raw token failure')).not.toBeInTheDocument()
   })
+  it('returns focus to pointer openers when Safari does not focus clicked buttons', async () => {
+    apiClient.defaults.adapter = async (config) => ok(config, config.url === '/files' ? [file(11, 'pointer.txt', 1)] : [])
+    renderPage('/files')
+    const preview = await screen.findByRole('button', { name: 'pointer.txt' })
+    preview.click()
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    expect(preview).toHaveFocus()
+    const create = screen.getByRole('button', { name: 'Новая папка' })
+    create.click()
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    expect(create).toHaveFocus()
+  })
+
   it('supports keyboard menus and restores focus after cancelling a dialog', async () => {
     apiClient.defaults.adapter = async (config) => ok(config, config.url === '/files' ? [file(11, 'keyboard.txt', 1)] : [])
     renderPage('/files')
