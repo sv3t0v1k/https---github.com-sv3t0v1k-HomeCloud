@@ -1,0 +1,86 @@
+{
+  "baseline": "97ce78879db495c7fc3ab356e2b2d0aab6e30309",
+  "environment": "Production frontend build; localhost:5187 deterministic API fixtures, no backend changes",
+  "browser": "Codex in-app browser + native Safari",
+  "checks": [
+    {
+      "width": 1440,
+      "sizes": true,
+      "quota": "Использовано 18,6 ГБ из 100 ГБ",
+      "folder": "—",
+      "click": true,
+      "enter": true,
+      "space": true,
+      "escapeFocus": true,
+      "closeFocus": true,
+      "scroll": 1440
+    },
+    {
+      "width": 768,
+      "sizes": true,
+      "quota": true,
+      "folder": "—",
+      "click": true,
+      "enter": true,
+      "space": true,
+      "escapeFocus": true,
+      "closeFocus": true,
+      "menuFocus": true,
+      "logoutSeparate": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "sizes": true,
+      "quota": true,
+      "folder": "—",
+      "click": true,
+      "enter": true,
+      "space": true,
+      "escapeFocus": true,
+      "closeFocus": true,
+      "menuFocus": true,
+      "logoutSeparate": true,
+      "noOverflow": true
+    }
+  ],
+  "logout": "390: separate topbar logout reached login screen",
+  "consoleErrors": [],
+  "safari": {
+    "sizeExamples": true,
+    "folderDash": true,
+    "quota": "18,6 ГБ из 100 ГБ",
+    "progress": 18.59,
+    "identityClick": true,
+    "enter": true,
+    "space": true,
+    "closeFocus": true,
+    "escapeFromCloseFocus": true,
+    "currentPasswordEditing": true,
+    "newPasswordFocus": true,
+    "confirmationFocus": true,
+    "passwordSubmission": false,
+    "nativePasswordEscape": "One Escape at confirmation field did not close dialog; Escape at close-button focus closed and restored identity. Native password/autofill interception possible, not proven.",
+    "nativePasswordEscapeBaseline": "Same failure from confirmation field reproduced on unchanged localhost:18086 acceptance build; not introduced by polish. Cause not established."
+  },
+  "screenshots": [
+    "files-1440.png",
+    "account-1440.png",
+    "files-768.png",
+    "account-768.png",
+    "files-390.png",
+    "account-390-top.png",
+    "safari-account.png",
+    "safari-baseline-escape.png"
+  ],
+  "gates": {
+    "focused": "72/72",
+    "fullFrontend": "161/161",
+    "lint": "PASS",
+    "typecheck": "PASS",
+    "productionBuild": "PASS",
+    "diffCheck": "PASS"
+  },
+  "independentReview": "APPROVE",
+  "uiPolishStatus": "PASS"
+}

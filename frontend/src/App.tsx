@@ -31,26 +31,28 @@ function App() {
 }
 
 function FileBrowserLayout({ trash = false }: { trash?: boolean }) {
+  const [accountOpen, setAccountOpen] = useState(false)
   const [navigationOpen, setNavigationOpen] = useState(false)
   const backgroundRef = useRef<HTMLDivElement>(null)
   return (
     <div className="app-shell">
       <a className="skip-link" href="#workspace">Перейти к содержимому</a>
-      <aside aria-label="Основная навигация" className="sidebar sidebar-desktop"><SidebarContent trash={trash} /></aside>
+      <aside aria-label="Основная навигация" className="sidebar sidebar-desktop"><SidebarContent onOpenAccount={() => setAccountOpen(true)} trash={trash} /></aside>
       <div className="app-frame" ref={backgroundRef}>
         <Navbar navigationOpen={navigationOpen} onOpenNavigation={() => setNavigationOpen(true)} />
         <main className="workspace" id="workspace" tabIndex={-1}>
           {trash ? <TrashPage /> : <FileBrowserPage />}
         </main>
       </div>
-      {navigationOpen ? <NavigationDrawer background={backgroundRef.current} trash={trash} onClose={() => setNavigationOpen(false)} /> : null}
+      {navigationOpen ? <NavigationDrawer accountOpen={accountOpen} onOpenAccount={() => setAccountOpen(true)} background={backgroundRef.current} trash={trash} onClose={() => setNavigationOpen(false)} /> : null}
+      {accountOpen ? <AccountDialog onClose={() => setAccountOpen(false)} /> : null}
     </div>
   )
 }
 
-function NavigationDrawer({ background, trash, onClose }: { background: HTMLElement | null; trash: boolean; onClose(): void }) {
+function NavigationDrawer({ accountOpen, onOpenAccount, background, trash, onClose }: { accountOpen: boolean; onOpenAccount(): void; background: HTMLElement | null; trash: boolean; onClose(): void }) {
   // Mount only while open: no hidden tab stops. Reuse the established dialog lifecycle.
-  const dialogRef = useDialogFocus(onClose)
+  const dialogRef = useDialogFocus(onClose, undefined, !accountOpen)
   useLayoutEffect(() => {
     const previousOverflow = document.body.style.overflow
     const previousInert = background?.inert ?? false
@@ -68,12 +70,12 @@ function NavigationDrawer({ background, trash, onClose }: { background: HTMLElem
   return <div className="drawer-overlay" onClick={(event) => { if (event.target === event.currentTarget) onClose() }}>
     <div aria-label="Навигация" aria-modal="true" className="sidebar sidebar-drawer" id="mobile-navigation" ref={dialogRef} role="dialog" tabIndex={-1}>
       <button aria-label="Закрыть навигацию" className="icon-button drawer-close" onClick={onClose} type="button"><Icon name="close" /></button>
-      <SidebarContent onNavigate={onClose} trash={trash} />
+      <SidebarContent onOpenAccount={onOpenAccount} onNavigate={onClose} trash={trash} />
     </div>
   </div>
 }
 
-function SidebarContent({ trash, onNavigate }: { trash: boolean; onNavigate?(): void }) {
+function SidebarContent({ trash, onNavigate, onOpenAccount }: { trash: boolean; onNavigate?(): void; onOpenAccount(): void }) {
   const session = useSession()
   return <>
     <div className="brand"><span className="brand-mark"><Icon name="cloud" /></span><span>HomeCloud</span></div>
@@ -84,14 +86,13 @@ function SidebarContent({ trash, onNavigate }: { trash: boolean; onNavigate?(): 
     </nav>
     <div className="sidebar-footer">
       <p className="sidebar-note">Ваши файлы.<br />На своём месте.</p>
-      {session.status === 'authenticated' ? <div className="sidebar-account"><span className="avatar"><Icon name="user" /></span><span className="account-copy"><strong>{session.user.name}</strong><small>{session.user.email}</small></span></div> : null}
+      {session.status === 'authenticated' ? <button aria-label={`Открыть аккаунт: ${session.user.name}`} className="sidebar-account" onClick={(event) => { event.currentTarget.focus(); onOpenAccount() }} type="button"><span className="avatar"><Icon name="user" /></span><span className="account-copy"><strong>{session.user.name}</strong><small>{session.user.email}</small></span></button> : null}
     </div>
   </>
 }
 
 function Navbar({ navigationOpen, onOpenNavigation }: { navigationOpen: boolean; onOpenNavigation(): void }) {
   const session = useSession()
-  const [accountOpen, setAccountOpen] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
   const [logoutError, setLogoutError] = useState<string | null>(null)
 
@@ -117,10 +118,8 @@ function Navbar({ navigationOpen, onOpenNavigation }: { navigationOpen: boolean;
       <div className="account-area">
         {logoutError ? <span className="inline-alert" role="alert">{logoutError}</span> : null}
 
-        <button className="button button--ghost" onClick={(event) => { event.currentTarget.focus(); setAccountOpen(true) }} type="button">Аккаунт</button>
         <button className="button button--ghost" disabled={loggingOut} onClick={() => void handleLogout()} type="button">{loggingOut ? 'Выходим…' : 'Выйти'}</button>
       </div>
-      {accountOpen ? <AccountDialog onClose={() => setAccountOpen(false)} /> : null}
     </header>
   )
 }

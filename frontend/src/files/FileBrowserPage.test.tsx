@@ -37,6 +37,8 @@ describe('FileBrowserPage', () => {
     renderPage('/files')
     const user = userEvent.setup()
     expect(await screen.findByText('report.txt')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Documents' }).closest('tr')).not.toHaveTextContent(/0 Б|байт/)
+    expect(screen.getByRole('button', { name: 'report.txt' }).closest('tr')).toHaveTextContent('2 КБ')
     await user.click(screen.getByRole('button', { name: 'Documents' }))
 
     expect(await screen.findByText('В этой папке пока пусто')).toBeInTheDocument()
@@ -537,7 +539,7 @@ describe('FileBrowserPage', () => {
     expect(screen.getByRole('table')).toHaveClass('directory-grid')
     const row = screen.getByRole('button', { name: 'retained.txt' }).closest('tr')!
     expect(within(row).getByText('Размер:')).toBeInTheDocument()
-    expect(row).toHaveTextContent('2.0 КБ')
+    expect(row).toHaveTextContent('2 КБ')
     await chooseAction(user, 'retained.txt', 'В корзину')
     await user.click(screen.getByRole('button', { name: 'Отмена' }))
     expect(mutations).toBe(0)

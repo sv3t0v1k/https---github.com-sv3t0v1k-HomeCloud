@@ -12,17 +12,24 @@ const FOCUSABLE_SELECTOR = [
 export function useDialogFocus(
   onClose: () => void,
   initialFocusRef?: RefObject<HTMLElement | null>,
+  active = true,
 ) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
 
+  const restoreFocusRef = useRef<HTMLElement | null>(null)
+  const activeRef = useRef(active)
+  activeRef.current = active
+
   useEffect(() => {
+    if (!active) return
     const previouslyFocused = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null
+    if (!restoreFocusRef.current) restoreFocusRef.current = previouslyFocused
     const dialog = dialogRef.current
-    const initialFocus = initialFocusRef?.current ?? focusableElements(dialog)[0] ?? dialog
+    const initialFocus = initialFocusRef?.current ?? (previouslyFocused && dialog?.contains(previouslyFocused) ? previouslyFocused : focusableElements(dialog)[0]) ?? dialog
     initialFocus?.focus()
 
     function keepFocusInside(event: FocusEvent) {
@@ -85,9 +92,9 @@ export function useDialogFocus(
       document.removeEventListener('focusin', keepFocusInside)
       document.removeEventListener('focusout', repairLostFocus)
       document.removeEventListener('keydown', handleKeyDown)
-      if (previouslyFocused?.isConnected) previouslyFocused.focus()
+      if (activeRef.current && restoreFocusRef.current?.isConnected) restoreFocusRef.current.focus()
     }
-  }, [initialFocusRef])
+  }, [initialFocusRef, active])
 
   return dialogRef
 }

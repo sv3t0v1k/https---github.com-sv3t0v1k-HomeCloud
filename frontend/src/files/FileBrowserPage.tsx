@@ -1,3 +1,4 @@
+import { formatBytes } from '../ui/formatBytes'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Icon } from '../ui/Icon'
 import { ActionMenu } from '../ui/ActionMenu'
@@ -509,17 +510,6 @@ function readStateCrumbs(state: unknown): Crumb[] {
   const candidate = (state as FolderLocationState | null)?.crumbs
   if (!Array.isArray(candidate)) return []
   return candidate.filter((crumb): crumb is Crumb => Number.isSafeInteger(crumb?.id) && crumb.id > 0 && typeof crumb.name === 'string')
-}
-
-function formatBytes(value: string | number): string {
-  const bytes = typeof value === 'string' ? Number(value) : value
-  if (!Number.isFinite(bytes) || bytes < 0) return 'Неизвестно'
-  if (bytes < 1024) return `${bytes} Б`
-  const units = ['КБ', 'МБ', 'ГБ', 'ТБ']
-  let size = bytes
-  let unit = -1
-  do { size /= 1024; unit += 1 } while (size >= 1024 && unit < units.length - 1)
-  return `${size.toFixed(size >= 10 ? 0 : 1)} ${units[unit]}`
 }
 
 function formatDate(value: string): string {

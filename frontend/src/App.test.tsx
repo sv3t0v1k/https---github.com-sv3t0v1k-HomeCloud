@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {
   AxiosError,
@@ -55,11 +55,11 @@ describe('authentication UX', () => {
     }
     renderApp('/files')
     const user = userEvent.setup()
-    const account = await screen.findByRole('button', { name: 'Аккаунт' })
+    const account = await screen.findByRole('button', { name: 'Открыть аккаунт: Owner' })
     // Safari pointer clicks do not natively focus buttons.
     act(() => account.click())
     expect(screen.getByRole('dialog', { name: 'Аккаунт и хранилище' })).toBeInTheDocument()
-    expect(await screen.findByText(/Использовано 25 байт/)).toBeInTheDocument()
+    expect(await screen.findByText(/Использовано 25 Б/)).toBeInTheDocument()
     expect(screen.getByLabelText('Имя')).toBeInTheDocument()
     expect(screen.getByLabelText('Текущий пароль')).toHaveAttribute('autocomplete', 'current-password')
     expect(screen.getByLabelText('Новый пароль')).toHaveAttribute('autocomplete', 'new-password')
@@ -67,6 +67,32 @@ describe('authentication UX', () => {
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog', { name: 'Аккаунт и хранилище' })).not.toBeInTheDocument()
     expect(account).toHaveFocus()
+    expect(screen.queryByRole('button', { name: 'Аккаунт' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Выйти' })).not.toBe(account)
+    for (const key of ['{Enter}', ' ']) {
+      await user.keyboard(key)
+      expect(screen.getByRole('dialog', { name: 'Аккаунт и хранилище' })).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Закрыть' }))
+      expect(account).toHaveFocus()
+    }
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })))
+    await user.click(screen.getByRole('button', { name: 'Открыть навигацию' }))
+    const drawer = screen.getByRole('dialog', { name: 'Навигация' })
+    const mobileAccount = within(drawer).getByRole('button', { name: 'Открыть аккаунт: Owner' })
+    await user.click(mobileAccount)
+    const dialog = screen.getByRole('dialog', { name: 'Аккаунт и хранилище' })
+    await user.type(within(dialog).getByLabelText('Текущий пароль'), 'sample')
+    expect(within(dialog).getByLabelText('Текущий пароль')).toHaveValue('sample')
+    await user.keyboard('{Escape}')
+    expect(drawer).toBeInTheDocument()
+    expect(mobileAccount).toHaveFocus()
+    await user.keyboard(' ')
+    expect(screen.getByRole('dialog', { name: 'Аккаунт и хранилище' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Закрыть' }))
+    expect(mobileAccount).toHaveFocus()
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('button', { name: 'Открыть навигацию' })).toHaveFocus()
+    vi.unstubAllGlobals()
   })
 
   beforeEach(() => tokenStorage.clear())

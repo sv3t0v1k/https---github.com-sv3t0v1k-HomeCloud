@@ -9,10 +9,17 @@ vi.mock('./api', () => ({ changePassword: vi.fn(), getStorageInfo: vi.fn(), upda
 describe('AccountDialog', () => {
   beforeEach(() => { vi.clearAllMocks(); vi.mocked(getStorageInfo).mockResolvedValue({ storageQuota: '1000', storageUsed: '25', fileCount: 2, folderCount: 1 }) })
   afterEach(cleanup)
+  it('formats quota and clamps over-limit progress without changing usage text', async () => {
+    vi.mocked(getStorageInfo).mockResolvedValue({ storageUsed: '1825361101', storageQuota: '1073741824', fileCount: 2, folderCount: 1 })
+    render(<AccountDialog onClose={vi.fn()} />)
+    expect(await screen.findByText(/Использовано 1,7 ГБ из 1 ГБ/)).not.toHaveTextContent('байт')
+    expect(screen.getByRole('progressbar', { name: 'Использование хранилища' })).toHaveAttribute('value', '100')
+  })
+
   it('shows persisted quota and saves profile then updates session without unmounting', async () => {
     const user = userEvent.setup()
     render(<AccountDialog onClose={vi.fn()} />)
-    expect(await screen.findByText(/Использовано 25 байт/)).toHaveTextContent('Файлов: 2. Папок: 1.')
+    expect(await screen.findByText(/Использовано 25 Б/)).toHaveTextContent('Файлов: 2. Папок: 1.')
     await user.clear(screen.getByLabelText('Имя'))
     await user.type(screen.getByLabelText('Имя'), ' Новое имя ')
     await user.click(screen.getByRole('button', { name: 'Сохранить профиль' }))
@@ -23,7 +30,7 @@ describe('AccountDialog', () => {
   it('keeps native focus transfers editable and cycles keyboard focus inside the dialog', async () => {
     const user = userEvent.setup()
     render(<AccountDialog onClose={vi.fn()} />)
-    await screen.findByText(/Использовано 25 байт/)
+    await screen.findByText(/Использовано 25 Б/)
     const close = screen.getByRole('button', { name: 'Закрыть' })
     const fields = ['Имя', 'Аватар (адрес или имя)', 'Текущий пароль', 'Новый пароль', 'Повторите новый пароль'].map((label) => screen.getByLabelText(label))
     for (const field of fields) {
@@ -55,7 +62,7 @@ describe('AccountDialog', () => {
   })
   it('allows Safari focusout microtasks before the native input receives focus', async () => {
     render(<AccountDialog onClose={vi.fn()} />)
-    await screen.findByText(/Использовано 25 байт/)
+    await screen.findByText(/Использовано 25 Б/)
     const close = screen.getByRole('button', { name: 'Закрыть' })
     const input = screen.getByLabelText('Текущий пароль')
     close.focus()
@@ -118,7 +125,7 @@ describe('AccountDialog', () => {
     const user = userEvent.setup()
     render(<AccountDialog onClose={vi.fn()} />)
     await user.click(await screen.findByRole('button', { name: 'Повторить загрузку квоты' }))
-    expect(await screen.findByText(/Использовано 25 байт/)).toBeInTheDocument()
+    expect(await screen.findByText(/Использовано 25 Б/)).toBeInTheDocument()
     expect(getStorageInfo).toHaveBeenCalledTimes(2)
   })
 })
