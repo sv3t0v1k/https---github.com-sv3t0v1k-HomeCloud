@@ -246,3 +246,27 @@ INCONCLUSIVE: fixture and current account reachability gaps corrected; tested sa
 ### REMAINING_GAPS / NEXT_STEP
 
 Complete manual password change/relogin from proven reachable current form; verify result, continue bounded remaining closure and independent final review. Do not send owner back to8080 or ask owner to locate/create download test data.
+
+## Исправление ввода в аккаунте — 2026-10-03
+
+INITIAL_STATE: HEAD `7b05be973602be6749f198e7f335e845c5c8eb38` совпал. Прежние два untracked checkpoint сохранены; запрещённый audit не читался и не изменялся. Стенд18086 и данные сохранены; заменены только статические frontend build-файлы его контейнера. Другие контейнеры не изменялись.
+
+RUNTIME_REPRODUCTION: Safari; клики по трём password inputs и имени, а также Tab возвращали фокус на «Закрыть». Runtime DOM: disabled/readOnly/inert false, pointer-events auto; profile hit-test попадал непосредственно в input.
+
+ROOT_CAUSE: общий useDialogFocus восстанавливал потерянный фокус через queueMicrotask. Safari выполняет microtask checkpoint внутри native перехода фокуса: focusout оставляет activeElement BODY, repair фокусирует Close до завершения перехода на INPUT. Снятая трасса: mousedown INPUT → focusout BUTTON (active BODY) → focusin BUTTON → mouseup/click INPUT (active BUTTON). Дефект затрагивал также профиль. Safari-only специфичность не установлена: authenticated Chromium comparison и другие modal runtime inputs в этом проходе не проверялись.
+
+FIX: repair перенесён на setTimeout(0); предыдущий timer отменяется при повторном событии и cleanup. Синхронный focusin trap сохранён. Account opener явно получает focus перед открытием: Safari mouse click не фокусирует button самостоятельно, поэтому без этого Escape возвращал BODY. CSS/DOM, дизайн и backend не менялись.
+
+REGRESSION_TESTS: Account enabled/editable, click/type, Tab и reverse boundary; Safari focusout microtask checkpoint до native input focus, последующий repair реально потерянного фокуса. App integration использует account.click() без искусственного userEvent автофокуса и проверяет Escape restore. Общие consumer tests preview/trash/sharing также входят в full gate.
+
+SAFARI_RUNTIME_VERIFICATION: конечный build `index-B6iELFq4.js` подтверждён inspector DOM, desktop width1394. Все три поля принимают pointer focus и одиночный диагностический символ; символы удалены, форма не отправлялась. Narrow responsive mode390×844: три поля также принимают клик и символ, нижняя область достижима прокруткой, overlap элементами страницы не обнаружен. Это desktop Safari responsive mode, не физический iPhone. Консоль HomeCloud после reload пустая; ранняя SyntaxError была ошибкой ввода диагностической команды оператора, не приложения.
+
+KEYBOARD_FOCUS_VERIFICATION: обычный Tab достигает profile/password inputs, Safari default пропускает buttons. Option+Tab проходит Close → Name → Avatar → Save profile → Current → New → Confirmation → Change password → Close; Option+Shift+Tab возвращает Close → Change password. Escape закрывает и возвращает focus на Account opener. Проверенный клик по desktop backdrop не активировал фон.
+
+FULL_FRONTEND_GATE: targeted17/17, full133/133 в17 suites, lint, tsc-b, production build, git diff --check PASS. Backend неизменён, его проверки не запускались.
+
+Доказательства: `docs/evidence/frontend-functional/account-focus-20261003.json` содержит ограниченные сырые excerpts UI/event outputs и ограничения; полная видеозапись отсутствует. INDEPENDENT_REVIEW: APPROVE. Независимый reviewer проверил конечный diff, сырые bounded browser excerpts и самостоятельно выполнил targeted17/17 PASS. Blocking findings нет. Reviewer не повторял browser runtime; это review доказательств, не второй независимый browser прогон. Ограничения Chromium/global modal runtime и password mutation/relogin сохранены.
+
+ACCOUNT_FIELDS_FOCUSABLE / ACCOUNT_FIELDS_EDITABLE / POINTER_INPUT / KEYBOARD_INPUT / DIALOG_FOCUS_TRAP / SAFARI_ACCOUNT_RUNTIME: PASS в перечисленном scope. PASSWORD_CHANGE_FLOW: READY_FOR_MANUAL_ENTRY. Полная frontend functional acceptance остаётся INCONCLUSIVE до password submission/relogin и прежних незакрытых closure checks.
+
+NEXT_STEP: оставить обычный Safari на пустой password form; владелец вводит текущий/новый/подтверждение и отправляет. Затем проверяется relogin и продолжается существующий targeted closure. Credentials не отправлять в чат. Ручной ввод/подтверждение/отправку требует Browser Computer Use policy: “Changing a password or other authentication credential”.

@@ -56,7 +56,8 @@ describe('authentication UX', () => {
     renderApp('/files')
     const user = userEvent.setup()
     const account = await screen.findByRole('button', { name: 'Аккаунт' })
-    await user.click(account)
+    // Safari pointer clicks do not natively focus buttons.
+    act(() => account.click())
     expect(screen.getByRole('dialog', { name: 'Аккаунт и хранилище' })).toBeInTheDocument()
     expect(await screen.findByText(/Использовано 25 байт/)).toBeInTheDocument()
     expect(screen.getByLabelText('Имя')).toBeInTheDocument()

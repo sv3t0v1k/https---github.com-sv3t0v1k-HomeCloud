@@ -117,7 +117,7 @@ function Navbar({ navigationOpen, onOpenNavigation }: { navigationOpen: boolean;
       <div className="account-area">
         {logoutError ? <span className="inline-alert" role="alert">{logoutError}</span> : null}
 
-        <button className="button button--ghost" onClick={() => setAccountOpen(true)} type="button">Аккаунт</button>
+        <button className="button button--ghost" onClick={(event) => { event.currentTarget.focus(); setAccountOpen(true) }} type="button">Аккаунт</button>
         <button className="button button--ghost" disabled={loggingOut} onClick={() => void handleLogout()} type="button">{loggingOut ? 'Выходим…' : 'Выйти'}</button>
       </div>
       {accountOpen ? <AccountDialog onClose={() => setAccountOpen(false)} /> : null}

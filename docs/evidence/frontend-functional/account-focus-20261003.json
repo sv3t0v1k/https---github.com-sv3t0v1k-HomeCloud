@@ -1,0 +1,133 @@
+{
+  "date": "2026-10-03 Asia/Vladivostok",
+  "stand": "http://127.0.0.1:18086/files",
+  "initialHead": "7b05be973602be6749f198e7f335e845c5c8eb38",
+  "method": "Safari native UI via cua_repl; DOM/event diagnostics through Web Inspector. Bounded raw extracts from tool outputs, not a full recording.",
+  "before": {
+    "clickTargets": [
+      "current password",
+      "new password",
+      "confirmation",
+      "profile name"
+    ],
+    "eachFocusedResult": "The focused UI element is 11 \u043a\u043d\u043e\u043f\u043a\u0430 \u0417\u0430\u043a\u0440\u044b\u0442\u044c",
+    "tabResult": "The focused UI element is 11 \u043a\u043d\u043e\u043f\u043a\u0430 \u0417\u0430\u043a\u0440\u044b\u0442\u044c",
+    "rawEventTrace": [
+      [
+        "mousedown",
+        "INPUT",
+        "text",
+        "BUTTON",
+        "button"
+      ],
+      [
+        "focusout",
+        "BUTTON",
+        "button",
+        "BODY",
+        null
+      ],
+      [
+        "focusin",
+        "BUTTON",
+        "button",
+        "BUTTON",
+        "button"
+      ],
+      [
+        "mouseup",
+        "INPUT",
+        "text",
+        "BUTTON",
+        "button"
+      ],
+      [
+        "click",
+        "INPUT",
+        "text",
+        "BUTTON",
+        "button"
+      ]
+    ],
+    "dom": {
+      "disabled": false,
+      "readOnly": false,
+      "inertAncestor": false,
+      "pointerEvents": "auto",
+      "profileHitTest": "INPUT"
+    }
+  },
+  "after": {
+    "servedScript": "http://127.0.0.1:18086/assets/index-B6iELFq4.js",
+    "desktopWidth": 1394,
+    "rawFocusedExtracts": [
+      "The focused UI element is 182 \u0437\u0430\u0449\u0438\u0449\u0435\u043d\u043d\u043e\u0435 \u0442\u0435\u043a\u0441\u0442\u043e\u0432\u043e\u0435 \u043f\u043e\u043b\u0435 (settable) \u0422\u0435\u043a\u0443\u0449\u0438\u0439 \u043f\u0430\u0440\u043e\u043b\u044c, Value: \u2022",
+      "The focused UI element is 184 \u0437\u0430\u0449\u0438\u0449\u0435\u043d\u043d\u043e\u0435 \u0442\u0435\u043a\u0441\u0442\u043e\u0432\u043e\u0435 \u043f\u043e\u043b\u0435 (settable) \u041d\u043e\u0432\u044b\u0439 \u043f\u0430\u0440\u043e\u043b\u044c, Value: \u2022",
+      "The focused UI element is 186 \u0437\u0430\u0449\u0438\u0449\u0435\u043d\u043d\u043e\u0435 \u0442\u0435\u043a\u0441\u0442\u043e\u0432\u043e\u0435 \u043f\u043e\u043b\u0435 (settable) \u041f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u0435 \u043d\u043e\u0432\u044b\u0439 \u043f\u0430\u0440\u043e\u043b\u044c, Value: \u2022"
+    ],
+    "diagnosticInput": "Single diagnostic character (keyboard-layout dependent); removed with Cmd+A / Backspace; never submitted, not a usable credential.",
+    "tab": [
+      "Name",
+      "Avatar",
+      "Current",
+      "New",
+      "Confirmation",
+      "Close"
+    ],
+    "optionTab": [
+      "Close",
+      "Name",
+      "Avatar",
+      "Save profile",
+      "Current",
+      "New",
+      "Confirmation",
+      "Change password",
+      "Close"
+    ],
+    "reverseBoundary": "Option+Shift+Tab: Close -> Change password",
+    "escapeRestoreRaw": "The focused UI element is 173 \u043a\u043d\u043e\u043f\u043a\u0430 \u0410\u043a\u043a\u0430\u0443\u043d\u0442",
+    "backgroundClick": "Fresh desktop screenshot then [150,350]: modal remained, focus on dialog, no route change. Earlier coordinate action with two windows hit the other window and is excluded.",
+    "console": "Empty HomeCloud console after fixed-build actions. Earlier diagnostic command SyntaxError was operator input, not application error; reload cleared it.",
+    "narrowViewport": [
+      390,
+      844
+    ],
+    "narrowRaw": [
+      "The focused UI element is 36 \u0437\u0430\u0449\u0438\u0449\u0435\u043d\u043d\u043e\u0435 \u0442\u0435\u043a\u0441\u0442\u043e\u0432\u043e\u0435 \u043f\u043e\u043b\u0435 (settable) \u0422\u0435\u043a\u0443\u0449\u0438\u0439 \u043f\u0430\u0440\u043e\u043b\u044c, Value: \u2022",
+      "The focused UI element is 38 \u0437\u0430\u0449\u0438\u0449\u0435\u043d\u043d\u043e\u0435 \u0442\u0435\u043a\u0441\u0442\u043e\u0432\u043e\u0435 \u043f\u043e\u043b\u0435 (settable) \u041d\u043e\u0432\u044b\u0439 \u043f\u0430\u0440\u043e\u043b\u044c, Value: \u2022",
+      "The focused UI element is 40 \u0437\u0430\u0449\u0438\u0449\u0435\u043d\u043d\u043e\u0435 \u0442\u0435\u043a\u0441\u0442\u043e\u0432\u043e\u0435 \u043f\u043e\u043b\u0435 (settable) \u041f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u0435 \u043d\u043e\u0432\u044b\u0439 \u043f\u0430\u0440\u043e\u043b\u044c, Value: \u2022"
+    ],
+    "layout": "Desktop/narrow screenshots inspected. Dialog scrolls to submit area; no page-element overlap. Native Safari password suggestion popover appears.",
+    "passwordFieldsLeftEmpty": true,
+    "profileAvatarRaw": "The focused UI element is 23; editable avatar value changed by one character and cleared without profile save."
+  },
+  "gates": {
+    "targeted": "17/17 PASS",
+    "full": "133/133 PASS; 17 suites",
+    "lint": "PASS",
+    "typecheck": "PASS",
+    "productionBuild": "PASS",
+    "diffCheck": "PASS",
+    "backend": "unchanged; not run"
+  },
+  "limits": [
+    "Authenticated Chromium comparison not performed; Safari-only specificity not established.",
+    "Other shared-modal input runtime not checked; consumer regression suite passes.",
+    "No password mutation or relogin."
+  ],
+  "classifications": {
+    "ACCOUNT_FIELDS_FOCUSABLE": "PASS",
+    "ACCOUNT_FIELDS_EDITABLE": "PASS",
+    "POINTER_INPUT": "PASS",
+    "KEYBOARD_INPUT": "PASS",
+    "DIALOG_FOCUS_TRAP": "PASS",
+    "SAFARI_ACCOUNT_RUNTIME": "PASS",
+    "PASSWORD_CHANGE_FLOW": "READY_FOR_MANUAL_ENTRY"
+  },
+  "independentReview": {
+    "verdict": "APPROVE",
+    "independentTargetedTests": "17/17 PASS",
+    "scope": "Final code diff and bounded raw browser excerpts reviewed; browser runtime not independently repeated. No blocking findings. Chromium/global modal runtime and password mutation/relogin unverified."
+  }
+}

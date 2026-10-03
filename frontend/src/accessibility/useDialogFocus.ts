@@ -33,14 +33,17 @@ export function useDialogFocus(
       }
     }
 
+    let focusRepairTimer: ReturnType<typeof setTimeout> | undefined
     function repairLostFocus() {
-      queueMicrotask(() => {
+      clearTimeout(focusRepairTimer)
+      // Safari completes native focus transfer after the focusout microtask checkpoint.
+      focusRepairTimer = setTimeout(() => {
         const currentDialog = dialogRef.current
         if (currentDialog?.isConnected && !currentDialog.contains(document.activeElement)) {
           const fallback = initialFocusRef?.current ?? focusableElements(currentDialog)[0] ?? currentDialog
           fallback.focus()
         }
-      })
+      }, 0)
     }
 
     function handleKeyDown(event: globalThis.KeyboardEvent) {
@@ -78,6 +81,7 @@ export function useDialogFocus(
     document.addEventListener('keydown', handleKeyDown)
 
     return () => {
+      clearTimeout(focusRepairTimer)
       document.removeEventListener('focusin', keepFocusInside)
       document.removeEventListener('focusout', repairLostFocus)
       document.removeEventListener('keydown', handleKeyDown)
