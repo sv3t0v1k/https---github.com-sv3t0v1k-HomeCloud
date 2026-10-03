@@ -1,0 +1,634 @@
+{
+  "scope": "Текущие intended frontend controls; Safari desktop и desktop responsive 390×844. Сохранены доказанные предыдущие строки, закрыты остаточные 35. PASS не означает все браузеры, физический iPhone или все комбинации данных.",
+  "initial_head": "a2dff81a933b29c156379d2d1a457ab9d052ff9c",
+  "counts": {
+    "PASS": 87,
+    "NOT_APPLICABLE": 2,
+    "INCONCLUSIVE": 0
+  },
+  "rows": [
+    {
+      "surface": "login",
+      "control": "email/password",
+      "status": "PASS",
+      "evidence": "previous AUTH_ACCEPTANCE; closure login-tab-enter",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "login",
+      "control": "submit click",
+      "status": "PASS",
+      "evidence": "previous AUTH_ACCEPTANCE; closure login-tab-enter",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "login",
+      "control": "submit Enter",
+      "status": "PASS",
+      "evidence": "previous AUTH_ACCEPTANCE; closure login-tab-enter",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "header",
+      "control": "account opener",
+      "status": "PASS",
+      "evidence": "closure account-keyboard",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "header",
+      "control": "logout",
+      "status": "PASS",
+      "evidence": "previous AUTH_ACCEPTANCE",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "navigation",
+      "control": "files",
+      "status": "PASS",
+      "evidence": "previous NAVIGATION_ACCEPTANCE and ERROR_STATE_ACCEPTANCE",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "navigation",
+      "control": "trash",
+      "status": "PASS",
+      "evidence": "previous NAVIGATION_ACCEPTANCE and ERROR_STATE_ACCEPTANCE",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "navigation",
+      "control": "breadcrumbs",
+      "status": "PASS",
+      "evidence": "previous NAVIGATION_ACCEPTANCE and ERROR_STATE_ACCEPTANCE",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "navigation",
+      "control": "unknown route recovery",
+      "status": "PASS",
+      "evidence": "previous NAVIGATION_ACCEPTANCE and ERROR_STATE_ACCEPTANCE",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "navigation",
+      "control": "skip link",
+      "status": "PASS",
+      "evidence": "Safari: переход к содержимому активирован; /files#workspace, фокус main; следующий Option+Tab достигает выбора файла.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "list/grid",
+      "control": "list toggle",
+      "status": "PASS",
+      "evidence": "Safari: Плитка → Список; aria-pressed и представление соответствуют переключателю.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "list/grid",
+      "control": "grid toggle",
+      "status": "PASS",
+      "evidence": "Safari: Список → Плитка; карточки и метаданные видимы.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "list/grid",
+      "control": "folder row/card",
+      "status": "PASS",
+      "evidence": "Safari: клик имени папки в списке открывает folder6; в плитке Option+Tab/Enter открывает folder5; breadcrumbs возвращает корень.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "list/grid",
+      "control": "file row/card preview",
+      "status": "PASS",
+      "evidence": "Safari: карточка TXT открывает фактический UTF-8 preview; Escape возвращает opener после исправления.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "file overflow",
+      "control": "keyboard navigation",
+      "status": "PASS",
+      "evidence": "closure menu-keyboard, rename-keyboard, move-cancel, copy-retry",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "file overflow",
+      "control": "rename Enter",
+      "status": "PASS",
+      "evidence": "closure menu-keyboard, rename-keyboard, move-cancel, copy-retry",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "file overflow",
+      "control": "move cancel",
+      "status": "PASS",
+      "evidence": "closure menu-keyboard, rename-keyboard, move-cancel, copy-retry",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "file overflow",
+      "control": "copy submit",
+      "status": "PASS",
+      "evidence": "closure menu-keyboard, rename-keyboard, move-cancel, copy-retry",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "file overflow",
+      "control": "destination retry",
+      "status": "PASS",
+      "evidence": "closure menu-keyboard, rename-keyboard, move-cancel, copy-retry",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "file overflow",
+      "control": "download",
+      "status": "PASS",
+      "evidence": "Предыдущая коррекция: точное file overflow ArrowDown/Enter, сохранённый Safari TXT 1297 байт и SHA256; не только HTTP.",
+      "source": "correction-20261003"
+    },
+    {
+      "surface": "file overflow",
+      "control": "preview",
+      "status": "PASS",
+      "evidence": "Safari: первое file menu действие Enter открывает реальный TXT preview; Escape возвращает меню.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "file overflow",
+      "control": "share",
+      "status": "PASS",
+      "evidence": "Safari: file menu Down×2/Enter открывает sharing именно выбранного TXT.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "file overflow",
+      "control": "trash",
+      "status": "PASS",
+      "evidence": "Safari: file menu End/Enter открывает подтверждение выбранного файла; Cancel/Space отменяет; disposable retry fixture затем перенесён в Trash через Enter и восстановлен.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "folder overflow",
+      "control": "rename",
+      "status": "PASS",
+      "evidence": "Safari: folder menu Down×2/Enter открывает имя выбранной папки; Cancel сохраняет имя. Успешная мутация покрыта прежним folder core flow.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "folder overflow",
+      "control": "move",
+      "status": "PASS",
+      "evidence": "Safari: folder menu Down×3/Enter открывает move выбранной папки; loading disable, Escape/focus return. Успешная мутация покрыта прежним folder core flow.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "folder overflow",
+      "control": "share",
+      "status": "PASS",
+      "evidence": "Safari: folder menu Down/Enter открывает sharing выбранной папки; Enter создаёт disposable ссылку, затем revoke.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "folder overflow",
+      "control": "trash",
+      "status": "PASS",
+      "evidence": "Safari: folder menu End/Enter открывает подтверждение нужной папки; reverse/forward boundary, Escape отменяет. Прежний trash/restore core flow переиспользован.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "create",
+      "control": "save",
+      "status": "PASS",
+      "evidence": "Прежние create/cancel/empty checks; Enter/trap отдельно подтверждены текущими строками create Enter и focus trap/return.",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "create",
+      "control": "cancel",
+      "status": "PASS",
+      "evidence": "Прежние create/cancel/empty checks; Enter/trap отдельно подтверждены текущими строками create Enter и focus trap/return.",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "create",
+      "control": "empty validation",
+      "status": "PASS",
+      "evidence": "Прежние create/cancel/empty checks; Enter/trap отдельно подтверждены текущими строками create Enter и focus trap/return.",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "create",
+      "control": "close",
+      "status": "PASS",
+      "evidence": "Safari: повторное открытие и Close закрывают создание; после исправления фокус возвращается New folder.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "create",
+      "control": "Enter",
+      "status": "PASS",
+      "evidence": "Safari: ввод Контроль, Enter создаёт пустую дочернюю папку; наблюдение нового элемента и ZIP подтверждают создание.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "create",
+      "control": "focus trap/return",
+      "status": "PASS",
+      "evidence": "Safari: Close → reverse Option+Tab → Cancel при disabled submit; forward wrap; Escape возвращает New folder после исправления.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "move/copy",
+      "control": "destination select",
+      "status": "PASS",
+      "evidence": "closure move-cancel/copy-retry; prior sibling/nested mutation",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "move/copy",
+      "control": "cancel",
+      "status": "PASS",
+      "evidence": "closure move-cancel/copy-retry; prior sibling/nested mutation",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "move/copy",
+      "control": "submit",
+      "status": "PASS",
+      "evidence": "closure move-cancel/copy-retry; prior sibling/nested mutation",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "move/copy",
+      "control": "disabled loading/error",
+      "status": "PASS",
+      "evidence": "closure move-cancel/copy-retry; prior sibling/nested mutation",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "rename",
+      "control": "save",
+      "status": "PASS",
+      "evidence": "previous FILE_OPERATIONS; closure Enter rename",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "rename",
+      "control": "empty validation",
+      "status": "PASS",
+      "evidence": "previous FILE_OPERATIONS; closure Enter rename",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "upload",
+      "control": "picker",
+      "status": "PASS",
+      "evidence": "previous UPLOAD_ACCEPTANCE; closure uploaded fixture",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "upload",
+      "control": "start",
+      "status": "PASS",
+      "evidence": "previous UPLOAD_ACCEPTANCE; closure uploaded fixture",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "upload",
+      "control": "same-file reselect",
+      "status": "PASS",
+      "evidence": "previous UPLOAD_ACCEPTANCE; closure uploaded fixture",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "upload",
+      "control": "cancel",
+      "status": "PASS",
+      "evidence": "previous UPLOAD_ACCEPTANCE; closure uploaded fixture",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "upload",
+      "control": "retry fault",
+      "status": "PASS",
+      "evidence": "Safari: остановлен только acceptance frontend; upload показал потерю соединения и Retry. После запуска Retry загрузил выбранный TXT без повторного выбора.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "upload",
+      "control": "disabled keyboard",
+      "status": "PASS",
+      "evidence": "Safari: disabled Upload пропущен при Option+Tab от chooser к New folder.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "upload",
+      "control": "multiple-file chooser semantics",
+      "status": "NOT_APPLICABLE",
+      "evidence": "NOT_APPLICABLE: input type=file без multiple; UI и обработчик выбирают один файл. Множественный выбор не является текущей capability.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "preview",
+      "control": "close/Escape/focus",
+      "status": "PASS",
+      "evidence": "previous PREVIEW_ACCEPTANCE",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "preview",
+      "control": "oversized error",
+      "status": "PASS",
+      "evidence": "previous PREVIEW_ACCEPTANCE",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "preview",
+      "control": "unsupported",
+      "status": "PASS",
+      "evidence": "Safari: фактически сохранённый ZIP загружен через chooser; exact preview menu показывает Предпросмотр недоступен для этого типа файлов.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "preview",
+      "control": "loading abort",
+      "status": "PASS",
+      "evidence": "Safari: acceptance backend временно pause; TXT preview показывает Загрузка; Escape закрывает и возвращает menu; после unpause окно не открывается повторно. Cleanup abort подтверждён исходным кодом.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "preview",
+      "control": "Tab reverse boundary",
+      "status": "PASS",
+      "evidence": "Safari: в preview единственная Close; Option+Tab и Option+Shift+Tab остаются внутри; Escape возвращает opener.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "sharing",
+      "control": "create",
+      "status": "PASS",
+      "evidence": "previous SHARING_ACCEPTANCE",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "sharing",
+      "control": "copy link",
+      "status": "PASS",
+      "evidence": "previous SHARING_ACCEPTANCE",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "sharing",
+      "control": "open",
+      "status": "PASS",
+      "evidence": "previous SHARING_ACCEPTANCE",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "sharing",
+      "control": "revoke",
+      "status": "PASS",
+      "evidence": "previous SHARING_ACCEPTANCE",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "sharing",
+      "control": "password",
+      "status": "PASS",
+      "evidence": "previous SHARING_ACCEPTANCE",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "sharing",
+      "control": "expiry",
+      "status": "PASS",
+      "evidence": "previous SHARING_ACCEPTANCE",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "sharing",
+      "control": "download limit",
+      "status": "PASS",
+      "evidence": "previous SHARING_ACCEPTANCE",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "sharing",
+      "control": "Enter",
+      "status": "PASS",
+      "evidence": "Safari: expiry изменён 7→1 день, Enter создаёт folder share; notice Ссылка создана.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "sharing",
+      "control": "modal boundary",
+      "status": "PASS",
+      "evidence": "Safari: Close reverse Option+Tab → Create; forward wrap → Close.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "sharing",
+      "control": "disabled revoked",
+      "status": "NOT_APPLICABLE",
+      "evidence": "NOT_APPLICABLE: после revoke UI удаляет запись; backend getUserShares выбирает isActive=true. Disabled revoked row не существует по контракту.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "sharing",
+      "control": "close control",
+      "status": "PASS",
+      "evidence": "Safari: Close/Escape закрывают ShareDialog; фокус возвращается в menu.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "public",
+      "control": "password",
+      "status": "PASS",
+      "evidence": "previous SHARING_ACCEPTANCE",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "public",
+      "control": "download start",
+      "status": "PASS",
+      "evidence": "previous SHARING_ACCEPTANCE",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "public",
+      "control": "children",
+      "status": "PASS",
+      "evidence": "previous SHARING_ACCEPTANCE",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "public",
+      "control": "breadcrumbs",
+      "status": "PASS",
+      "evidence": "previous SHARING_ACCEPTANCE",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "public",
+      "control": "pagination next/prev",
+      "status": "PASS",
+      "evidence": "previous SHARING_ACCEPTANCE",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "public",
+      "control": "expiry/revoked",
+      "status": "PASS",
+      "evidence": "previous SHARING_ACCEPTANCE",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "public",
+      "control": "retry/recovery",
+      "status": "PASS",
+      "evidence": "Safari: public folder navigation при frontend down показывает network error/Retry; после start Retry загружает содержимое. После revoke reload/Retry остаются корректным 404.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "trash",
+      "control": "restore",
+      "status": "PASS",
+      "evidence": "previous TRASH_ACCEPTANCE",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "trash",
+      "control": "permanent file/folder",
+      "status": "PASS",
+      "evidence": "previous TRASH_ACCEPTANCE",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "trash",
+      "control": "empty confirm",
+      "status": "PASS",
+      "evidence": "previous TRASH_ACCEPTANCE",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "trash",
+      "control": "cancel",
+      "status": "PASS",
+      "evidence": "previous TRASH_ACCEPTANCE",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "trash",
+      "control": "disabled empty",
+      "status": "PASS",
+      "evidence": "previous TRASH_ACCEPTANCE",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "trash",
+      "control": "confirmation focus/Enter/Escape",
+      "status": "PASS",
+      "evidence": "Safari: permanent dialog reverse Tab Cancel→Delete, forward wrap; Enter на Cancel без мутации, Escape; empty Escape. После исправления оба возвращают opener. Фактический purge не выполнялся, прежний purge core flow переиспользован.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "account",
+      "control": "quota display",
+      "status": "PASS",
+      "evidence": "previous account quota; closure account-keyboard",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "account",
+      "control": "profile submit Enter",
+      "status": "PASS",
+      "evidence": "previous account quota; closure account-keyboard",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "account",
+      "control": "modal boundary",
+      "status": "PASS",
+      "evidence": "previous account quota; closure account-keyboard",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "account",
+      "control": "quota retry",
+      "status": "PASS",
+      "evidence": "Safari: Account quota при frontend down показывает Сервер недоступен и Retry; после восстановления и JWT fix Retry проходит 401→refresh200→storage-info200 без reload.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "account",
+      "control": "close/Escape/focus return",
+      "status": "PASS",
+      "evidence": "Safari: Close/Escape и фокус Account; после reload Account достигается и показывает актуальную квоту.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "account",
+      "control": "password submit",
+      "status": "PASS",
+      "evidence": "Свидетельство владельца: current/new/confirmation submit → logout/authorization → успешный login новым паролем. Наблюдение protected /files после этого и контракт Account/endSession подтверждены отдельно.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "mobile drawer",
+      "control": "open",
+      "status": "PASS",
+      "evidence": "previous RESPONSIVE_FUNCTIONALITY",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "mobile drawer",
+      "control": "nav",
+      "status": "PASS",
+      "evidence": "previous RESPONSIVE_FUNCTIONALITY",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "mobile drawer",
+      "control": "Escape",
+      "status": "PASS",
+      "evidence": "previous RESPONSIVE_FUNCTIONALITY",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "mobile drawer",
+      "control": "focus trap",
+      "status": "PASS",
+      "evidence": "previous RESPONSIVE_FUNCTIONALITY",
+      "source": "Предыдущая зафиксированная кампания; не новый browser прогон"
+    },
+    {
+      "surface": "mobile drawer",
+      "control": "close",
+      "status": "PASS",
+      "evidence": "Safari responsive 390×844: Close закрывает drawer; после исправления фокус Open navigation.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "mobile drawer",
+      "control": "overlay",
+      "status": "PASS",
+      "evidence": "Safari responsive: клик фактического затемнённого overlay закрывает drawer, фокус Open navigation.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "mobile drawer",
+      "control": "reverse trap",
+      "status": "PASS",
+      "evidence": "Safari responsive: reverse Option+Tab Close→Trash, forward wrap→Close; Escape закрывает.",
+      "source": "closure-20261003"
+    },
+    {
+      "surface": "mobile drawer",
+      "control": "focus return",
+      "status": "PASS",
+      "evidence": "Safari responsive: Escape, Close, overlay и переход Files закрывают drawer и возвращают opener после исправления.",
+      "source": "closure-20261003"
+    }
+  ]
+}

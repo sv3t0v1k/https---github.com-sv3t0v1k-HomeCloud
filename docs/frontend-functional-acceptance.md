@@ -270,3 +270,54 @@ FULL_FRONTEND_GATE: targeted17/17, full133/133 в17 suites, lint, tsc-b, product
 ACCOUNT_FIELDS_FOCUSABLE / ACCOUNT_FIELDS_EDITABLE / POINTER_INPUT / KEYBOARD_INPUT / DIALOG_FOCUS_TRAP / SAFARI_ACCOUNT_RUNTIME: PASS в перечисленном scope. PASSWORD_CHANGE_FLOW: READY_FOR_MANUAL_ENTRY. Полная frontend functional acceptance остаётся INCONCLUSIVE до password submission/relogin и прежних незакрытых closure checks.
 
 NEXT_STEP: оставить обычный Safari на пустой password form; владелец вводит текущий/новый/подтверждение и отправляет. Затем проверяется relogin и продолжается существующий targeted closure. Credentials не отправлять в чат. Ручной ввод/подтверждение/отправку требует Browser Computer Use policy: “Changing a password or other authentication credential”.
+
+
+## Итоговое закрытие функциональной приёмки — 2026-10-03
+
+Этот раздел заменяет прежний текущий verdict INCONCLUSIVE, сохраняя историю проверок. Scope: существующие intended возможности frontend, Safari desktop и desktop responsive mode 390×844 на acceptance стенде18086. Не заявляется сертификация всех браузеров, физического iPhone, всех размеров/комбинаций архивов или production readiness. Backend thumbnail endpoint остаётся auxiliary presentation без отдельной UI capability; регистрация, поиск, resume и прочие roadmap возможности не добавлялись. BACKEND_UI_PARITY не приравнивается к функциональной приёмке текущего UI.
+
+INITIAL_STATE: фактический HEAD `a2dff81a933b29c156379d2d1a457ab9d052ff9c` совпал с ожидаемым. Три исходных untracked файла сохранены. Запрещённый audit не читался, не менялся и не индексировался. Стенд18086 и его данные сохранены; старый preview8080 не менялся.
+
+PASSWORD_CHANGE_AND_RELOGIN: PASS. Прямое свидетельство владельца: заполнил current/new/confirmation, отправил форму, приложение сразу перенаправило на авторизацию, успешно вошёл новым паролем. Агент не вводил и не запрашивал credentials. Свидетельство о мутации отделено от непосредственного наблюдения: после этого Safari показывает защищённый `/files`, reload восстанавливает сессию, Account открывается. Контракт AccountDialog завершает текущую сессию после успешной changePassword; backend отзывает refresh tokens. Логи password запроса и самостоятельная повторная смена пароля не заявляются.
+
+POST_RELOGIN_SESSION: PASS. Защищённые Files/Trash и Account достижимы, refresh/reload возвращает authenticated UI без redirect loop. Отдельно реально истёк access token: до исправления quota Retry получал403 и не обновлял сессию; после исправления тот же браузер без reload прошёл `storage-info401 → refresh200 → storage-info200`. Финальный reload: refresh200, users/me200, folders200, files200; Account storage-info200.
+
+CONTROL_MATRIX: PASS в scope. Финальная матрица [final-controls-20261003.json](evidence/frontend-functional/final-controls-20261003.json): 89 строк, 87 PASS и2 NOT_APPLICABLE, 0 INCONCLUSIVE. Из прежних35 остаточных строк33 закрыты наблюдением UI/явно названным прежним core evidence;2 исключены по проверенному контракту. Прежние54 PASS переиспользованы, а не представлены новым прогоном. Проверены skip-link, list/grid, folder row/card, file preview/card, точные file/folder menu actions, create Enter/Close, upload retry/disabled, preview unsupported/loading abort, sharing Enter/close, public retry, trash confirmations, Account retry и drawer. Успешные rename/move/trash/purge mutations, ранее доказанные, не выполнялись повторно только ради закрытия exact entry/focus rows. На этом проходе permanent Delete/Empty были отменены, disposable soft-trash затем восстановлен.
+
+KEYBOARD_MATRIX: PASS в scope. Enter/Space активируют проверенные actions; menu Arrow/End, Escape, Option+Tab и Option+Shift+Tab покрывают соответствующие границы и возврат focus. Safari обычный Tab зависит от системного Full Keyboard Access; для buttons использован Option+Tab. Disabled Upload пропущен; create disabled submit пропущен. Preview, create, sharing, permanent/empty confirmations, Account и mobile drawer имеют проверенные границы. Pointer opener focus для нескольких окон сначала FAIL, затем исправлен и повторно проверен; native click regressions не подставляют искусственный userEvent focus.
+
+ERROR_EDGE_MATRIX:
+
+| Класс | Итог | Доказательство |
+|---|---|---|
+|401|PASS|Прежний invalid login; текущий реально истёкший access и401→refresh→retry без reload.|
+|403|PASS|Прежний публичный неверный пароль и реальная нулевая квота; истёкший JWT403 оказался новым дефектом и исправлен на401.|
+|404|PASS|Прежняя чужая/missing folder; текущая отозванная disposable public ссылка после reload и Retry.|
+|409|NOT_APPLICABLE|Production ConflictException только duplicate registration email; текущий UI не имеет регистрации. Duplicate folder names разрешены. Искусственный mock409 не подменяет runtime.|
+|quota|PASS|Ранее реальное ограничение при нулевой квоте; текущие usage/counts и восстановление quota Retry.|
+|network|PASS|Реальная остановка только acceptance frontend: upload/quota/public error; запуск и штатные Retry восстановили работу.|
+|5xx|PASS|Прежний фактический502 create-folder при backend stop, restart/retry без дубликата. Каждый отдельный500-код не заявляется проверенным.|
+|cancel/abort|PASS|Прежний cancellation upload110MiB; текущий preview loading при backend pause закрыт Escape, после unpause не воскресает.|
+|retry|PASS|Текущие upload/quota/public; прежний copy destination retry.|
+|forced413|NOT_APPLICABLE для текущего стенда|UI chunk10MiB меньше nginx51m; oversized chunk validator400. Подмена запроса не intended UI action. Смена deployment limits потребует новой проверки.|
+|multiple chooser / disabled revoked row|NOT_APPLICABLE|Один file input без multiple; revoked share удаляется из active списка, disabled row отсутствует.|
+
+ZIP_DOWNLOAD_CLASSIFICATION: APPLICABLE / PASS. Кнопка «Скачать папку ZIP» существует в public folder UI. Реальный Safari download сохранён в Downloads и прочитан как ZIP, а не заменён HTTP-проверкой. Первый архив1655байт имел CRC PASS, но две записи `./`, потеряв имя пустой дочерней папки. После минимального исправления повторный UI download1685байт: CRC PASS; `./`, `Контроль/`, TXT1297байт с исходным SHA256 `2e503a1657f4dd84936bacc953ad1e9c1b5b5a83f85b1ce65b32894e20b0aeba`. SHA256 сохранённого ZIP `1da8b2e1b000d1cc1a16478249c80f482cfd07530958dd0653120e0337725ffd`. Путь и обе проверки в sanitized evidence. Кириллическое имя каталога сохранено; ASCII имя attachment и браузерный collision suffix не объявлены дефектом. Глубокие/огромные архивы не объявлены отдельно проверенными. Disposable link отозвана.
+
+CONSOLE_NETWORK_PASS: PASS для финального bounded pass конечного production build `index-BnJffqb8.js`. Safari Web Inspector после fresh reload + Account:10 ресурсов,1 localhost domain,0 redirects, документ/JS/CSS/refresh/me/folders/files/storage-info200, шрифты200/304. Console после очистки/fresh reload и открытия Account не показывает записей ошибок или warnings. Ошибки ожидаемого network fault campaign отделены от финальной сети. Это наблюдение конкретного pass, не гарантия отсутствия любых будущих ошибок.
+
+NEW_DEFECTS_AND_FIXES: три подтверждённых дефекта. (1) Safari pointer click не фокусирует opener: preview/create/drawer/permanent/empty после закрытия теряли focus. Добавлен явный focus actual opener перед open, native click regression и Safari повторная проверка. (2) ZIP root определялся совпадением entryName/member.name и терял имя прямой пустой child папки; проверяется member.logicalPath=="", тест читает central directory реального archive stream. (3) JwtGuard возвращал403 при истечении/отсутствии/невалидности authentication, блокируя interceptor refresh; теперь401 UnauthorizedException, security boundary tests сохраняют отказ до мутации и отсутствие echo token. Настоящее authorization403 сохранено. Редизайн и unrelated cleanup отсутствуют.
+
+FULL_FRONTEND_GATE: PASS —17 suites,134/134; lint, TypeScript `tsc -b`, production build, git diff --check. Backend изменён:59 suites726/726, build PASS, lint0errors/15 прежних warnings. База тестов отдельная disposable PostgreSQL16 на18087, удалена после gate; acceptance DB не использована. Два промежуточных backend запуска с inherited proxy environment дали status mismatch в security.config; targeted19/19 и полный726/726 без proxy прошли. Точная причина промежуточного mismatch не доказана; тесты не ослаблялись. Код source/build установлен только на acceptance стенд; фактический final bundle проверен браузером.
+
+INDEPENDENT_REVIEW: APPROVE. Независимый reviewer проверил конечный diff, отчёт и матрицу; самостоятельно прочитал сохранённый ZIP и подтвердил CRC/entries/hash. Blocking findings нет. Устаревшее wording в create rows исправлено по его замечанию. Reviewer не выполнял второй browser campaign; это независимый review доказательств.
+
+DOCS_UPDATE: этот раздел; два новых sanitized evidence JSON — final-controls-20261003 и final-closure-20261003. Passwords, session/refresh/share tokens отсутствуют. Исторические checkpoints сохранены без правки; их прежние FAIL/INCONCLUSIVE относятся к предыдущему состоянию.
+
+COMMITS / FINAL_HEAD / GIT_STATUS: изменения фиксируются отдельно: возврат фокуса, ZIP имена, authentication401/refresh, итоговый отчёт. Точные SHA/HEAD/status приводятся в финальном сообщении после commits, чтобы документ не ссылался на собственный будущий hash. Три исходных untracked файла не включаются.
+
+FINAL_FRONTEND_FUNCTIONAL_ACCEPTANCE: PASS в заявленном scope. Все перечисленные текущие intended capability/control gaps имеют достаточное evidence; unresolved blocking gaps нет; независимый review APPROVE. Исходный claim о полной backend parity не расширяется этим заключением.
+
+REMAINING_GAPS: unresolved blocking gaps по текущему scope нет. Ограничения: нет физического mobile/new Chromium campaign, полного перебора размеров/глубины ZIP и production readiness проверки. Это границы приёмки, а не выдуманные NOT_APPLICABLE capabilities.
+
+NEXT_STEP: текущая функциональная приёмка закрыта; production readiness рассматривается отдельной задачей. Safari оставлен авторизованным на обычной странице файлов стенда18086; новых credentials от владельца не требуется.

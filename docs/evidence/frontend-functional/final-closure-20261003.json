@@ -1,0 +1,103 @@
+{
+  "scope": "Ограниченные фактические результаты текущего closure; owner testimony, UI, bytes, code и tests различаются. Нет полной видеозаписи; reviewer проверяет доказательства, не повторяет browser campaign.",
+  "initial_head": "a2dff81a933b29c156379d2d1a457ab9d052ff9c",
+  "stand": "http://127.0.0.1:18086",
+  "browser": "Safari; desktop и responsive 390×844; не физический мобильный аппарат",
+  "password": {
+    "source": "Прямое новое сообщение владельца",
+    "submitted": true,
+    "forced_logout": true,
+    "new_password_login": true,
+    "credentials_disclosed": false,
+    "direct_post_login": "Защищённый /files; reload session restore; Account доступен; без redirect loop",
+    "contract": "Account changePassword → session.endSession; backend revokes refresh tokens"
+  },
+  "saved_zip": {
+    "capability": "Публичная папка: Скачать папку ZIP",
+    "before": {
+      "path": "/Users/aleksejkozemakin/Downloads/________ _______.zip",
+      "bytes": 1655,
+      "sha256": "38e38291460e92f0774a9d931b6fc23825a6e5201e96a3e8932261d564cf4c42",
+      "crc_error": null,
+      "entries": [
+        "./",
+        "./",
+        "homecloud-acceptance-download-20261003.txt"
+      ]
+    },
+    "after": {
+      "path": "/Users/aleksejkozemakin/Downloads/________ _______-2.zip",
+      "bytes": 1685,
+      "sha256": "1da8b2e1b000d1cc1a16478249c80f482cfd07530958dd0653120e0337725ffd",
+      "crc_error": null,
+      "entries": [
+        "Контроль/",
+        "./",
+        "homecloud-acceptance-download-20261003.txt"
+      ],
+      "file_bytes": 1297,
+      "file_sha256": "2e503a1657f4dd84936bacc953ad1e9c1b5b5a83f85b1ce65b32894e20b0aeba"
+    },
+    "limitations": "Только проверенная папка с пустой кириллической дочерней папкой и TXT. Глубокие/огромные архивы не объявлены отдельно проверенными. Disposable link отозвана."
+  },
+  "session_refresh_log": [
+    "2026-10-03T07:28:01.158Z GET /api/v1/files/storage-info 401 UnauthorizedException",
+    "2026-10-03T07:28:03.106Z POST /api/v1/auth/refresh 200",
+    "2026-10-03T07:28:03.116Z GET /api/v1/files/storage-info 200"
+  ],
+  "bounded_ui_excerpts": [
+    "Предпросмотр недоступен для этого типа файлов.",
+    "Соединение потеряно. Проверьте подключение и повторите попытку.",
+    "Сервер недоступен.",
+    "Ссылка создана",
+    "Использовано 9 112 байт из 1 073 741 824 байт. Файлов: 6. Папок: 55."
+  ],
+  "final_network": {
+    "source": "Safari Web Inspector после fresh reload конечного build и Account",
+    "resources": 10,
+    "domains": 1,
+    "redirects": 0,
+    "statuses": {
+      "files_document": 200,
+      "index-BnJffqb8.js": 200,
+      "index-DMzjSF3y.css": 200,
+      "auth_refresh": 200,
+      "users_me": 200,
+      "folders": 200,
+      "files_xhr": 200,
+      "storage_info": 200,
+      "latin_font": 200,
+      "cyrillic_font": 304
+    },
+    "console": "После fresh reload и Account открыта Console; кроме сообщения об очистке в 18:13:09 записей ошибок/предупреждений/логов не наблюдалось. Искусственные сетевые отказы относятся к error tests до финального pass."
+  },
+  "gates": {
+    "frontend_suites": 17,
+    "frontend_tests": 134,
+    "frontend_lint": "PASS",
+    "frontend_typecheck_build": "PASS",
+    "backend_suites": 59,
+    "backend_tests": 726,
+    "backend_lint": "0 errors, 15 existing warnings",
+    "backend_build": "PASS",
+    "backend_test_database": "Отдельный disposable PostgreSQL 16 на 18087, контейнер удалён; acceptance DB не использована",
+    "failed_attempts": "Два запуска security.config с inherited proxy environment имели status mismatch; без proxy targeted19/19 и full726/726 PASS. Точная причина mismatch не доказана, тесты не ослаблены."
+  },
+  "new_defects": [
+    "Safari pointer opener focus lost after close: preview/create/drawer/permanent/empty dialogs; explicit opener focus + native click regression",
+    "ZIP empty child folder renamed to ./; distinguish root logicalPath, real ZIP entries regression",
+    "Expired authentication returned403, refresh interceptor required401; UnauthorizedException + security boundary regression"
+  ],
+  "not_applicable": {
+    "409": "Единственный production ConflictException: duplicate email registration; registration UI/route отсутствует. Duplicate folder names разрешены.",
+    "multiple_upload": "Один input file, multiple отсутствует.",
+    "revoked_disabled_row": "Активный список удаляет revoked запись.",
+    "forced_413": "Текущая UI отправляет чанки 10 MiB, nginx limit 51m; validator слишком большого chunk возвращает400. Ручная подмена oversized request не intended UI flow."
+  },
+  "preserved": [
+    "docs/evidence/frontend-functional/closure-checkpoint.json",
+    "docs/evidence/frontend-functional/closure-controls.json",
+    "Запрещённый audit: содержимое не читалось; не изменён и не включён в индекс"
+  ],
+  "independent_review": "APPROVE: независимый reviewer прочитал final diff/report/matrix и самостоятельно проверил сохранённый ZIP (CRC/entries/hash). Blocking findings нет. Самостоятельный второй browser campaign не выполнялся. Неблокирующая stale create evidence wording исправлена."
+}
