@@ -118,6 +118,26 @@ describe("SharingService — folder archive foundation", () => {
     expect(Buffer.concat(written).length).toBeGreaterThan(0);
   });
 
+  it("preserves a direct empty child directory name in real ZIP bytes", async () => {
+    files.query.mockResolvedValueOnce([
+      { folderId: 40, name: "Root", isFolder: true, storagePath: null, size: null, parentId: null },
+      { folderId: 41, name: "Контроль", isFolder: true, storagePath: null, size: null, parentId: 40 },
+    ]);
+    const written: Buffer[] = [];
+    const destination = new Writable({
+      write(chunk, _encoding, callback) { written.push(Buffer.from(chunk)); callback(); },
+    });
+    await service.streamFolderArchive(rootShare(), destination);
+    const bytes = Buffer.concat(written);
+    const names: string[] = [];
+    for (let offset = 0; offset + 46 <= bytes.length; offset++) {
+      if (bytes.readUInt32LE(offset) !== 0x02014b50) continue;
+      const length = bytes.readUInt16LE(offset + 28);
+      names.push(bytes.subarray(offset + 46, offset + 46 + length).toString("utf8"));
+    }
+    expect(names).toEqual(["./", "Контроль/"]);
+  });
+
   it("cleans up the fd when a member fails to open", async () => {
     files.query.mockResolvedValueOnce([
       { folderId: 40, name: "Root", isFolder: true, storagePath: null, size: null, parentId: null },

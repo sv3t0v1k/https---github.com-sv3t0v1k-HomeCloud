@@ -731,7 +731,7 @@ export class SharingService {
               // (which pulls in lazystream/readable-stream and is incompatible
               // with the project's Node 20 runtime).
               archive.append(Buffer.alloc(0), {
-                name: entryName === member.name ? "./" : `${entryName}/`,
+                name: member.logicalPath === "" ? "./" : `${entryName}/`,
                 type: "directory",
               } as any);
               continue;
