@@ -44,11 +44,10 @@ describe("Real JWT boundary rejects abusive credentials before mutation", () => 
     const attempt = request(app.getHttpServer()).post("/security-probe");
     if (authorization !== undefined)
       attempt.set("Authorization", authorization);
-    const response = await attempt.expect(403);
+    const response = await attempt.expect(401);
     expect(response.body).toEqual({
-      message: "Forbidden resource",
-      error: "Forbidden",
-      statusCode: 403,
+      message: "Unauthorized",
+      statusCode: 401,
     });
     expect(mutation).not.toHaveBeenCalled();
   });
@@ -66,7 +65,7 @@ describe("Real JWT boundary rejects abusive credentials before mutation", () => 
       const response = await request(app.getHttpServer())
         .post("/security-probe")
         .set("Authorization", `Bearer ${token}`)
-        .expect(403);
+        .expect(401);
       expect(JSON.stringify(response.body)).not.toContain(token);
       expect(mutation).not.toHaveBeenCalled();
     },
