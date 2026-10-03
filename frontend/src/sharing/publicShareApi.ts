@@ -2,7 +2,8 @@ import { apiRequest, API_BASE_URL } from '../api/client'
 import { ApiError } from '../api/errors'
 import { MAX_BROWSER_BLOB_DOWNLOAD_BYTES, BrowserDownloadLimitError } from '../files/download'
 
-export interface PublicShare { fileId: number; isFolder: boolean; requiresPassword: boolean; expiresAt: string | null }
+export interface PublicResource { name: string; size: string | number | null; mimeType: string | null }
+export interface PublicShare { resource?: PublicResource; fileId: number; isFolder: boolean; requiresPassword: boolean; expiresAt: string | null }
 export interface SharedChild { id: number; name: string; kind: 'file' | 'folder'; size: string | number | null }
 export interface SharedChildren { parentId: number; items: SharedChild[]; offset: number; limit: number; hasMore: boolean }
 const path = (token: string) => `/sharing/public/${encodeURIComponent(token)}`
@@ -10,7 +11,7 @@ export function getPublicShare(token: string, signal?: AbortSignal) {
   return apiRequest<PublicShare>({ url: path(token), signal, skipAuth: true, skipRefresh: true })
 }
 export function verifyPublicShare(token: string, password: string, signal?: AbortSignal) {
-  return apiRequest<{ success: boolean }>({ method: 'POST', url: `${path(token)}/verify`, data: { password }, signal, skipAuth: true, skipRefresh: true })
+  return apiRequest<{ success: boolean; resource?: PublicResource }>({ method: 'POST', url: `${path(token)}/verify`, data: { password }, signal, skipAuth: true, skipRefresh: true })
 }
 export function getSharedChildren(token: string, password: string, parentId?: number, offset = 0, signal?: AbortSignal) {
   return apiRequest<SharedChildren>({ url: `${path(token)}/children`, params: { parentId, offset, limit: 50 }, headers: password ? { 'x-share-password': password } : {}, signal, skipAuth: true, skipRefresh: true })

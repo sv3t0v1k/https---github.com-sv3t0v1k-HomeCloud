@@ -1,0 +1,101 @@
+{
+  "states": [
+    {
+      "alias": "ordinary",
+      "status": 200,
+      "resource": {
+        "name": "HomeCloud-long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_.txt",
+        "size": "18432",
+        "mimeType": "text/plain"
+      },
+      "cache": "no-store"
+    },
+    {
+      "alias": "protectedShare",
+      "status": 200,
+      "cache": "no-store"
+    },
+    {
+      "alias": "media",
+      "status": 200,
+      "resource": {
+        "name": "pixel.png",
+        "size": "68",
+        "mimeType": "image/png"
+      },
+      "cache": "no-store"
+    },
+    {
+      "alias": "folderShare",
+      "status": 200,
+      "resource": {
+        "name": "Материалы по ссылке",
+        "size": null,
+        "mimeType": null
+      },
+      "cache": "no-store"
+    },
+    {
+      "alias": "revoked",
+      "status": 404,
+      "cache": "no-store"
+    },
+    {
+      "alias": "expired",
+      "status": 404,
+      "cache": "no-store"
+    },
+    {
+      "alias": "invalid",
+      "status": 404,
+      "cache": "no-store"
+    }
+  ],
+  "downloads": [
+    {
+      "alias": "ordinary",
+      "status": 200,
+      "bytes": 18432,
+      "mime": "text/plain; charset=utf-8",
+      "sha256": "930f060873be803327d7d20fd5514b26d59bec0521f6f2d532bc91190676c2cb"
+    },
+    {
+      "alias": "protectedShare",
+      "status": 200,
+      "bytes": 18432,
+      "mime": "text/plain; charset=utf-8",
+      "sha256": "930f060873be803327d7d20fd5514b26d59bec0521f6f2d532bc91190676c2cb"
+    },
+    {
+      "alias": "media",
+      "status": 200,
+      "bytes": 68,
+      "mime": "image/png",
+      "sha256": "f3ec9e14b9c085b55edc96155f7bd26b6fdeda2462f02af4e0279d8319b365e3"
+    },
+    {
+      "alias": "folderShare",
+      "status": 200,
+      "bytes": 233,
+      "mime": "application/zip",
+      "sha256": "667430de51a1467ee3e9c1d4ebf371da10c59683da4d1d82c49ecad53a99d429",
+      "zipSignature": "504b0304"
+    }
+  ],
+  "metadataBoundary": [
+    {
+      "step": "wrong",
+      "status": 403
+    },
+    {
+      "step": "verified",
+      "status": 201,
+      "resource": {
+        "name": "HomeCloud-long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_.txt",
+        "size": "18432",
+        "mimeType": "text/plain"
+      }
+    }
+  ],
+  "csp": null
+}

@@ -10,6 +10,41 @@ function page() { return render(<MemoryRouter initialEntries={['/share/token']}>
 beforeEach(() => { vi.mocked(api.getPublicShare).mockResolvedValue({ fileId: 1, isFolder: false, requiresPassword: false, expiresAt: null }); vi.mocked(api.downloadPublicShare).mockResolvedValue(undefined) })
 afterEach(() => { cleanup(); vi.resetAllMocks() })
 describe('PublicSharePage', () => {
+  it('renders authoritative filename, canonical size, exact footer and no unsupported viewer', async () => {
+    const name = 'очень-длинное-имя-'.repeat(12) + '.pdf'
+    vi.mocked(api.getPublicShare).mockResolvedValue({ fileId: 1, isFolder: false, requiresPassword: false, expiresAt: null, resource: { name, size: '1825361101', mimeType: 'application/pdf' } })
+    page()
+    expect(await screen.findByRole('heading', { level: 1, name })).toHaveAttribute('title', name)
+    expect(screen.getByText(/1,7 ГБ/)).toBeInTheDocument()
+    expect(screen.getByText('Безопасный доступ через HomeCloud')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Просмотр/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Скачать файл' })).toBeDisabled()
+  })
+  it('replaces protected state with metadata only after successful unlock', async () => {
+    vi.mocked(api.getPublicShare).mockResolvedValue({ fileId: 1, isFolder: false, requiresPassword: true, expiresAt: null })
+    vi.mocked(api.verifyPublicShare).mockResolvedValue({ success: true, resource: { name: 'секрет.pdf', size: 12698, mimeType: 'application/pdf' } })
+    page()
+    expect(await screen.findByRole('heading', { name: 'Доступ защищён паролем' })).toBeInTheDocument()
+    expect(screen.queryByText('секрет.pdf')).not.toBeInTheDocument()
+    await userEvent.type(screen.getByLabelText('Пароль ссылки'), 'fixture')
+    await userEvent.click(screen.getByRole('button', { name: 'Открыть доступ' }))
+    expect(await screen.findByRole('heading', { name: 'секрет.pdf' })).toBeInTheDocument()
+    expect(screen.getByText(/12,4 КБ/)).toBeInTheDocument()
+  })
+  it.each(['expired', 'revoked', 'invalid'])('honestly uses the same unavailable state for %s (API 404)', async () => {
+    vi.mocked(api.getPublicShare).mockRejectedValue(new ApiError('private reason', 'unknown', 404))
+    page()
+    expect(await screen.findByRole('alert')).toHaveTextContent('Ссылка недоступна')
+    expect(screen.queryByRole('button', { name: 'Скачать файл' })).not.toBeInTheDocument()
+    expect(screen.getByText('Безопасный доступ через HomeCloud')).toBeInTheDocument()
+  })
+  it('keeps resource and a retryable download action after a download failure', async () => {
+    vi.mocked(api.downloadPublicShare).mockRejectedValueOnce(new ApiError('secret path', 'server', 500))
+    page()
+    await userEvent.click(await screen.findByRole('button', { name: 'Скачать файл' }))
+    expect(await screen.findByRole('alert')).not.toHaveTextContent('secret path')
+    expect(screen.getByRole('button', { name: 'Скачать файл' })).toBeEnabled()
+  })
   it('downloads anonymously without requiring an account', async () => {
     page(); await userEvent.click(await screen.findByRole('button', { name: 'Скачать файл' }))
     expect(api.downloadPublicShare).toHaveBeenCalledWith('token', '', undefined, undefined, expect.any(AbortSignal))

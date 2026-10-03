@@ -15,6 +15,7 @@ import {
   NotFoundException,
   Query,
   Headers,
+  Header,
 } from "@nestjs/common";
 import { Request as ExpressRequest, Response } from "express";
 import * as fs from "fs";
@@ -143,6 +144,7 @@ export class SharingController {
   }
 
   @Get("public/:token")
+  @Header("Cache-Control", "no-store")
   async getPublicShare(@Param("token") token: string) {
     const share = await this.sharingService.findShareByToken(token);
 
@@ -154,10 +156,12 @@ export class SharingController {
       downloadCount: share.downloadCount,
       createdAt: share.createdAt,
       requiresPassword: !!share.password,
+      ...(!share.password ? { resource: publicResource(share) } : {}),
     };
   }
 
   @Post("public/:token/verify")
+  @Header("Cache-Control", "no-store")
   async verifyPassword(
     @Param("token") token: string,
     @Body() dto: VerifyPasswordDto,
@@ -166,7 +170,9 @@ export class SharingController {
       token,
       dto.password,
     );
-    return { success: result };
+    if (!result) return { success: false };
+    const share = await this.sharingService.findShareByToken(token);
+    return { success: true, resource: publicResource(share) };
   }
 
   @Post("public/:token/download")
@@ -386,5 +392,14 @@ function toOwnerShareResponse(share: ShareLinkEntity) {
           folderId: share.file.folderId,
         }
       : undefined,
+  };
+}
+
+// Project only public display metadata; folder mirror size is not an aggregate.
+function publicResource(share: ShareLinkEntity) {
+  return {
+    name: share.file.name,
+    size: share.isFolder ? null : share.file.size,
+    mimeType: share.isFolder ? null : share.file.mimeType,
   };
 }

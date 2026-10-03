@@ -174,3 +174,37 @@ describe("SharingController - streaming code verification", () => {
     expect(result[0].file).not.toHaveProperty("storagePath");
   });
 });
+
+
+describe("Public display metadata boundary", () => {
+  const share = (password: string | null = null, isFolder = false) => ({ token: "tok", fileId: 1, isFolder, password, file: { name: "safe.pdf", size: "12698", mimeType: "application/pdf", storagePath: "/secret", checksum: "private" }, user: { email: "private" } });
+  it("projects only name, persisted size and MIME for unprotected files", async () => {
+    const controller = new SharingController({ findShareByToken: jest.fn().mockResolvedValue(share()) } as any, {} as any);
+    const result = await controller.getPublicShare("tok");
+    expect(result.resource).toEqual({ name: "safe.pdf", size: "12698", mimeType: "application/pdf" });
+    expect(result).not.toHaveProperty("user");
+    expect(result).not.toHaveProperty("password");
+  });
+  it("does not disclose metadata before password verification", async () => {
+    const controller = new SharingController({ findShareByToken: jest.fn().mockResolvedValue(share("hash")) } as any, {} as any);
+    expect(await controller.getPublicShare("tok")).not.toHaveProperty("resource");
+  });
+  it("rechecks availability after verification and projects protected metadata", async () => {
+    const service = { verifySharePassword: jest.fn().mockResolvedValue(true), findShareByToken: jest.fn().mockResolvedValue(share("hash")) };
+    const controller = new SharingController(service as any, {} as any);
+    expect(await controller.verifyPassword("tok", { password: "fixture" })).toEqual({ success: true, resource: { name: "safe.pdf", size: "12698", mimeType: "application/pdf" } });
+    expect(service.findShareByToken).toHaveBeenCalledWith("tok");
+    service.findShareByToken.mockRejectedValueOnce(new NotFoundException());
+    await expect(controller.verifyPassword("tok", { password: "fixture" })).rejects.toBeInstanceOf(NotFoundException);
+  });
+  it("does not project metadata after wrong password", async () => {
+    const service = { verifySharePassword: jest.fn().mockRejectedValue(new BadRequestException()), findShareByToken: jest.fn() };
+    const controller = new SharingController(service as any, {} as any);
+    await expect(controller.verifyPassword("tok", { password: "wrong" })).rejects.toBeInstanceOf(BadRequestException);
+    expect(service.findShareByToken).not.toHaveBeenCalled();
+  });
+  it("never presents folder mirror size or MIME as aggregate metadata", async () => {
+    const controller = new SharingController({ findShareByToken: jest.fn().mockResolvedValue(share(null, true)) } as any, {} as any);
+    expect((await controller.getPublicShare("tok")).resource).toEqual({ name: "safe.pdf", size: null, mimeType: null });
+  });
+});
