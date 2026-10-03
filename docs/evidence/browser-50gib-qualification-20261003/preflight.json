@@ -1,0 +1,189 @@
+{
+  "status": "BLOCKED",
+  "date_local": "2026-10-03",
+  "timezone": "Asia/Vladivostok",
+  "scope": "50 GiB Browser E2E Qualification; остановлено на preflight, transfer не запускался",
+  "baseline": {
+    "head": "8e90dcafda7f7aa3433a5156e3b411ed4161b69d",
+    "branch": "main",
+    "ahead": 3,
+    "behind": 0,
+    "recent_commits": [
+      "496b060",
+      "3de3088",
+      "8e90dca"
+    ],
+    "untracked_preserved": [
+      "docs/evidence/frontend-functional/closure-checkpoint.json",
+      "docs/evidence/frontend-functional/closure-controls.json",
+      "scripts/tests/PHASE-5.3.1-TEST-AUDIT.md"
+    ],
+    "read_forbidden_audit": false,
+    "closure_checkpoint_sha256": "1b579e8f3f25462c45bd3ac1fbfabd2987a4165e2a971cb65ca46af8130518ff",
+    "closure_controls_sha256": "26e0b0f92a23e0be631427752552c680d8372de726ec86a13c5c28582c33b9d4"
+  },
+  "stack": {
+    "project": "homecloud-preview",
+    "backend_id": "fd496a65fc750a58b0398be3dcd737ccee9082da3d3d3e5a70efded134dfb4d2",
+    "frontend_id": "45daae40e2dac00412f5b22f66efc7f48adb2b7f19d2e9b61755e01e7fa3757f",
+    "db_id": "dc54838e53d414873d93ebf2b800ff7cc6babd7fc6c49cb21a44eebade7c7fa5",
+    "ingress_id": "e07d40f4e2485d1e1e29b43a0d10d7c822c8946892ace129844d6be47b7e80c1",
+    "storage_volume": "homecloud-preview_storage_data",
+    "storage_path": "/storage",
+    "temp_path": "/storage/.tmp",
+    "new_stack_created": false,
+    "modifications": false,
+    "backend_restart_count": 0,
+    "backend_oom_killed": false,
+    "readiness": {
+      "database": "ok",
+      "storage": "ok"
+    }
+  },
+  "browser": {
+    "safari_version_installed": "27.0",
+    "safari_observed_url": "http://localhost:5187/files",
+    "safari_5187_excluded": "deterministic mock fixture; не использовать как реальный backend evidence",
+    "preflight_browser": "Codex In-app Browser",
+    "preflight_url": "http://localhost:8080/files",
+    "observed_url": "http://localhost:8080/login",
+    "iab_version": "не получена: navigator недоступен в read-only scope",
+    "ui_upload_initiated": false,
+    "ui_download_initiated": false
+  },
+  "runtime_bundle": {
+    "js": "index-DGlC_Rmp.js",
+    "html_sha256": "737baefd1e5c96cf48b84e97773200c6a07e448b499c5cbc667d562d919b65ef",
+    "js_sha256": "d85ffdf197f2918d48573c28e8193626af249891080152a3e78e23a2d8c21bd9",
+    "css_sha256": "69db001412eeaa55aa72bc53dc2132cc3d6f375dc71787fb040be07cafd65f66",
+    "container_and_local_dist_hashes_equal": true,
+    "runtime_download_guard_message_present": true
+  },
+  "fixture": {
+    "required_bytes": 53687091200,
+    "created": false,
+    "logical_size_verified": false,
+    "physical_bytes": 0,
+    "source_sha256": null,
+    "expected_hash_strategy": "не применялась; после безопасного preflight полный streaming SHA-256 source/stored/downloaded, без загрузки файла в RAM",
+    "sparse_picker_semantics": "NOT_RUN"
+  },
+  "limits": {
+    "frontend_chunk_bytes": 10485760,
+    "expected_chunks": 5120,
+    "backend_max_chunk_bytes": 52428800,
+    "backend_max_file_bytes": 1073741824,
+    "backend_max_total_bytes": 10737418240,
+    "frontend_download_cap_bytes": 104857600,
+    "temporary_overrides": false
+  },
+  "disk": {
+    "host_available_bytes": 133120000000,
+    "host_available_gib": 123.9776611328125,
+    "docker_available_bytes": 427160137728,
+    "storage_physical_kib": 76,
+    "temp_physical_kib": 8,
+    "upload_chunk_plus_assembly_bytes": 107374182400,
+    "conservative_vm_without_proven_reclaim_plus_download_bytes": 161061273600,
+    "shortfall_without_reserve_bytes": 27941273600,
+    "chosen_reserve_bytes": 21474836480,
+    "conservative_required_bytes": 182536110080,
+    "shortfall_with_reserve_bytes": 49416110080,
+    "assumption": "sparse source; Docker VM retains allocated chunk blocks until reclaim, which has not been demonstrated. Not simultaneous live-file occupancy. Allocated source adds another 50 GiB. Reserve is an explicit test planning allowance, not a measured product requirement.",
+    "gate": "STOP"
+  },
+  "resource_baseline": {
+    "host_ram_bytes": 25769803776,
+    "mac_memory_pressure_reported_free_percent": 56,
+    "docker_mem_available_kib": 15047608,
+    "docker_mem_total_kib": 16612488,
+    "backend_docker_mem_mib": 54.73,
+    "backend_cpu_percent": 0,
+    "backend_proc_rss_kib": 112296,
+    "backend_proc_historical_hwm_kib": 128560,
+    "postgres_docker_mem_mib": 27.64,
+    "postgres_cpu_percent": 0.01,
+    "frontend_mem_mib": 12.12,
+    "ingress_mem_mib": 15.45,
+    "note": "Docker working-set and proc RSS differ in accounting. HWM predates this task and is not a transfer peak. Transfer resource profile NOT_RUN."
+  },
+  "quota_baseline": [
+    {
+      "id": 1,
+      "quota": 0,
+      "used": 0,
+      "active_reserved": 0
+    },
+    {
+      "id": 2,
+      "quota": 0,
+      "used": 0,
+      "active_reserved": 18432
+    },
+    {
+      "id": 3,
+      "quota": 107374182400,
+      "used": 37021,
+      "active_reserved": 0
+    }
+  ],
+  "quota_semantics": "quota=0 означает отсутствие per-user лимита по коду; global MAX_TOTAL_SIZE продолжает действовать. User3 имеет достаточно per-user quota. Конкретный UI user не выбран и login не выполнен.",
+  "session_baseline": {
+    "uploading": {
+      "count": 1,
+      "total_size": 18432
+    },
+    "aborted": {
+      "count": 3,
+      "total_size": 97503423
+    },
+    "completed": {
+      "count": 5,
+      "total_size": 37021
+    },
+    "new_session_created": false,
+    "preexisting_data_deleted": false
+  },
+  "transfer": {
+    "upload": "NOT_RUN",
+    "download": "NOT_RUN",
+    "upload_elapsed_s": null,
+    "download_elapsed_s": null,
+    "throughput": null,
+    "chunk_latency_early_mid_late": null,
+    "retries": null,
+    "stored_size": null,
+    "stored_sha256": null,
+    "downloaded_size": null,
+    "downloaded_sha256": null,
+    "integrity": "NOT_RUN",
+    "console_network_during_transfer": "NOT_RUN",
+    "ui_size_50_gb": "NOT_RUN"
+  },
+  "scaling": "По коду каждый uploadChunk сканирует все totalChunks и накопленные chunks. Это статический риск суммарной квадратичной работы. Фактическая latency50GiB и эксплуатационная безопасность не измерены; оснований для product performance fix по этому checkpoint нет.",
+  "cleanup": {
+    "test_source_created": false,
+    "test_download_created": false,
+    "test_server_object_created": false,
+    "test_session_created": false,
+    "quota_config_changed": false,
+    "stack_created": false,
+    "preexisting_session_and_temp_left_intact": true,
+    "qualification_cleanup": "NOT_APPLICABLE"
+  },
+  "gates": {
+    "existing_focused_frontend_tests": "PASS 3 suites, 39 tests: upload/download/formatBytes",
+    "full_backend": "NOT_RUN: product code unchanged; PostgreSQL integration not exercised",
+    "full_frontend_lint_build": "NOT_RUN: documentation/evidence only",
+    "git_diff_check": "PASS (повторно проверяется staged diff перед commit)",
+    "json_validation": "PASS"
+  },
+  "independent_review": "APPROVE для BLOCKED/preflight-only; MUST_FIX нет. Непосредственно проверены source/HEAD/history/host disk; Docker runtime, UI observation и focused tests проверены на согласованность evidence основного агента: Docker socket у reviewer недоступен.",
+  "remaining_gaps": [
+    "безопасное host disk budget/reclaim proof",
+    "native authenticated browser download beyond100MiB",
+    "controlled runtime upload limits and account quota",
+    "complete real50GiB UI upload+download, hashes, resource/latency samples and cleanup"
+  ],
+  "next_step": "Обеспечить безопасный диск и отдельное решение authenticated streaming browser download; затем controlled runtime upload config и полный checkpoint с нуля. Коррекция download path выходит за разрешённую upload-only remediation."
+}
