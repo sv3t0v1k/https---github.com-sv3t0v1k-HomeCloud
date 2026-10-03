@@ -1,0 +1,34 @@
+{
+  "since": "2026-10-03T12:03:46Z",
+  "homecloud-preview-backend-1": {
+    "privateValuesPresent": false,
+    "statusCounts": {
+      "200": 0,
+      "201": 0,
+      "400": 0,
+      "401": 0,
+      "403": 0,
+      "404": 0,
+      "429": 0,
+      "500": 0,
+      "502": 0,
+      "503": 0
+    }
+  },
+  "homecloud-preview-frontend-1": {
+    "privateValuesPresent": false,
+    "statusCounts": {
+      "200": 153,
+      "201": 1,
+      "400": 0,
+      "401": 0,
+      "403": 1,
+      "404": 3,
+      "429": 0,
+      "500": 0,
+      "502": 0,
+      "503": 0
+    }
+  },
+  "idleObservation": "See idle-network.json; previous aggregate windows contained intentional qualification requests and are not idle evidence."
+}

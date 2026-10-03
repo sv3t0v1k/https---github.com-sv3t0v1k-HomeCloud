@@ -342,6 +342,21 @@ Runtime новой production-сборки: PASS в bounded UI-polish scope. П�
 Доказательства: `docs/evidence/frontend-functional/ui-polish-20261003/evidence.json` и снимки в той же папке. Предыдущая frontend acceptance не переобъявляется и новая numbered Phase не создаётся. Исходные checkpoint/controls сохранили SHA256; запрещённый audit не читался и не менялся. Теги и push не выполнялись. INDEPENDENT_REVIEW: APPROVE. Независимо проверены код, focused 72/72, runtime JSON и снимки 1440/390; блокирующих замечаний нет. Оговорка о прежнем Safari Escape сохранена. UI_POLISH_STATUS: PASS в заявленном bounded scope.
 
 
+### Уточнение проверки Escape в Account в нативном Safari — 2026-10-03
+
+Baseline: `496b0607454b87b3cc4962353f9690c7fb630496`, main ahead/behind origin/main 1/0. Код приложения не изменён. Повторно использован localhost:5187 с детерминированными API fixtures; Docker и backend не изменялись. Свежая production-сборка совпала с проверенным runtime asset `index-DSZGfHQm.js`, SHA256 `0440f4ffd723ae3254b3c3a0be9307b6bc40c067eb645176cebe4863f9fd3a93`.
+
+При автоматизированном native Escape из пустого текущего password input Account дважды оставался открыт. Диагностические document capture/bubble listeners не зарегистрировали ни keydown, ни keyup этих попыток. Успешная автоматизированная попытка из confirmation input зарегистрировала keydown INPUT и keyup BUTTON. Отсутствие DOM-событий не объясняется фазой текущего document bubble handler; смена его на capture не обоснована. Конкретный источник недоставки клавиши (системный ввод, Safari либо автоматизация) не установлен.
+
+Владелец нажал физический Escape из того же текущего password input: окно закрылось. Далее подтвердил 9/9 закрытий — по три из каждого пустого password input. Native Safari desktop viewport 1394 px. Трасса зарегистрировала 11 capture keydown и 11 capture keyup с учётом двух предварительных успешных попыток: текущий пароль 4, новый 3, подтверждение 4. Доставленные keydown имели isComposing=false; keyup приходили на BUTTON. Console проверка последнего activeElement: `Открыть аккаунт: Проверка интерфейса`. Значения password fields не записывались; credentials не вводились, формы не отправлялись.
+
+Mobile Safari responsive mode 390×844 подготовлен, Account доступен через identity в drawer. Результат девяти физических повторов пока не получен; mobile PASS не заявляется. Новая console-error qualification, заполненные поля, autofill-popup/composition, исчерпывающие pointer/Tab/background runtime проверки в этом проходе не квалифицированы.
+
+Gates на неизменённом frontend: focused Account/App 18/18; полный набор 161/161; lint PASS; typecheck и production build PASS; git diff --check PASS до документационного дополнения. Backend tests не требуются: backend не изменялся. Исходные два untracked JSON сохранили SHA256; запрещённый audit не читался и не изменялся.
+
+INDEPENDENT_REVIEW: подтверждено отсутствие обоснования для смены listener phase и искусственного fail-before regression. Код не исправлялся; нового regression test нет, поскольку отказ приложения при доставленном Escape не воспроизведён, а root cause не установлен. Исторический gap не объявлен устранённым. ESCAPE_DEFECT_STATUS: НЕ ПОДТВЕРЖДЁН В ПРОВЕРЕННОМ ФИЗИЧЕСКОМ DESKTOP-СЦЕНАРИИ; remediation PASS не заявляется. Для закрытия нужен исходный отказ с подтверждённой доставкой клавиши либо уточнение условий прежнего наблюдения. Commit/push/tags не выполнялись.
+
+
 ### Оформление публичного доступа — 2026-10-03
 
 Bounded pass A, исходный HEAD `496b0607454b87b3cc4962353f9690c7fb630496`. Route `/share/:token`, `PublicSharePage`; public API: GET link, POST verify, POST download, GET children (pagination/parent context). Реальные возможности: анонимное скачивание файла, пароль, содержимое папок, дочерний файл, ZIP. Public media preview отсутствует; PNG/PDF/video не получают выдуманный viewer. Ограничение browser-buffer 100 МиБ сохранено. Expired/revoked/invalid возвращают один и тот же 404; UI честно объединяет их и предлагает реальный повторный GET.
@@ -357,3 +372,34 @@ IAB: ordinary long filename, password, wrong password/unlock (Enter), PNG withou
 Реальный Safari download `pixel.png`: 68 bytes, SHA256 `f3ec9e14b9c085b55edc96155f7bd26b6fdeda2462f02af4e0279d8319b365e3`, совпадает с API. HTTP normal/protected file: 18432 bytes, SHA256 `930f060873be803327d7d20fd5514b26d59bec0521f6f2d532bc91190676c2cb`. ZIP: 233 bytes, PK0304 signature. IAB ZIP click завершился status «Скачивание подготовлено»; событие download этого инструмента для blob-save не вернулось, поэтому disk-save квалифицирован в native Safari.
 
 Focused frontend 38/38; full frontend 169/169; lint, TypeScript, production build, diff-check PASS. Backend focused 82/82; full 699 PASS, 32 PostgreSQL tests skipped стандартным gate без отдельного test DATABASE_URL; lint 0 errors/15 existing warnings, build PASS. Реальный PostgreSQL API path отдельно проверен на используемом preview. Evidence: `docs/evidence/frontend-functional/share-account-polish-20261003/`.
+
+
+### Аудит возможностей и интерфейс аккаунта — 2026-10-03
+
+Bounded pass B. Источники: UserEntity, UpdateProfileDto, UsersController/UsersService, AuthService/RegisterDto, frontend User/SessionContext/account api, App/AccountDialog.
+
+| Возможность/поле | Классификация | Фактический контракт |
+| --- | --- | --- |
+| name | SUPPORTED_EDITABLE | Persisted varchar(100); GET/PATCH /users/me. При регистрации name либо email local-part, в entity default User. Не догадка UI о человеческом имени. |
+| email | SUPPORTED_READ_ONLY | Persisted unique varchar(255), GET me; update DTO не принимает email. |
+| avatar string | SUPPORTED_EDITABLE | Nullable varchar(255), GET/PATCH me, произвольная строка; визуальное фото не отображается. Теперь backend-only editable value: misleading UI editor удалён. |
+| avatar image/upload/crop/removal | NOT_SUPPORTED | Нет image API/storage/URL validation/render lifecycle; строка не является реализованной фото-функцией. |
+| displayName / firstName / lastName | NOT_SUPPORTED | Таких полей/API нет. |
+| Общий user icon | DERIVED_UI_ONLY | Фиксированный Icon user в identity и Account; не фотография и не инициалы, не зависит от avatar string. |
+| Инициалы | NOT_SUPPORTED | Текущий UI их не вычисляет. |
+| id/isActive/isEmailVerified/createdAt/updatedAt | SUPPORTED_READ_ONLY | Persisted, GET me, не редактируются профилем. |
+| storageQuota/storageUsed/fileCount/folderCount | SUPPORTED_READ_ONLY | Quota/used persisted User; counts вычислены storage-info API. Нет UI/API изменения квоты пользователем. |
+| Password change | SUPPORTED_EDITABLE | POST auth/change-password с oldPassword/newPassword; пароль в GET me отсутствует. После успеха локальный logout; остальные access sessions до expiry. |
+| Password hash | NOT_SUPPORTED для чтения/редактирования профилем | Persisted auth field, исключён из GET/PATCH me response; только специальная password flow. |
+
+Account компактен: профиль с фактическими name/email и доступным общим значком; форма имени; хранилище с «Использовано X из Y» и точным ограниченным percent; безопасность с прежней password form. Заголовки h2/h3. Fake photo editor удалён. Name save отправляет только name, без неявного перезаписывания avatar или преобразования null в ''. Реальная UI mutation и последующий GET подтвердили сохранность заранее заданного тестового avatar string. Identity block остаётся каноническим opener; App/navigation/logout не изменены. focus hook и Escape handler не менялись.
+
+Runtime IAB: Account 1440/768/390/375, один visible identity opener, name/email, quota 36,2 КБ из 100 ГБ; progress 0% соответствует существующему округлению небольшого usage. Password поля доступны и принимают dummy probe; значение DOM automation redacts, отдельный native Safari masked input подтверждает ввод. Tab last→close и visible solid outline, Close/Escape→identity. Mobile drawer focus restoration, независимый logout до login. Safari Account 1440/390/375: профиль, quota, три password inputs; dummy input на desktop, доставленный Escape из confirmation закрыл и вернул identity; mobile Close вернул identity. Password form не отправлялась, пароль владельца не менялся. Ранний Safari logout snapshot был снят в переходе; поздний screenshot подтвердил login, основная logout qualification — завершённый IAB сценарий.
+
+Уточнение ранее dirty Escape evidence: исходное дополнение выше сохранено целиком как исторический результат. Владелец позднее сообщил «Ручной тест escape я провел» и подтвердил физический Escape в согласованном scope. Предыдущие automation failures без DOM keydown/keyup не доказали дефект приложения. Новый patch/remediation Escape не придуман; исходные desktop 9/9 и трасса сохранены. Точные параметры/число новых физических mobile повторов владелец не перечислил, их не выдумываем. Это подтверждение рабочего пользовательского ввода в проверенном scope, а не доказанный defect/fix.
+
+Опциональное будущее решение владельца: настоящее фото профиля. Минимум — определить семантику существующего avatar (storage key или validated URL), authenticated upload/remove API, ограничения MIME/bytes/dimensions, обработку/очистку прежних файлов, controlled serving/CSP, frontend image/fallback и security/accessibility tests. Новые поля имени не нужны для уже поддержанного name; email editing требует отдельной verified-email/auth policy. Сейчас это не реализовано.
+
+Console/network: IAB 0 recorded error/warn; Safari единственная наблюдаемая console ошибка — ожидаемый HTTP404 invalid fixture, на нормальном ресурсе unexpected errors/CSP violations не обнаружены. Manrope loaded; current JS/CSS совпали с production build. После nginx sync proxy/backend logs не содержат проверенные тестовые passwords/tokens; 5xx нет. Новая numbered Phase не создавалась. 50 GiB и Docker cleanup не запускались.
+
+INDEPENDENT_REVIEW: APPROVE. Независимо проверены source, capability matrix и runtime evidence; focused frontend 38/38, backend controller 9/9, diff-check PASS. Reviewer не повторял browser campaign. Blockers нет; отзыв шести тестовых ссылок и safe proxy logs подтверждены. Непрерывное наблюдение простоя 20 секунд: 0 новых запросов (idle-network.json). PUBLIC_SHARE_POLISH_STATUS / ACCOUNT_PROFILE_POLISH_STATUS: PASS в описанном bounded scope.

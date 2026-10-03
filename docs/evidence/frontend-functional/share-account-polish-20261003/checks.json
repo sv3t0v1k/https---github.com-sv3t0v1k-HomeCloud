@@ -1,0 +1,343 @@
+[
+  {
+    "cardWidth": 720,
+    "focusOutline": "none",
+    "footer": "Безопасный доступ через HomeCloud",
+    "heading": "HomeCloud-long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_.txt",
+    "headingWrap": "anywhere",
+    "kind": "ordinary-long-name",
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "cardWidth": 720,
+    "focusOutline": "none",
+    "footer": "Безопасный доступ через HomeCloud",
+    "heading": "HomeCloud-long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_.txt",
+    "headingWrap": "anywhere",
+    "kind": "ordinary-long-name",
+    "scrollWidth": 768,
+    "width": 768
+  },
+  {
+    "cardWidth": 358,
+    "focusOutline": "none",
+    "footer": "Безопасный доступ через HomeCloud",
+    "heading": "HomeCloud-long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_.txt",
+    "headingWrap": "anywhere",
+    "kind": "ordinary-long-name",
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "cardWidth": 343,
+    "focusOutline": "none",
+    "footer": "Безопасный доступ через HomeCloud",
+    "heading": "HomeCloud-long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_.txt",
+    "headingWrap": "anywhere",
+    "kind": "ordinary-long-name",
+    "scrollWidth": 375,
+    "width": 375
+  },
+  {
+    "kind": "password-error",
+    "width": 375,
+    "alert": "Пароль неверен или доступ по ссылке ограничен.",
+    "invalid": "true"
+  },
+  {
+    "kind": "unlock",
+    "title": "HomeCloud-long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_long_filename_.txt",
+    "passwordFieldRemoved": true
+  },
+  {
+    "active": "BODY",
+    "focusVisible": false,
+    "kind": "public-keyboard",
+    "outline": "none"
+  },
+  {
+    "active": "Общая папка",
+    "focusVisible": true,
+    "kind": "public-focus",
+    "outline": "solid"
+  },
+  {
+    "kind": "folder-ui-download",
+    "notice": "Скачивание подготовлено."
+  },
+  {
+    "footer": "Безопасный доступ через HomeCloud",
+    "scrollWidth": 1440,
+    "title": "Доступ защищён паролем",
+    "width": 1440,
+    "kind": "protectedShare"
+  },
+  {
+    "footer": "Безопасный доступ через HomeCloud",
+    "scrollWidth": 1440,
+    "title": "pixel.png",
+    "width": 1440,
+    "kind": "media"
+  },
+  {
+    "footer": "Безопасный доступ через HomeCloud",
+    "scrollWidth": 1440,
+    "title": "Материалы по ссылке",
+    "width": 1440,
+    "kind": "folderShare"
+  },
+  {
+    "footer": "Безопасный доступ через HomeCloud",
+    "scrollWidth": 1440,
+    "title": "Ссылка недоступна",
+    "width": 1440,
+    "kind": "expired"
+  },
+  {
+    "footer": "Безопасный доступ через HomeCloud",
+    "scrollWidth": 1440,
+    "title": "Ссылка недоступна",
+    "width": 1440,
+    "kind": "revoked"
+  },
+  {
+    "footer": "Безопасный доступ через HomeCloud",
+    "scrollWidth": 1440,
+    "title": "Ссылка недоступна",
+    "width": 1440,
+    "kind": "invalid"
+  },
+  {
+    "footer": "Безопасный доступ через HomeCloud",
+    "scrollWidth": 768,
+    "title": "Доступ защищён паролем",
+    "width": 768,
+    "kind": "protectedShare"
+  },
+  {
+    "footer": "Безопасный доступ через HomeCloud",
+    "scrollWidth": 768,
+    "title": "pixel.png",
+    "width": 768,
+    "kind": "media"
+  },
+  {
+    "footer": "Безопасный доступ через HomeCloud",
+    "scrollWidth": 768,
+    "title": "Материалы по ссылке",
+    "width": 768,
+    "kind": "folderShare"
+  },
+  {
+    "footer": "Безопасный доступ через HomeCloud",
+    "scrollWidth": 768,
+    "title": "Ссылка недоступна",
+    "width": 768,
+    "kind": "expired"
+  },
+  {
+    "footer": "Безопасный доступ через HomeCloud",
+    "scrollWidth": 768,
+    "title": "Ссылка недоступна",
+    "width": 768,
+    "kind": "revoked"
+  },
+  {
+    "footer": "Безопасный доступ через HomeCloud",
+    "scrollWidth": 768,
+    "title": "Ссылка недоступна",
+    "width": 768,
+    "kind": "invalid"
+  },
+  {
+    "footer": "Безопасный доступ через HomeCloud",
+    "scrollWidth": 390,
+    "title": "Доступ защищён паролем",
+    "width": 390,
+    "kind": "protectedShare"
+  },
+  {
+    "footer": "Безопасный доступ через HomeCloud",
+    "scrollWidth": 390,
+    "title": "pixel.png",
+    "width": 390,
+    "kind": "media"
+  },
+  {
+    "footer": "Безопасный доступ через HomeCloud",
+    "scrollWidth": 390,
+    "title": "Материалы по ссылке",
+    "width": 390,
+    "kind": "folderShare"
+  },
+  {
+    "footer": "Безопасный доступ через HomeCloud",
+    "scrollWidth": 390,
+    "title": "Ссылка недоступна",
+    "width": 390,
+    "kind": "expired"
+  },
+  {
+    "footer": "Безопасный доступ через HomeCloud",
+    "scrollWidth": 390,
+    "title": "Ссылка недоступна",
+    "width": 390,
+    "kind": "revoked"
+  },
+  {
+    "footer": "Безопасный доступ через HomeCloud",
+    "scrollWidth": 390,
+    "title": "Ссылка недоступна",
+    "width": 390,
+    "kind": "invalid"
+  },
+  {
+    "footer": "Безопасный доступ через HomeCloud",
+    "scrollWidth": 375,
+    "title": "Доступ защищён паролем",
+    "width": 375,
+    "kind": "protectedShare"
+  },
+  {
+    "footer": "Безопасный доступ через HomeCloud",
+    "scrollWidth": 375,
+    "title": "pixel.png",
+    "width": 375,
+    "kind": "media"
+  },
+  {
+    "footer": "Безопасный доступ через HomeCloud",
+    "scrollWidth": 375,
+    "title": "Материалы по ссылке",
+    "width": 375,
+    "kind": "folderShare"
+  },
+  {
+    "footer": "Безопасный доступ через HomeCloud",
+    "scrollWidth": 375,
+    "title": "Ссылка недоступна",
+    "width": 375,
+    "kind": "expired"
+  },
+  {
+    "footer": "Безопасный доступ через HomeCloud",
+    "scrollWidth": 375,
+    "title": "Ссылка недоступна",
+    "width": 375,
+    "kind": "revoked"
+  },
+  {
+    "footer": "Безопасный доступ через HomeCloud",
+    "scrollWidth": 375,
+    "title": "Ссылка недоступна",
+    "width": 375,
+    "kind": "invalid"
+  },
+  {
+    "avatarInput": false,
+    "identity": "Проверка UI HomeCloudui-d140dc77f5@example.invalid",
+    "kind": "account",
+    "openers": 1,
+    "progress": "0",
+    "quota": "ХранилищеИспользовано 36,2 КБ из 100 ГБ. Файлов: 5. Папок: 1.",
+    "scrollWidth": 375,
+    "width": 375,
+    "progressSource": "subsequent attribute inspection on same quota fixture"
+  },
+  {
+    "editable": true,
+    "focused": true,
+    "kind": "password-field",
+    "label": "Текущий пароль",
+    "valueInspection": "Value redacted by DOM automation; fill succeeded; native Safari separately confirmed masked input."
+  },
+  {
+    "editable": true,
+    "focused": true,
+    "kind": "password-field",
+    "label": "Новый пароль",
+    "valueInspection": "Value redacted by DOM automation; fill succeeded; native Safari separately confirmed masked input."
+  },
+  {
+    "editable": true,
+    "focused": true,
+    "kind": "password-field",
+    "label": "Повторите новый пароль",
+    "valueInspection": "Value redacted by DOM automation; fill succeeded; native Safari separately confirmed masked input."
+  },
+  {
+    "accountClosed": true,
+    "kind": "account-escape",
+    "restored": "Открыть аккаунт: Проверка UI HomeCloud",
+    "width": 375
+  },
+  {
+    "dialogScrollWidth": 578,
+    "dialogWidth": 578,
+    "progress": "0",
+    "quota": "ХранилищеИспользовано 36,2 КБ из 100 ГБ. Файлов: 5. Папок: 1.",
+    "scrollWidth": 1440,
+    "width": 1440,
+    "kind": "account"
+  },
+  {
+    "active": "Закрыть",
+    "outline": "solid",
+    "kind": "account-tab-trap",
+    "width": 1440
+  },
+  {
+    "restored": "Открыть аккаунт: Проверка UI HomeCloud",
+    "kind": "account-close",
+    "width": 1440
+  },
+  {
+    "dialogScrollWidth": 578,
+    "dialogWidth": 578,
+    "progress": "0",
+    "quota": "ХранилищеИспользовано 36,2 КБ из 100 ГБ. Файлов: 5. Папок: 1.",
+    "scrollWidth": 768,
+    "width": 768,
+    "kind": "account"
+  },
+  {
+    "active": "Закрыть",
+    "outline": "solid",
+    "kind": "account-tab-trap",
+    "width": 768
+  },
+  {
+    "restored": "Открыть аккаунт: Проверка UI HomeCloud",
+    "kind": "account-close",
+    "width": 768
+  },
+  {
+    "dialogScrollWidth": 372,
+    "dialogWidth": 372,
+    "progress": "0",
+    "quota": "ХранилищеИспользовано 36,2 КБ из 100 ГБ. Файлов: 5. Папок: 1.",
+    "scrollWidth": 390,
+    "width": 390,
+    "kind": "account"
+  },
+  {
+    "active": "Закрыть",
+    "outline": "solid",
+    "kind": "account-tab-trap",
+    "width": 390
+  },
+  {
+    "restored": "Открыть аккаунт: Проверка UI HomeCloud",
+    "kind": "account-close",
+    "width": 390
+  },
+  {
+    "kind": "profile-save",
+    "notice": "Профиль сохранён."
+  },
+  {
+    "kind": "independent-logout",
+    "loginShown": true
+  }
+]

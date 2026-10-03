@@ -1,0 +1,9 @@
+{
+ "baseline":"496b0607454b87b3cc4962353f9690c7fb630496",
+ "checkpoint":"Inventory before edits",
+ "public":{"route":"/share/:token","component":"PublicSharePage","api":"GET public/:token; POST verify; POST download; GET children","supports":["anonymous file POST download","password verification","folder navigation/pagination","folder ZIP","100 MiB browser buffer limit"],"missing":["public media preview","root filename/size in response"],"terminal":"expired/revoked/missing all 404; cannot distinguish honestly"},
+ "profile":{"name":"SUPPORTED_EDITABLE; persisted, registration name or email local-part; PATCH me","email":"SUPPORTED_READ_ONLY","avatarString":"SUPPORTED_EDITABLE; plain string max255; no image rendering","avatarUpload":"NOT_SUPPORTED","displayName/firstName/lastName":"NOT_SUPPORTED","avatarIcon":"DERIVED_UI_ONLY; static user silhouette, no initials","quota/used/counts":"SUPPORTED_READ_ONLY","passwordChange":"SUPPORTED_EDITABLE; POST auth/change-password","backendOnlyUI":"No unreachable profile fields with editable API; avatar string UI present but image not rendered"},
+ "intendedFiles":["backend/src/sharing/sharing.controller.ts","backend/src/sharing/sharing.controller.spec.ts","frontend/src/sharing/publicShareApi.ts","frontend/src/sharing/PublicSharePage.tsx","frontend/src/sharing/PublicSharePage.test.tsx","frontend/src/account/AccountDialog.tsx","frontend/src/account/AccountDialog.test.tsx","frontend/src/index.css","docs/frontend-functional-acceptance.md","docs/evidence/frontend-functional/share-account-polish-20261003/*"],
+ "dirtyDocs":"Preserve entire prior Escape clarification then append owner report: physical Escape works, mobile conditions not independently specified; no code fix.",
+ "constraints":"Three original untracked files untouched, forbidden audit unread. No new Docker stack, no push/tags. Two Russian commits."
+}

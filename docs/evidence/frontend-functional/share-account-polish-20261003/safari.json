@@ -1,0 +1,154 @@
+[
+  {
+    "kind": "folderShare",
+    "width": 1440,
+    "resource": true,
+    "unavailable": false,
+    "zip": true,
+    "footer": true
+  },
+  {
+    "kind": "expired",
+    "width": 1440,
+    "resource": false,
+    "unavailable": true,
+    "zip": false,
+    "footer": true
+  },
+  {
+    "kind": "revoked",
+    "width": 1440,
+    "resource": false,
+    "unavailable": true,
+    "zip": false,
+    "footer": true
+  },
+  {
+    "kind": "invalid",
+    "width": 1440,
+    "resource": false,
+    "unavailable": true,
+    "zip": false,
+    "footer": true
+  },
+  {
+    "kind": "account-field",
+    "width": 1440,
+    "label": "Текущий пароль",
+    "focused": true,
+    "maskedInput": true
+  },
+  {
+    "kind": "account-field",
+    "width": 1440,
+    "label": "Новый пароль",
+    "focused": true,
+    "maskedInput": true
+  },
+  {
+    "kind": "account-field",
+    "width": 1440,
+    "label": "Повторите новый пароль",
+    "focused": true,
+    "maskedInput": true
+  },
+  {
+    "kind": "account-escape",
+    "width": 1440,
+    "closed": true,
+    "restored": "Открыть аккаунт: Проверка UI HomeCloud"
+  },
+  {
+    "kind": "account-mobile",
+    "width": 390,
+    "profile": true,
+    "quota": true,
+    "passwordFields": true
+  },
+  {
+    "kind": "account-close",
+    "width": 390,
+    "focusRestored": true
+  },
+  {
+    "kind": "account-mobile",
+    "width": 375,
+    "profile": true,
+    "quota": true
+  },
+  {
+    "kind": "account-close",
+    "width": 375,
+    "focusRestored": true
+  },
+  {
+    "kind": "independent-logout",
+    "width": 375,
+    "login": false,
+    "snapshotTiming": "Pending transition; later screenshot showed login. Completed IAB logout independently qualified."
+  },
+  {
+    "kind": "protectedShare",
+    "width": 375,
+    "heading": true,
+    "footer": true,
+    "unavailable": false
+  },
+  {
+    "kind": "media",
+    "width": 375,
+    "heading": true,
+    "footer": true,
+    "unavailable": false
+  },
+  {
+    "kind": "folderShare",
+    "width": 375,
+    "heading": true,
+    "footer": true,
+    "unavailable": false
+  },
+  {
+    "kind": "expired",
+    "width": 375,
+    "heading": true,
+    "footer": true,
+    "unavailable": true
+  },
+  {
+    "kind": "revoked",
+    "width": 375,
+    "heading": true,
+    "footer": true,
+    "unavailable": true
+  },
+  {
+    "kind": "invalid",
+    "width": 375,
+    "heading": true,
+    "footer": true,
+    "unavailable": true
+  },
+  {
+    "kind": "console",
+    "expectedErrors": [
+      "invalid-test-token: HTTP 404"
+    ],
+    "productErrors": [],
+    "cspViolations": []
+  },
+  {
+    "kind": "console-normal-resource",
+    "unexpectedError": false,
+    "cspViolation": false,
+    "normalResource": true
+  },
+  {
+    "kind": "ordinary",
+    "width": 375,
+    "heading": true,
+    "footer": true,
+    "size": true,
+    "repeatAfterCompletedLogout": true
+  }
+]

@@ -327,3 +327,13 @@ h1, h2, h3, h4, p { margin-top: 0; }
 .public-share-item-copy small { color: var(--text-muted); }
 .public-share-footer { text-align: center; color: var(--text-muted); font-size: 12px; margin-top: 24px; }
 @media (max-width: 480px) { .public-share-page { padding: 24px 16px; } .public-share-card { border-radius: var(--radius-lg); padding: 24px; } .public-share-actions .button, .public-share-password .button { width: 100%; } }
+
+.account-dialog .dialog-body { gap: 24px; }
+.account-section + .account-section { border-top: 1px solid var(--divider); padding-top: 24px; }
+.account-section h3 { font-size: 16px; margin-bottom: 16px; }
+.account-identity { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
+.account-identity .avatar { width: 48px; height: 48px; }
+.account-identity > div { min-width: 0; overflow-wrap: anywhere; }
+.account-identity p { margin: 4px 0 0; font-size: 13px; }
+.account-hint { color: var(--text-muted); font-size: 13px; }
+.account-dialog .input { font-size: 16px; }

@@ -1,0 +1,6 @@
+{
+  "elapsedSeconds": 20,
+  "newRequests": 0,
+  "method": "Contiguous 20-second idle observation with no intentional HTTP/UI requests",
+  "noObservedRequestLoops": true
+}

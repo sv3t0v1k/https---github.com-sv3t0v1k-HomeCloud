@@ -1,0 +1,37 @@
+{
+  "scope": "Only disposable shares of the dedicated UI test user in existing preview stack",
+  "allFixtureSharesRevoked": true,
+  "ownerSharesUntouched": true,
+  "results": [
+    {
+      "alias": "ordinary",
+      "revokeStatus": 200,
+      "anonymousStatus": 404
+    },
+    {
+      "alias": "protectedShare",
+      "revokeStatus": 200,
+      "anonymousStatus": 404
+    },
+    {
+      "alias": "media",
+      "revokeStatus": 200,
+      "anonymousStatus": 404
+    },
+    {
+      "alias": "folderShare",
+      "revokeStatus": 200,
+      "anonymousStatus": 404
+    },
+    {
+      "alias": "revoked",
+      "revokeStatus": 200,
+      "anonymousStatus": 404
+    },
+    {
+      "alias": "expired",
+      "revokeStatus": 200,
+      "anonymousStatus": 404
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "focusedFrontend": "38/38",
+  "fullFrontend": "169/169",
+  "frontendLint": "PASS",
+  "frontendTypecheck": "PASS",
+  "frontendBuild": "PASS",
+  "backendFocused": "82/82",
+  "backendFull": {
+    "passed": 699,
+    "skipped": 32,
+    "reason": "PostgreSQL-specific test database not configured; real preview API uses PostgreSQL"
+  },
+  "backendLint": {
+    "errors": 0,
+    "warnings": 15
+  },
+  "backendBuild": "PASS",
+  "diffCheck": "PASS",
+  "independentReview": "APPROVE",
+  "dependencyAdditions": 0,
+  "newDockerStacks": 0,
+  "scope": [
+    "Public share polish",
+    "Account capability audit/polish"
+  ],
+  "independentChecks": [
+    "Frontend focused 38/38",
+    "Backend controller 9/9",
+    "git diff --check",
+    "Source, capability matrix and saved runtime evidence review"
+  ]
+}

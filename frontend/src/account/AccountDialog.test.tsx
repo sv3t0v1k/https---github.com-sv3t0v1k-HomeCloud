@@ -3,12 +3,30 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AccountDialog } from './AccountDialog'
 import { changePassword, getStorageInfo, updateProfile } from './api'
-const session = vi.hoisted(() => ({ user: { name: 'Алексей', avatar: null }, endSession: vi.fn(), updateUser: vi.fn() }))
+const session = vi.hoisted(() => ({ user: { name: 'Алексей', email: 'alex@example.invalid', avatar: null as string | null }, endSession: vi.fn(), updateUser: vi.fn() }))
 vi.mock('../auth/SessionContext', () => ({ useSession: () => session }))
 vi.mock('./api', () => ({ changePassword: vi.fn(), getStorageInfo: vi.fn(), updateProfile: vi.fn() }))
 describe('AccountDialog', () => {
   beforeEach(() => { vi.clearAllMocks(); vi.mocked(getStorageInfo).mockResolvedValue({ storageQuota: '1000', storageUsed: '25', fileCount: 2, folderCount: 1 }) })
   afterEach(cleanup)
+  it('shows persisted name and email with a generic icon and no unsupported photo editor', async () => {
+    render(<AccountDialog onClose={vi.fn()} />)
+    expect(screen.getByText('Алексей')).toBeInTheDocument()
+    expect(screen.getByText('alex@example.invalid')).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Общий значок пользователя' })).toBeInTheDocument()
+    expect(screen.queryByLabelText(/Аватар/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /фото|аватар/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Безопасность' })).toBeInTheDocument()
+    await screen.findByText(/Использовано/)
+  })
+  it('preserves the persisted avatar string exactly when editing name', async () => {
+    session.user.avatar = ' stored-avatar '
+    try {
+      render(<AccountDialog onClose={vi.fn()} />)
+      await userEvent.click(screen.getByRole('button', { name: 'Сохранить профиль' }))
+      await waitFor(() => expect(updateProfile).toHaveBeenCalledWith('Алексей'))
+    } finally { session.user.avatar = null }
+  })
   it('formats quota and clamps over-limit progress without changing usage text', async () => {
     vi.mocked(getStorageInfo).mockResolvedValue({ storageUsed: '1825361101', storageQuota: '1073741824', fileCount: 2, folderCount: 1 })
     render(<AccountDialog onClose={vi.fn()} />)
@@ -23,7 +41,7 @@ describe('AccountDialog', () => {
     await user.clear(screen.getByLabelText('Имя'))
     await user.type(screen.getByLabelText('Имя'), ' Новое имя ')
     await user.click(screen.getByRole('button', { name: 'Сохранить профиль' }))
-    await waitFor(() => expect(updateProfile).toHaveBeenCalledWith('Новое имя', ''))
+    await waitFor(() => expect(updateProfile).toHaveBeenCalledWith('Новое имя'))
     expect(session.updateUser).toHaveBeenCalledOnce()
     expect(screen.getByRole('status')).toHaveTextContent('Профиль сохранён.')
   })
@@ -32,7 +50,7 @@ describe('AccountDialog', () => {
     render(<AccountDialog onClose={vi.fn()} />)
     await screen.findByText(/Использовано 25 Б/)
     const close = screen.getByRole('button', { name: 'Закрыть' })
-    const fields = ['Имя', 'Аватар (адрес или имя)', 'Текущий пароль', 'Новый пароль', 'Повторите новый пароль'].map((label) => screen.getByLabelText(label))
+    const fields = ['Имя', 'Текущий пароль', 'Новый пароль', 'Повторите новый пароль'].map((label) => screen.getByLabelText(label))
     for (const field of fields) {
       expect(field).toBeEnabled()
       expect(field).not.toHaveAttribute('readonly')
@@ -46,9 +64,9 @@ describe('AccountDialog', () => {
     await user.tab()
     expect(fields[0]).toHaveFocus()
     await user.tab()
-    expect(fields[1]).toHaveFocus()
-    await user.tab()
     expect(screen.getByRole('button', { name: 'Сохранить профиль' })).toHaveFocus()
+    await user.tab()
+    expect(fields[1]).toHaveFocus()
     for (const field of fields.slice(2)) {
       await user.tab()
       expect(field).toHaveFocus()
