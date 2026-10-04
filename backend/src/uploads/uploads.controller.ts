@@ -21,6 +21,10 @@ import { ChunkDto } from "./dtos/chunk.dto";
 import { Request as ExpressRequest } from "express";
 import { IngressFileCleanupInterceptor } from "./ingress-file-cleanup.interceptor";
 import { IngressChunkFile } from "./chunk-ingress";
+import {
+  UploadRateLimitInterceptor,
+  markUploadProcessing,
+} from "./upload-rate-limit";
 
 interface UploadedChunkFile {
   path: string;
@@ -54,7 +58,11 @@ export class UploadsController {
   }
 
   @Post("session/:uploadId/chunk")
-  @UseInterceptors(IngressFileCleanupInterceptor, FileInterceptor("chunk"))
+  @UseInterceptors(
+    UploadRateLimitInterceptor,
+    IngressFileCleanupInterceptor,
+    FileInterceptor("chunk"),
+  )
   @HttpCode(HttpStatus.OK)
   async uploadChunk(
     @NestRequest() req: ExpressRequest & { user: { userId: number } },
@@ -68,6 +76,7 @@ export class UploadsController {
       throw new BadRequestException("Chunk file is required");
     }
 
+    markUploadProcessing(req);
     return this.uploadsService.uploadChunk(userId, uploadId, dto.chunkIndex, {
       path: chunk.path,
       size: chunk.size,
@@ -85,6 +94,7 @@ export class UploadsController {
   }
 
   @Delete("session/:uploadId")
+  @UseInterceptors(UploadRateLimitInterceptor)
   @HttpCode(HttpStatus.OK)
   async abortUpload(
     @NestRequest() req: ExpressRequest & { user: { userId: number } },

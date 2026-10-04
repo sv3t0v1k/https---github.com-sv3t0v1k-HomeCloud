@@ -1,4 +1,4 @@
-import axios from 'axios'
+import axios, { AxiosHeaders } from 'axios'
 
 import type { BackendErrorBody } from './contracts'
 
@@ -37,7 +37,13 @@ export function normalizeApiError(error: unknown): ApiError {
   const status = error.response.status
   const backendMessage = error.response.data?.message
   const message = backendMessage || defaultMessage(status)
-  const retryAfter = error.response.headers['retry-after']
+  const headers = error.response.headers
+  const retryAfterHeader = headers instanceof AxiosHeaders
+    ? headers.get('retry-after')
+    : Object.entries(headers).find(([name]) => name.toLowerCase() === 'retry-after')?.[1]
+  const retryAfter = typeof retryAfterHeader === 'string' || typeof retryAfterHeader === 'number'
+    ? String(retryAfterHeader)
+    : undefined
 
   if (status === 400 || status === 422) return new ApiError(message, 'validation', status)
   if (status === 401) return new ApiError(message, 'authentication', status)

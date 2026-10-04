@@ -28,6 +28,14 @@ describe('normalizeApiError', () => {
     )
   })
 
+  it('keeps Retry-After from case-insensitive plain response headers', () => {
+    const error = axiosError(429, { statusCode: 429, message: 'Too many requests' })
+    error.response!.headers = { 'rEtRy-AfTeR': 'Wed, 01 Jan 2025 00:00:02 GMT' }
+    expect(normalizeApiError(error)).toMatchObject({
+      kind: 'rate-limit', retryAfter: 'Wed, 01 Jan 2025 00:00:02 GMT',
+    })
+  })
+
   it('classifies requests without a response as network failures', () => {
     expect(normalizeApiError(new AxiosError('offline'))).toEqual(
       expect.objectContaining({ kind: 'network' }),
@@ -37,7 +45,7 @@ describe('normalizeApiError', () => {
 
 function axiosError(status: number, data: unknown, retryAfter?: string) {
   const headers = new AxiosHeaders()
-  if (retryAfter) headers.set('retry-after', retryAfter)
+  if (retryAfter) headers.set('Retry-After', retryAfter)
 
   return new AxiosError('request failed', undefined, undefined, undefined, {
     status,

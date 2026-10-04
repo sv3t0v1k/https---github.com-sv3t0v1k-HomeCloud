@@ -5,6 +5,15 @@ import type { FileItem } from '../types/files'
 export const UPLOAD_CHUNK_SIZE = 10 * 1024 * 1024
 const MAX_CHUNK_ATTEMPTS = 3
 const DEFAULT_RETRY_DELAY_MS = 250
+const MAX_RETRY_WAIT_MS = 60_000
+const UPLOAD_RETRY_WAIT_BUDGET_MS = 5 * 60_000
+const ABORT_BUDGET_MS = 10_000
+const RATE_LIMIT_MESSAGE = 'Сервер ограничил частоту загрузки. Подождите и повторите загрузку.'
+
+interface RetryBudget {
+  remainingWaitMs: number
+  deadline?: number
+}
 
 export interface UploadLimits {
   maxFileBytes: number | null
@@ -83,6 +92,7 @@ export async function uploadFile({
   })
 
   try {
+    const retryBudget: RetryBudget = { remainingWaitMs: UPLOAD_RETRY_WAIT_BUDGET_MS }
     let completedBytes = 0
     for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex += 1) {
       throwIfAborted(signal)
@@ -115,6 +125,7 @@ export async function uploadFile({
         },
         signal,
         retryDelayMs,
+        retryBudget,
       )
       completedBytes += chunk.size
       emit(onProgress, 'uploading', completedBytes, file.size, chunkIndex, totalChunks)
@@ -137,35 +148,92 @@ export async function uploadFile({
 }
 
 async function withChunkRetry(
-  send: () => Promise<void>,
+  send: () => Promise<unknown>,
   signal: AbortSignal | undefined,
   retryDelayMs: number,
+  budget: RetryBudget,
 ) {
   for (let attempt = 1; attempt <= MAX_CHUNK_ATTEMPTS; attempt += 1) {
+    throwIfAborted(signal)
+    if (budget.deadline !== undefined && Date.now() >= budget.deadline) {
+      throw new ApiError('Upload cleanup retry budget exhausted', 'network')
+    }
     try {
       await send()
       return
     } catch (error) {
-      if (signal?.aborted || attempt === MAX_CHUNK_ATTEMPTS || !isRetryable(error)) {
-        throw error
-      }
-      await abortableDelay(retryDelayMs * attempt, signal)
+      if (signal?.aborted || !isRetryable(error)) throw error
+      if (attempt === MAX_CHUNK_ATTEMPTS) throw retryFailure(error)
+      const fallbackMs = Math.max(
+        error.kind === 'rate-limit' ? DEFAULT_RETRY_DELAY_MS : 0,
+        Number.isFinite(retryDelayMs) ? retryDelayMs : DEFAULT_RETRY_DELAY_MS,
+      ) * 2 ** (attempt - 1)
+      const delayMs = Math.max(fallbackMs, retryAfterDelay(error.retryAfter) ?? 0)
+      const availableMs = Math.min(
+        budget.remainingWaitMs,
+        budget.deadline === undefined ? Infinity : budget.deadline - Date.now(),
+      )
+      // Never clamp a server Retry-After to an earlier retry. Stop instead.
+      if (delayMs > MAX_RETRY_WAIT_MS || delayMs > availableMs) throw retryFailure(error)
+      budget.remainingWaitMs -= delayMs
+      await abortableDelay(delayMs, signal)
     }
   }
 }
 
-function isRetryable(error: unknown) {
-  return error instanceof ApiError && (error.kind === 'network' || error.kind === 'server')
+function isRetryable(error: unknown): error is ApiError {
+  return error instanceof ApiError &&
+    (error.kind === 'network' || error.kind === 'server' || error.kind === 'rate-limit')
+}
+
+function retryFailure(error: ApiError) {
+  return error.kind === 'rate-limit'
+    ? new ApiError(RATE_LIMIT_MESSAGE, 'rate-limit', error.status, error.retryAfter)
+    : error
+}
+
+function retryAfterDelay(value: string | undefined): number | null {
+  if (!value) return null
+  const header = value.trim()
+  if (/^\d+$/.test(header)) {
+    // An overflowing numeric header is an excessive wait, not a malformed one.
+    return Number(header) * 1000
+  }
+  // Accept HTTP dates, but do not interpret arbitrary numeric strings as dates.
+  if (!/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)(,|day,| )/i.test(header)) return null
+  const timestamp = Date.parse(header)
+  return Number.isFinite(timestamp) ? Math.max(0, timestamp - Date.now()) : null
 }
 
 async function abortSession(uploadId: string) {
+  const deadline = Date.now() + ABORT_BUDGET_MS
+  const controller = new AbortController()
+  let timeout: ReturnType<typeof window.setTimeout> | undefined
   try {
-    await apiRequest({
-      method: 'DELETE',
-      url: `/uploads/session/${encodeURIComponent(uploadId)}`,
-    })
+    await Promise.race([
+      withChunkRetry(
+        () => apiRequest({
+          method: 'DELETE',
+          url: `/uploads/session/${encodeURIComponent(uploadId)}`,
+          signal: controller.signal,
+          timeout: Math.max(1, deadline - Date.now()),
+        }),
+        controller.signal,
+        DEFAULT_RETRY_DELAY_MS,
+        { remainingWaitMs: ABORT_BUDGET_MS, deadline },
+      ),
+      new Promise<void>((resolve) => {
+        timeout = window.setTimeout(() => {
+          controller.abort()
+          resolve()
+        }, ABORT_BUDGET_MS)
+      }),
+    ])
   } catch {
-    // Cancellation is local and immediate; server cleanup is deliberately best effort.
+    // Preserve the upload error; cleanup has its own bounded, best-effort budget.
+  } finally {
+    window.clearTimeout(timeout)
+    controller.abort()
   }
 }
 
@@ -180,17 +248,19 @@ function throwIfAborted(signal?: AbortSignal) {
 }
 
 function abortableDelay(milliseconds: number, signal?: AbortSignal) {
+  throwIfAborted(signal)
   if (milliseconds <= 0) return Promise.resolve()
   return new Promise<void>((resolve, reject) => {
-    const timeout = window.setTimeout(resolve, milliseconds)
-    signal?.addEventListener(
-      'abort',
-      () => {
-        window.clearTimeout(timeout)
-        reject(new DOMException('Upload cancelled', 'AbortError'))
-      },
-      { once: true },
-    )
+    const onAbort = () => {
+      window.clearTimeout(timeout)
+      signal?.removeEventListener('abort', onAbort)
+      reject(new DOMException('Upload cancelled', 'AbortError'))
+    }
+    const timeout = window.setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, milliseconds)
+    signal?.addEventListener('abort', onAbort, { once: true })
   })
 }
 

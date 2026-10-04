@@ -487,6 +487,7 @@ function UploadControl({ enabled, parentId, onUploaded }: { enabled: boolean; pa
 function uploadErrorMessage(error: unknown): string {
   if (error instanceof RangeError) return 'Выберите непустой файл допустимого размера.'
   if (!(error instanceof ApiError)) return 'Не удалось загрузить файл. Попробуйте ещё раз.'
+  if (error.kind === 'rate-limit') return 'Сервер ограничил частоту загрузки. Подождите и повторите загрузку.'
   const message = error.message.toLowerCase()
   if (message.includes('quota')) return 'Недостаточно места для этого файла.'
   if (message.includes('file size') || message.includes('total upload size') || message.includes('chunk size')) return 'Размер файла превышает ограничение загрузки.'

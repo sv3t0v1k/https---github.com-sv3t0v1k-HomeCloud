@@ -871,10 +871,7 @@ export class UploadsService {
         throw new BadRequestException("Cannot abort a completed upload");
       }
 
-      if (session.status === "aborted") {
-        throw new BadRequestException("Upload already aborted");
-      }
-
+      // Owned repeated abort also repairs any interrupted filesystem cleanup.
       await this.cleanupUnpublishedAssembly(manager, session);
       this.deleteTempFiles(session.tempPath);
 

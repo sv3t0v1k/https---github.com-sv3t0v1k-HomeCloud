@@ -12,12 +12,15 @@ import { UsersModule } from "../users/users.module";
 import { AuthModule } from "../auth/auth.module";
 import { MulterModule } from "@nestjs/platform-express";
 import { ConfigService } from "@nestjs/config";
-import { diskStorage } from "multer";
 import * as fs from "fs";
 import * as path from "path";
-import { randomUUID } from "crypto";
-import { getMulterFileSizeLimit, IngressRequestState } from "./chunk-ingress";
+import { getMulterFileSizeLimit } from "./chunk-ingress";
 import { IngressFileCleanupInterceptor } from "./ingress-file-cleanup.interceptor";
+import {
+  UploadRateLimitService,
+  UploadRateLimitInterceptor,
+} from "./upload-rate-limit";
+import { abortableDiskStorage } from "./abortable-disk-storage";
 
 @Module({
   imports: [
@@ -38,29 +41,29 @@ import { IngressFileCleanupInterceptor } from "./ingress-file-cleanup.intercepto
         const ingressPath = path.join(storageRoot, ".tmp", "multipart-ingress");
         fs.mkdirSync(ingressPath, { recursive: true });
         return {
-          storage: diskStorage({
-            destination: ingressPath,
-            filename: (request, _file, callback) => {
-              const filename = randomUUID();
-              (request as IngressRequestState).ingressFilePath = path.join(
-                ingressPath,
-                filename,
-              );
-              callback(null, filename);
-            },
-          }),
+          storage: abortableDiskStorage(ingressPath),
           limits: {
             fileSize: getMulterFileSizeLimit(
               configService.get("MAX_CHUNK_SIZE"),
             ),
             files: 1,
+            fields: 1,
+            // Busboy emits partsLimit at the limit itself; two valid parts need 3.
+            parts: 3,
+            fieldSize: 32,
+            fieldNameSize: 64,
           },
         };
       },
     }),
   ],
-  providers: [UploadsService, IngressFileCleanupInterceptor],
+  providers: [
+    UploadsService,
+    IngressFileCleanupInterceptor,
+    UploadRateLimitService,
+    UploadRateLimitInterceptor,
+  ],
   controllers: [UploadsController],
-  exports: [UploadsService],
+  exports: [UploadsService, UploadRateLimitService],
 })
 export class UploadsModule {}

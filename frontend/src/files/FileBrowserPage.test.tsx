@@ -175,12 +175,15 @@ describe('FileBrowserPage', () => {
     expect(screen.queryByRole('option', { name: /Moving|Child/ })).not.toBeInTheDocument()
   })
 
-  it('maps upload quota failures to an actionable message', async () => {
+  it.each([
+    [403, 'Storage quota exceeded', 'Недостаточно места'],
+    [429, 'Too many requests', 'Сервер ограничил частоту загрузки. Подождите и повторите загрузку.'],
+  ])('maps upload failure %i to an actionable message', async (status, message, expectedMessage) => {
     apiClient.defaults.adapter = async (config) => {
       if (config.url === '/files/folders' || config.url === '/files') return ok(config, [])
       if (config.url === '/uploads/limits') return ok(config, { maxFileBytes: 1099511627776, maxActiveBytes: 2199023255552, maxChunkBytes: 52428800, maxChunks: 100000, remainingActiveBytes: 2199023255552, quotaRemainingBytes: 107374182400, effectiveMaxFileBytes: 107374182400 })
       if (config.url === '/uploads/session') {
-        throw responseFailure(config, 403, 'Storage quota exceeded')
+        throw responseFailure(config, status, message)
       }
       throw new Error(`Unexpected request: ${config.url}`)
     }
@@ -194,7 +197,7 @@ describe('FileBrowserPage', () => {
     )
     await user.click(screen.getByRole('button', { name: 'Загрузить' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Недостаточно места')
+    expect(await screen.findByRole('alert')).toHaveTextContent(expectedMessage)
     expect(screen.getByRole('button', { name: 'Повторить загрузку' })).toBeEnabled()
   })
 

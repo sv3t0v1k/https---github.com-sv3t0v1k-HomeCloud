@@ -6,6 +6,14 @@ import { ConfigService } from "@nestjs/config";
 import { NextFunction, Request, Response } from "express";
 import { clientIp } from "./trusted-proxy";
 import * as crypto from "crypto";
+import { JwtService } from "@nestjs/jwt";
+import {
+  UploadRateLimitService,
+  UploadThrottleException,
+  uploadRequestKind,
+  markVerifiedTransfer,
+  hasVerifiedTransfer,
+} from "../uploads/upload-rate-limit";
 
 export function buildCorsOptions(configService: ConfigService) {
   const frontendUrl = configService.get("FRONTEND_URL");
@@ -127,6 +135,7 @@ export function getPublicSharingTokenRateLimitOptions() {
 export function applySecurityMiddleware(
   app: INestApplication,
   configService: ConfigService,
+  transfer?: { jwtService: JwtService; uploads: UploadRateLimitService },
 ): void {
   app.use(
     helmet({
@@ -147,7 +156,40 @@ export function applySecurityMiddleware(
 
   app.use(cors(buildCorsOptions(configService)));
 
-  app.use("/api/v1", rateLimit(getGlobalRateLimitOptions()));
+  if (transfer) {
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      const kind = uploadRequestKind(req);
+      if (!kind) return next();
+      // Cheap bounded admission precedes signature checks, and all payload parsing.
+      try {
+        transfer.uploads.admitIp(clientIp(req), kind);
+      } catch (error) {
+        if (!(error instanceof UploadThrottleException)) return next(error);
+        res.setHeader("Retry-After", String(error.retryAfter));
+        res.status(429).json({ statusCode: 429, message: error.message });
+        return;
+      }
+      const auth = req.headers.authorization;
+      if (
+        typeof auth === "string" &&
+        auth.length <= 4096 &&
+        /^Bearer [^ ]+$/.test(auth)
+      ) {
+        try {
+          const payload = transfer.jwtService.verify(auth.slice(7));
+          if (Number.isSafeInteger(payload.sub) && payload.sub > 0)
+            markVerifiedTransfer(req, payload.sub);
+        } catch {
+          /* Invalid JWT keeps the ordinary IP limiter and JwtGuard. */
+        }
+      }
+      next();
+    });
+  }
+  app.use(
+    "/api/v1",
+    rateLimit({ ...getGlobalRateLimitOptions(), skip: hasVerifiedTransfer }),
+  );
 
   app.use("/api/v1/auth", rateLimit(getAuthRateLimitOptions()));
 
