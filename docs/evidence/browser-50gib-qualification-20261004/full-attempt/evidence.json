@@ -1,0 +1,1351 @@
+{
+  "status": "FAIL",
+  "reason": "global100requests/60s rejects chunk99 and automaticabort with429",
+  "startUtc": "2026-10-04T09:38:38.747Z",
+  "failedUtc": "2026-10-04T09:38:48.436Z",
+  "elapsedSeconds": 9.689,
+  "completedChunks": 98,
+  "expectedChunks": 5120,
+  "committedChunkBytes": 1027604480,
+  "partialEffectiveMiBPerSecond": 101.14562906388689,
+  "requests": [
+    {
+      "timestamp": "2026-10-04T09:38:38.866Z",
+      "method": "GET",
+      "route": "/api/v1/uploads/limits",
+      "statusCode": 304,
+      "durationMs": 7.568,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:38.876Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session",
+      "statusCode": 201,
+      "durationMs": 6.293,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:38.981Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 100.602,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:39.082Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 94.48,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:39.189Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 99.948,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:39.296Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 103.29,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:39.392Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 92.059,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:39.499Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 98.965,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:39.599Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 97.026,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:39.697Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 92.695,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:39.790Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 90.628,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:39.891Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 94.897,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:39.987Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 90.517,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:40.084Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 88.882,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:40.184Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 94.411,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:40.282Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 91.251,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:40.386Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 97.703,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:40.494Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 100.72,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:40.597Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 97.264,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:40.692Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 88.588,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:40.798Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 98.993,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:40.893Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 89.202,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:40.985Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 85.456,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:41.086Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 93.655,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:41.175Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 83.268,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:41.277Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 96.034,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:41.369Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 84.269,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:41.474Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 98.642,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:41.565Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 83.941,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:41.670Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 98.733,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:41.772Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 95.004,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:41.871Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 92.223,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:41.959Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 81.663,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:42.062Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 95.787,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:42.157Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 87.618,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:42.261Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 96.854,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:42.360Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 91.984,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:42.461Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 94.67,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:42.554Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 86.493,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:42.654Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 94.783,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:42.752Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 91.166,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:42.846Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 86.62,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:42.939Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 85.984,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:43.046Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 100.208,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:43.139Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 84.982,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:43.240Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 94.602,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:43.334Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 88.327,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:43.434Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 94.181,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:43.528Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 89.075,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:43.618Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 84.22,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:43.717Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 92.544,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:43.811Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 88.208,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:43.902Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 85.195,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:43.997Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 88.917,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:44.092Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 89.352,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:44.186Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 89.333,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:44.283Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 90.426,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:44.371Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 82.528,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:44.472Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 94.559,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:44.558Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 80.319,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:44.655Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 91.756,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:44.744Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 81.84,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:44.844Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 94.06,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:44.940Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 88.989,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:45.043Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 96.145,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:45.138Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 88.26,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:45.239Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 94.874,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:45.330Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 84.832,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:45.426Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 90.218,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:45.525Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 92.707,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:45.617Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 86.366,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:45.716Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 91.821,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:45.809Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 87.245,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:45.908Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 92.558,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:45.999Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 83.724,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:46.098Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 93.097,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:46.193Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 88.316,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:46.286Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 87.833,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:46.380Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 88.218,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:46.487Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 100.447,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:46.582Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 88.712,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:46.680Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 89.836,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:46.791Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 105.631,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:46.890Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 93.915,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:46.987Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 90.229,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:47.088Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 94.483,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:47.184Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 89.746,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:47.280Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 90.368,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:47.375Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 89.985,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:47.473Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 91.563,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:47.570Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 91.431,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:47.668Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 91.72,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:47.759Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 85.532,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:47.848Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 82.492,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:47.945Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 90.866,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:48.057Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 105.717,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:48.146Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 83.385,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:48.243Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 91.613,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:48.334Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 85.31,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:48.428Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 87.34,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:48.436Z",
+      "method": "POST",
+      "route": "unmatched",
+      "statusCode": 429,
+      "durationMs": 0.43,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:38:48.497Z",
+      "method": "DELETE",
+      "route": "unmatched",
+      "statusCode": 429,
+      "durationMs": 0.358,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:43:00.016Z",
+      "method": "POST",
+      "route": "/api/v1/auth/login",
+      "statusCode": 200,
+      "durationMs": 282.38,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:43:00.062Z",
+      "method": "DELETE",
+      "route": "/api/v1/uploads/session/:uploadId",
+      "statusCode": 200,
+      "durationMs": 42.88,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:43:56.975Z",
+      "method": "POST",
+      "route": "/api/v1/auth/refresh",
+      "statusCode": 200,
+      "durationMs": 765.529,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:43:56.985Z",
+      "method": "GET",
+      "route": "/api/v1/users/me",
+      "statusCode": 200,
+      "durationMs": 2.094,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:43:56.998Z",
+      "method": "GET",
+      "route": "/api/v1/files/folders",
+      "statusCode": 200,
+      "durationMs": 3.982,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:43:57.004Z",
+      "method": "GET",
+      "route": "/api/v1/files",
+      "statusCode": 200,
+      "durationMs": 7.744,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:44:11.024Z",
+      "method": "POST",
+      "route": "/api/v1/auth/refresh",
+      "statusCode": 200,
+      "durationMs": 711.648,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:44:11.039Z",
+      "method": "GET",
+      "route": "/api/v1/users/me",
+      "statusCode": 304,
+      "durationMs": 2.177,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:44:11.047Z",
+      "method": "GET",
+      "route": "/api/v1/files",
+      "statusCode": 304,
+      "durationMs": 1.815,
+      "errorClass": null
+    },
+    {
+      "timestamp": "2026-10-04T09:44:11.047Z",
+      "method": "GET",
+      "route": "/api/v1/files/folders",
+      "statusCode": 304,
+      "durationMs": 3.297,
+      "errorClass": null
+    }
+  ],
+  "chunkLatency": {
+    "n": 98,
+    "minMs": 80.319,
+    "meanMs": 91.29718367346939,
+    "p50Ms": 91.01599999999999,
+    "p95Ms": 100.447,
+    "maxMs": 105.717,
+    "first10Ms": [
+      100.602,
+      94.48,
+      99.948,
+      103.29,
+      92.059,
+      98.965,
+      97.026,
+      92.695,
+      90.628,
+      94.897
+    ],
+    "last10Ms": [
+      91.431,
+      91.72,
+      85.532,
+      82.492,
+      90.866,
+      105.717,
+      83.385,
+      91.613,
+      85.31,
+      87.34
+    ]
+  },
+  "fullTransferResourceProof": false,
+  "scalingConclusion": "NOT_QUALIFIED: failure at1.914% before first5%/middle/late sampling positions",
+  "source": {
+    "path": "/private/tmp/homecloud-50gib-full/HomeCloud-50GiB-qualification.bin",
+    "logicalBytes": 53687091200,
+    "allocatedBytes": 0,
+    "method": "exclusive create + truncate, sparse all-zero extents",
+    "startUtc": "2026-10-04T09:28:56Z",
+    "sha256": "ab743e145f643a1f6237b7390baf2e6edc71d83997f5bf4ed40d975fb50ba423",
+    "streamReadBytes": 53687091200,
+    "hashElapsedSeconds": 172.791847791
+  },
+  "cleanup": {
+    "utc": "2026-10-04T09:44:45.412Z",
+    "sessions": [
+      {
+        "id": 12,
+        "uploadId": "f08a34fc-6167-442c-b337-f4e911d30a64",
+        "status": "aborted",
+        "uploadedSize": "1027604480",
+        "uploadedCount": 98,
+        "tempPath": "/storage/.tmp/f08a34fc-6167-442c-b337-f4e911d30a64",
+        "chunkRows": 0,
+        "tempExists": false
+      }
+    ],
+    "user": [
+      {
+        "storageUsed": "37021",
+        "storageQuota": "107374182400"
+      }
+    ],
+    "files": [],
+    "activeReservation": [
+      {
+        "bytes": "0"
+      }
+    ],
+    "sourceRemoved": true,
+    "downloadCreated": false
+  },
+  "resourceSamplesTransferAndImmediateFailure": 4,
+  "resourceObservationWindow": {
+    "startUtc": "2026-10-04T09:38:38.747Z",
+    "endUtc": "2026-10-04T09:38:54.436Z",
+    "sampleTimestampIsCollectionStart": true,
+    "samplingIntervalSeconds": 5,
+    "strictTransferSampleStarts": 2
+  },
+  "resourcePeaksTransferAndImmediateFailure": {
+    "backendDockerMemoryMiB": 95.44,
+    "backendCpuPercent": 91.89,
+    "postgresDockerMemoryMiB": 35.5,
+    "postgresCpuPercent": 1.09,
+    "backendRSSKiB": 129424,
+    "SafariWebKitAggregateRssKiB": 1040208,
+    "backendProcessLifetimeHWMKiB": 152408
+  },
+  "browserFileAPI": {
+    "name": "HomeCloud-50GiB-qualification.bin",
+    "size": 53687091200,
+    "samples": [
+      {
+        "offset": 0,
+        "length": 65536,
+        "allZero": true
+      },
+      {
+        "offset": 10485760,
+        "length": 65536,
+        "allZero": true
+      },
+      {
+        "offset": 26843545600,
+        "length": 65536,
+        "allZero": true
+      },
+      {
+        "offset": 53687025664,
+        "length": 65536,
+        "allZero": true
+      }
+    ]
+  },
+  "preflight": {
+    "head": "52f189589513519f5860105e5462155e88cecd81",
+    "aheadBehind": [
+      8,
+      0
+    ],
+    "targetBytes": 53687091200,
+    "disk": {
+      "thresholdBytes": 182536110080,
+      "foundation": [
+        {
+          "path": "/private/tmp",
+          "values": {
+            "NSURLVolumeAvailableCapacityKey": 180220092416,
+            "NSURLVolumeAvailableCapacityForOpportunisticUsageKey": 173186668001,
+            "NSURLVolumeTotalCapacityKey": 494384795648,
+            "NSURLVolumeAvailableCapacityForImportantUsageKey": 191533047796
+          }
+        },
+        {
+          "path": "/Users/aleksejkozemakin/Downloads",
+          "values": {
+            "NSURLVolumeAvailableCapacityKey": 180220092416,
+            "NSURLVolumeAvailableCapacityForOpportunisticUsageKey": 173186668001,
+            "NSURLVolumeTotalCapacityKey": 494384795648,
+            "NSURLVolumeAvailableCapacityForImportantUsageKey": 191533047796
+          }
+        },
+        {
+          "path": "/Users/aleksejkozemakin/Desktop/HomeCloud",
+          "values": {
+            "NSURLVolumeAvailableCapacityKey": 180220092416,
+            "NSURLVolumeAvailableCapacityForOpportunisticUsageKey": 173186668001,
+            "NSURLVolumeTotalCapacityKey": 494384795648,
+            "NSURLVolumeAvailableCapacityForImportantUsageKey": 191533047796
+          }
+        },
+        {
+          "path": "/Users/aleksejkozemakin/Library/Containers/com.docker.docker/Data/vms/0/data",
+          "values": {
+            "NSURLVolumeAvailableCapacityKey": 180220092416,
+            "NSURLVolumeAvailableCapacityForOpportunisticUsageKey": 173186668001,
+            "NSURLVolumeTotalCapacityKey": 494384795648,
+            "NSURLVolumeAvailableCapacityForImportantUsageKey": 191533047796
+          }
+        }
+      ],
+      "snapshotsData": [],
+      "snapshotsTimeMachine": [],
+      "gate": "PASS",
+      "criterion": "Foundation important-usage available capacity for explicit user request; includes expected purge of nonessential caches; not a write reservation",
+      "dockerRawLogicalBytes": 494384709632,
+      "dockerRawAllocatedBytes": 32247816192,
+      "sameHostDevice": 16777233,
+      "stageReserveBytes": 21474836480,
+      "sourceAllocatedBytes": 0,
+      "sparsePeakLiveGiB": 100,
+      "sparseNoDockerReclaimHighWaterGiB": 150,
+      "conservativeBudgetGiB": 170,
+      "allocatedSourceNoReclaimBudgetGiB": 220,
+      "apfsContainer": {
+        "id": "disk3",
+        "totalBytes": 494384795648,
+        "physicalFreeBytes": 180236730368,
+        "volumes": [
+          {
+            "device": "disk3s1",
+            "name": "Macintosh HD",
+            "capacityInUse": 13657628672,
+            "reserveBytes": 0,
+            "quotaBytes": 0
+          },
+          {
+            "device": "disk3s2",
+            "name": "Preboot",
+            "capacityInUse": 10973138944,
+            "reserveBytes": 0,
+            "quotaBytes": 0
+          },
+          {
+            "device": "disk3s3",
+            "name": "Recovery",
+            "capacityInUse": 1536675840,
+            "reserveBytes": 0,
+            "quotaBytes": 0
+          },
+          {
+            "device": "disk3s4",
+            "name": "Update",
+            "capacityInUse": 79732736,
+            "reserveBytes": 0,
+            "quotaBytes": 0
+          },
+          {
+            "device": "disk3s5",
+            "name": "Data",
+            "capacityInUse": 285592289280,
+            "reserveBytes": 0,
+            "quotaBytes": 0
+          },
+          {
+            "device": "disk3s6",
+            "name": "VM",
+            "capacityInUse": 2147520512,
+            "reserveBytes": 0,
+            "quotaBytes": 0
+          }
+        ]
+      },
+      "systemSnapshot": {
+        "count": 1,
+        "purgeable": false,
+        "namePrefix": "com.apple.os.update",
+        "containerMinimumSizeConstrained": true
+      },
+      "measurementUtc": "2026-10-04T09:28:07Z",
+      "dockerUsageGBDecimal": {
+        "images": 26.26,
+        "reclaimableImages": 2.623,
+        "containers": 0.09742,
+        "volumes": 2.951,
+        "reclaimableVolumes": 2.112,
+        "buildCache": 22.18,
+        "reclaimableBuildCache": 21.45,
+        "warning": "Shared image/cache layers; categories must not be added as independent host allocation. No prune/reclaim invoked."
+      },
+      "dockerGuestFreeKiB": 417132160,
+      "dockerRawAllocationMeasuredUtc": "2026-10-04T09:37:58.845Z"
+    },
+    "browser": {
+      "name": "Safari",
+      "version": "27.0",
+      "build": "22625.1.29.11.27",
+      "url": "http://localhost:8080/files"
+    },
+    "configuration": {
+      "chunkBytes": 10485760,
+      "expectedChunks": 5120,
+      "maxFileBytes": 1099511627776,
+      "maxChunks": 100000,
+      "quotaBytes": 107374182400,
+      "usedBytes": 37021,
+      "quotaChanged": false
+    },
+    "stack": {
+      "project": "homecloud-preview",
+      "backend": "2e96f568af14df3bc3f5083f6916ddf4c12b0efe06ab3953797f53f38f33a3fe",
+      "frontend": "45daae40e2dac00412f5b22f66efc7f48adb2b7f19d2e9b61755e01e7fa3757f",
+      "postgres": "dc54838e53d414873d93ebf2b800ff7cc6babd7fc6c49cb21a44eebade7c7fa5",
+      "newStackCreated": false
+    }
+  },
+  "capacityAfterCleanup": [
+    {
+      "path": "/private/tmp",
+      "values": {
+        "NSURLVolumeAvailableCapacityKey": 180210896896,
+        "NSURLVolumeAvailableCapacityForOpportunisticUsageKey": 173177472481,
+        "NSURLVolumeTotalCapacityKey": 494384795648,
+        "NSURLVolumeAvailableCapacityForImportantUsageKey": 191523852276
+      }
+    },
+    {
+      "path": "/Users/aleksejkozemakin/Downloads",
+      "values": {
+        "NSURLVolumeAvailableCapacityKey": 180210896896,
+        "NSURLVolumeAvailableCapacityForOpportunisticUsageKey": 173177472481,
+        "NSURLVolumeTotalCapacityKey": 494384795648,
+        "NSURLVolumeAvailableCapacityForImportantUsageKey": 191523852276
+      }
+    },
+    {
+      "path": "/Users/aleksejkozemakin/Desktop/HomeCloud",
+      "values": {
+        "NSURLVolumeAvailableCapacityKey": 180210896896,
+        "NSURLVolumeAvailableCapacityForOpportunisticUsageKey": 173177468385,
+        "NSURLVolumeTotalCapacityKey": 494384795648,
+        "NSURLVolumeAvailableCapacityForImportantUsageKey": 191523848180
+      }
+    },
+    {
+      "path": "/Users/aleksejkozemakin/Library/Containers/com.docker.docker/Data/vms/0/data",
+      "values": {
+        "NSURLVolumeAvailableCapacityKey": 180210892800,
+        "NSURLVolumeAvailableCapacityForOpportunisticUsageKey": 173177468385,
+        "NSURLVolumeTotalCapacityKey": 494384795648,
+        "NSURLVolumeAvailableCapacityForImportantUsageKey": 191523848180
+      }
+    }
+  ],
+  "runtimeGlobalRateLimit": {
+    "windowMs": 60000,
+    "max": 100,
+    "appliesTo": "/api/v1; includes chunks and abort",
+    "confirmedCompiledRuntime": true
+  },
+  "beforeCleanup": {
+    "sessionId": 12,
+    "status": "uploading",
+    "totalSize": "53687091200",
+    "uploadedSize": "1027604480",
+    "uploadedCount": 98,
+    "chunkRows": 98,
+    "firstChunkIndex": 0,
+    "lastChunkIndex": 97,
+    "tempEntries": 98,
+    "tempExists": true,
+    "finalFileRows": 0
+  },
+  "hashes": {
+    "source": "ab743e145f643a1f6237b7390baf2e6edc71d83997f5bf4ed40d975fb50ba423",
+    "stored": null,
+    "downloaded": null
+  },
+  "download": {
+    "initiated": false,
+    "reason": "Product defect encountered during UI upload; stop qualification before download"
+  },
+  "regressionGates": {
+    "backendFocused": {
+      "suites": 4,
+      "passed": 94,
+      "skips": 0
+    },
+    "backendFull": {
+      "suites": 61,
+      "passed": 757,
+      "skips": 0,
+      "realPostgres": "existing homecloud-preview PostgreSQL; temporary loopback transport; isolated schemas; transport stopped"
+    },
+    "frontendFocused": {
+      "suites": 2,
+      "passed": 19
+    },
+    "frontendFull": {
+      "suites": 18,
+      "passed": 176
+    },
+    "backend": {
+      "lint": 0,
+      "typecheck": 0,
+      "build": 0
+    },
+    "frontend": {
+      "lint": 0,
+      "typecheck": 0,
+      "build": 0
+    },
+    "backendLintWarnings": 15,
+    "diffCheck": "PASS",
+    "instrumentationCorrections": "Wrong PG suite filename and nonexistent tsconfig.build.json corrected; successful gates above use existing suite/tsconfig.json; product unchanged"
+  },
+  "initialUntrackedPreserved": [
+    "docs/evidence/frontend-functional/closure-checkpoint.json",
+    "docs/evidence/frontend-functional/closure-controls.json",
+    "scripts/tests/PHASE-5.3.1-TEST-AUDIT.md"
+  ],
+  "forbiddenAuditRead": false,
+  "productChanged": false,
+  "newDockerStack": false,
+  "push": false,
+  "tag": false,
+  "stackAfter": {
+    "backend": "healthy",
+    "frontend": "healthy",
+    "postgres": "healthy",
+    "ingress": "running",
+    "oomKilled": false,
+    "restartCount": 0,
+    "readyHttp": 200
+  },
+  "dockerRawAllocatedAfterBytes": 32248299520,
+  "independentReview": {
+    "diskGate": "APPROVE by independent disk_budget_review; expected reclaim not guaranteed physical blocks",
+    "qualification": "APPROVE: independent full50_review confirmed honest FAIL, native UI/File API, 98 chunks then upload/abort429, cleanup, gates and limitations; Docker.raw baseline corrected to pre-transfer observation"
+  },
+  "baselineResourceObservation": {
+    "at": 1791106678.8454552,
+    "hostFreeBytes": 180221911040,
+    "dockerRawAllocatedBytes": 32247816192,
+    "docker": [
+      {
+        "BlockIO": "0B / 537MB",
+        "CPUPerc": "0.00%",
+        "Container": "homecloud-preview-backend-1",
+        "ID": "2e96f568af14",
+        "MemPerc": "0.36%",
+        "MemUsage": "59.15MiB / 15.84GiB",
+        "Name": "homecloud-preview-backend-1",
+        "NetIO": "272MB / 271MB",
+        "PIDs": "11"
+      },
+      {
+        "BlockIO": "0B / 130MB",
+        "CPUPerc": "0.00%",
+        "Container": "homecloud-preview-db-1",
+        "ID": "dc54838e53d4",
+        "MemPerc": "0.21%",
+        "MemUsage": "33.38MiB / 15.84GiB",
+        "Name": "homecloud-preview-db-1",
+        "NetIO": "29.7MB / 31.7MB",
+        "PIDs": "6"
+      }
+    ],
+    "browserProcesses": [
+      " 2137     1  55280   0.0 /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent",
+      " 4378     1 391200   0.0 /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent",
+      " 4379     1 112992   0.0 /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent",
+      " 4388     1  48320   0.0 /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent",
+      " 4568     1 161824   0.8 /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent",
+      "81520     1 211648   0.7 /System/Volumes/Preboot/Cryptexes/App/System/Applications/Safari.app/Contents/MacOS/Safari",
+      "81526     1  58512   0.0 /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+    ],
+    "backendStatus": "VmHWM:\t  149596 kB\nVmRSS:\t  113420 kB",
+    "db": {
+      "sessions": [],
+      "files": [],
+      "user": [
+        {
+          "storageUsed": "37021",
+          "storageQuota": "107374182400"
+        }
+      ]
+    },
+    "storageKiB": "76\t/storage"
+  }
+}

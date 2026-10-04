@@ -60,3 +60,7 @@
 Данные предыдущего remediation PASS остаются историей отдельного checkpoint и не используются как доказательство 50 ГиБ qualification. Полный 50 ГиБ прогон не выполнялся.
 
 Финальная проверка09:05:33UTC (19:05:33Asia/Vladivostok),4октября2026: free=f_bavail180240629760байт, порог182536110080байт, дефицит2295480320байт. Disk gate по-прежнемуBLOCKED.
+
+## Продолжение: APFS и реальная попытка
+
+Новая системная проверка Foundation important capacity показала178,38 GiB: disk gate PASS с сохранённым порогом170 GiB. Реальный Safari upload затем завершился429 после98/5120chunks: **50_GIB_BROWSER_E2E_STATUS = FAIL**. Исторический disk-only BLOCKED выше сохранён. Полные доказательства и cleanup: [full-attempt/report.md](full-attempt/report.md).
