@@ -1,0 +1,491 @@
+{
+  "date": "2026-10-04",
+  "baselineHead": "e30ac482144d0c9f210a43a245f1a089d5cd4446",
+  "stack": "homecloud-preview",
+  "runtimeBackendId": "2e96f568af14df3bc3f5083f6916ddf4c12b0efe06ab3953797f53f38f33a3fe",
+  "fixture": {
+    "name": "large-transfer-128MiB.txt",
+    "bytes": 134217728,
+    "physical_bytes": 134217728,
+    "sha256": "19f026c0276c3e95d8cb0f4cb050710991d6a79a24c153fc6b3a50b9d54a80f4",
+    "method": "allocated deterministic ASCII, streaming generation/hash using <=1MiB buffer",
+    "purpose": "moderate browser E2E, not50GiBqualification"
+  },
+  "ui": [
+    {
+      "browser": "Codex IAB Chromium",
+      "url": "http://localhost:8080/files",
+      "uploadStart": 1791101602148,
+      "uploadObservedEnd": 1791101610854,
+      "downloadStart": 1791101635600,
+      "downloadEnd": 1791101639556,
+      "savedPath": "/Users/aleksejkozemakin/Downloads/large-transfer-128MiB.txt",
+      "size": 134217728,
+      "uploadUi": true,
+      "downloadUi": true,
+      "uploadClickToBackendCompleteSeconds": 1.915,
+      "uploadEffectiveMiBps": 66.84073107049608
+    },
+    {
+      "browser": "Safari27.0",
+      "url": "http://localhost:8080/files",
+      "uploadStart": 1791101817303,
+      "uploadObservedEnd": 1791101848247,
+      "downloadStart": 1791101883254,
+      "downloadObservedEnd": 1791101937409,
+      "savedPath": "/Users/aleksejkozemakin/Downloads/large-transfer-128MiB.txt",
+      "nativeSaveConfirmed": true,
+      "uploadUi": true,
+      "downloadUi": true,
+      "uploadClickToBackendCompleteSeconds": 1.917,
+      "uploadEffectiveMiBps": 66.77099634846114
+    }
+  ],
+  "chunks": [
+    {
+      "browser": "IAB",
+      "chunkCount": 13,
+      "earlyMs": [
+        102.979,
+        89.883,
+        93.306
+      ],
+      "middleMs": [
+        91.735,
+        84.415,
+        97.111
+      ],
+      "lateFullChunkMs": [
+        98.401,
+        91.566,
+        94.143
+      ],
+      "last8MiBMs": 72.906,
+      "lateEarlyRatio": 0.992808420228677
+    },
+    {
+      "browser": "Safari",
+      "chunkCount": 13,
+      "earlyMs": [
+        98.429,
+        91.061,
+        97.347
+      ],
+      "middleMs": [
+        87.627,
+        89.661,
+        88.65
+      ],
+      "lateFullChunkMs": [
+        87.168,
+        84.039,
+        89.423
+      ],
+      "last8MiBMs": 68.621,
+      "lateEarlyRatio": 0.9086345206511014
+    }
+  ],
+  "uploadHttp": [
+    {
+      "timestamp": "2026-10-04T08:13:13.352Z",
+      "method": "GET",
+      "route": "/api/v1/uploads/limits",
+      "statusCode": 200,
+      "durationMs": 11.8
+    },
+    {
+      "timestamp": "2026-10-04T08:13:22.197Z",
+      "method": "GET",
+      "route": "/api/v1/uploads/limits",
+      "statusCode": 304,
+      "durationMs": 6.816
+    },
+    {
+      "timestamp": "2026-10-04T08:13:22.208Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session",
+      "statusCode": 201,
+      "durationMs": 7.829
+    },
+    {
+      "timestamp": "2026-10-04T08:13:22.315Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 102.979
+    },
+    {
+      "timestamp": "2026-10-04T08:13:22.409Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 89.883
+    },
+    {
+      "timestamp": "2026-10-04T08:13:22.505Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 93.306
+    },
+    {
+      "timestamp": "2026-10-04T08:13:22.597Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 88.905
+    },
+    {
+      "timestamp": "2026-10-04T08:13:22.695Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 93.169
+    },
+    {
+      "timestamp": "2026-10-04T08:13:22.790Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 91.735
+    },
+    {
+      "timestamp": "2026-10-04T08:13:22.876Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 84.415
+    },
+    {
+      "timestamp": "2026-10-04T08:13:22.976Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 97.111
+    },
+    {
+      "timestamp": "2026-10-04T08:13:23.075Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 92.767
+    },
+    {
+      "timestamp": "2026-10-04T08:13:23.179Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 98.401
+    },
+    {
+      "timestamp": "2026-10-04T08:13:23.275Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 91.566
+    },
+    {
+      "timestamp": "2026-10-04T08:13:23.373Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 94.143
+    },
+    {
+      "timestamp": "2026-10-04T08:13:23.451Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 72.906
+    },
+    {
+      "timestamp": "2026-10-04T08:13:24.063Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/complete",
+      "statusCode": 200,
+      "durationMs": 606.227
+    },
+    {
+      "timestamp": "2026-10-04T08:16:44.892Z",
+      "method": "GET",
+      "route": "/api/v1/uploads/limits",
+      "statusCode": 200,
+      "durationMs": 16.468
+    },
+    {
+      "timestamp": "2026-10-04T08:16:57.414Z",
+      "method": "GET",
+      "route": "/api/v1/uploads/limits",
+      "statusCode": 304,
+      "durationMs": 5.055
+    },
+    {
+      "timestamp": "2026-10-04T08:16:57.425Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session",
+      "statusCode": 201,
+      "durationMs": 8.006
+    },
+    {
+      "timestamp": "2026-10-04T08:16:57.532Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 98.429
+    },
+    {
+      "timestamp": "2026-10-04T08:16:57.628Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 91.061
+    },
+    {
+      "timestamp": "2026-10-04T08:16:57.733Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 97.347
+    },
+    {
+      "timestamp": "2026-10-04T08:16:57.826Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 89.953
+    },
+    {
+      "timestamp": "2026-10-04T08:16:57.923Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 94.163
+    },
+    {
+      "timestamp": "2026-10-04T08:16:58.016Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 87.627
+    },
+    {
+      "timestamp": "2026-10-04T08:16:58.113Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 89.661
+    },
+    {
+      "timestamp": "2026-10-04T08:16:58.208Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 88.65
+    },
+    {
+      "timestamp": "2026-10-04T08:16:58.296Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 81.632
+    },
+    {
+      "timestamp": "2026-10-04T08:16:58.388Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 87.168
+    },
+    {
+      "timestamp": "2026-10-04T08:16:58.479Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 84.039
+    },
+    {
+      "timestamp": "2026-10-04T08:16:58.575Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 89.423
+    },
+    {
+      "timestamp": "2026-10-04T08:16:58.650Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/chunk",
+      "statusCode": 200,
+      "durationMs": 68.621
+    },
+    {
+      "timestamp": "2026-10-04T08:16:59.220Z",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/complete",
+      "statusCode": 200,
+      "durationMs": 563.59
+    }
+  ],
+  "nativeDownloads": [
+    {
+      "timestamp": "2026-10-04T08:13:59.435Z",
+      "method": "GET",
+      "route": "/api/v1/native-downloads/:id",
+      "statusCode": 200,
+      "durationMs": 3774.475
+    },
+    {
+      "timestamp": "2026-10-04T08:18:03.896Z",
+      "method": "GET",
+      "route": "/api/v1/native-downloads/:id",
+      "statusCode": 200,
+      "durationMs": 580.481
+    }
+  ],
+  "resources": {
+    "homecloud-preview-backend-1": {
+      "samples": 180,
+      "firstMemory": "46.92MiB / 15.84GiB",
+      "lastMemory": "64.53MiB / 15.84GiB",
+      "sampledPeakMiB": 81.9,
+      "sampledPeakCpuPercent": 56.97
+    },
+    "homecloud-preview-db-1": {
+      "samples": 180,
+      "firstMemory": "36.47MiB / 15.84GiB",
+      "lastMemory": "32.27MiB / 15.84GiB",
+      "sampledPeakMiB": 36.51,
+      "sampledPeakCpuPercent": 1.94
+    }
+  },
+  "server": {
+    "files": [
+      {
+        "id": 11,
+        "name": "large-transfer-128MiB.txt",
+        "size": "134217728",
+        "storagePath": "/storage/3/large-transfer-128MiB_08cf7532-daae-4e01-b3ae-4a6261e1904c.txt",
+        "isDeleted": false,
+        "uploadId": "08cf7532-daae-4e01-b3ae-4a6261e1904c",
+        "actualSize": 134217728,
+        "sha256": "19f026c0276c3e95d8cb0f4cb050710991d6a79a24c153fc6b3a50b9d54a80f4"
+      },
+      {
+        "id": 12,
+        "name": "large-transfer-128MiB.txt",
+        "size": "134217728",
+        "storagePath": "/storage/3/large-transfer-128MiB_5e50db74-50e0-4ed0-8b8d-5aaa7fb89f5f.txt",
+        "isDeleted": false,
+        "uploadId": "5e50db74-50e0-4ed0-8b8d-5aaa7fb89f5f",
+        "actualSize": 134217728,
+        "sha256": "19f026c0276c3e95d8cb0f4cb050710991d6a79a24c153fc6b3a50b9d54a80f4"
+      }
+    ],
+    "user": [
+      {
+        "storageUsed": "268472477",
+        "storageQuota": "107374182400"
+      }
+    ],
+    "sessions": [
+      {
+        "uploadId": "5e50db74-50e0-4ed0-8b8d-5aaa7fb89f5f",
+        "status": "completed",
+        "totalSize": "134217728",
+        "uploadedSize": "134217728",
+        "uploadedCount": 13,
+        "totalChunks": 13
+      },
+      {
+        "uploadId": "08cf7532-daae-4e01-b3ae-4a6261e1904c",
+        "status": "completed",
+        "totalSize": "134217728",
+        "uploadedSize": "134217728",
+        "uploadedCount": 13,
+        "totalChunks": 13
+      }
+    ],
+    "chunks": [
+      {
+        "count": "0"
+      }
+    ]
+  },
+  "savedCopyHashes": [
+    {
+      "path": "/Users/aleksejkozemakin/Downloads/large-transfer-128MiB.txt",
+      "size": 134217728,
+      "sha256": "19f026c0276c3e95d8cb0f4cb050710991d6a79a24c153fc6b3a50b9d54a80f4"
+    }
+  ],
+  "cleanup": {
+    "files": [],
+    "user": [
+      {
+        "storageUsed": "37021",
+        "storageQuota": "107374182400"
+      }
+    ],
+    "sessions": [
+      {
+        "uploadId": "5e50db74-50e0-4ed0-8b8d-5aaa7fb89f5f",
+        "status": "completed",
+        "totalSize": "134217728",
+        "uploadedSize": "134217728",
+        "uploadedCount": 13,
+        "totalChunks": 13
+      },
+      {
+        "uploadId": "08cf7532-daae-4e01-b3ae-4a6261e1904c",
+        "status": "completed",
+        "totalSize": "134217728",
+        "uploadedSize": "134217728",
+        "uploadedCount": 13,
+        "totalChunks": 13
+      }
+    ],
+    "chunks": [
+      {
+        "count": "0"
+      }
+    ]
+  },
+  "gates": {
+    "backendSuites": 61,
+    "backendPassed": 757,
+    "backendSkipped": 0,
+    "frontendSuites": 18,
+    "frontendPassed": 176,
+    "nativePostgresLatestPassed": 9,
+    "lintNewWarnings": 0,
+    "lintExistingWarnings": 15,
+    "typecheckBuildBenchCompile": "PASS",
+    "diffCheck": "PASS"
+  },
+  "review": {
+    "performance": "APPROVE",
+    "security": "APPROVE"
+  },
+  "limitations": [
+    "UI observation times are upper bounds, not exact transfer duration. HTTP duration is measured separately.",
+    "Browser RSS/heap was not sampled; bounded JS transport verified by implementation/tests.",
+    "TLS certificate remains untrusted; runtime used existing localhost HTTP8080 with unchanged production Secure cookie policy. No certificate bypass.",
+    "Safari saved over the disposable IAB download path; each was hashed separately after its UI transfer.",
+    "5120 synthetic operation-count regression is not a physical50GiB run."
+  ],
+  "largeFileRemediation": "PASS",
+  "50GiBQualification": "BLOCKED / UNQUALIFIED",
+  "perBrowserIntegrity": [
+    {
+      "browser": "IAB Chromium",
+      "size": 134217728,
+      "sha256": "19f026c0276c3e95d8cb0f4cb050710991d6a79a24c153fc6b3a50b9d54a80f4",
+      "observation": "Streaming Python hash observed immediately after IAB UI download, before Safari upload/download; retained from tool result."
+    },
+    {
+      "browser": "Safari27.0",
+      "size": 134217728,
+      "sha256": "19f026c0276c3e95d8cb0f4cb050710991d6a79a24c153fc6b3a50b9d54a80f4",
+      "observation": "Streaming Python hash after Safari UI download; Safari Downloads and Show in Finder confirmed same saved path."
+    }
+  ]
+}

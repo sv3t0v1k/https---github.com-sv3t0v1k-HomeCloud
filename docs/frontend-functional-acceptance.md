@@ -24,7 +24,7 @@
 | Copy folder | Recursive endpoint отсутствует | NOT_APPLICABLE, UI не обещает операцию |
 | Upload | POST uploads/session, chunk, complete; DELETE session/:id | UI_PRESENT; текст/image runtime проверены |
 | Upload reload resume | GET uploads/sessions возвращает pending | DEFERRED_BY_PRODUCT_DECISION: ROADMAP:336 |
-| Download | GET files/:id/download, Range | UI_PRESENT; 100 MiB Blob limit намеренный (ROADMAP:335); browser byte proof PENDING |
+| Download | POST native-downloads/:id/prepare → native GET, Range | UI_PRESENT; native128МиБ saved/hash proof IAB+Safari PASS; прежний100MiB Blob guard снят после remediation |
 | Preview | GET previews/:id | UI_PRESENT text/image; unsupported state; backend 5 MiB boundary |
 | Thumbnail | GET previews/:id/thumbnail | UI_MISSING auxiliary presentation, новая thumbnail UI не добавлена |
 | Trash / restore / permanent / empty | files/trash, restore, permanent, empty-trash | UI_PRESENT; delete/restore/permanent/empty подтверждены на одноразовых данных |
@@ -403,3 +403,9 @@ Runtime IAB: Account 1440/768/390/375, один visible identity opener, name/em
 Console/network: IAB 0 recorded error/warn; Safari единственная наблюдаемая console ошибка — ожидаемый HTTP404 invalid fixture, на нормальном ресурсе unexpected errors/CSP violations не обнаружены. Manrope loaded; current JS/CSS совпали с production build. После nginx sync proxy/backend logs не содержат проверенные тестовые passwords/tokens; 5xx нет. Новая numbered Phase не создавалась. 50 GiB и Docker cleanup не запускались.
 
 INDEPENDENT_REVIEW: APPROVE. Независимо проверены source, capability matrix и runtime evidence; focused frontend 38/38, backend controller 9/9, diff-check PASS. Reviewer не повторял browser campaign. Blockers нет; отзыв шести тестовых ссылок и safe proxy logs подтверждены. Непрерывное наблюдение простоя 20 секунд: 0 новых запросов (idle-network.json). PUBLIC_SHARE_POLISH_STATUS / ACCOUNT_PROFILE_POLISH_STATUS: PASS в описанном bounded scope.
+
+## Архитектура больших файлов — 4 октября2026
+
+Исторические100MiB guard/Blob и pending browser-byte observations выше описывают прежние checkpoints. Текущий owner/public download использует native browser transfer без JS whole-file buffering. UI показывает handoff, точное завершение проверяется в browser downloads. Effective upload limit берётся с backend, progress≤99 до complete.
+
+Реальные UI upload/download128МиБ в Codex IAB и Safari27.0, saved/server/source sizes и SHA-256 совпали; created test data очищены с подтверждениемTrash. Full frontend176PASS, backend757PASS, PostgreSQL0skips, independent performance/securityAPPROVE. [Evidence и ограничения](evidence/large-file-remediation-20261004/report.md). `LARGE_FILE_REMEDIATION_STATUS = PASS`; `50_GIB_QUALIFICATION_STATUS = BLOCKED / UNQUALIFIED`.

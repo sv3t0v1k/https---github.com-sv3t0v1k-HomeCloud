@@ -291,8 +291,12 @@ HomeCloud/
 
 ### Uploads
 
+Архитектура больших файлов: durable unique chunk metadata и компактные counters; streaming finalization с server disk peak≈2S. Лимиты1ТиБ/file и2ТиБ/active user sessions — настраиваемая policy; quota действует отдельно. Подробнее и фактический статус квалификации: [remediation evidence](docs/evidence/large-file-remediation-20261004/report.md).
+
+
 | Метод | Endpoint | Описание |
 |-------|----------|----------|
+| GET | `/api/v1/uploads/limits` | Effective upload limits для текущего пользователя |
 | POST | `/api/v1/uploads/session` | Создать сессию загрузки |
 | POST | `/api/v1/uploads/session/:uploadId/chunk` | Загрузить чанк |
 | POST | `/api/v1/uploads/session/:uploadId/complete` | Завершить загрузку |
@@ -404,3 +408,7 @@ npm run dev
 ## Лицензия
 
 MIT
+
+### Native browser download
+
+Bearer POST `/api/v1/native-downloads/:id/prepare` выдаёт short-lived resource cookie; GET `/api/v1/native-downloads/:id` атомарно расходует capability и стримит в download manager. HttpOnly/Strict/host-only/Secure production,120s initiation TTL; JWT и capability не находятся в URL. Same-origin frontend/API, доверенный HTTPS в production. JS file Blob отсутствует; interrupted Range resume требует fresh prepare.

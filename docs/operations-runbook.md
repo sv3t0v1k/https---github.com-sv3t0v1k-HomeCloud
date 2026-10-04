@@ -78,3 +78,13 @@ Ingress/frontend access logs содержат только status, bytes и dura
 ## Независимое offsite / custody / measured budgets — 2026-10-02
 
 Ненумерованная bounded remediation: [контракты, operator sequence и recovery objectives](./recovery-objectives.md), [raw qualification](./evidence/offsite-recovery/qualification.json). Local isolated target не является физическим внешним offsite. Раздельные итоговые статусы и фактические измерения фиксируются в qualification; overall **NOT_READY / NO_GO**. REAL_EXTERNAL_OFFSITE и REAL_CUSTODIAN_PROCESS остаются NOT_QUALIFIED, OWNER_APPROVED_RECOVERY_BUDGETS — NOT_AVAILABLE.
+
+## Передача больших файлов
+
+Backend authoritative limits: MAX_FILE_SIZE=1099511627776, MAX_TOTAL_SIZE=2199023255552 (active reservations per user), MAX_UPLOAD_CHUNKS=100000. Explicit0 для file/aggregate означает отсутствие отдельного cap; storageQuota0 остаётся нулевой ёмкостью. При увеличении MAX_CHUNK_SIZE согласовать оба proxy body limits (default51m для50МиБ). Перед обновлением выполнить additive migrations; legacy progress сохраняется и гидратируется один раз.
+
+Планируйте server disk≈2S+concurrent ingress, source/download отдельно, и host backing Docker VM без предположения о немедленном reclaim. Browser download должен идти в native manager через same-origin HttpOnly cookie, production Secure/HTTPS; body/Authorization/cookies не логировать. На обоих proxy streaming download/complete response buffering off и max temp file0; read idle3600s, send/client idle300s. Native GET one-time/TTL120s; при возобновлении нужен fresh prepare.
+
+Finalization bounded RAM, но удерживает transaction/session lock и делаетO(N) DB round trips; MIME text classifier может читать файл ещё раз. Session TTL default24h абсолютный. .tmp содержит working directories; terminal session DB records — history, не orphan chunks. После cleanup проверять отсутствие файлов внутри .tmp и правильную quota.
+
+[Умеренный128МиБ E2E в IAB/Safari и ограничения](evidence/large-file-remediation-20261004/report.md): remediationPASS, `50_GIB_QUALIFICATION_STATUS = BLOCKED / UNQUALIFIED`. Этот результат не меняет production NO_GO и не заменяет полный50ГиБ qualification.
