@@ -120,6 +120,7 @@ describe('FileBrowserPage', () => {
       if (config.url === '/files') {
         return ok(config, completed ? [file(31, 'new.png', 4, 9)] : [])
       }
+      if (config.url === '/uploads/limits') return ok(config, { maxFileBytes: 1099511627776, maxActiveBytes: 2199023255552, maxChunkBytes: 52428800, maxChunks: 100000, remainingActiveBytes: 2199023255552, quotaRemainingBytes: 107374182400, effectiveMaxFileBytes: 107374182400 })
       if (config.url === '/uploads/session') {
         sessionPayloads.push(JSON.parse(String(config.data)))
         return created(config, { uploadId: 'upload-1', totalChunks: 1 })
@@ -177,6 +178,7 @@ describe('FileBrowserPage', () => {
   it('maps upload quota failures to an actionable message', async () => {
     apiClient.defaults.adapter = async (config) => {
       if (config.url === '/files/folders' || config.url === '/files') return ok(config, [])
+      if (config.url === '/uploads/limits') return ok(config, { maxFileBytes: 1099511627776, maxActiveBytes: 2199023255552, maxChunkBytes: 52428800, maxChunks: 100000, remainingActiveBytes: 2199023255552, quotaRemainingBytes: 107374182400, effectiveMaxFileBytes: 107374182400 })
       if (config.url === '/uploads/session') {
         throw responseFailure(config, 403, 'Storage quota exceeded')
       }
@@ -196,21 +198,39 @@ describe('FileBrowserPage', () => {
     expect(screen.getByRole('button', { name: 'Повторить загрузку' })).toBeEnabled()
   })
 
-  it('blocks an oversized browser download before issuing a request', async () => {
+  it('shows the effective upload limit and prevents starting an oversized selection', async () => {
+    let sessionCalls = 0
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/files/folders' || config.url === '/files') return ok(config, [])
+      if (config.url === '/uploads/limits') return ok(config, { maxFileBytes: 100, maxActiveBytes: 100, maxChunkBytes: 10, maxChunks: 10, remainingActiveBytes: 100, quotaRemainingBytes: 1, effectiveMaxFileBytes: 1 })
+      if (config.url === '/uploads/session') sessionCalls += 1
+      throw new Error(`Unexpected request: ${config.url}`)
+    }
+    renderPage('/files')
+    await screen.findByText('В этой папке пока пусто')
+    const user = userEvent.setup()
+    await user.upload(screen.getByLabelText('Выбрать файл для загрузки'), new File(['ab'], 'too-large.txt', { type: 'text/plain' }))
+    expect(await screen.findByText(/Доступный размер файла сейчас: 1 Б/)).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('превышает доступный размер')
+    expect(screen.getByRole('button', { name: 'Загрузить' })).toBeDisabled()
+    expect(sessionCalls).toBe(0)
+  })
+
+  it('prepares native download for a file larger than the old browser cap', async () => {
     let downloadRequests = 0
     apiClient.defaults.adapter = async (config) => {
       if (config.url === '/files/folders') return ok(config, [])
-      if (config.url === '/files') return ok(config, [file(44, 'archive.zip', 101 * 1024 * 1024)])
-      if (config.url?.includes('/download')) downloadRequests += 1
+      if (config.url === '/files') return ok(config, [file(44, 'archive.zip', 53687091200)])
+      if (config.url === '/native-downloads/44/prepare') { downloadRequests += 1; return ok(config, { downloadPath: '/native-downloads/44' }) }
       throw new Error(`Unexpected request: ${config.url}`)
     }
-
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
     renderPage('/files')
     const user = userEvent.setup()
     await chooseAction(user, 'archive.zip', 'Скачать')
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('до 100 МБ')
-    expect(downloadRequests).toBe(0)
+    await waitFor(() => expect(downloadRequests).toBe(1))
+    expect(click).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('cancels an active upload when navigation changes the current folder', async () => {
@@ -222,6 +242,7 @@ describe('FileBrowserPage', () => {
       if (config.url === '/files/folders/7') return ok(config, folder(7, 'Documents', null))
       if (config.url === '/files/folders') return ok(config, parentId ? [] : [folder(7, 'Documents', null)])
       if (config.url === '/files') return ok(config, [])
+      if (config.url === '/uploads/limits') return ok(config, { maxFileBytes: 1099511627776, maxActiveBytes: 2199023255552, maxChunkBytes: 52428800, maxChunks: 100000, remainingActiveBytes: 2199023255552, quotaRemainingBytes: 107374182400, effectiveMaxFileBytes: 107374182400 })
       if (config.url === '/uploads/session') return created(config, { uploadId: 'u-nav', totalChunks: 1 })
       if (config.url === '/uploads/session/u-nav/chunk') {
         return await new Promise<AxiosResponse>((_resolve, reject) => {
@@ -266,6 +287,7 @@ describe('FileBrowserPage', () => {
   ])('maps upload failure "%s" without showing success', async (backendMessage, expectedMessage) => {
     apiClient.defaults.adapter = async (config) => {
       if (config.url === '/files/folders' || config.url === '/files') return ok(config, [])
+      if (config.url === '/uploads/limits') return ok(config, { maxFileBytes: 1099511627776, maxActiveBytes: 2199023255552, maxChunkBytes: 52428800, maxChunks: 100000, remainingActiveBytes: 2199023255552, quotaRemainingBytes: 107374182400, effectiveMaxFileBytes: 107374182400 })
       if (config.url === '/uploads/session') {
         if (backendMessage.startsWith('File size')) throw responseFailure(config, 400, backendMessage)
         return created(config, { uploadId: 'u-error', totalChunks: 1 })

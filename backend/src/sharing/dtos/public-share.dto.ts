@@ -1,5 +1,12 @@
 import { Type } from "class-transformer";
-import { IsInt, IsOptional, IsString, Max, MaxLength, Min } from "class-validator";
+import {
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from "class-validator";
 
 export class SharedChildrenQueryDto {
   @IsOptional()
@@ -34,5 +41,6 @@ export class DownloadShareDto {
   @IsInt()
   @Min(1)
   @Max(Number.MAX_SAFE_INTEGER)
+  @Type(() => Number)
   fileId?: number;
 }

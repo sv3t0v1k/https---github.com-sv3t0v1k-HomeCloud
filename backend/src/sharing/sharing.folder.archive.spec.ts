@@ -1,6 +1,7 @@
 import { ConfigService } from "@nestjs/config";
 import { Writable } from "stream";
 import * as fs from "fs";
+import nativeFs from "fs";
 import * as path from "path";
 import { ShareLinkEntity } from "../entities/share-link.entity";
 import { FileEntity } from "../entities/file.entity";
@@ -38,7 +39,11 @@ describe("SharingService — folder archive foundation", () => {
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join("/tmp", "homecloud-archive-"));
-    shares = { findOne: jest.fn(), query: jest.fn(), createQueryBuilder: jest.fn() };
+    shares = {
+      findOne: jest.fn(),
+      query: jest.fn(),
+      createQueryBuilder: jest.fn(),
+    };
     files = { findOne: jest.fn(), query: jest.fn() };
     service = new SharingService(
       shares,
@@ -56,23 +61,65 @@ describe("SharingService — folder archive foundation", () => {
 
   it("returns nested relative paths for members", async () => {
     files.query.mockResolvedValueOnce([
-      { folderId: 40, name: "Root", isFolder: true, storagePath: null, size: null, parentId: null },
-      { folderId: 41, name: "Docs", isFolder: true, storagePath: null, size: null, parentId: 40 },
-      { folderId: 42, name: "empty", isFolder: true, storagePath: null, size: null, parentId: 40 },
-      { folderId: 100, name: "a.txt", isFolder: false, storagePath: "/storage/7/a.txt", size: 5, parentId: 41 },
-      { folderId: 101, name: "b.txt", isFolder: false, storagePath: "/storage/7/b.txt", size: 6, parentId: 41 },
+      {
+        folderId: 40,
+        name: "Root",
+        isFolder: true,
+        storagePath: null,
+        size: null,
+        parentId: null,
+      },
+      {
+        folderId: 41,
+        name: "Docs",
+        isFolder: true,
+        storagePath: null,
+        size: null,
+        parentId: 40,
+      },
+      {
+        folderId: 42,
+        name: "empty",
+        isFolder: true,
+        storagePath: null,
+        size: null,
+        parentId: 40,
+      },
+      {
+        folderId: 100,
+        name: "a.txt",
+        isFolder: false,
+        storagePath: "/storage/7/a.txt",
+        size: 5,
+        parentId: 41,
+      },
+      {
+        folderId: 101,
+        name: "b.txt",
+        isFolder: false,
+        storagePath: "/storage/7/b.txt",
+        size: 6,
+        parentId: 41,
+      },
     ]);
 
     const members = await service.listArchiveMembers(rootShare());
-    const paths = members.map(m => m.logicalPath).sort();
+    const paths = members.map((m) => m.logicalPath).sort();
     expect(paths).toEqual(["", "Docs", "Docs/a.txt", "Docs/b.txt", "empty"]);
-    const emptyFolder = members.find(m => m.folderId === 42);
+    const emptyFolder = members.find((m) => m.folderId === 42);
     expect(emptyFolder?.isFolder).toBe(true);
   });
 
   it("excludes soft-deleted members", async () => {
     files.query.mockResolvedValueOnce([
-      { folderId: 40, name: "Root", isFolder: true, storagePath: null, size: null, parentId: null },
+      {
+        folderId: 40,
+        name: "Root",
+        isFolder: true,
+        storagePath: null,
+        size: null,
+        parentId: null,
+      },
     ]);
     const members = await service.listArchiveMembers(rootShare());
     expect(members).toHaveLength(1);
@@ -82,11 +129,15 @@ describe("SharingService — folder archive foundation", () => {
   it("fails closed when the share root has no folderId", async () => {
     const share = rootShare();
     share.file.folderId = null as any;
-    await expect(service.listArchiveMembers(share)).rejects.toBeInstanceOf(Error);
+    await expect(service.listArchiveMembers(share)).rejects.toBeInstanceOf(
+      Error,
+    );
   });
 
   it("rejects traversal-like stored names from escaping the archive root", () => {
-    expect(() => SharingService.safeArchivePath("docs/../secret")).toThrow(Error);
+    expect(() => SharingService.safeArchivePath("docs/../secret")).toThrow(
+      Error,
+    );
     expect(() => SharingService.safeArchivePath("/etc/passwd")).toThrow(Error);
     expect(SharingService.safeArchivePath("a\\b\\c")).toBe("a/b/c");
     expect(SharingService.safeArchivePath("./a/./b")).toBe("a/b");
@@ -97,8 +148,22 @@ describe("SharingService — folder archive foundation", () => {
     fs.writeFileSync(memberPath, Buffer.from("hello"));
 
     files.query.mockResolvedValueOnce([
-      { folderId: 40, name: "Root", isFolder: true, storagePath: null, size: null, parentId: null },
-      { folderId: 100, name: "a.txt", isFolder: false, storagePath: memberPath, size: 5, parentId: 40 },
+      {
+        folderId: 40,
+        name: "Root",
+        isFolder: true,
+        storagePath: null,
+        size: null,
+        parentId: null,
+      },
+      {
+        folderId: 100,
+        name: "a.txt",
+        isFolder: false,
+        storagePath: memberPath,
+        size: 5,
+        parentId: 40,
+      },
     ]);
 
     const written: Buffer[] = [];
@@ -120,12 +185,29 @@ describe("SharingService — folder archive foundation", () => {
 
   it("preserves a direct empty child directory name in real ZIP bytes", async () => {
     files.query.mockResolvedValueOnce([
-      { folderId: 40, name: "Root", isFolder: true, storagePath: null, size: null, parentId: null },
-      { folderId: 41, name: "Контроль", isFolder: true, storagePath: null, size: null, parentId: 40 },
+      {
+        folderId: 40,
+        name: "Root",
+        isFolder: true,
+        storagePath: null,
+        size: null,
+        parentId: null,
+      },
+      {
+        folderId: 41,
+        name: "Контроль",
+        isFolder: true,
+        storagePath: null,
+        size: null,
+        parentId: 40,
+      },
     ]);
     const written: Buffer[] = [];
     const destination = new Writable({
-      write(chunk, _encoding, callback) { written.push(Buffer.from(chunk)); callback(); },
+      write(chunk, _encoding, callback) {
+        written.push(Buffer.from(chunk));
+        callback();
+      },
     });
     await service.streamFolderArchive(rootShare(), destination);
     const bytes = Buffer.concat(written);
@@ -133,15 +215,107 @@ describe("SharingService — folder archive foundation", () => {
     for (let offset = 0; offset + 46 <= bytes.length; offset++) {
       if (bytes.readUInt32LE(offset) !== 0x02014b50) continue;
       const length = bytes.readUInt16LE(offset + 28);
-      names.push(bytes.subarray(offset + 46, offset + 46 + length).toString("utf8"));
+      names.push(
+        bytes.subarray(offset + 46, offset + 46 + length).toString("utf8"),
+      );
     }
     expect(names).toEqual(["./", "Контроль/"]);
   });
 
+  it("bounds member descriptors independently of archive member count", async () => {
+    const memberPath = path.join(tempDir, "member.bin");
+    fs.writeFileSync(memberPath, Buffer.alloc(1024));
+    jest.spyOn(service, "listArchiveMembers").mockResolvedValue(
+      Array.from({ length: 80 }, (_, i) => ({
+        isFolder: false,
+        storagePath: memberPath,
+        logicalPath: `member-${i}`,
+        name: `member-${i}`,
+      })) as any,
+    );
+    const native = nativeFs;
+    const create = native.createReadStream;
+    let active = 0;
+    let peak = 0;
+    const spy = jest
+      .spyOn(native, "createReadStream")
+      .mockImplementation((...args: any[]) => {
+        const stream = create(args[0], args[1]);
+        active++;
+        peak = Math.max(peak, active);
+        stream.once("close", () => active--);
+        return stream;
+      });
+    try {
+      await service.streamFolderArchive(
+        rootShare(),
+        new Writable({
+          write(_chunk, _encoding, done) {
+            done();
+          },
+        }),
+      );
+      expect(peak).toBe(1);
+      expect(active).toBe(0);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+  it("destroys the current member and opens no later member on disconnect", async () => {
+    const memberPath = path.join(tempDir, "abort.bin");
+    fs.writeFileSync(memberPath, Buffer.alloc(1024 * 1024));
+    jest.spyOn(service, "listArchiveMembers").mockResolvedValue(
+      Array.from({ length: 10 }, (_, i) => ({
+        isFolder: false,
+        storagePath: memberPath,
+        logicalPath: `member-${i}`,
+        name: `member-${i}`,
+      })) as any,
+    );
+    const native = nativeFs;
+    const create = native.createReadStream;
+    const opened: fs.ReadStream[] = [];
+    const spy = jest
+      .spyOn(native, "createReadStream")
+      .mockImplementation((...args: any[]) => {
+        const stream = create(args[0], args[1]);
+        opened.push(stream);
+        return stream;
+      });
+    const destination = new Writable({
+      write(_chunk, _encoding, done) {
+        this.destroy();
+        done();
+      },
+    });
+    try {
+      await service.streamFolderArchive(rootShare(), destination);
+      await new Promise((done) => setImmediate(done));
+      expect(opened.length).toBeLessThanOrEqual(1);
+      expect(opened.every((stream) => stream.destroyed)).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it("cleans up the fd when a member fails to open", async () => {
     files.query.mockResolvedValueOnce([
-      { folderId: 40, name: "Root", isFolder: true, storagePath: null, size: null, parentId: null },
-      { folderId: 100, name: "ghost.txt", isFolder: false, storagePath: "/nonexistent/ghost.txt", size: 5, parentId: 40 },
+      {
+        folderId: 40,
+        name: "Root",
+        isFolder: true,
+        storagePath: null,
+        size: null,
+        parentId: null,
+      },
+      {
+        folderId: 100,
+        name: "ghost.txt",
+        isFolder: false,
+        storagePath: "/nonexistent/ghost.txt",
+        size: 5,
+        parentId: 40,
+      },
     ]);
 
     const res = new Writable({
@@ -150,6 +324,8 @@ describe("SharingService — folder archive foundation", () => {
       },
     }) as any;
 
-    await expect(service.streamFolderArchive(rootShare(), res)).rejects.toThrow();
+    await expect(
+      service.streamFolderArchive(rootShare(), res),
+    ).rejects.toThrow();
   });
 });

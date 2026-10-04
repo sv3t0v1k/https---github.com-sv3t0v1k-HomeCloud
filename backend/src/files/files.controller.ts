@@ -248,96 +248,13 @@ export class FilesController {
     @Param("id") id: string,
     @Res() res: Response,
   ) {
-    const file = await this.filesService.findOne(
-      req.user.userId,
-      parseInt(id, 10),
+    return streamOriginalDownload(
+      this.filesService,
+      this.storageService,
+      req,
+      id,
+      res,
     );
-    if (file.isFolder) {
-      throw new BadRequestException("Folders cannot be downloaded as files");
-    }
-    if (file.isDeleted || !file.storagePath) {
-      throw new NotFoundException("File not found");
-    }
-
-    let safePath: string;
-    try {
-      safePath = this.storageService.ensureWithinStorageRoot(file.storagePath);
-      safePath = this.storageService.ensureWithinStorageRoot(
-        fs.realpathSync(safePath),
-      );
-    } catch {
-      throw new NotFoundException("File not found on storage");
-    }
-
-    let fd: number;
-    try {
-      fd = fs.openSync(
-        safePath,
-        fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
-      );
-    } catch {
-      throw new NotFoundException("File not found on storage");
-    }
-
-    let streamOwnsDescriptor = false;
-    try {
-      const stat = fs.fstatSync(fd);
-      if (!stat.isFile() || !Number.isSafeInteger(stat.size)) {
-        throw new NotFoundException("File not found on storage");
-      }
-
-      const fileSize = stat.size;
-      const safeFileName = (file.name || "download").replace(
-        /[^\x20-\x7e]|["\\]/g,
-        "_",
-      );
-      const mimeType =
-        file.mimeType &&
-        /^[A-Za-z0-9!#$&^_.+-]+\/[A-Za-z0-9!#$&^_.+-]+$/.test(file.mimeType)
-          ? file.mimeType
-          : "application/octet-stream";
-      const baseHeaders = {
-        "Content-Type": mimeType,
-        "Content-Disposition": `attachment; filename="${safeFileName}"`,
-        "Accept-Ranges": "bytes",
-      };
-      const parsed = parseDownloadRange(req.headers.range, fileSize);
-
-      if (parsed.type === "unsatisfiable") {
-        res.status(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE).set({
-          ...baseHeaders,
-          "Content-Range": `bytes */${fileSize}`,
-        });
-        res.end();
-        return;
-      }
-
-      if (parsed.type === "none") {
-        res.set({ ...baseHeaders, "Content-Length": String(fileSize) });
-        if (req.method === "HEAD") {
-          res.end();
-          return;
-        }
-        this.streamFile(safePath, res, fd);
-        streamOwnsDescriptor = true;
-        return;
-      }
-
-      const { start, end } = parsed;
-      res.status(HttpStatus.PARTIAL_CONTENT).set({
-        ...baseHeaders,
-        "Content-Range": `bytes ${start}-${end}/${fileSize}`,
-        "Content-Length": String(end - start + 1),
-      });
-      if (req.method === "HEAD") {
-        res.end();
-        return;
-      }
-      this.streamFile(safePath, res, fd, start, end);
-      streamOwnsDescriptor = true;
-    } finally {
-      if (!streamOwnsDescriptor) fs.closeSync(fd);
-    }
   }
 
   @Get(":id")
@@ -418,29 +335,130 @@ export class FilesController {
       dto.targetParentId,
     );
   }
+}
 
-  private streamFile(
-    filePath: string,
-    res: Response,
-    fd: number,
-    start?: number,
-    end?: number,
-  ): void {
-    const stream = fs.createReadStream(
-      filePath,
-      start === undefined
-        ? { fd, autoClose: true }
-        : { fd, autoClose: true, start, end },
-    );
-
-    stream.on("error", (error) => {
-      if (!res.headersSent) {
-        res.status(HttpStatus.INTERNAL_SERVER_ERROR).end();
-      } else {
-        res.destroy(error);
-      }
-    });
-    res.on("close", () => stream.destroy());
-    stream.pipe(res);
+export async function streamOriginalDownload(
+  filesService: FilesService,
+  storageService: StorageService,
+  req: ExpressRequest & { user: { userId: number } },
+  id: string,
+  res: Response,
+) {
+  if (
+    !/^[1-9]\d*$/.test(id) ||
+    !Number.isSafeInteger(Number(id)) ||
+    Number(id) > 2147483647
+  )
+    throw new BadRequestException("Invalid file id");
+  const file = await filesService.findOne(req.user.userId, parseInt(id, 10));
+  if (file.isFolder) {
+    throw new BadRequestException("Folders cannot be downloaded as files");
   }
+  if (file.isDeleted || !file.storagePath) {
+    throw new NotFoundException("File not found");
+  }
+
+  let safePath: string;
+  try {
+    safePath = storageService.ensureWithinStorageRoot(file.storagePath);
+    safePath = storageService.ensureWithinStorageRoot(
+      fs.realpathSync(safePath),
+    );
+  } catch {
+    throw new NotFoundException("File not found on storage");
+  }
+
+  let fd: number;
+  try {
+    fd = fs.openSync(safePath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+  } catch {
+    throw new NotFoundException("File not found on storage");
+  }
+
+  let streamOwnsDescriptor = false;
+  try {
+    const stat = fs.fstatSync(fd);
+    if (!stat.isFile() || !Number.isSafeInteger(stat.size)) {
+      throw new NotFoundException("File not found on storage");
+    }
+
+    const fileSize = stat.size;
+    const safeFileName = (file.name || "download").replace(
+      /[^\x20-\x7e]|["\\]/g,
+      "_",
+    );
+    const mimeType =
+      file.mimeType &&
+      /^[A-Za-z0-9!#$&^_.+-]+\/[A-Za-z0-9!#$&^_.+-]+$/.test(file.mimeType)
+        ? file.mimeType
+        : "application/octet-stream";
+    const baseHeaders = {
+      "Content-Type": mimeType,
+      "Content-Disposition": `attachment; filename="${safeFileName}"`,
+      "Accept-Ranges": "bytes",
+      "Cache-Control": "no-store",
+      "X-Content-Type-Options": "nosniff",
+    };
+    const parsed = parseDownloadRange(req.headers.range, fileSize);
+
+    if (parsed.type === "unsatisfiable") {
+      res.status(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE).set({
+        ...baseHeaders,
+        "Content-Range": `bytes */${fileSize}`,
+      });
+      res.end();
+      return;
+    }
+
+    if (parsed.type === "none") {
+      res.set({ ...baseHeaders, "Content-Length": String(fileSize) });
+      if (req.method === "HEAD") {
+        res.end();
+        return;
+      }
+      streamFile(safePath, res, fd);
+      streamOwnsDescriptor = true;
+      return;
+    }
+
+    const { start, end } = parsed;
+    res.status(HttpStatus.PARTIAL_CONTENT).set({
+      ...baseHeaders,
+      "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+      "Content-Length": String(end - start + 1),
+    });
+    if (req.method === "HEAD") {
+      res.end();
+      return;
+    }
+    streamFile(safePath, res, fd, start, end);
+    streamOwnsDescriptor = true;
+  } finally {
+    if (!streamOwnsDescriptor) fs.closeSync(fd);
+  }
+}
+
+function streamFile(
+  filePath: string,
+  res: Response,
+  fd: number,
+  start?: number,
+  end?: number,
+): void {
+  const stream = fs.createReadStream(
+    filePath,
+    start === undefined
+      ? { fd, autoClose: true }
+      : { fd, autoClose: true, start, end },
+  );
+
+  stream.on("error", (error) => {
+    if (!res.headersSent) {
+      res.status(HttpStatus.INTERNAL_SERVER_ERROR).end();
+    } else {
+      res.destroy(error);
+    }
+  });
+  res.on("close", () => stream.destroy());
+  stream.pipe(res);
 }

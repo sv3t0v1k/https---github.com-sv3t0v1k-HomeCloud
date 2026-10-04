@@ -18,7 +18,7 @@ describe('PublicSharePage', () => {
     expect(screen.getByText(/1,7 ГБ/)).toBeInTheDocument()
     expect(screen.getByText('Безопасный доступ через HomeCloud')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Просмотр/ })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Скачать файл' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Скачать файл' })).toBeEnabled()
   })
   it('replaces protected state with metadata only after successful unlock', async () => {
     vi.mocked(api.getPublicShare).mockResolvedValue({ fileId: 1, isFolder: false, requiresPassword: true, expiresAt: null })
@@ -48,7 +48,7 @@ describe('PublicSharePage', () => {
   it('downloads anonymously without requiring an account', async () => {
     page(); await userEvent.click(await screen.findByRole('button', { name: 'Скачать файл' }))
     expect(api.downloadPublicShare).toHaveBeenCalledWith('token', '', undefined, undefined, expect.any(AbortSignal))
-    expect(await screen.findByRole('status')).toHaveTextContent('Скачивание подготовлено')
+    expect(await screen.findByRole('status')).toHaveTextContent('Передано браузеру')
   })
   it('verifies password, handles incorrect input and prevents duplicate requests', async () => {
     vi.mocked(api.getPublicShare).mockResolvedValue({ fileId: 1, isFolder: false, requiresPassword: true, expiresAt: null })

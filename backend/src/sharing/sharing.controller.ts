@@ -25,7 +25,10 @@ import { SharingService } from "./sharing.service";
 import { StorageService } from "../storage/storage.service";
 import { ShareLinkEntity } from "../entities/share-link.entity";
 import { CreateShareDto } from "./dtos/create-share.dto";
-import { DownloadShareDto, SharedChildrenQueryDto } from "./dtos/public-share.dto";
+import {
+  DownloadShareDto,
+  SharedChildrenQueryDto,
+} from "./dtos/public-share.dto";
 
 class VerifyPasswordDto {
   @IsOptional()
@@ -54,6 +57,8 @@ export function parseRangeHeader(
   rangeHeader: string | undefined,
   fileSize: number,
 ): RangeParseResult {
+  if (!Number.isSafeInteger(fileSize) || fileSize < 0)
+    return { type: "unsatisfiable" };
   if (!rangeHeader || rangeHeader.trim() === "") return { type: "none" };
 
   // Only a single `bytes=start-end` range is accepted. Multiple ranges,
@@ -71,7 +76,7 @@ export function parseRangeHeader(
   if (startStr === "") {
     // Suffix range: bytes=-N (last N bytes)
     const suffix = Number(endStr);
-    if (!Number.isFinite(suffix) || suffix <= 0) {
+    if (!Number.isSafeInteger(suffix) || suffix <= 0) {
       return { type: "unsatisfiable" };
     }
     if (suffix >= fileSize) {
@@ -84,7 +89,7 @@ export function parseRangeHeader(
   } else {
     start = Number(startStr);
     end = endStr === "" ? fileSize - 1 : Number(endStr);
-    if (!Number.isFinite(start) || (endStr !== "" && !Number.isFinite(end))) {
+    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end)) {
       return { type: "unsatisfiable" };
     }
   }
@@ -113,12 +118,16 @@ export class SharingController {
     @Body() dto: CreateShareDto,
   ) {
     const userId = req.user.userId;
-    const share = await this.sharingService.createShareLink(userId, dto.fileId, {
-      password: dto.password,
-      expiresInDays: dto.expiresInDays,
-      maxDownloads: dto.maxDownloads,
-      isFolder: dto.isFolder,
-    });
+    const share = await this.sharingService.createShareLink(
+      userId,
+      dto.fileId,
+      {
+        password: dto.password,
+        expiresInDays: dto.expiresInDays,
+        maxDownloads: dto.maxDownloads,
+        isFolder: dto.isFolder,
+      },
+    );
     return toOwnerShareResponse(share);
   }
 
@@ -242,7 +251,13 @@ export class SharingController {
       const fileSize = stat.size;
       const fileName = downloadFile.name || "download";
       const safeFileName = fileName.replace(/[^\x20-\x7e]|["\\]/g, "_");
-      const mimeType = downloadFile.mimeType || "application/octet-stream";
+      const mimeType =
+        downloadFile.mimeType &&
+        /^[A-Za-z0-9!#$&^_.+-]+\/[A-Za-z0-9!#$&^_.+-]+$/.test(
+          downloadFile.mimeType,
+        )
+          ? downloadFile.mimeType
+          : "application/octet-stream";
 
       const rangeHeader = req?.headers?.range as string | undefined;
       const parsed = parseRangeHeader(rangeHeader, fileSize);
@@ -267,7 +282,10 @@ export class SharingController {
       // Списываем допуск только после успешного открытия файла и проверки Range.
       // Отмена клиентом после допуска не возвращает слот: иначе лимит обходится abort.
       if (share.file.isFolder) {
-        await this.sharingService.incrementFolderDownloadCount(token, downloadFile.id);
+        await this.sharingService.incrementFolderDownloadCount(
+          token,
+          downloadFile.id,
+        );
       } else {
         await this.sharingService.incrementDownloadCount(token);
       }
@@ -314,12 +332,15 @@ export class SharingController {
     // Atomic admission: one slot for the whole archive.
     await this.sharingService.incrementFolderArchiveDownloadCount(token);
 
-    const rootName = (share.file.name || "folder").replace(/[^\x20-\x7e]|["\\]/g, "_");
+    const rootName = (share.file.name || "folder").replace(
+      /[^\x20-\x7e]|["\\]/g,
+      "_",
+    );
     res.set({
       "Content-Type": "application/zip",
       "Content-Disposition": `attachment; filename="${rootName}.zip"`,
       "Cache-Control": "no-store",
-      "Accept-Ranges": "bytes",
+      "Accept-Ranges": "none",
     });
 
     try {
@@ -328,7 +349,7 @@ export class SharingController {
       if (!res.headersSent) {
         res.status(500).end();
       } else {
-        res.end();
+        res.destroy();
       }
     }
   }
@@ -359,7 +380,7 @@ export class SharingController {
       if (!res.headersSent) {
         res.status(500).end();
       } else {
-        res.end();
+        res.destroy();
       }
     });
 

@@ -5,6 +5,7 @@ import { FolderEntity } from "./entities/folder.entity";
 import { ShareLinkEntity } from "./entities/share-link.entity";
 import { UploadSessionEntity } from "./entities/upload-session.entity";
 import { UploadChunkEntity } from "./entities/upload-chunk.entity";
+import { DownloadCapabilityEntity } from "./entities/download-capability.entity";
 import { RefreshTokenEntity } from "./entities/refresh-token.entity";
 
 export default new DataSource({
@@ -19,6 +20,7 @@ export default new DataSource({
     ShareLinkEntity,
     UploadSessionEntity,
     UploadChunkEntity,
+    DownloadCapabilityEntity,
     RefreshTokenEntity,
   ],
   migrations: [__dirname + "/migrations/*{.ts,.js}"],

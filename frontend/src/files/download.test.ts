@@ -1,134 +1,30 @@
-import {
-  AxiosError,
-  AxiosHeaders,
-  type AxiosResponse,
-  type InternalAxiosRequestConfig,
-} from 'axios'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '../api/client'
-import { ApiError } from '../api/errors'
 import { tokenStorage } from '../auth/tokenStorage'
-import {
-  BrowserDownloadLimitError,
-  downloadOriginalFile,
-  MAX_BROWSER_BLOB_DOWNLOAD_BYTES,
-} from './download'
+import { downloadOriginalFile } from './download'
 
-describe('downloadOriginalFile', () => {
-  beforeEach(() => {
-    tokenStorage.clear()
-    apiClient.defaults.adapter = undefined
-    vi.stubGlobal('URL', {
-      createObjectURL: vi.fn(() => 'blob:homecloud-download'),
-      revokeObjectURL: vi.fn(),
-    })
-  })
-
-  afterEach(() => {
-    tokenStorage.clear()
-    apiClient.defaults.adapter = undefined
-    vi.restoreAllMocks()
-    vi.unstubAllGlobals()
-  })
-
-  it('downloads the exact authenticated original endpoint and cleans up the object URL', async () => {
-    tokenStorage.set({ accessToken: 'access-token', refreshToken: 'refresh-token' })
-    const blob = new Blob(['original bytes'], { type: 'text/plain' })
-    let request: InternalAxiosRequestConfig | undefined
+afterEach(() => { tokenStorage.clear(); apiClient.defaults.adapter = undefined; vi.restoreAllMocks(); document.getElementById('homecloud-native-download')?.remove() })
+describe('native authenticated download', () => {
+  it.each([1, 100 * 1024 ** 2 + 1, 53687091200])('hands %s bytes to the browser with no response buffering or URL secrets', async (size) => {
+    tokenStorage.set({ accessToken: 'owner-secret', refreshToken: 'refresh-secret' })
+    const requests: unknown[] = []
     apiClient.defaults.adapter = async (config) => {
-      request = config
-      return ok(config, blob)
+      requests.push({ method: config.method, url: config.url, auth: config.headers.Authorization, responseType: config.responseType, credentials: config.withCredentials })
+      return { config, status: 200, statusText: 'OK', headers: {}, data: { success: true, data: { downloadPath: '/native-downloads/42' } } }
     }
-    let clickedHref: string | undefined
-    let clickedDownload: string | undefined
-    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
-      this: HTMLAnchorElement,
-    ) {
-      clickedHref = this.href
-      clickedDownload = this.download
-    })
-
-    await downloadOriginalFile({ id: 42, name: 'отчёт.txt', size: blob.size })
-
-    expect(request?.method).toBe('get')
-    expect(request?.url).toBe('/files/42/download')
-    expect(request?.responseType).toBe('blob')
-    expect(request?.headers.Authorization).toBe('Bearer access-token')
-    expect(clickedHref).toBe('blob:homecloud-download')
-    expect(clickedDownload).toBe('отчёт.txt')
-    expect(URL.createObjectURL).toHaveBeenCalledWith(blob)
-    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:homecloud-download')
-    expect(document.querySelector('a[href="blob:homecloud-download"]')).toBeNull()
+    let href = ''
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) { href = this.href; expect(this.target).toBe('homecloud-native-download') })
+    await downloadOriginalFile({ id: 42, name: 'large.bin', size: String(size) })
+    expect(requests).toEqual([{ method: 'post', url: '/native-downloads/42/prepare', auth: 'Bearer owner-secret', responseType: undefined, credentials: true }])
+    expect(new URL(href).pathname).toBe('/api/v1/native-downloads/42')
+    expect(new URL(href).search).toBe('')
+    expect(href).not.toContain('secret')
+    expect(document.querySelector('a')).toBeNull()
   })
-
-  it('rejects an oversized file before making a request', async () => {
-    const adapter = vi.fn()
-    apiClient.defaults.adapter = adapter
-
-    await expect(
-      downloadOriginalFile({
-        id: 42,
-        name: 'large.bin',
-        size: String(MAX_BROWSER_BLOB_DOWNLOAD_BYTES + 1),
-      }),
-    ).rejects.toBeInstanceOf(BrowserDownloadLimitError)
-
-    expect(adapter).not.toHaveBeenCalled()
-    expect(URL.createObjectURL).not.toHaveBeenCalled()
-  })
-
-  it('accepts the exact browser-safe cap', async () => {
-    apiClient.defaults.adapter = async (config) => ok(config, new Blob())
-    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
-
-    await expect(
-      downloadOriginalFile({
-        id: 7,
-        name: 'at-limit.bin',
-        size: MAX_BROWSER_BLOB_DOWNLOAD_BYTES,
-      }),
-    ).resolves.toBeUndefined()
-  })
-
-  it('normalizes backend failures for the caller', async () => {
-    apiClient.defaults.adapter = async (config) => {
-      throw responseFailure(config, 403, 'Download forbidden')
-    }
-
-    await expect(
-      downloadOriginalFile({ id: 9, name: 'private.txt', size: 12 }),
-    ).rejects.toEqual(
-      expect.objectContaining<ApiError>({
-        name: 'ApiError',
-        kind: 'authorization',
-        status: 403,
-        message: 'Download forbidden',
-      }),
-    )
+  it('rejects an unexpected resource endpoint before native navigation', async () => {
+    apiClient.defaults.adapter = async (config) => ({ config, status: 200, statusText: 'OK', headers: {}, data: { data: { downloadPath: '/native-downloads/99' } } })
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click')
+    await expect(downloadOriginalFile({ id: 42, name: 'private.bin', size: 1 })).rejects.toThrow('Invalid download endpoint')
+    expect(click).not.toHaveBeenCalled()
   })
 })
-
-function ok(config: InternalAxiosRequestConfig, data: unknown): AxiosResponse {
-  return {
-    config,
-    status: 200,
-    statusText: 'OK',
-    headers: new AxiosHeaders(),
-    data,
-  }
-}
-
-function responseFailure(
-  config: InternalAxiosRequestConfig,
-  status: number,
-  message: string,
-) {
-  return new AxiosError('failed', undefined, config, undefined, {
-    config,
-    status,
-    statusText: 'Error',
-    headers: new AxiosHeaders(),
-    data: { statusCode: status, message },
-  })
-}

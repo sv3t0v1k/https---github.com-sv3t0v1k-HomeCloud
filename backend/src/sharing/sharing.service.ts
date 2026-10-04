@@ -1,7 +1,13 @@
 import { Writable } from "stream";
 import * as fs from "fs";
 import * as path from "path";
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from "@nestjs/common";
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+  Logger,
+} from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import * as bcrypt from "bcryptjs";
@@ -177,7 +183,8 @@ export class SharingService {
       .returning(["failedAttempts", "lockedUntil"])
       .execute();
 
-    const updatedShare = result?.raw?.[0] as { failedAttempts: number; lockedUntil: Date | null } | undefined;
+    const updatedShare = result?.raw?.[0] as
+      { failedAttempts: number; lockedUntil: Date | null } | undefined;
     if (!updatedShare || updatedShare.failedAttempts >= LOCK_THRESHOLD) {
       throw new ForbiddenException("Too many password attempts");
     }
@@ -264,9 +271,7 @@ export class SharingService {
    * Archive entry names are logical paths only and never contain absolute
    * filesystem paths or `..` traversal (see `safeArchivePath`).
    */
-  async listArchiveMembers(
-    share: ShareLinkEntity,
-  ): Promise<
+  async listArchiveMembers(share: ShareLinkEntity): Promise<
     Array<{
       folderId: number;
       name: string;
@@ -313,23 +318,28 @@ export class SharingService {
     const folderPathMap = new Map<number, string>();
     folderPathMap.set(share.file.folderId, "");
 
-    const orderedFolders = folderRows.sort(
-      (a: any, b: any) => {
-        const depthA = a.parentId ? (folderPathMap.get(a.parentId) ?? "") : "";
-        const depthB = b.parentId ? (folderPathMap.get(b.parentId) ?? "") : "";
-        return depthA.length - depthB.length;
-      },
-    );
+    const orderedFolders = folderRows.sort((a: any, b: any) => {
+      const depthA = a.parentId ? (folderPathMap.get(a.parentId) ?? "") : "";
+      const depthB = b.parentId ? (folderPathMap.get(b.parentId) ?? "") : "";
+      return depthA.length - depthB.length;
+    });
     for (const row of orderedFolders) {
       if (row.folderId === share.file.folderId) continue;
-      const parentPath = row.parentId ? folderPathMap.get(row.parentId) ?? "" : "";
-      folderPathMap.set(row.folderId, parentPath ? `${parentPath}/${row.name}` : row.name);
+      const parentPath = row.parentId
+        ? (folderPathMap.get(row.parentId) ?? "")
+        : "";
+      folderPathMap.set(
+        row.folderId,
+        parentPath ? `${parentPath}/${row.name}` : row.name,
+      );
     }
 
     return rows.map((row: any) => {
-      const parentPath = row.parentId ? folderPathMap.get(row.parentId) ?? "" : "";
+      const parentPath = row.parentId
+        ? (folderPathMap.get(row.parentId) ?? "")
+        : "";
       const logicalPath = row.isFolder
-        ? folderPathMap.get(row.folderId) ?? row.name
+        ? (folderPathMap.get(row.folderId) ?? row.name)
         : parentPath
           ? `${parentPath}/${row.name}`
           : row.name;
@@ -481,12 +491,20 @@ export class SharingService {
     };
   }
 
-  async resolveSharedFolderFile(share: ShareLinkEntity, fileId: number): Promise<FileEntity> {
+  async resolveSharedFolderFile(
+    share: ShareLinkEntity,
+    fileId: number,
+  ): Promise<FileEntity> {
     if (!share.file.isFolder || !share.file.folderId) {
       throw new NotFoundException("Shared file not found");
     }
     const file = await this.fileRepository.findOne({
-      where: { id: fileId, userId: share.userId, isDeleted: false, isFolder: false },
+      where: {
+        id: fileId,
+        userId: share.userId,
+        isDeleted: false,
+        isFolder: false,
+      },
     });
     if (!file) throw new NotFoundException("Shared file not found");
     const allowed = await this.fileRepository.query(
@@ -498,11 +516,15 @@ export class SharingService {
        LIMIT 1`,
       [share.file.folderId, share.userId, fileId],
     );
-    if (allowed.length !== 1) throw new NotFoundException("Shared file not found");
+    if (allowed.length !== 1)
+      throw new NotFoundException("Shared file not found");
     return file;
   }
 
-  async incrementFolderDownloadCount(token: string, fileId: number): Promise<{ downloadCount: number }> {
+  async incrementFolderDownloadCount(
+    token: string,
+    fileId: number,
+  ): Promise<{ downloadCount: number }> {
     const rows = await this.shareLinkRepository.query(
       `WITH RECURSIVE share_context AS (
         SELECT share."userId", root_mirror."folderId" AS "rootId"
@@ -695,88 +717,116 @@ export class SharingService {
 
     return new Promise<void>((resolve, reject) => {
       let settled = false;
-
+      let cancelled = false;
+      let activeStream: fs.ReadStream | undefined;
       const finish = (err?: Error | null) => {
         if (settled) return;
         settled = true;
-        archive.off("error", onError);
+        if (err || cancelled) {
+          activeStream?.destroy();
+          archive.abort();
+          archive.unpipe(destination);
+        }
         if (err) reject(err);
         else resolve();
       };
-
-      const onError = (err: Error) => finish(err);
-      archive.on("error", onError);
-
+      archive.on("error", (err: Error) => finish(err));
       archive.on("end", () => finish());
-      archive.on("finish", () => finish());
-
       archive.pipe(destination);
-
-      let cancelled = false;
       destination.on("close", () => {
         cancelled = true;
         finish();
       });
-      destination.on("error", (err: Error) => finish(err));
+      destination.on("error", (err: Error) => {
+        cancelled = true;
+        finish(err);
+      });
 
+      // Wait for the current entry before opening another descriptor.
+      const appendEntry = (
+        source: Buffer | fs.ReadStream,
+        data: archiver.EntryData,
+      ) =>
+        new Promise<void>((done, fail) => {
+          const clean = () => {
+            archive.off("entry", onEntry);
+            archive.off("error", onError);
+            destination.off("close", onClose);
+            destination.off("error", onError);
+          };
+          const onEntry = () => {
+            clean();
+            done();
+          };
+          const onClose = () => {
+            clean();
+            done();
+          };
+          const onError = (err: Error) => {
+            clean();
+            fail(err);
+          };
+          archive.once("entry", onEntry);
+          archive.once("error", onError);
+          destination.once("close", onClose);
+          destination.once("error", onError);
+          archive.append(source, data);
+        });
       (async () => {
         try {
           for (const member of members) {
-            if (cancelled) break;
-
-            const entryName = SharingService.safeArchivePath(member.logicalPath) || member.name;
-
+            if (cancelled || settled) break;
+            const entryName =
+              SharingService.safeArchivePath(member.logicalPath) || member.name;
             if (member.isFolder) {
-              // Record an empty directory entry without triggering readdir-glob
-              // (which pulls in lazystream/readable-stream and is incompatible
-              // with the project's Node 20 runtime).
-              archive.append(Buffer.alloc(0), {
+              await appendEntry(Buffer.alloc(0), {
                 name: member.logicalPath === "" ? "./" : `${entryName}/`,
                 type: "directory",
-              } as any);
+              } as archiver.EntryData);
               continue;
             }
-
-            if (!member.storagePath) {
+            if (!member.storagePath)
               throw new BadRequestException(
-                `Archive member ${member.name} has no storage path`,
+                "Archive member has no storage path",
               );
-            }
-
-            const safePath = this.storageService.ensureWithinStorageRoot(member.storagePath);
+            const safePath = this.storageService.ensureWithinStorageRoot(
+              member.storagePath,
+            );
             const realPath = this.storageService.ensureWithinStorageRoot(
               fs.realpathSync(safePath),
             );
-            const fd = fs.openSync(realPath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
-
+            const fd = fs.openSync(
+              realPath,
+              fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
+            );
             try {
               const stat = fs.fstatSync(fd);
-              if (!stat.isFile()) {
-                fs.closeSync(fd);
+              if (!stat.isFile())
                 throw new NotFoundException("File not found on storage");
-              }
-              // Stream the member through archiver without buffering it.
-              // fs.createReadStream closes the fd when the stream ends, so the
-              // fd lifecycle is owned by the stream from here.
-              const memberStream = fs.createReadStream(realPath, {
+              activeStream = fs.createReadStream(realPath, {
                 fd,
                 autoClose: true,
               });
-              archive.append(memberStream, {
-                name: entryName,
-                stats: stat,
+              activeStream.once("error", (err) => {
+                archive.emit("error", err);
               });
+              const closed = new Promise<void>((done) =>
+                activeStream!.once("close", done),
+              );
+              await appendEntry(activeStream, { name: entryName, stats: stat });
+              await closed;
+              activeStream = undefined;
             } catch (err) {
+              activeStream?.destroy();
               try {
                 fs.closeSync(fd);
               } catch {
-                /* fd may already be closed */
+                /* descriptor owned by stream */
               }
               throw err;
             }
           }
-
-          await archive.finalize();
+          if (!cancelled && !settled) await archive.finalize();
         } catch (err) {
           finish(err as Error);
         }

@@ -1,3 +1,5 @@
+import { DownloadCapabilityService } from "./download-capability.service";
+import { NativeDownloadsController } from "./native-downloads.controller";
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { FileEntity } from "../entities/file.entity";
@@ -15,8 +17,8 @@ import { AuthModule } from "../auth/auth.module";
     UsersModule,
     AuthModule,
   ],
-  providers: [FilesService],
-  controllers: [FilesController],
+  providers: [FilesService, DownloadCapabilityService],
+  controllers: [FilesController, NativeDownloadsController],
   exports: [FilesService],
 })
 export class FilesModule {}

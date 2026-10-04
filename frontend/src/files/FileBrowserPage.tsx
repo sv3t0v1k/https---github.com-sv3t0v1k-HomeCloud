@@ -9,12 +9,8 @@ import { ApiError } from '../api/errors'
 import { apiRequest } from '../api/client'
 import type { FileItem, FolderContents, FolderItem } from '../types/files'
 import { copyFile, createFolder, getFolder, getFolderContents, moveFile, moveFolder, moveToTrash, renameFile, renameFolder } from './api'
-import {
-  BrowserDownloadLimitError,
-  downloadOriginalFile,
-  MAX_BROWSER_BLOB_DOWNLOAD_BYTES,
-} from './download'
-import { uploadFile, type UploadProgress } from './upload'
+import { downloadOriginalFile } from './download'
+import { getUploadLimits, uploadFile, type UploadLimits, type UploadProgress } from './upload'
 import { ShareDialog } from '../sharing/ShareDialog'
 import type { ShareTarget } from '../sharing/api'
 import { PreviewModal } from './PreviewModal'
@@ -269,7 +265,7 @@ function DirectoryTable({ contents, currentFolderId, onChanged, onOpenFolder }: 
 }
 
 function FileRow({ disabled, file, onAction, onShare }: { disabled: boolean; file: FileItem; onAction(action: ItemAction['action']): void; onShare(): void }) {
-  const [downloadState, setDownloadState] = useState<'idle' | 'downloading'>('idle')
+  const [downloadState, setDownloadState] = useState<'idle' | 'downloading' | 'handed-off'>('idle')
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const [showPreview, setShowPreview] = useState(false)
   const downloadPending = useRef(false)
@@ -278,9 +274,9 @@ function FileRow({ disabled, file, onAction, onShare }: { disabled: boolean; fil
     downloadPending.current = true
     setDownloadState('downloading')
     setDownloadError(null)
-    try { await downloadOriginalFile(file) }
-    catch (error) { setDownloadError(downloadErrorMessage(error)) }
-    finally { downloadPending.current = false; setDownloadState('idle') }
+    try { await downloadOriginalFile(file); setDownloadState('handed-off') }
+    catch (error) { setDownloadError(downloadErrorMessage(error)); setDownloadState('idle') }
+    finally { downloadPending.current = false }
   }
   const fileType = file.mimeType?.startsWith('image/') ? 'image' : file.mimeType?.startsWith('text/') ? 'text' : 'file'
   return <tr className="directory-row">
@@ -290,13 +286,14 @@ function FileRow({ disabled, file, onAction, onShare }: { disabled: boolean; fil
     <td className="file-meta"><span className="mobile-label">Изменено: </span>{formatDate(file.updatedAt)}</td>
     <td className="file-actions"><ActionMenu label={`Действия: ${file.name}`} disabled={disabled} items={[
       { label: 'Просмотр', icon: 'file', onSelect: () => setShowPreview(true) },
-      { label: downloadState === 'downloading' ? 'Скачивание…' : 'Скачать', icon: 'download', disabled: downloadState === 'downloading', onSelect: () => void download() },
+      { label: downloadState === 'downloading' ? 'Подготавливаем…' : 'Скачать', icon: 'download', disabled: downloadState === 'downloading', onSelect: () => void download() },
       { label: 'Поделиться', icon: 'link', onSelect: onShare },
       { label: 'Переименовать', icon: 'edit', onSelect: () => onAction('rename') },
       { label: 'Переместить', icon: 'move', onSelect: () => onAction('move') },
       { label: 'Копировать', icon: 'copy', onSelect: () => onAction('copy') },
       { label: 'В корзину', icon: 'trash', danger: true, onSelect: () => onAction('trash') },
     ]} />
+    {downloadState === 'handed-off' ? <p className="upload-details muted" role="status">Скачивание передано браузеру. Состояние смотрите в его загрузках.</p> : null}
     {downloadError ? <p className="inline-alert" role="alert">{downloadError}</p> : null}
     {showPreview ? <PreviewModal file={file} onClose={() => setShowPreview(false)} /> : null}</td>
   </tr>
@@ -388,16 +385,28 @@ function CreateFolderControl({ enabled, parentId, onCreated }: { enabled: boolea
 
 function UploadControl({ enabled, parentId, onUploaded }: { enabled: boolean; parentId?: number; onUploaded(): void }) {
   const [file, setFile] = useState<File | null>(null)
+  const [limits, setLimits] = useState<UploadLimits | null>(null)
   const [state, setState] = useState<UploadUiState>({ status: 'idle', progress: null, message: null })
   const controllerRef = useRef<AbortController | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => () => controllerRef.current?.abort(), [])
 
+  useEffect(() => {
+    setLimits(null)
+    if (!file) return
+    const controller = new AbortController()
+    getUploadLimits(controller.signal)
+      .then((result) => { if (!controller.signal.aborted) setLimits(result) })
+      .catch(() => { /* The upload flow checks authoritative limits again before creating a session. */ })
+    return () => controller.abort()
+  }, [file])
+
   const active = state.status === 'active'
+  const exceedsLimit = file !== null && limits !== null && file.size > limits.effectiveMaxFileBytes
 
   async function startUpload() {
-    if (!file || active || !enabled || controllerRef.current) return
+    if (!file || active || !enabled || exceedsLimit || controllerRef.current) return
     const controller = new AbortController()
     controllerRef.current = controller
     setState({
@@ -453,11 +462,13 @@ function UploadControl({ enabled, parentId, onUploaded }: { enabled: boolean; pa
           }}
           type="file"
         /></label>
-        <button className="button button--primary" disabled={!file || active || !enabled} onClick={() => void startUpload()} type="button"><Icon name="upload" />{state.status === 'error' || state.status === 'cancelled' ? 'Повторить загрузку' : 'Загрузить'}</button>
+        <button className="button button--primary" disabled={!file || active || !enabled || exceedsLimit} onClick={() => void startUpload()} type="button"><Icon name="upload" />{state.status === 'error' || state.status === 'cancelled' ? 'Повторить загрузку' : 'Загрузить'}</button>
         {active ? <button className="button button--ghost" onClick={cancelUpload} type="button">Отменить загрузку</button> : null}
       </div>
       {file || state.message ? <div className="upload-manager" aria-label="Загрузки">
       {file ? <p className="upload-details muted">Выбран файл: {file.name} ({formatBytes(file.size)})</p> : null}
+      {file && limits ? <p className="upload-details muted">Доступный размер файла сейчас: {formatBytes(limits.effectiveMaxFileBytes)}. Ограничения учитывают квоту и текущие загрузки.</p> : null}
+      {exceedsLimit ? <p className="inline-alert" role="alert">Размер выбранного файла превышает доступный размер загрузки.</p> : null}
       {state.status === 'active' ? (
         <div className="upload-progress" aria-live="polite" role="status">
           <p className="muted">
@@ -488,9 +499,6 @@ function uploadErrorMessage(error: unknown): string {
 }
 
 function downloadErrorMessage(error: unknown): string {
-  if (error instanceof BrowserDownloadLimitError) {
-    return `В браузере можно скачать файл размером до ${formatBytes(MAX_BROWSER_BLOB_DOWNLOAD_BYTES)}.`
-  }
   if (error instanceof ApiError) {
     if (error.kind === 'network') return 'Сервер недоступен. Не удалось начать скачивание.'
     if (error.kind === 'authentication') return 'Сессия истекла. Войдите снова.'

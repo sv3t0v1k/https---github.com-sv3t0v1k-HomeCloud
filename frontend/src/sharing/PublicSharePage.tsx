@@ -3,7 +3,6 @@ import { useParams } from 'react-router-dom'
 import { Icon } from '../ui/Icon'
 import { formatBytes } from '../ui/formatBytes'
 import { ApiError } from '../api/errors'
-import { BrowserDownloadLimitError, MAX_BROWSER_BLOB_DOWNLOAD_BYTES } from '../files/download'
 import { downloadPublicShare, getPublicShare, getSharedChildren, verifyPublicShare, type PublicShare, type SharedChildren } from './publicShareApi'
 
 export function PublicSharePage() {
@@ -73,7 +72,7 @@ function PublicShareContent({ token }: { token: string }) {
     lock.current = true; setBusy(true); setError(null); setNotice(null)
     const epoch = requestEpoch.current
     const controller = new AbortController(); mutationController.current = controller
-    try { await downloadPublicShare(token, verifiedPassword, fileId, name, controller.signal); if (epoch !== requestEpoch.current) return; setNotice('Скачивание подготовлено.') }
+    try { await downloadPublicShare(token, verifiedPassword, fileId, name, controller.signal); if (epoch !== requestEpoch.current) return; setNotice('Передано браузеру. Состояние смотрите в загрузках браузера.') }
     catch (cause) { if (epoch === requestEpoch.current) setError(publicError(cause)) }
     finally { if (epoch === requestEpoch.current) { lock.current = false; setBusy(false); mutationController.current = null } }
   }
@@ -81,7 +80,6 @@ function PublicShareContent({ token }: { token: string }) {
 
   const protectedResource = share?.requiresPassword && verifiedPassword === null
   const title = share?.resource?.name || (protectedResource ? 'Доступ защищён паролем' : share?.isFolder ? 'Общая папка' : !share && !loading ? 'Ссылка недоступна' : 'Файл по ссылке')
-  const oversized = !share?.isFolder && share?.resource?.size != null && Number(share.resource.size) > MAX_BROWSER_BLOB_DOWNLOAD_BYTES
   return <main className="public-share-page">
     <div className="public-share-layout">
       <header className="public-share-brand"><Icon name="cloud" width="28" height="28" /><span>HomeCloud</span></header>
@@ -100,8 +98,8 @@ function PublicShareContent({ token }: { token: string }) {
           <button className="button button--primary" type="submit" disabled={busy}>{busy ? 'Проверяем…' : 'Открыть доступ'}</button>
         </form> : null}
         {share && verifiedPassword !== null ? <>
-          <div className="public-share-actions"><button className="button button--primary" type="button" disabled={busy || oversized} onClick={() => void download()}><Icon name="download" />{busy ? 'Подготавливаем…' : share.isFolder ? 'Скачать папку ZIP' : 'Скачать файл'}</button></div>
-          <p className="public-share-limit">{oversized ? 'Файл превышает лимит скачивания в браузере 100 МиБ.' : 'Скачивание в браузере: до 100 МиБ, включая архив папки.'}</p>
+          <div className="public-share-actions"><button className="button button--primary" type="button" disabled={busy} onClick={() => void download()}><Icon name="download" />{busy ? 'Подготавливаем…' : share.isFolder ? 'Скачать папку ZIP' : 'Скачать файл'}</button></div>
+          <p className="public-share-limit">{'Файлы и архивы сохраняет браузер. Состояние смотрите в его загрузках.'}</p>
           {share.isFolder ? <div className="public-share-folder">
             <nav aria-label="Путь общей папки" className="public-share-navigation">
               <button className="button button--ghost" type="button" disabled={loading || busy} onClick={() => navigate(0)}>Общая папка</button>
@@ -113,7 +111,7 @@ function PublicShareContent({ token }: { token: string }) {
               <Icon name={item.kind === 'folder' ? 'folder' : 'file'} />
               <div className="public-share-item-copy"><span title={item.name}>{item.name}</span><small>{item.kind === 'folder' ? 'Папка' : item.size === null ? 'Размер не указан' : formatBytes(item.size)}</small></div>
               {item.kind === 'folder' ? <button className="button button--ghost" aria-label={`Открыть ${item.name}`} type="button" disabled={busy || loading} onClick={() => { setTrail((current) => [...current, { id: item.id, name: item.name }]); setOffset(0) }}>Открыть</button>
-                : <button className="button button--ghost" aria-label={`Скачать ${item.name}`} type="button" disabled={busy || Number(item.size) > MAX_BROWSER_BLOB_DOWNLOAD_BYTES} title={Number(item.size) > MAX_BROWSER_BLOB_DOWNLOAD_BYTES ? 'Файл превышает лимит браузера 100 МиБ' : undefined} onClick={() => void download(item.id, item.name)}>Скачать</button>}
+                : <button className="button button--ghost" aria-label={`Скачать ${item.name}`} type="button" disabled={busy} onClick={() => void download(item.id, item.name)}>Скачать</button>}
             </li>)}</ul>
             {children ? <nav aria-label="Страницы общей папки" className="public-share-navigation">
               <button className="button button--ghost" type="button" disabled={busy || loading || offset === 0} onClick={() => setOffset((value) => Math.max(0, value - 50))}>Предыдущая страница</button>
@@ -128,7 +126,6 @@ function PublicShareContent({ token }: { token: string }) {
 }
 
 function publicError(cause: unknown): string {
-  if (cause instanceof BrowserDownloadLimitError) return 'Размер скачивания превышает лимит браузера 100 МиБ.'
   if (cause instanceof ApiError) {
     if (cause.status === 404 || cause.status === 410) return 'Ссылка недоступна: доступ закрыт или срок действия истёк.'
     if (cause.status === 401 || cause.status === 403) return 'Пароль неверен или доступ по ссылке ограничен.'

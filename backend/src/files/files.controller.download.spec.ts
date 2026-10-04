@@ -156,9 +156,9 @@ describe("FilesController authenticated original download", () => {
     },
   );
 
-  it("uses actual sparse-file size for 30 GiB late-range header math", async () => {
+  it("uses exact 50 GiB sparse logical size for late-range header math", async () => {
     const sparsePath = path.join(storageRoot, "large-sparse.bin");
-    const size = 30 * 1024 ** 3;
+    const size = 53_687_091_200;
     const start = Math.floor(size * 0.8);
     fs.closeSync(fs.openSync(sparsePath, "w"));
     fs.truncateSync(sparsePath, size);

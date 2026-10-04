@@ -1,6 +1,6 @@
-import { apiRequest, API_BASE_URL } from '../api/client'
+import { apiRequest } from '../api/client'
 import { ApiError } from '../api/errors'
-import { MAX_BROWSER_BLOB_DOWNLOAD_BYTES, BrowserDownloadLimitError } from '../files/download'
+import { nativeDownloadTarget, nativeDownloadUrl } from '../files/download'
 
 export interface PublicResource { name: string; size: string | number | null; mimeType: string | null }
 export interface PublicShare { resource?: PublicResource; fileId: number; isFolder: boolean; requiresPassword: boolean; expiresAt: string | null }
@@ -17,37 +17,26 @@ export function getSharedChildren(token: string, password: string, parentId?: nu
   return apiRequest<SharedChildren>({ url: `${path(token)}/children`, params: { parentId, offset, limit: 50 }, headers: password ? { 'x-share-password': password } : {}, signal, skipAuth: true, skipRefresh: true })
 }
 
-// Public POST downloads keep passwords out of URLs. Bound streamed buffering to
-// the same browser limit used for authenticated downloads, including ZIP files.
-export async function downloadPublicShare(token: string, password: string, fileId?: number, name?: string, signal?: AbortSignal) {
-  const response = await fetch(`${API_BASE_URL.replace(/\/$/, '')}${path(token)}/download`, {
-    method: 'POST', signal, credentials: 'omit', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password, ...(fileId === undefined ? {} : { fileId }) }),
-  })
-  if (!response.ok) throw new ApiError('Public download failed', 'server', response.status)
-  const reader = response.body?.getReader()
-  if (!reader) throw new Error('Download stream unavailable')
-  const chunks: Uint8Array[] = []
-  let size = 0
-  try {
-    while (true) {
-      if (signal?.aborted) throw new DOMException('Download aborted', 'AbortError')
-      const { value, done } = await reader.read()
-      if (done) break
-      size += value.byteLength
-      if (size > MAX_BROWSER_BLOB_DOWNLOAD_BYTES) throw new BrowserDownloadLimitError()
-      chunks.push(value)
-    }
-  } catch (error) {
-    await reader.cancel().catch(() => undefined)
-    throw error
-  } finally { reader.releaseLock() }
+// Native form POST keeps the password in the request body and streams the
+// existing public file/ZIP response directly into the browser download manager.
+export async function downloadPublicShare(token: string, password: string, fileId?: number, _name?: string, signal?: AbortSignal) {
+  if (password) {
+    const verified = await verifyPublicShare(token, password, signal)
+    if (!verified.success) throw new ApiError('Share verification failed', 'authorization', 403)
+  } else {
+    await getPublicShare(token, signal)
+  }
   if (signal?.aborted) throw new DOMException('Download aborted', 'AbortError')
-  const url = URL.createObjectURL(new Blob(chunks, { type: response.headers.get('Content-Type') || 'application/octet-stream' }))
-  const anchor = document.createElement('a')
-  try {
-    anchor.href = url
-    anchor.download = name || /filename="([^"]*)"/.exec(response.headers.get('Content-Disposition') || '')?.[1] || 'download'
-    document.body.append(anchor); anchor.click()
-  } finally { anchor.remove(); URL.revokeObjectURL(url) }
+  const form = document.createElement('form')
+  form.method = 'POST'
+  form.action = nativeDownloadUrl(`${path(token)}/download`)
+  form.target = nativeDownloadTarget()
+  form.style.display = 'none'
+  for (const [name, value] of Object.entries({ password, ...(fileId === undefined ? {} : { fileId: String(fileId) }) })) {
+    const input = document.createElement('input')
+    input.type = 'hidden'; input.name = name; input.value = value
+    form.append(input)
+  }
+  document.body.append(form)
+  try { form.submit() } finally { form.remove() }
 }
