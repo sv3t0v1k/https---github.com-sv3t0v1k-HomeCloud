@@ -14,7 +14,6 @@ import {
   measureCompleteUploadScale,
   normalizeBenchBigInt,
   COMPLETE_UPLOAD_SCALES,
-  COMPLETE_UPLOAD_BENCH_MIME_TYPES,
   BENCH_QUOTA_MULTIPLIER,
   CHUNK_SIZE,
   buildCompleteUploadServices,
@@ -303,7 +302,7 @@ describe("complete-upload-runner", () => {
     expect(src).not.toContain("Math.random");
   });
 
-  it("allows the synthetic binary MIME only in benchmark config without env leakage", () => {
+  it("does not mutate obsolete deployment MIME configuration while building isolated services", () => {
     const previous = process.env.ALLOWED_UPLOAD_MIME_TYPES;
     process.env.ALLOWED_UPLOAD_MIME_TYPES = "image/png";
 
@@ -311,10 +310,6 @@ describe("complete-upload-runner", () => {
       const { dataSource } = createMockDataSourceAndServices();
       const services = buildCompleteUploadServices(dataSource);
 
-      expect(
-        (services.uploadsService as unknown as { allowedMimeTypes: string[] })
-          .allowedMimeTypes,
-      ).toEqual([COMPLETE_UPLOAD_BENCH_MIME_TYPES]);
       expect(process.env.ALLOWED_UPLOAD_MIME_TYPES).toBe("image/png");
 
       fs.rmSync(services.benchRoot, { recursive: true, force: true });

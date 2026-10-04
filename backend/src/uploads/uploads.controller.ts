@@ -48,13 +48,14 @@ export class UploadsController {
     @Body() dto: CreateSessionDto,
   ) {
     const userId = req.user.userId;
-    return this.uploadsService.createUploadSession(
+    const session = await this.uploadsService.createUploadSession(
       userId,
       dto.filename,
       dto.totalSize,
       dto.chunkSize,
       dto.parentId,
     );
+    return this.uploadsService.toSessionMetadata(session);
   }
 
   @Post("session/:uploadId/chunk")
@@ -77,10 +78,16 @@ export class UploadsController {
     }
 
     markUploadProcessing(req);
-    return this.uploadsService.uploadChunk(userId, uploadId, dto.chunkIndex, {
-      path: chunk.path,
-      size: chunk.size,
-    } satisfies IngressChunkFile);
+    const session = await this.uploadsService.uploadChunk(
+      userId,
+      uploadId,
+      dto.chunkIndex,
+      {
+        path: chunk.path,
+        size: chunk.size,
+      } satisfies IngressChunkFile,
+    );
+    return this.uploadsService.toSessionMetadata(session);
   }
 
   @Post("session/:uploadId/complete")
@@ -102,6 +109,17 @@ export class UploadsController {
   ) {
     const userId = req.user.userId;
     return this.uploadsService.abortUpload(userId, uploadId);
+  }
+
+  @Get("session/:uploadId")
+  async reconcileSession(
+    @NestRequest() req: ExpressRequest & { user: { userId: number } },
+    @Param("uploadId") uploadId: string,
+  ) {
+    return this.uploadsService.reconcileUploadSession(
+      req.user.userId,
+      uploadId,
+    );
   }
 
   @Get("sessions")

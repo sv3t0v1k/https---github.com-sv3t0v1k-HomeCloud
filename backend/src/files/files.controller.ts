@@ -383,9 +383,22 @@ export async function streamOriginalDownload(
     }
 
     const fileSize = stat.size;
-    const safeFileName = (file.name || "download").replace(
-      /[^\x20-\x7e]|["\\]/g,
-      "_",
+    // Keep the ASCII fallback and provide the exact safe Unicode name through
+    // RFC 5987. Legacy control characters never reach either header parameter.
+    const downloadName = [...(file.name || "download")]
+      .map((character) => {
+        const code = character.codePointAt(0)!;
+        return code < 32 ||
+          (code >= 127 && code <= 159) ||
+          (code >= 0xd800 && code <= 0xdfff)
+          ? "_"
+          : character;
+      })
+      .join("");
+    const safeFileName = downloadName.replace(/[^\x20-\x7e]|["\\]/g, "_");
+    const encodedFileName = encodeURIComponent(downloadName).replace(
+      /['()*]/g,
+      (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
     );
     const mimeType =
       file.mimeType &&
@@ -394,7 +407,7 @@ export async function streamOriginalDownload(
         : "application/octet-stream";
     const baseHeaders = {
       "Content-Type": mimeType,
-      "Content-Disposition": `attachment; filename="${safeFileName}"`,
+      "Content-Disposition": `attachment; filename="${safeFileName}"; filename*=UTF-8''${encodedFileName}`,
       "Accept-Ranges": "bytes",
       "Cache-Control": "no-store",
       "X-Content-Type-Options": "nosniff",

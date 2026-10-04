@@ -46,6 +46,7 @@ describe("UploadsService - Post-Review Fixes", () => {
     const records = new Map<number, unknown>();
     const chunkRepository = {
       findOne: jest.fn(async (options: any) => records.get(options.where.chunkIndex) || null),
+      find: jest.fn(async () => [...records.values()]),
       insert: jest.fn(async (data: any) => { records.set(data.chunkIndex, data); }),
       upsert: jest.fn(async (data: any) => { records.set(data.chunkIndex, data); }),
       delete: jest.fn(),
@@ -134,6 +135,72 @@ describe("UploadsService - Post-Review Fixes", () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+  });
+
+  describe("universal filename admission and reconciliation", () => {
+    it.each(["", " ", ".", "..", "../x.bin", "x/y.bin", "x\\y.bin", "x\r\nInjected", "x\0.bin", "a".repeat(256)])(
+      "rejects unsafe filename %p before quota reservation", async (name) => {
+        await expect(service.createUploadSession(1, name, 1, 1)).rejects.toThrow("Invalid filename");
+        expect(mockQueryRunner.startTransaction).not.toHaveBeenCalled();
+      },
+    );
+    it.each(["artifact.BIN", "installer.iso", "disk.dmg", "app.exe", "app.apk", "archive.zip", "archive.7z", "arbitrary.unknown", "no-extension", "Русский файл.BIN"])(
+      "preserves arbitrary filename %s without MIME configuration", async (filename) => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "name-admission-"));
+        mockStorageService.getTempPath.mockReturnValue(root);
+        mockQueryRunner.manager.findOne.mockResolvedValue({ id: 1, storageQuota: 1024, storageUsed: 0 });
+        mockQueryRunner.manager.create.mockImplementation((_entity: unknown, data: unknown) => data);
+        try {
+          expect((await service.createUploadSession(1, filename, 1, 1)).filename).toBe(filename);
+          expect(mockConfigService.get).not.toHaveBeenCalledWith("ALLOWED_UPLOAD_MIME_TYPES");
+        } finally { fs.rmSync(root, { recursive: true, force: true }); }
+      },
+    );
+    const session = () => ({ id: 7, uploadId: "owned", userId: 1, filename: "resume.bin", totalSize: 6,
+      chunkSize: 2, totalChunks: 3, uploadedSize: 99, accountingInitialized: true,
+      status: "uploading", expiresAt: new Date(Date.now() + 86400000), parentId: 4, tempPath: "/private/internal" });
+    it("returns locked owner-scoped authoritative committed chunks and no internal paths", async () => {
+      mockQueryRunner.manager.findOne.mockResolvedValueOnce(session());
+      mockQueryRunner.manager.getRepository().find.mockResolvedValue([
+        { sessionId: 7, chunkIndex: 0, byteSize: 2, sha256: "a".repeat(64) },
+        { sessionId: 7, chunkIndex: 2, byteSize: 2, sha256: "b".repeat(64) },
+      ]);
+      const result = await service.reconcileUploadSession(1, "owned");
+      expect(result.uploadedSize).toBe(4);
+      expect(result.chunks).toEqual([
+        { chunkIndex: 0, byteSize: 2, sha256: "a".repeat(64) },
+        { chunkIndex: 2, byteSize: 2, sha256: "b".repeat(64) },
+      ]);
+      expect(result).not.toHaveProperty("tempPath");
+      expect(result).not.toHaveProperty("userId");
+      expect(mockQueryRunner.manager.findOne).toHaveBeenCalledWith(UploadSessionEntity,
+        { where: { uploadId: "owned", userId: 1 }, lock: { mode: "pessimistic_write" } });
+    });
+    it("rejects absent or foreign sessions without revealing metadata", async () => {
+      mockQueryRunner.manager.findOne.mockResolvedValueOnce(null);
+      await expect(service.reconcileUploadSession(2, "owned")).rejects.toThrow("Upload session not found");
+      expect(mockQueryRunner.manager.getRepository).not.toHaveBeenCalled();
+    });
+    it("rejects expired active sessions and preserves cleanup ownership", async () => {
+      mockQueryRunner.manager.findOne.mockResolvedValueOnce({ ...session(), expiresAt: new Date(0) });
+      await expect(service.reconcileUploadSession(1, "owned")).rejects.toThrow("expired");
+      expect(mockQueryRunner.manager.save).not.toHaveBeenCalled();
+    });
+    it("reconciles completed upload even after TTL when completion response was lost", async () => {
+      mockQueryRunner.manager.findOne.mockResolvedValueOnce({ ...session(), status: "completed", expiresAt: new Date(0) })
+        .mockResolvedValueOnce({ id: 9, name: "resume.bin", size: "6", mimeType: "application/octet-stream", parentId: 4, uploadId: "owned", storagePath: "/private/file" });
+      const result = await service.reconcileUploadSession(1, "owned");
+      expect(result.chunks).toEqual([]);
+      expect(result).toMatchObject({ file: { id: 9, size: 6, name: "resume.bin" } });
+      expect(JSON.stringify(result)).not.toContain("/private");
+    });
+    it("lists bounded active nonexpired safe metadata", async () => {
+      mockUploadSessionRepository.find.mockResolvedValue([session()]);
+      const result = await service.listUploadSessions(1);
+      expect(result[0].status).toBe("uploading");
+      expect(result[0]).not.toHaveProperty("tempPath");
+      expect(mockUploadSessionRepository.find.mock.calls[0][0]).toMatchObject({ where: { userId: 1 }, take: 200 });
+    });
   });
 
   describe("database quota arithmetic regression", () => {
@@ -481,7 +548,7 @@ describe("UploadsService - Post-Review Fixes", () => {
   });
 
   describe("completeUpload - guaranteed cleanup", () => {
-    it("preserves resumable chunks when MIME validation fails", async () => {
+    it("stores executable signatures despite former MIME allowlist", async () => {
       const tempDir = `/tmp/test-cleanup-mime-${Date.now()}`;
       const finalPath = `/tmp/test-cleanup-mime-${Date.now()}-final.exe`;
       const session = {
@@ -520,13 +587,13 @@ describe("UploadsService - Post-Review Fixes", () => {
         mime: "application/x-msdownload",
       });
 
-      await expect(service.completeUpload(1, "abc")).rejects.toThrow(
-        BadRequestException,
-      );
-
-      expect(mockFileRepository.create).not.toHaveBeenCalled();
-      expect(fs.existsSync(tempDir)).toBe(true);
-      expect(fs.existsSync(finalPath)).toBe(false);
+      mockQueryRunner.manager.create.mockImplementation((_entity: unknown, data: unknown) => data);
+      const file = await service.completeUpload(1, "abc");
+      expect(file.name).toBe("malware.exe");
+      expect(file.mimeType).toBe("application/x-msdownload");
+      expect(fs.readFileSync(finalPath)).toEqual(Buffer.from("MZ\x00\x00\x00\x00\x00\x00"));
+      expect(fs.existsSync(tempDir)).toBe(false);
+      expect(mockUsersService.updateStorageUsed).toHaveBeenCalledWith(1, 8, mockQueryRunner.manager);
 
       if (fs.existsSync(tempDir)) {
         fs.rmSync(tempDir, { recursive: true, force: true });
@@ -745,7 +812,6 @@ describe("UploadsService - Post-Review Fixes", () => {
     let root: string;
     beforeEach(() => {
       root = fs.mkdtempSync(path.join(os.tmpdir(), "utf8-upload-"));
-      (service as any).allowedMimeTypes = ["text/plain", "image/png"];
       (fileTypeFromBuffer as jest.Mock).mockResolvedValue(undefined);
       mockQueryRunner.manager.create.mockImplementation((_entity: unknown, data: Record<string, unknown>) => ({ id: 1, ...data }));
     });
@@ -773,13 +839,21 @@ describe("UploadsService - Post-Review Fixes", () => {
       Buffer.concat([Buffer.alloc(70000, 0x61), Buffer.from([0xe2, 0x82])]),
       Buffer.concat([Buffer.alloc(70000, 0x61), Buffer.from([0x1b])]),
       Buffer.from("prefix\u0085suffix"),
-    ])("rejects invalid UTF-8 or binary controls anywhere without quota charges", async (bytes) => {
+    ])("stores invalid UTF-8 and binary controls unchanged as octet-stream", async (bytes) => {
       const tempPath = prepare(bytes);
-      await expect(service.completeUpload(1, "plain-text")).rejects.toThrow("application/octet-stream");
-      expect(mockUsersService.updateStorageUsed).not.toHaveBeenCalled();
-      expect(mockQueryRunner.manager.create).not.toHaveBeenCalled();
-      expect(fs.existsSync(path.join(root, "final"))).toBe(false);
-      expect(fs.existsSync(tempPath)).toBe(true);
+      const file = await service.completeUpload(1, "plain-text");
+      expect(file.mimeType).toBe("application/octet-stream");
+      expect(fs.readFileSync(path.join(root, "final"))).toEqual(bytes);
+      expect(mockUsersService.updateStorageUsed).toHaveBeenCalledWith(1, bytes.length, mockQueryRunner.manager);
+      expect(fs.existsSync(tempPath)).toBe(false);
+    });
+    it("stores truncated or detector-error signatures with safe binary metadata", async () => {
+      const bytes = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
+      prepare(bytes);
+      (fileTypeFromBuffer as jest.Mock).mockRejectedValueOnce(new Error("End-Of-Stream"));
+      const file = await service.completeUpload(1, "plain-text");
+      expect(file.mimeType).toBe("application/octet-stream");
+      expect(fs.readFileSync(path.join(root, "final"))).toEqual(bytes);
     });
     it("preserves binary signature detector results", async () => {
       prepare(Buffer.from([0, 1, 2, 3]));

@@ -21,7 +21,6 @@ export const COMPLETE_UPLOAD_SCALES = [
   50 * 1024 * 1024,
 ] as const;
 export const CHUNK_SIZE = 50 * 1024 * 1024;
-export const COMPLETE_UPLOAD_BENCH_MIME_TYPES = "application/octet-stream";
 export const BENCH_QUOTA_MULTIPLIER = 2;
 
 export interface CompleteUploadMeasurement {
@@ -107,9 +106,7 @@ export function buildCompleteUploadServices(
 ): CompleteUploadServices {
   const benchRoot = benchStoragePath();
   const prevStoragePath = process.env.STORAGE_PATH;
-  const prevAllowedMimeTypes = process.env.ALLOWED_UPLOAD_MIME_TYPES;
   delete process.env.STORAGE_PATH;
-  process.env.ALLOWED_UPLOAD_MIME_TYPES = COMPLETE_UPLOAD_BENCH_MIME_TYPES;
   try {
     const configService = new ConfigService({
       STORAGE_PATH: benchRoot,
@@ -117,7 +114,6 @@ export function buildCompleteUploadServices(
       MAX_TOTAL_SIZE: 10 * 1024 * 1024 * 1024,
       MAX_CHUNK_SIZE: 50 * 1024 * 1024,
       UPLOAD_SESSION_TTL_HOURS: 24,
-      ALLOWED_UPLOAD_MIME_TYPES: COMPLETE_UPLOAD_BENCH_MIME_TYPES,
     });
     const storageService = new StorageService(configService);
     verifyIsolation(storageService, benchRoot);
@@ -133,11 +129,6 @@ export function buildCompleteUploadServices(
   } finally {
     if (prevStoragePath !== undefined) {
       process.env.STORAGE_PATH = prevStoragePath;
-    }
-    if (prevAllowedMimeTypes === undefined) {
-      delete process.env.ALLOWED_UPLOAD_MIME_TYPES;
-    } else {
-      process.env.ALLOWED_UPLOAD_MIME_TYPES = prevAllowedMimeTypes;
     }
   }
 }

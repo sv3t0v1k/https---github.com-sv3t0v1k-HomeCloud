@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { ConfigService } from "@nestjs/config";
 import { DataSource } from "typeorm";
 import { FileEntity } from "../entities/file.entity";
@@ -143,6 +143,84 @@ describePostgres("UploadsService — реальный PostgreSQL", () => {
       config,
     );
   }
+
+  it.each([
+    ["raw.BIN", Buffer.from([0, 255, 3, 4, 128])],
+    ["a".repeat(251) + ".BIN", Buffer.from([0, 255, 128])],
+    ["report." + "Я".repeat(180), Buffer.from([0, 128, 255])],
+    ["unknown.customtype", Buffer.from([0xff, 0x80, 0, 0xa5])],
+    ["no-extension", Buffer.from([0, 1, 2])],
+    ["misleading.jpg", Buffer.from([0, 1, 2, 255])],
+    ["archive.7z", Buffer.from([0x50, 0x4b, 3, 4])],
+    ["Русский файл.EXE", Buffer.from([0x4d, 0x5a, 0, 0])],
+    ["moderate.bin", Buffer.alloc(256 * 1024, 0xa5)],
+  ] as const)("preserves arbitrary bytes and exact filename %s", async (filename, content) => {
+    const user = await makeUser(content.length);
+    const session = await service.createUploadSession(user.id, filename, content.length, 4096);
+    for (let index = 0; index < session.totalChunks; index++) {
+      await service.uploadChunk(user.id, session.uploadId, index, content.subarray(index * 4096, (index + 1) * 4096));
+    }
+    const file = await service.completeUpload(user.id, session.uploadId);
+    expect(file.name).toBe(filename);
+    expect(file.mimeType).toBe("application/octet-stream");
+    const stored = fs.readFileSync(file.storagePath);
+    expect(stored).toEqual(content);
+    expect(createHash("sha256").update(stored).digest("hex")).toBe(createHash("sha256").update(content).digest("hex"));
+    expect(Number((await dataSource.getRepository(UserEntity).findOneByOrFail({ id: user.id })).storageUsed)).toBe(content.length);
+    expect(await dataSource.getRepository(UploadChunkEntity).countBy({ sessionId: session.id })).toBe(0);
+    expect(fs.existsSync(session.tempPath)).toBe(false);
+  });
+
+  it("reconciles committed chunks, restricts ownership, and discovers uploading sessions", async () => {
+    const user = await makeUser(6);
+    const foreign = await makeUser(6);
+    const session = await service.createUploadSession(user.id, "resume.bin", 6, 2);
+    await service.uploadChunk(user.id, session.uploadId, 1, Buffer.from([0, 255]));
+    const snapshot = await service.reconcileUploadSession(user.id, session.uploadId);
+    expect(snapshot).toMatchObject({ status: "uploading", uploadedSize: 2, chunks: [{ chunkIndex: 1, byteSize: 2 }] });
+    expect(snapshot.chunks[0].sha256).toBe(createHash("sha256").update(Buffer.from([0, 255])).digest("hex"));
+    expect(JSON.stringify(snapshot)).not.toContain(storageRoot);
+    expect((await service.listUploadSessions(user.id)).map((item) => item.uploadId)).toEqual([session.uploadId]);
+    await expect(service.reconcileUploadSession(foreign.id, session.uploadId)).rejects.toThrow("Upload session not found");
+    expect(await service.listUploadSessions(foreign.id)).toEqual([]);
+    await service.uploadChunk(user.id, session.uploadId, 0, Buffer.from([1, 2]));
+    await service.uploadChunk(user.id, session.uploadId, 2, Buffer.from([3, 4]));
+    const file = await service.completeUpload(user.id, session.uploadId);
+    await dataSource.getRepository(UploadSessionEntity).update(session.id, { expiresAt: new Date(0) });
+    const completed = await service.reconcileUploadSession(user.id, session.uploadId);
+    expect(completed).toMatchObject({ status: "completed", chunks: [], file: { id: file.id, size: 6 } });
+    expect((await service.getUploadLimits(user.id)).quotaRemainingBytes).toBe(0);
+  });
+
+  it("hides expired sessions and cleanup releases their reservations and chunks", async () => {
+    const user = await makeUser(4);
+    const session = await service.createUploadSession(user.id, "stale.bin", 4, 2);
+    await service.uploadChunk(user.id, session.uploadId, 0, Buffer.from([0, 255]));
+    await dataSource.getRepository(UploadSessionEntity).update(session.id, { expiresAt: new Date(0) });
+    expect(await service.listUploadSessions(user.id)).toEqual([]);
+    await expect(service.reconcileUploadSession(user.id, session.uploadId)).rejects.toThrow("expired");
+    await service.cleanupExpiredSessions();
+    expect((await service.getUploadLimits(user.id)).quotaRemainingBytes).toBe(4);
+    expect(await dataSource.getRepository(UploadChunkEntity).countBy({ sessionId: session.id })).toBe(0);
+    expect(fs.existsSync(session.tempPath)).toBe(false);
+  });
+
+  it("aborting one session preserves sibling progress and only releases its reservation", async () => {
+    const user = await makeUser(8);
+    const first = await service.createUploadSession(user.id, "cancel.bin", 4, 2);
+    const sibling = await service.createUploadSession(user.id, "keep.bin", 4, 2);
+    await service.uploadChunk(user.id, first.uploadId, 0, Buffer.from([0, 255]));
+    await service.uploadChunk(user.id, sibling.uploadId, 0, Buffer.from([1, 2]));
+    await service.abortUpload(user.id, first.uploadId);
+    expect((await service.getUploadLimits(user.id)).quotaRemainingBytes).toBe(4);
+    expect(await service.reconcileUploadSession(user.id, sibling.uploadId)).toMatchObject({ uploadedSize: 2, chunks: [{ chunkIndex: 0 }] });
+    expect(await service.reconcileUploadSession(user.id, first.uploadId)).toMatchObject({ status: "aborted", uploadedSize: 0, chunks: [] });
+    await service.uploadChunk(user.id, sibling.uploadId, 1, Buffer.from([3, 4]));
+    const file = await service.completeUpload(user.id, sibling.uploadId);
+    expect(fs.readFileSync(file.storagePath)).toEqual(Buffer.from([1, 2, 3, 4]));
+    expect(await dataSource.getRepository(UploadChunkEntity).countBy({ sessionId: first.id })).toBe(0);
+    expect(fs.existsSync(first.tempPath)).toBe(false);
+  });
 
   it.each([1, 2, 3, 7])(
     "streams tiny/exact/chunk+1/multichunk %i-byte uploads",

@@ -156,3 +156,47 @@ describe("StorageService.copyFile", () => {
     ).rejects.toThrow("Path traversal detected");
   });
 });
+
+describe("StorageService.generateFinalPath filename boundaries", () => {
+  let storagePath: string;
+  let service: StorageService;
+  const uploadId = "9cafc2b1-6af4-4b82-8fbf-392962743285";
+  beforeEach(() => {
+    storagePath = fs.mkdtempSync(path.join(os.tmpdir(), "homecloud-filename-"));
+    service = new StorageService({
+      get: (key: string) => (key === "STORAGE_PATH" ? storagePath : undefined),
+    } as ConfigService);
+  });
+  afterEach(() => fs.rmSync(storagePath, { recursive: true, force: true }));
+
+  it.each(["a".repeat(251) + ".BIN", "report." + "Я".repeat(180)])(
+    "stores exact bytes at a deterministic bounded path for long logical filename %s",
+    async (filename) => {
+      const target = service.generateFinalPath(7, uploadId, filename);
+      expect(path.basename(target)).toBe(`${uploadId}.upload`);
+      expect(
+        Buffer.byteLength(path.basename(target), "utf8"),
+      ).toBeLessThanOrEqual(255);
+      expect(path.dirname(target)).toBe(path.join(storagePath, "7"));
+      const bytes = Buffer.from([0, 1, 2, 255, 128]);
+      await service.writeFile(target, bytes);
+      expect(fs.readFileSync(target)).toEqual(bytes);
+      expect(service.generateFinalPath(7, uploadId, filename)).toBe(target);
+    },
+  );
+
+  it("retains the existing ordinary path algorithm", () => {
+    expect(service.generateFinalPath(7, uploadId, "My report.BIN")).toBe(
+      path.join(storagePath, "7", `My_report_${uploadId}.bin`),
+    );
+  });
+
+  it("retains an exactly 255-byte generated disk component", async () => {
+    const filename = "a".repeat(214) + ".BIN";
+    const target = service.generateFinalPath(7, uploadId, filename);
+    expect(Buffer.byteLength(path.basename(target), "utf8")).toBe(255);
+    expect(path.basename(target)).toBe(`${"a".repeat(214)}_${uploadId}.bin`);
+    await service.writeFile(target, Buffer.from([0, 255]));
+    expect(fs.readFileSync(target)).toEqual(Buffer.from([0, 255]));
+  });
+});

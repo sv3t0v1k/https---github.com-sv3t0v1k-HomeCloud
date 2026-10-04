@@ -128,8 +128,48 @@ describe("FilesController authenticated original download", () => {
       "application/octet-stream",
     );
     expect(result.headers["content-disposition"]).toBe(
-      'attachment; filename="report__X-Evil: yes_.bin"',
+      "attachment; filename=\"report__X-Evil: yes_.bin\"; filename*=UTF-8''report__X-Evil%3A%20yes%22.bin",
     );
+  });
+
+  it.each([
+    "Русский файл.BIN",
+    'Фото "лето".JPEG',
+    "archive's (final)*.7Z",
+    "日本語 🔒.unknown",
+  ])(
+    "preserves exact Unicode and special characters in download filename %s",
+    async (name) => {
+      findOne.mockResolvedValueOnce({
+        id: 7,
+        name,
+        storagePath: fixturePath,
+        isFolder: false,
+        isDeleted: false,
+        mimeType: "application/octet-stream",
+      });
+      const result = await get().expect(200);
+      const disposition = result.headers["content-disposition"];
+      expect(disposition).toMatch(
+        /^attachment; filename="[\x20-\x21\x23-\x5b\x5d-\x7e]*"; filename\*=UTF-8''/,
+      );
+      const encoded = disposition.split("filename*=UTF-8''")[1];
+      expect(decodeURIComponent(encoded)).toBe(name);
+      expect(encoded).not.toMatch(/["'()*]/);
+      expect(result.headers["x-evil"]).toBeUndefined();
+      expect(result.body).toEqual(Buffer.from("0123456789ABCDEF"));
+    },
+  );
+
+  it("sanitizes legacy controls in both download filename parameters", async () => {
+    const result = await get().expect(200);
+    const disposition = result.headers["content-disposition"];
+    expect(decodeURIComponent(disposition.split("filename*=UTF-8''")[1])).toBe(
+      'report__X-Evil: yes".bin',
+    );
+    expect(disposition).not.toContain("\r");
+    expect(disposition).not.toContain("\n");
+    expect(result.headers["x-evil"]).toBeUndefined();
   });
 
   it.each([
@@ -156,9 +196,9 @@ describe("FilesController authenticated original download", () => {
     },
   );
 
-  it("uses exact 50 GiB sparse logical size for late-range header math", async () => {
+  it("uses exact size above uint32 for late-range header math", async () => {
     const sparsePath = path.join(storageRoot, "large-sparse.bin");
-    const size = 53_687_091_200;
+    const size = 4_294_967_313;
     const start = Math.floor(size * 0.8);
     fs.closeSync(fs.openSync(sparsePath, "w"));
     fs.truncateSync(sparsePath, size);

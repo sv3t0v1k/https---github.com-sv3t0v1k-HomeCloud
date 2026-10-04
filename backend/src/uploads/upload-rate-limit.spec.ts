@@ -48,6 +48,7 @@ describe("authenticated upload rate policy (HTTP)", () => {
     createUploadSession: jest.Mock;
     completeUpload: jest.Mock;
     listUploadSessions: jest.Mock;
+    toSessionMetadata: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -68,6 +69,7 @@ describe("authenticated upload rate policy (HTTP)", () => {
       createUploadSession: jest.fn(async () => ({ uploadId: FIRST })),
       completeUpload: jest.fn(async () => ({ id: 1 })),
       listUploadSessions: jest.fn(async () => []),
+      toSessionMetadata: jest.fn((session) => session),
     };
     const disk = abortableDiskStorage(ingress);
     ingressWrites = jest.spyOn(disk, "_handleFile");

@@ -7,7 +7,7 @@ import {
   Logger,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { In, MoreThan, Repository } from "typeorm";
 import * as fs from "fs";
 import * as path from "path";
 import { createHash } from "crypto";
@@ -39,7 +39,6 @@ export class UploadsService {
   private readonly maxChunkSize: number;
   private readonly maxUploadChunks: number;
   private readonly sessionTtlMs: number;
-  private readonly allowedMimeTypes: string[];
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
   private static readonly DEFAULT_MAX_FILE_SIZE = 1099511627776;
@@ -61,7 +60,6 @@ export class UploadsService {
     const rawMaxTotalSize = configService.get("MAX_TOTAL_SIZE");
     const rawMaxChunkSize = configService.get("MAX_CHUNK_SIZE");
     const rawSessionTtl = configService.get("UPLOAD_SESSION_TTL_HOURS");
-    const rawAllowedMimeTypes = configService.get("ALLOWED_UPLOAD_MIME_TYPES");
 
     this.maxFileSize = this.parseSizeEnv(rawMaxFileSize, "MAX_FILE_SIZE", {
       allowZero: true,
@@ -88,25 +86,6 @@ export class UploadsService {
         defaultValue: UploadsService.DEFAULT_SESSION_TTL_HOURS,
       },
     );
-
-    this.allowedMimeTypes = rawAllowedMimeTypes
-      ? rawAllowedMimeTypes.split(",").map((type: string) => type.trim())
-      : [
-          "image/png",
-          "image/jpeg",
-          "image/gif",
-          "image/webp",
-          "application/pdf",
-          "text/plain",
-          "application/json",
-          "application/javascript",
-          "application/xml",
-          "application/zip",
-          "application/gzip",
-          "video/mp4",
-          "audio/mpeg",
-          "audio/wav",
-        ];
   }
 
   private parseSizeEnv(
@@ -207,6 +186,14 @@ export class UploadsService {
     chunkSize: number,
     parentId?: number,
   ): Promise<UploadSessionEntity> {
+    this.validateFilename(filename);
+    if (
+      parentId !== undefined &&
+      parentId !== null &&
+      (!Number.isSafeInteger(parentId) || parentId <= 0)
+    ) {
+      throw new BadRequestException("Invalid target folder");
+    }
     if (parentId) {
       const folder = await this.folderRepository.findOne({
         where: { id: parentId, userId },
@@ -786,22 +773,18 @@ export class UploadsService {
         const headerBuffer = Buffer.alloc(headerSize);
         fs.readSync(fd, headerBuffer, 0, headerSize, null);
         fs.closeSync(fd);
-        const detected = await fileTypeFromBuffer(headerBuffer);
-        // Signature detection remains authoritative. Unsigned content is plain
-        // text only after strict, bounded-memory validation of the entire file.
-        const mimeType =
-          detected?.mime ||
-          ((await isUtf8PlainText(finalPath))
-            ? "text/plain"
-            : "application/octet-stream");
-
-        if (!this.allowedMimeTypes.includes(mimeType)) {
-          if (fs.existsSync(finalPath)) {
-            fs.unlinkSync(finalPath);
-          }
-          throw new BadRequestException(
-            `File type ${mimeType} is not allowed for upload`,
-          );
+        // MIME only describes preview capability. Detector failures (including
+        // truncated signatures) must never prevent storing otherwise valid bytes.
+        let mimeType = "application/octet-stream";
+        try {
+          const detected = await fileTypeFromBuffer(headerBuffer);
+          mimeType =
+            detected?.mime ||
+            ((await isUtf8PlainText(finalPath))
+              ? "text/plain"
+              : "application/octet-stream");
+        } catch {
+          this.logger.warn("MIME metadata detection failed; storing as binary");
         }
 
         // Create the file entity and update storage quota atomically.
@@ -883,14 +866,114 @@ export class UploadsService {
     });
   }
 
-  async listUploadSessions(userId: number): Promise<UploadSessionEntity[]> {
-    return this.uploadSessionRepository.find({
+  private validateFilename(filename: string): void {
+    if (
+      typeof filename !== "string" ||
+      !filename.trim() ||
+      filename === "." ||
+      filename === ".." ||
+      filename.length > 255 ||
+      filename.includes("/") ||
+      filename.includes("\\") ||
+      [...filename].some((character) => {
+        const code = character.charCodeAt(0);
+        return code < 32 || (code >= 127 && code <= 159);
+      })
+    ) {
+      throw new BadRequestException("Invalid filename");
+    }
+  }
+
+  /** Public metadata must not expose filesystem paths or ORM relationships. */
+  toSessionMetadata(session: UploadSessionEntity) {
+    return {
+      uploadId: session.uploadId,
+      filename: session.filename,
+      totalSize: session.totalSize,
+      chunkSize: session.chunkSize,
+      totalChunks: session.totalChunks,
+      uploadedSize: session.uploadedSize,
+      status: session.status,
+      expiresAt: session.expiresAt,
+      parentId: session.parentId ?? null,
+    };
+  }
+
+  async reconcileUploadSession(userId: number, uploadId: string) {
+    return this.withTransaction(async (manager) => {
+      // Serializes with chunk commit, finalization, abort, and expiry cleanup.
+      const session = await manager.findOne(UploadSessionEntity, {
+        where: { uploadId, userId },
+        lock: { mode: "pessimistic_write" },
+      });
+      if (!session) throw new NotFoundException("Upload session not found");
+      if (
+        session.status !== "completed" &&
+        session.expiresAt &&
+        session.expiresAt <= new Date()
+      ) {
+        throw new BadRequestException("Upload session expired");
+      }
+      if (session.status === "completed") {
+        const file = await manager.findOne(FileEntity, {
+          where: { uploadId, userId },
+        });
+        if (!file)
+          throw new NotFoundException("Completed upload file not found");
+        return {
+          ...this.toSessionMetadata(session),
+          chunks: [],
+          file: {
+            id: file.id,
+            name: file.name,
+            size: parseDatabaseSize(file.size),
+            mimeType: file.mimeType,
+            parentId: file.parentId ?? null,
+            uploadId: file.uploadId,
+          },
+        };
+      }
+      if (session.status === "aborted") {
+        return {
+          ...this.toSessionMetadata(session),
+          uploadedSize: 0,
+          chunks: [],
+        };
+      }
+      if (!session.accountingInitialized)
+        await this.hydrateLegacyAccounting(manager, session);
+      const records = await manager.getRepository(UploadChunkEntity).find({
+        where: { sessionId: session.id },
+        order: { chunkIndex: "ASC" },
+        take: this.maxUploadChunks,
+      });
+      const chunks = records.map(({ chunkIndex, byteSize, sha256 }) => ({
+        chunkIndex,
+        byteSize,
+        sha256,
+      }));
+      return {
+        ...this.toSessionMetadata(session),
+        uploadedSize: chunks.reduce(
+          (sum, chunk) => parseDatabaseSize(sum + chunk.byteSize),
+          0,
+        ),
+        chunks,
+      };
+    });
+  }
+
+  async listUploadSessions(userId: number) {
+    const sessions = await this.uploadSessionRepository.find({
       where: {
         userId,
-        status: "pending",
+        status: In(["pending", "uploading"]),
+        expiresAt: MoreThan(new Date()),
       },
       order: { createdAt: "DESC" },
+      take: 200,
     });
+    return sessions.map((session) => this.toSessionMetadata(session));
   }
 
   async cleanupExpiredSessions(): Promise<number> {

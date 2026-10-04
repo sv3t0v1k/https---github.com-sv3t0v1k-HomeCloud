@@ -68,10 +68,15 @@ export class StorageService {
     const ext = path.extname(filename);
     const baseName = path.basename(filename, ext);
     const safeBase = baseName.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const fullPath = path.join(
-      userDir,
-      `${safeBase}_${uploadId}${ext.toLowerCase()}`,
-    );
+    const diskName = `${safeBase}_${uploadId}${ext.toLowerCase()}`;
+    // Logical names live in metadata. A valid 255-character user name can
+    // exceed the filesystem's 255-byte component limit after adding the UUID
+    // or encoding a Unicode extension. Preserve ordinary paths unchanged.
+    const boundedDiskName =
+      Buffer.byteLength(diskName, "utf8") > 255
+        ? `${uploadId}.upload`
+        : diskName;
+    const fullPath = path.join(userDir, boundedDiskName);
     return this.ensureWithinStorageRoot(fullPath);
   }
 
