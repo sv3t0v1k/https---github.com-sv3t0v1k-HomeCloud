@@ -1,0 +1,7 @@
+{
+  "method": "sha256sum in existing backend container, before UI Trash/permanent cleanup",
+  "path": "/storage/3/rate-limit-ui-256chunks-20261005_350067a8-625a-4bfa-a442-03bd157d32b9.txt",
+  "rawStdout": "8e0c9035137036bfd32c6c7126bcb052aa2b9ba89a002737fe320039edb75c1f  /storage/3/rate-limit-ui-256chunks-20261005_350067a8-625a-4bfa-a442-03bd157d32b9.txt",
+  "rawStatStdout": "2684354560 5242888 512",
+  "sourceGenerationRecord": "evidence.json fixture.sha256"
+}

@@ -1,0 +1,232 @@
+{
+  "dateLocal": "2026-10-05 Asia/Vladivostok",
+  "baselineHead": "71417d77a422f369bb154abfa96662ec67e66cfc",
+  "stack": "homecloud-preview",
+  "browser": "Codex in-app browser (Chromium); exact version not exposed by current browser tool",
+  "url": "http://localhost:8080/files",
+  "oldGlobalLimit": "100 requests/60s normalized client IP; chunk and abort inherited it",
+  "newPolicy": {
+    "globalOrdinary": "unchanged 100/60s IP",
+    "chunkUser": "25/s burst50",
+    "chunkAdmissionIp": "100/s burst100",
+    "abortUser": "0.5/s burst10",
+    "abortAdmissionIp": "10/s burst20",
+    "perUserConcurrent": 4,
+    "perProcessConcurrent": 32,
+    "maxKeysPerBucketMap": 10000,
+    "idleExpirySeconds": 300
+  },
+  "invalidFixtureAttempt": {
+    "format": "binary .bin disallowed by existing MIME allowlist",
+    "chunkResults": {
+      "requests": 263,
+      "statuses": {
+        "304": 1,
+        "201": 1,
+        "200": 260,
+        "400": 1
+      },
+      "chunkCount": 256,
+      "chunkStatuses": {
+        "200": 256
+      },
+      "firstChunkUtc": "2026-10-04T22:11:37.150Z",
+      "lastChunkUtc": "2026-10-04T22:12:00.514Z",
+      "firstChunkRequestId": "6f48e513-d971-48af-b0a5-5a5736ee292c",
+      "medianChunkMs": 87.213,
+      "earlyMedianMs": 89.57,
+      "middleMedianMs": 86.175,
+      "lateMedianMs": 87.909,
+      "completion": [
+        {
+          "timestamp": "2026-10-04T22:12:04.490Z",
+          "statusCode": 400,
+          "durationMs": 3972.071,
+          "requestId": "df0bbe8a-0640-48df-9d8e-283d0f97f47b"
+        }
+      ]
+    },
+    "outcome": "UI complete400 then abort200; temp files0"
+  },
+  "fixture": {
+    "logicalBytes": 2684354560,
+    "physicalBytes": 2692743168,
+    "sha256": "8e0c9035137036bfd32c6c7126bcb052aa2b9ba89a002737fe320039edb75c1f",
+    "method": "allocated repeating deterministic ASCII text, 8 MiB buffer, SHA-256 accumulated during generation",
+    "generationSeconds": 1.049
+  },
+  "browserUpload256": {
+    "requests": 266,
+    "statuses": {
+      "304": 2,
+      "201": 1,
+      "200": 263
+    },
+    "chunkCount": 256,
+    "chunkStatuses": {
+      "200": 256
+    },
+    "firstChunkUtc": "2026-10-04T22:13:38.508Z",
+    "lastChunkUtc": "2026-10-04T22:14:01.765Z",
+    "firstChunkRequestId": "bf5819bd-34fa-434f-86e3-63b6d81aac5d",
+    "medianChunkMs": 87.368,
+    "earlyMedianMs": 88.697,
+    "middleMedianMs": 84.765,
+    "lateMedianMs": 89.969,
+    "completion": [
+      {
+        "timestamp": "2026-10-04T22:14:14.521Z",
+        "statusCode": 200,
+        "durationMs": 12753.156,
+        "requestId": "a3e2e323-1742-405e-aa07-d202de65194e"
+      }
+    ]
+  },
+  "uploadElapsedSecondsFromUiClickToHttpComplete": 36.17,
+  "effectiveThroughputMiBPerSecond": 70.78,
+  "sourceSha256": "8e0c9035137036bfd32c6c7126bcb052aa2b9ba89a002737fe320039edb75c1f",
+  "storedSha256": "8e0c9035137036bfd32c6c7126bcb052aa2b9ba89a002737fe320039edb75c1f",
+  "storedBytes": 2684354560,
+  "session": {
+    "uploadId": "350067a8-625a-4bfa-a442-03bd157d32b9",
+    "status": "completed",
+    "totalSize": 2684354560,
+    "uploadedSize": 2684354560,
+    "uploadedCount": 256,
+    "totalChunks": 256,
+    "tempPath": "/storage/.tmp/350067a8-625a-4bfa-a442-03bd157d32b9"
+  },
+  "retryFixture": {
+    "logicalBytes": 134217728,
+    "physicalBytes": 134217728,
+    "sha256": "a5b8941036a2b3a577f0362d8d7625b64f708876c9232fdd1411d70492e16488"
+  },
+  "controlledDiagnostic": {
+    "requests": 640,
+    "statuses": {
+      "400": 423,
+      "429": 217
+    },
+    "first429": {
+      "index": 117,
+      "retryAfter": "1",
+      "at": 1791152330.455325
+    },
+    "endedAt": 1791152342.7324932
+  },
+  "browser429Recovery": {
+    "requests": 22,
+    "statuses": {
+      "304": 2,
+      "201": 1,
+      "429": 1,
+      "200": 18
+    },
+    "chunkCount": 14,
+    "chunkStatuses": {
+      "429": 1,
+      "200": 13
+    },
+    "firstChunkUtc": "2026-10-04T22:19:02.504Z",
+    "lastChunkUtc": "2026-10-04T22:19:04.767Z",
+    "firstChunkRequestId": "46985af5-5459-43b6-9204-e7a267c47425",
+    "medianChunkMs": 87.803,
+    "earlyMedianMs": null,
+    "middleMedianMs": null,
+    "lateMedianMs": null,
+    "completion": [
+      {
+        "timestamp": "2026-10-04T22:19:05.335Z",
+        "statusCode": 200,
+        "durationMs": 564.794,
+        "requestId": "4081c478-5ea6-4003-8d45-3844823de613"
+      }
+    ],
+    "first429Utc": "2026-10-04T22:19:02.504Z",
+    "firstRecovery200Utc": "2026-10-04T22:19:03.668Z"
+  },
+  "resources": {
+    "homecloud-preview-backend-1": {
+      "samples": 85,
+      "firstMemoryMiB": 55.57,
+      "peakSampledMemoryMiB": 244.8,
+      "peakSampledCpuPercent": 188.13
+    },
+    "homecloud-preview-db-1": {
+      "samples": 85,
+      "firstMemoryMiB": 39.05,
+      "peakSampledMemoryMiB": 41.04,
+      "peakSampledCpuPercent": 2.37
+    },
+    "peakSampledTempKiB": 2621452
+  },
+  "cleanup": {
+    "trashUi": "Both created files moved to Trash through HomeCloud UI and isDeleted=true confirmed before targeted permanent removal.",
+    "permanentIds": [
+      13,
+      14
+    ],
+    "permanentStatuses": {
+      "14": 200,
+      "13": 200
+    },
+    "verified": {
+      "testFileRows": 0,
+      "user": {
+        "storageUsed": 37021,
+        "storageQuota": 107374182400
+      },
+      "sessions": [
+        {
+          "filename": "rate-limit-ui-256chunks-20261005.txt",
+          "status": "completed",
+          "uploadedCount": 256,
+          "totalChunks": 256
+        },
+        {
+          "filename": "rate-limit-ui-429-recovery-20261005.txt",
+          "status": "completed",
+          "uploadedCount": 13,
+          "totalChunks": 13
+        },
+        {
+          "filename": "rate-limit-ui-256chunks-20261005.bin",
+          "status": "aborted",
+          "uploadedCount": 256,
+          "totalChunks": 256
+        }
+      ],
+      "chunkRows": 0,
+      "tempFileCount": 0,
+      "storedTestPathsAbsent": true,
+      "sourceFixturesRemoved": true
+    }
+  },
+  "gates": {
+    "backendFocused": "6 suites / 115 tests PASS; actual PostgreSQL 0 skips",
+    "backendFinalTargeted": "2 suites / 21 tests PASS; actual PostgreSQL 0 skips",
+    "backendFull": "63 suites / 778 tests PASS; actual PostgreSQL 0 skips",
+    "backendFirstFull": "777/778; pre-existing public-token Retry-After test flaky, confirmation and final full both778/778",
+    "frontendFull": "18 files / 196 tests PASS",
+    "lintBackend": "0 errors, 15 pre-existing warnings, 0 new warnings",
+    "lintFrontend": "PASS",
+    "typecheck": "backend and frontend PASS",
+    "build": "backend and frontend PASS",
+    "diffCheck": "PASS"
+  },
+  "limits": [
+    "No full 50 GiB transfer was attempted in this remediation.",
+    "Browser heap/RSS not accessible; sampled container memory is reported.",
+    "One invalid .bin fixture attempt passed all256 chunks but failed existing MIME allowlist at complete; cleanup succeeded.",
+    "Diagnostic requests were empty, tagged RLDIAG and targeted a nonexistent session; they are not counted as UI-upload bytes."
+  ],
+  "productFixCommit": "cb7f54e3962089af08256aa898c29ac96a050804",
+  "previewTlsRestoration": {
+    "finding": "macOS purged the existing preview TLS files under /private/tmp, so running ingress nginx -t initially failed although the process continued serving the in-memory self-signed certificate",
+    "oldCertificate": "self-signed CN homecloud.localhost, SHA256 fingerprint DF:7E:3C:7D:BA:21:DF:19:33:99:3E:4A:8B:3F:50:0E:85:90:4E:C3:A2:62:72:1E:39:D6:A4:C6:84:4C:71:B3",
+    "repair": "regenerated 30-day RSA3072 self-signed SAN DNS:homecloud.localhost in existing private preview TLS directory; key mode0600; reloaded existing ingress after nginx -t PASS; no new Docker stack",
+    "newCertificateFingerprint": "0A:7B:B9:C5:8F:C4:3F:D2:04:4F:55:98:BD:BD:41:1F:A4:1C:A3:E2:A4:14:A5:64:4C:8A:B7:84:9C:97:92:B0",
+    "postReload": "live certificate fingerprint matched new local cert; nginx -t PASS; all existing services running",
+    "limitation": "The preview TLS directory remains under purgeable /private/tmp and can be removed by macOS again."
+  }
+}

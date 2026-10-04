@@ -1,0 +1,24 @@
+{
+  "certificatePath": "/private/tmp/homecloud-production-preview/tls/fullchain.pem",
+  "privateKeyPathOnly": "/private/tmp/homecloud-production-preview/tls/privkey.pem",
+  "privateKeyMode": "0o600",
+  "localPublicMetadata": [
+    "subject= /CN=homecloud.localhost",
+    "issuer= /CN=homecloud.localhost",
+    "notBefore=Oct  4 22:33:29 2026 GMT",
+    "notAfter=Nov  3 22:33:29 2026 GMT",
+    "SHA256 Fingerprint=0A:7B:B9:C5:8F:C4:3F:D2:04:4F:55:98:BD:BD:41:1F:A4:1C:A3:E2:A4:14:A5:64:4C:8A:B7:84:9C:97:92:B0"
+  ],
+  "livePublicMetadata": [
+    "subject= /CN=homecloud.localhost",
+    "issuer= /CN=homecloud.localhost",
+    "notBefore=Oct  4 22:33:29 2026 GMT",
+    "notAfter=Nov  3 22:33:29 2026 GMT",
+    "SHA256 Fingerprint=0A:7B:B9:C5:8F:C4:3F:D2:04:4F:55:98:BD:BD:41:1F:A4:1C:A3:E2:A4:14:A5:64:4C:8A:B7:84:9C:97:92:B0"
+  ],
+  "nginxTest": [
+    "nginx: the configuration file /etc/nginx/nginx.conf syntax is ok",
+    "nginx: configuration file /etc/nginx/nginx.conf test is successful"
+  ],
+  "note": "No private key contents were read or committed. Existing ingress was reloaded after this successful config test; TLS stayed enabled."
+}

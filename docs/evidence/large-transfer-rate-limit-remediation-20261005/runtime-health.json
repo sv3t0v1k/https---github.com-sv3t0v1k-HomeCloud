@@ -1,0 +1,30 @@
+[
+  {
+    "name": "homecloud-preview-backend-1",
+    "image": "homecloud-preview-backend:rate-limit-remediation",
+    "running": true,
+    "restartCount": 0,
+    "health": "healthy"
+  },
+  {
+    "name": "homecloud-preview-db-1",
+    "image": "postgres:16-alpine",
+    "running": true,
+    "restartCount": 0,
+    "health": "healthy"
+  },
+  {
+    "name": "homecloud-preview-frontend-1",
+    "image": "homecloud-preview-frontend:42e1dce",
+    "running": true,
+    "restartCount": 0,
+    "health": "healthy"
+  },
+  {
+    "name": "homecloud-preview-ingress-1",
+    "image": "nginx:alpine",
+    "running": true,
+    "restartCount": 0,
+    "health": null
+  }
+]
