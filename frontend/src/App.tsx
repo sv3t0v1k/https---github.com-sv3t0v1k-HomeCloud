@@ -5,7 +5,7 @@ import { safeOperationError } from './files/operationErrors'
 import { useDialogFocus } from './accessibility/useDialogFocus'
 import { LoginPage } from './auth/LoginPage'
 import { useSession } from './auth/SessionContext'
-import { FileBrowserPage } from './files/FileBrowserPage'
+import { FileBrowserPage, UploadQueueProvider } from './files/FileBrowserPage'
 import { TrashPage } from './files/TrashPage'
 import { ProtectedRoute } from './routing/ProtectedRoute'
 import { Icon } from './ui/Icon'
@@ -31,11 +31,12 @@ function App() {
 }
 
 function FileBrowserLayout({ trash = false }: { trash?: boolean }) {
+  const session = useSession()
   const [accountOpen, setAccountOpen] = useState(false)
   const [navigationOpen, setNavigationOpen] = useState(false)
   const backgroundRef = useRef<HTMLDivElement>(null)
   return (
-    <div className="app-shell">
+    <UploadQueueProvider key={session.user?.id ?? 0} ownerId={session.user?.id ?? 0}><div className="app-shell">
       <a className="skip-link" href="#workspace">Перейти к содержимому</a>
       <aside aria-label="Основная навигация" className="sidebar sidebar-desktop"><SidebarContent onOpenAccount={() => setAccountOpen(true)} trash={trash} /></aside>
       <div className="app-frame" ref={backgroundRef}>
@@ -46,7 +47,7 @@ function FileBrowserLayout({ trash = false }: { trash?: boolean }) {
       </div>
       {navigationOpen ? <NavigationDrawer accountOpen={accountOpen} onOpenAccount={() => setAccountOpen(true)} background={backgroundRef.current} trash={trash} onClose={() => setNavigationOpen(false)} /> : null}
       {accountOpen ? <AccountDialog onClose={() => setAccountOpen(false)} /> : null}
-    </div>
+    </div></UploadQueueProvider>
   )
 }
 

@@ -337,3 +337,11 @@ h1, h2, h3, h4, p { margin-top: 0; }
 .account-identity p { margin: 4px 0 0; font-size: 13px; }
 .account-hint { color: var(--text-muted); font-size: 13px; }
 .account-dialog .input { font-size: 16px; }
+
+/* Upload queue uses existing controls, spacing and color tokens. */
+.files-page--drop { outline: 2px dashed var(--accent, #88bda1); outline-offset: 8px; }
+.upload-drop-status { padding: 1rem; border: 1px dashed currentColor; border-radius: 10px; }
+.upload-queue { list-style: none; padding: 0; margin: 0; display: grid; gap: 1rem; max-height: 28rem; overflow-y: auto; }
+.upload-queue-item { padding: 0.8rem 0; border-top: 1px solid var(--border, #383e3b); overflow-wrap: anywhere; }
+.upload-queue-title { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; align-items: baseline; }
+.upload-queue-item .state-actions { flex-wrap: wrap; }

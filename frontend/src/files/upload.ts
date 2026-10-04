@@ -10,9 +10,11 @@ const UPLOAD_RETRY_WAIT_BUDGET_MS = 5 * 60_000
 const ABORT_BUDGET_MS = 10_000
 const RATE_LIMIT_MESSAGE = 'Сервер ограничил частоту загрузки. Подождите и повторите загрузку.'
 
-interface RetryBudget {
+export interface RetryBudget {
   remainingWaitMs: number
   deadline?: number
+  /** Retained when a pause interrupts backoff, so Resume cannot retry early. */
+  notBefore?: number
 }
 
 export interface UploadLimits {
@@ -98,7 +100,6 @@ export async function uploadFile({
       throwIfAborted(signal)
       const start = chunkIndex * chunkSize
       const chunk = file.slice(start, Math.min(start + chunkSize, file.size))
-      let furthestAttemptByte = 0
 
       await withChunkRetry(
         async () => {
@@ -110,17 +111,6 @@ export async function uploadFile({
             url: `/uploads/session/${encodeURIComponent(session.uploadId)}/chunk`,
             data: form,
             signal,
-            onUploadProgress: ({ loaded }) => {
-              furthestAttemptByte = Math.max(furthestAttemptByte, Math.min(loaded, chunk.size))
-              emit(
-                onProgress,
-                'uploading',
-                completedBytes + furthestAttemptByte,
-                file.size,
-                chunkIndex,
-                totalChunks,
-              )
-            },
           })
         },
         signal,
@@ -147,12 +137,19 @@ export async function uploadFile({
   }
 }
 
-async function withChunkRetry(
+export async function withChunkRetry(
   send: () => Promise<unknown>,
   signal: AbortSignal | undefined,
   retryDelayMs: number,
   budget: RetryBudget,
+  onRetry?: () => void,
 ) {
+  const remainingBackoff = Math.max(0, (budget.notBefore ?? 0) - Date.now())
+  if (remainingBackoff > MAX_RETRY_WAIT_MS) throw new ApiError(RATE_LIMIT_MESSAGE, 'rate-limit')
+  if (remainingBackoff > 0) {
+    onRetry?.()
+    await abortableDelay(remainingBackoff, signal)
+  }
   for (let attempt = 1; attempt <= MAX_CHUNK_ATTEMPTS; attempt += 1) {
     throwIfAborted(signal)
     if (budget.deadline !== undefined && Date.now() >= budget.deadline) {
@@ -160,15 +157,20 @@ async function withChunkRetry(
     }
     try {
       await send()
+      budget.notBefore = undefined
       return
     } catch (error) {
-      if (signal?.aborted || !isRetryable(error)) throw error
-      if (attempt === MAX_CHUNK_ATTEMPTS) throw retryFailure(error)
+      if (!isRetryable(error)) throw error
       const fallbackMs = Math.max(
         error.kind === 'rate-limit' ? DEFAULT_RETRY_DELAY_MS : 0,
         Number.isFinite(retryDelayMs) ? retryDelayMs : DEFAULT_RETRY_DELAY_MS,
       ) * 2 ** (attempt - 1)
       const delayMs = Math.max(fallbackMs, retryAfterDelay(error.retryAfter) ?? 0)
+      budget.notBefore = Math.max(budget.notBefore ?? 0, Date.now() + delayMs)
+      // Pause can arrive while the request is in flight. Retain the response's
+      // Retry-After before interrupting scheduling, even when already paused.
+      if (signal?.aborted) throw error
+      if (attempt === MAX_CHUNK_ATTEMPTS) throw retryFailure(error)
       const availableMs = Math.min(
         budget.remainingWaitMs,
         budget.deadline === undefined ? Infinity : budget.deadline - Date.now(),
@@ -176,6 +178,7 @@ async function withChunkRetry(
       // Never clamp a server Retry-After to an earlier retry. Stop instead.
       if (delayMs > MAX_RETRY_WAIT_MS || delayMs > availableMs) throw retryFailure(error)
       budget.remainingWaitMs -= delayMs
+      onRetry?.()
       await abortableDelay(delayMs, signal)
     }
   }

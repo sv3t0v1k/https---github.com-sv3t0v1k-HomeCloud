@@ -89,7 +89,8 @@ describe('uploadFile', () => {
     })
 
     expect(completeStarted).toBe(true)
-    expect(progress).toContainEqual(expect.objectContaining({ bytesSent: 4, percent: 40 }))
+    expect(progress).not.toContainEqual(expect.objectContaining({ bytesSent: 4, percent: 40 }))
+    expect(progress).toContainEqual(expect.objectContaining({ bytesSent: 10, percent: 99 }))
     expect(progress[progress.length - 1]).toMatchObject({
       stage: 'success',
       bytesSent: 10,

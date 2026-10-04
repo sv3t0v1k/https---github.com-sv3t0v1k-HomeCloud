@@ -119,6 +119,51 @@ describe('API client', () => {
     expect(tokenStorage.getRefreshToken()).toBe('keep-refresh')
   })
 
+  it('never retries an old owner request with a different login token', async () => {
+    tokenStorage.set({ accessToken: 'owner-a', refreshToken: 'refresh-a' })
+    let finish!: () => void
+    let calls = 0
+    apiClient.defaults.adapter = (config) => {
+      calls++
+      return new Promise((_resolve, reject) => { finish = () => reject(responseError(config, 401)) })
+    }
+    const pending = apiRequest({ url: '/uploads/session', method: 'POST', data: { filename: 'owner-a.bin' } })
+    const rejected = expect(pending).rejects.toMatchObject({ kind: 'authentication' })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    clearSession()
+    tokenStorage.set({ accessToken: 'owner-b', refreshToken: 'refresh-b' })
+    finish()
+    await rejected
+    expect(calls).toBe(1)
+    expect(tokenStorage.getAccessToken()).toBe('owner-b')
+  })
+
+  it('captures the owner boundary before asynchronous request interceptors run', async () => {
+    tokenStorage.set({ accessToken: 'owner-a', refreshToken: 'refresh-a' })
+    let calls = 0
+    apiClient.defaults.adapter = async (config) => { calls++; return response(config, 200, { success: true, data: {} }) }
+    const pending = apiRequest({ url: '/uploads/session', method: 'POST' })
+    clearSession()
+    tokenStorage.set({ accessToken: 'owner-b', refreshToken: 'refresh-b' })
+    await expect(pending).rejects.toMatchObject({ kind: 'authentication' })
+    expect(calls).toBe(0)
+    expect(tokenStorage.getAccessToken()).toBe('owner-b')
+  })
+
+  it('does not clear a new login when an old refresh fails late', async () => {
+    tokenStorage.set({ accessToken: 'owner-a', refreshToken: 'refresh-a' })
+    let finish!: () => void
+    sessionClient.defaults.adapter = (config) => new Promise((_resolve, reject) => { finish = () => reject(responseError(config, 401)) })
+    const pending = refreshSession()
+    const rejected = expect(pending).rejects.toBeDefined()
+    clearSession()
+    tokenStorage.set({ accessToken: 'owner-b', refreshToken: 'refresh-b' })
+    finish()
+    await rejected
+    expect(tokenStorage.getAccessToken()).toBe('owner-b')
+    expect(tokenStorage.getRefreshToken()).toBe('refresh-b')
+  })
+
   it('does not restore tokens when the session is cleared during refresh', async () => {
     tokenStorage.set({ accessToken: 'old-access', refreshToken: 'old-refresh' })
     let finishRefresh: (() => void) | undefined

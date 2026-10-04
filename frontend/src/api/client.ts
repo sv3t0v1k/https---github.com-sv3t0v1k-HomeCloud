@@ -8,7 +8,7 @@ import { publishSessionExpired } from '../auth/sessionEvents'
 import { tokenStorage } from '../auth/tokenStorage'
 import type { Tokens } from '../types/auth'
 import type { ApiEnvelope } from './contracts'
-import { normalizeApiError } from './errors'
+import { ApiError, normalizeApiError } from './errors'
 
 declare module 'axios' {
   interface AxiosRequestConfig {
@@ -16,6 +16,7 @@ declare module 'axios' {
     skipRefresh?: boolean
     authRetry?: boolean
     accessTokenUsed?: string
+    ownerGenerationUsed?: number
   }
 
   interface InternalAxiosRequestConfig {
@@ -23,6 +24,7 @@ declare module 'axios' {
     skipRefresh?: boolean
     authRetry?: boolean
     accessTokenUsed?: string
+    ownerGenerationUsed?: number
   }
 }
 
@@ -35,6 +37,10 @@ let refreshPromise: Promise<Tokens> | null = null
 
 apiClient.interceptors.request.use((config) => {
   if (config.skipAuth) return config
+  if (config.ownerGenerationUsed !== undefined && config.ownerGenerationUsed !== tokenStorage.getOwnerGeneration()) {
+    throw new ApiError('Сессия пользователя изменилась. Запрос остановлен.', 'authentication')
+  }
+  config.ownerGenerationUsed ??= tokenStorage.getOwnerGeneration()
 
   const accessToken = tokenStorage.getAccessToken()
   if (accessToken) {
@@ -52,6 +58,8 @@ apiClient.interceptors.response.use(
       return Promise.reject(error)
     }
 
+    // Never replay an old owner's request after logout or a new login.
+    if (config.ownerGenerationUsed !== tokenStorage.getOwnerGeneration()) return Promise.reject(error)
     if (config.authRetry) {
       expireSession()
       return Promise.reject(error)
@@ -82,7 +90,11 @@ apiClient.interceptors.response.use(
 
 export async function apiRequest<T>(config: AxiosRequestConfig): Promise<T> {
   try {
-    const response = await apiClient.request<ApiEnvelope<T>>(config)
+    const requestConfig = config.skipAuth ? config : {
+      ...config,
+      ownerGenerationUsed: config.ownerGenerationUsed ?? tokenStorage.getOwnerGeneration(),
+    }
+    const response = await apiClient.request<ApiEnvelope<T>>(requestConfig)
     return response.data.data
   } catch (error) {
     throw normalizeApiError(error)
@@ -109,7 +121,7 @@ export function refreshSession(): Promise<Tokens> {
       return tokens
     })
     .catch((error: AxiosError) => {
-      if (error.response?.status === 400 || error.response?.status === 401) {
+      if (tokenStorage.getEpoch() === refreshEpoch && (error.response?.status === 400 || error.response?.status === 401)) {
         expireSession()
       }
       throw error

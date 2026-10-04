@@ -1,5 +1,5 @@
 import { formatBytes } from '../ui/formatBytes'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { Icon } from '../ui/Icon'
 import { ActionMenu } from '../ui/ActionMenu'
 import { useDialogFocus } from '../accessibility/useDialogFocus'
@@ -10,7 +10,8 @@ import { apiRequest } from '../api/client'
 import type { FileItem, FolderContents, FolderItem } from '../types/files'
 import { copyFile, createFolder, getFolder, getFolderContents, moveFile, moveFolder, moveToTrash, renameFile, renameFolder } from './api'
 import { downloadOriginalFile } from './download'
-import { getUploadLimits, uploadFile, type UploadLimits, type UploadProgress } from './upload'
+import { getUploadLimits, type UploadLimits } from './upload'
+import { UploadQueue, type UploadQueueItem } from './uploadQueue'
 import { ShareDialog } from '../sharing/ShareDialog'
 import type { ShareTarget } from '../sharing/api'
 import { PreviewModal } from './PreviewModal'
@@ -36,6 +37,24 @@ export function FileBrowserPage() {
   const [page, setPage] = useState<PageState>({ status: 'loading' })
   const requestGeneration = useRef(0)
   const folderId = parseFolderId(folderIdParam)
+  const providedQueue = useContext(UploadQueueContext)
+  const [fallbackQueue] = useState(() => new UploadQueue(0, null))
+  const queue = providedQueue ?? fallbackQueue
+  const [dragging, setDragging] = useState(false)
+  const [dropError, setDropError] = useState<string | null>(null)
+  const dragDepth = useRef(0)
+  useEffect(() => () => fallbackQueue.dispose(), [fallbackQueue])
+  useEffect(() => {
+    const preventNavigation = (event: DragEvent) => {
+      if (Array.from(event.dataTransfer?.types ?? []).includes('Files')) event.preventDefault()
+    }
+    window.addEventListener('dragover', preventNavigation)
+    window.addEventListener('drop', preventNavigation)
+    return () => {
+      window.removeEventListener('dragover', preventNavigation)
+      window.removeEventListener('drop', preventNavigation)
+    }
+  }, [])
 
   useEffect(() => {
     if (folderIdParam !== undefined && folderId === null) {
@@ -90,14 +109,28 @@ export function FileBrowserPage() {
   }
 
   return (
-    <section aria-labelledby="files-heading" className="files-page">
+    <section aria-labelledby="files-heading" className={`files-page${dragging ? ' files-page--drop' : ''}`}
+      onDragEnter={(event) => { if (!Array.from(event.dataTransfer.types).includes('Files')) return; event.preventDefault(); dragDepth.current += 1; setDragging(true) }}
+      onDragOver={(event) => { if (!Array.from(event.dataTransfer.types).includes('Files')) return; event.preventDefault(); event.dataTransfer.dropEffect = readyPage ? 'copy' : 'none' }}
+      onDragLeave={(event) => { event.preventDefault(); dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragging(false) }}
+      onDrop={(event) => {
+        event.preventDefault(); dragDepth.current = 0; setDragging(false)
+        if (!readyPage) { setDropError('Дождитесь загрузки папки и повторите перетаскивание.'); return }
+        const items = Array.from(event.dataTransfer.items ?? [])
+        const directories = items.filter((item) => item.webkitGetAsEntry?.()?.isDirectory)
+        const files = items.length ? items.filter((item) => item.kind === 'file' && !item.webkitGetAsEntry?.()?.isDirectory).map((item) => item.getAsFile()).filter((file): file is File => file !== null) : Array.from(event.dataTransfer.files)
+        setDropError(directories.length ? 'Перетаскивание папок пока не поддерживается. Выберите файлы внутри папки.' : null)
+        if (files.length) queue.enqueue(files, folderId ?? undefined)
+      }}>
+      {dragging ? <p className="upload-drop-status" role="status">Отпустите файлы, чтобы загрузить их в текущую папку.</p> : null}
+      {dropError ? <p className="inline-alert" role="alert">{dropError}</p> : null}
       <Breadcrumbs crumbs={crumbs} />
       <div className="page-heading"><div><p className="eyebrow">ВАШЕ ЛИЧНОЕ ПРОСТРАНСТВО</p><h2 id="files-heading">{title}</h2><p className="muted">Файлы и папки, которые всегда под рукой.</p></div></div>
       {folderIdParam === undefined || folderId !== null ? (
         <div className="files-toolbar">
           <UploadControl
             enabled={readyPage !== null}
-            key={folderId === null ? 'upload-root' : `upload-${folderId}`}
+            queue={queue}
             onUploaded={() => setReloadKey((key) => key + 1)}
             parentId={folderId ?? undefined}
           />
@@ -354,11 +387,6 @@ function OperationDialog({ action, busy, currentFolderId, error, onClose, onSubm
   </form></SmallDialog>
 }
 
-type UploadUiState =
-  | { status: 'idle' | 'selected' | 'cancelled'; progress: null; message: string | null }
-  | { status: 'active'; progress: UploadProgress; message: null }
-  | { status: 'success' | 'error'; progress: UploadProgress | null; message: string }
-
 function CreateFolderControl({ enabled, parentId, onCreated }: { enabled: boolean; parentId?: number; onCreated(): void }) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
@@ -383,120 +411,88 @@ function CreateFolderControl({ enabled, parentId, onCreated }: { enabled: boolea
   return <><button className="button button--ghost" disabled={!enabled} aria-disabled={busy || undefined} onClick={(event) => { if (busyRef.current) return; event.currentTarget.focus(); setError(null); setOpen(true) }} type="button"><Icon name="plus" />Новая папка</button>{open ? <SmallDialog onClose={close} title="Новая папка"><form onSubmit={(event) => void submit(event)}><label className="field" htmlFor="new-folder-name">Название папки</label><input className="input" disabled={busy} id="new-folder-name" maxLength={255} onChange={(event) => setName(event.target.value)} placeholder="Например, Документы" value={name} />{error ? <p className="inline-alert" role="alert">{error}</p> : null}<div className="dialog-actions"><button className="button button--ghost" onClick={close} type="button">{busy ? 'Закрыть' : 'Отмена'}</button><button className="button button--primary" disabled={busy || !name.trim()} type="submit">{busy ? 'Создание…' : 'Создать папку'}</button></div></form></SmallDialog> : null}{!open && busy ? <p className="muted" role="status">Создание папки продолжается…</p> : null}{!open && error ? <p className="inline-alert" role="alert">{error}</p> : null}</>
 }
 
-function UploadControl({ enabled, parentId, onUploaded }: { enabled: boolean; parentId?: number; onUploaded(): void }) {
-  const [file, setFile] = useState<File | null>(null)
-  const [limits, setLimits] = useState<UploadLimits | null>(null)
-  const [state, setState] = useState<UploadUiState>({ status: 'idle', progress: null, message: null })
-  const controllerRef = useRef<AbortController | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+const UploadQueueContext = createContext<UploadQueue | null>(null)
 
-  useEffect(() => () => controllerRef.current?.abort(), [])
-
+export function UploadQueueProvider({ ownerId, children }: { ownerId: number; children: ReactNode }) {
+  const [queue] = useState(() => new UploadQueue(ownerId))
+  const [discoveryError, setDiscoveryError] = useState(false)
   useEffect(() => {
-    setLimits(null)
-    if (!file) return
-    const controller = new AbortController()
-    getUploadLimits(controller.signal)
-      .then((result) => { if (!controller.signal.aborted) setLimits(result) })
-      .catch(() => { /* The upload flow checks authoritative limits again before creating a session. */ })
-    return () => controller.abort()
-  }, [file])
-
-  const active = state.status === 'active'
-  const exceedsLimit = file !== null && limits !== null && file.size > limits.effectiveMaxFileBytes
-
-  async function startUpload() {
-    if (!file || active || !enabled || exceedsLimit || controllerRef.current) return
-    const controller = new AbortController()
-    controllerRef.current = controller
-    setState({
-      status: 'active',
-      progress: { stage: 'preparing', bytesSent: 0, totalBytes: file.size, chunkIndex: null, totalChunks: 0, percent: 0 },
-      message: null,
-    })
-    try {
-      await uploadFile({
-        file,
-        parentId,
-        signal: controller.signal,
-        onProgress: (progress) => { if (!controller.signal.aborted && controllerRef.current === controller) setState({ status: 'active', progress, message: null }) },
-      })
-      if (controller.signal.aborted || controllerRef.current !== controller) return
-      setState({ status: 'success', progress: null, message: `${file.name} — файл загружен.` })
-      setFile(null)
-      if (inputRef.current) inputRef.current.value = ''
-      onUploaded()
-    } catch (error) {
-      if (controller.signal.aborted) {
-        setState({ status: 'cancelled', progress: null, message: 'Загрузка отменена.' })
-      } else {
-        setState({ status: 'error', progress: null, message: uploadErrorMessage(error) })
-      }
-    } finally {
-      if (controllerRef.current === controller) controllerRef.current = null
-    }
-  }
-
-  function cancelUpload() {
-    controllerRef.current?.abort()
-    setState({ status: 'cancelled', progress: null, message: 'Загрузка отменена.' })
-  }
-
-  const stage = state.status === 'active' ? state.progress.stage : null
-
-  return (
-    <section aria-labelledby="upload-heading" className="upload-control">
-      <h3 className="sr-only" id="upload-heading">Загрузка файла</h3>
-      <div className="upload-picker">
-        <label className={`button button--ghost upload-input-label${active || !enabled ? ' is-disabled' : ''}`}>
-          <Icon name="plus" />Выбрать файл
-        <input
-          ref={inputRef}
-          aria-label="Выбрать файл для загрузки"
-          className="sr-only upload-input"
-          disabled={active || !enabled}
-          onChange={(event) => {
-            const selected = event.target.files?.[0] ?? null
-            setFile(selected)
-            setState({ status: selected ? 'selected' : 'idle', progress: null, message: null })
-          }}
-          type="file"
-        /></label>
-        <button className="button button--primary" disabled={!file || active || !enabled || exceedsLimit} onClick={() => void startUpload()} type="button"><Icon name="upload" />{state.status === 'error' || state.status === 'cancelled' ? 'Повторить загрузку' : 'Загрузить'}</button>
-        {active ? <button className="button button--ghost" onClick={cancelUpload} type="button">Отменить загрузку</button> : null}
-      </div>
-      {file || state.message ? <div className="upload-manager" aria-label="Загрузки">
-      {file ? <p className="upload-details muted">Выбран файл: {file.name} ({formatBytes(file.size)})</p> : null}
-      {file && limits ? <p className="upload-details muted">Доступный размер файла сейчас: {formatBytes(limits.effectiveMaxFileBytes)}. Ограничения учитывают квоту и текущие загрузки.</p> : null}
-      {exceedsLimit ? <p className="inline-alert" role="alert">Размер выбранного файла превышает доступный размер загрузки.</p> : null}
-      {state.status === 'active' ? (
-        <div className="upload-progress" aria-live="polite" role="status">
-          <p className="muted">
-            {stage === 'completing' ? 'Завершение загрузки…' : stage === 'preparing' ? 'Подготовка загрузки…' : `Загрузка… ${state.progress.percent}%`}
-          </p>
-          <progress className="upload-progress-bar" max={100} value={state.progress.percent}>{state.progress.percent}%</progress>
-          <p className="upload-details muted">{formatBytes(state.progress.bytesSent)} из {formatBytes(state.progress.totalBytes)} передано</p>
-        </div>
-      ) : null}
-      {state.message ? <p className={state.status === 'error' ? 'inline-alert' : state.status === 'success' ? 'upload-details success-text' : 'upload-details muted'} role={state.status === 'error' ? 'alert' : 'status'}>{state.message}</p> : null}
-      </div> : null}
-    </section>
-  )
+    void queue.discover().catch(() => setDiscoveryError(true))
+    return () => queue.dispose()
+  }, [queue])
+  return <UploadQueueContext.Provider value={queue}>{discoveryError ? <p className="inline-alert" role="alert">Не удалось проверить незавершённые загрузки. <button className="text-link" onClick={() => { void queue.discover().then(() => setDiscoveryError(false)).catch(() => setDiscoveryError(true)) }} type="button">Проверить снова</button></p> : null}{children}</UploadQueueContext.Provider>
 }
 
-function uploadErrorMessage(error: unknown): string {
-  if (error instanceof RangeError) return 'Выберите непустой файл допустимого размера.'
-  if (!(error instanceof ApiError)) return 'Не удалось загрузить файл. Попробуйте ещё раз.'
-  if (error.kind === 'rate-limit') return 'Сервер ограничил частоту загрузки. Подождите и повторите загрузку.'
-  const message = error.message.toLowerCase()
-  if (message.includes('quota')) return 'Недостаточно места для этого файла.'
-  if (message.includes('file size') || message.includes('total upload size') || message.includes('chunk size')) return 'Размер файла превышает ограничение загрузки.'
-  if (message.includes('file type')) return 'Этот тип файла не разрешён.'
-  if (message.includes('session') && (message.includes('expired') || error.status === 404)) return 'Срок загрузки истёк. Начните её заново.'
-  if (error.kind === 'network') return 'Соединение потеряно. Проверьте подключение и повторите попытку.'
-  if (error.kind === 'authentication') return 'Сессия истекла. Войдите снова.'
-  if (error.kind === 'server') return 'Сервер не смог загрузить файл. Попробуйте ещё раз.'
-  return 'Загрузка отклонена. Проверьте файл и попробуйте ещё раз.'
+function UploadControl({ enabled, parentId, onUploaded, queue }: { enabled: boolean; parentId?: number; onUploaded(): void; queue: UploadQueue }) {
+  const items = useSyncExternalStore(queue.subscribe, queue.getSnapshot)
+  const [limits, setLimits] = useState<UploadLimits | null>(null)
+  const [selection, setSelection] = useState<File[]>([])
+  const inputRef = useRef<HTMLInputElement>(null)
+  const knownCompleted = useRef(new Set<string>())
+  useEffect(() => {
+    let changed = false
+    for (const item of items) if (item.state === 'completed' && !knownCompleted.current.has(item.id)) { knownCompleted.current.add(item.id); changed = true }
+    if (changed) onUploaded()
+  }, [items, onUploaded])
+  useEffect(() => {
+    setLimits(null)
+    if (!selection.length) return
+    const controller = new AbortController()
+    getUploadLimits(controller.signal).then((result) => { if (!controller.signal.aborted) setLimits(result) }).catch(() => { /* Admission rechecks limits on the server. */ })
+    return () => controller.abort()
+  }, [selection])
+  const oversized = limits !== null && selection.length > 0 && selection.every((file) => file.size > limits.effectiveMaxFileBytes)
+  const selected = items.some((item) => item.state === 'selected')
+  const totalBytes = items.reduce((sum, item) => sum + item.size, 0)
+  const committed = items.reduce((sum, item) => sum + item.committedBytes, 0)
+  return <section aria-labelledby="upload-heading" className="upload-control">
+    <h3 className="sr-only" id="upload-heading">Загрузка файлов</h3>
+    <div className="upload-picker">
+      <label className={`button button--ghost upload-input-label${!enabled ? ' is-disabled' : ''}`}><Icon name="plus" />Выбрать файлы
+        <input ref={inputRef} aria-label="Выбрать файл для загрузки" className="sr-only upload-input" disabled={!enabled} multiple type="file"
+          onChange={(event) => { const files = Array.from(event.target.files ?? []); setSelection(files); queue.enqueue(files, parentId, false); event.target.value = '' }} />
+      </label>
+      <button className="button button--primary" disabled={!selected || !enabled || oversized} onClick={() => { queue.startAll(); setSelection([]) }} type="button"><Icon name="upload" />Загрузить</button>
+    </div>
+    <p className="upload-details muted">Выберите несколько файлов или перетащите их в текущую папку. Любые типы файлов.</p>
+    {selection.length === 1 ? <p className="upload-details muted">Выбран файл: {selection[0].name} ({formatBytes(selection[0].size)})</p> : null}
+    {selection.length > 1 ? <p className="upload-details muted">Выбрано файлов: {selection.length}</p> : null}
+    {selection.length && limits ? <p className="upload-details muted">Доступный размер файла сейчас: {formatBytes(limits.effectiveMaxFileBytes)}. Ограничения учитывают квоту и текущие загрузки.</p> : null}
+    {oversized ? <p className="inline-alert" role="alert">Размер выбранного файла превышает доступный размер загрузки.</p> : null}
+    {items.length ? <div className="upload-manager" aria-label="Загрузки">
+      <p className="upload-details muted">Файлов: {items.length}. Принято сервером: {formatBytes(committed)} из {formatBytes(totalBytes)}.</p>
+      <ul className="upload-queue">{items.map((item) => <UploadRow key={item.id} item={item} queue={queue} />)}</ul>
+    </div> : null}
+  </section>
+}
+
+const uploadStateLabels: Record<UploadQueueItem['state'], string> = {
+  selected: 'Ожидает запуска', queued: 'В очереди', preparing: 'Подготовка загрузки…', uploading: 'Загрузка…',
+  pausing: 'Приостанавливаем после текущей части…', paused: 'Приостановлено', retrying: 'Ожидание повторной попытки…',
+  completing: 'Завершение загрузки…', completed: 'Файл загружен', error: 'Требуется действие', cancelling: 'Отменяем загрузку…',
+  cancelled: 'Загрузка отменена.', 'needs-file': 'Для докачки выберите исходный файл',
+}
+
+function UploadRow({ item, queue }: { item: UploadQueueItem; queue: UploadQueue }) {
+  const canPause = ['queued', 'preparing', 'uploading', 'retrying'].includes(item.state)
+  const canResume = ['paused', 'error'].includes(item.state) && !item.needsFile
+  const canCancel = !['completed', 'cancelled', 'cancelling', 'completing'].includes(item.state)
+  const [reselectionError, setReselectionError] = useState<string | null>(null)
+  return <li className="upload-queue-item" aria-label={`Загрузка: ${item.name}`}>
+    <div className="upload-queue-title"><strong>{item.name}</strong><span className="muted">{item.parentId === undefined ? 'Мои файлы' : `Папка №${item.parentId}`}</span></div>
+    <p className="upload-details" role="status">{item.state === 'completed' ? `${item.name} — файл загружен.` : uploadStateLabels[item.state]}</p>
+    <progress aria-label={`Прогресс: ${item.name}`} className="upload-progress-bar" max={100} value={item.percent}>{item.percent}%</progress>
+    <p className="upload-details muted">{item.percent}% · {formatBytes(item.committedBytes)} из {formatBytes(item.size)} принято сервером</p>
+    {item.error ? <p className="inline-alert" role="alert">{item.error}</p> : null}
+    {reselectionError ? <p className="inline-alert" role="alert">{reselectionError}</p> : null}
+    <div className="state-actions">
+      {canPause ? <button aria-label={`Пауза: ${item.name}`} className="button button--ghost" onClick={() => queue.pause(item.id)} type="button">Пауза</button> : null}
+      {canResume ? <button aria-label={`Продолжить: ${item.name}`} className="button button--ghost" onClick={() => queue.resume(item.id)} type="button">{item.state === 'error' && !item.uploadId ? 'Повторить загрузку' : 'Продолжить'}</button> : null}
+      {item.needsFile ? <label className="button button--ghost">Выбрать исходный файл<input aria-label={`Исходный файл: ${item.name}`} className="sr-only upload-input" type="file" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (!file) return; setReselectionError(null); void queue.reselect(item.id, file).catch((error: unknown) => setReselectionError(error instanceof Error ? error.message : 'Не удалось проверить исходный файл.')) }} /></label> : null}
+      {canCancel ? <button aria-label={`Отменить загрузку: ${item.name}`} className="button button--ghost" onClick={() => queue.cancel(item.id)} type="button">Отменить загрузку</button> : null}
+    </div>
+    {item.needsFile ? <p className="upload-details muted">После закрытия страницы браузер требует повторного выбора локального файла. Уже принятые части сохраняются до истечения срока сессии.</p> : null}
+  </li>
 }
 
 function downloadErrorMessage(error: unknown): string {

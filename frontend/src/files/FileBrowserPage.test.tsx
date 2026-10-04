@@ -1,9 +1,8 @@
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {
   AxiosError,
   AxiosHeaders,
-  CanceledError,
   type AxiosResponse,
   type InternalAxiosRequestConfig,
 } from 'axios'
@@ -150,6 +149,82 @@ describe('FileBrowserPage', () => {
     await waitFor(() => expect(sessionPayloads).toHaveLength(2))
   })
 
+  it('accepts a mixed multi-select batch and isolates an empty-file failure', async () => {
+    const sessions = new Map<string, { name: string; size: number }>()
+    const createdNames: string[] = []
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/files' || config.url === '/files/folders') return ok(config, [])
+      if (config.url === '/uploads/limits') return ok(config, { effectiveMaxFileBytes: 1000, maxChunkBytes: 10485760, maxChunks: 100000 })
+      if (config.url === '/uploads/session') {
+        const payload = JSON.parse(String(config.data)) as { filename: string; totalSize: number }
+        createdNames.push(payload.filename)
+        const uploadId = `batch-${createdNames.length}`
+        sessions.set(uploadId, { name: payload.filename, size: payload.totalSize })
+        return created(config, { uploadId, totalChunks: 1 })
+      }
+      if (config.url?.endsWith('/chunk')) return ok(config, {})
+      if (config.url?.endsWith('/complete')) {
+        const id = config.url.split('/')[3]
+        const session = sessions.get(id)!
+        return ok(config, file(createdNames.indexOf(session.name) + 1, session.name, session.size))
+      }
+      throw new Error(`Unexpected request: ${config.url}`)
+    }
+    renderPage('/files')
+    await screen.findByText('В этой папке пока пусто')
+    const picker = screen.getByLabelText('Выбрать файл для загрузки')
+    expect(picker).toHaveAttribute('multiple')
+    expect(picker).not.toHaveAttribute('accept')
+    const names = ['artifact.bin', 'unknown.xyzabc', 'noextension', 'misleading.jpg', 'small.txt']
+    const user = userEvent.setup()
+    await user.upload(picker, [...names.map((name) => new File([new Uint8Array([0, 255, 1])], name, { type: 'application/octet-stream' })), new File([], 'empty.bin')])
+    await user.click(screen.getByRole('button', { name: 'Загрузить' }))
+    for (const name of names) expect(await screen.findByText(`${name} — файл загружен.`)).toBeInTheDocument()
+    expect(createdNames.sort()).toEqual([...names].sort())
+    expect(screen.getByRole('alert')).toHaveTextContent('Пустые файлы пока не поддерживаются')
+    expect(screen.getByRole('progressbar', { name: 'Прогресс: artifact.bin' })).toHaveAttribute('value', '100')
+  })
+
+  it('drops multiple files into the current folder queue and prevents browser navigation', async () => {
+    const targets: number[] = []
+    let sequence = 0
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/files/folders/9') return ok(config, folder(9, 'Drop target', null))
+      if (config.url === '/files' || config.url === '/files/folders') return ok(config, [])
+      if (config.url === '/uploads/limits') return ok(config, { effectiveMaxFileBytes: 1000, maxChunkBytes: 10485760, maxChunks: 100000 })
+      if (config.url === '/uploads/session') { targets.push(JSON.parse(String(config.data)).parentId); return created(config, { uploadId: `drop-${++sequence}`, totalChunks: 1 }) }
+      if (config.url?.endsWith('/chunk')) return ok(config, {})
+      if (config.url?.endsWith('/complete')) return ok(config, file(sequence, 'stored.bin', 2, 9))
+      throw new Error(`Unexpected request: ${config.url}`)
+    }
+    renderPage('/files/folders/9')
+    const page = await screen.findByRole('region', { name: 'Drop target' })
+    const files = [new File([new Uint8Array([0, 1])], 'drop-a.bin'), new File(['ab'], 'drop-b.unknown')]
+    const dataTransfer = { types: ['Files'], files, items: [], dropEffect: 'none' }
+    fireEvent.dragEnter(page, { dataTransfer })
+    expect(screen.getByText(/Отпустите файлы/)).toBeInTheDocument()
+    const dropped = fireEvent.drop(page, { dataTransfer })
+    expect(dropped).toBe(false)
+    await waitFor(() => expect(targets).toEqual([9, 9]))
+    expect(await screen.findByText('drop-a.bin — файл загружен.')).toBeInTheDocument()
+    expect(await screen.findByText('drop-b.unknown — файл загружен.')).toBeInTheDocument()
+    expect(screen.queryByText(/Отпустите файлы/)).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Выбрать файл для загрузки')).toBeEnabled()
+  })
+
+  it('reports folder drops explicitly without flattening their contents or creating sessions', async () => {
+    let sessions = 0
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/uploads/session') sessions++
+      return ok(config, [])
+    }
+    renderPage('/files')
+    const page = await screen.findByRole('region', { name: 'Мои файлы' })
+    fireEvent.drop(page, { dataTransfer: { types: ['Files'], files: [], items: [{ kind: 'file', webkitGetAsEntry: () => ({ isDirectory: true }), getAsFile: () => null }] } })
+    expect(screen.getByRole('alert')).toHaveTextContent('Перетаскивание папок пока не поддерживается')
+    expect(sessions).toBe(0)
+  })
+
   it('offers deep sibling destinations and excludes a moved folder subtree', async () => {
     const mutations: unknown[] = []
     apiClient.defaults.adapter = async (config) => {
@@ -177,7 +252,7 @@ describe('FileBrowserPage', () => {
 
   it.each([
     [403, 'Storage quota exceeded', 'Недостаточно места'],
-    [429, 'Too many requests', 'Сервер ограничил частоту загрузки. Подождите и повторите загрузку.'],
+    [429, 'Too many requests', 'Сервер ограничил частоту запросов. Подождите и продолжите.'],
   ])('maps upload failure %i to an actionable message', async (status, message, expectedMessage) => {
     apiClient.defaults.adapter = async (config) => {
       if (config.url === '/files/folders' || config.url === '/files') return ok(config, [])
@@ -198,7 +273,7 @@ describe('FileBrowserPage', () => {
     await user.click(screen.getByRole('button', { name: 'Загрузить' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(expectedMessage)
-    expect(screen.getByRole('button', { name: 'Повторить загрузку' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Продолжить: small.png' })).toBeEnabled()
   })
 
   it('shows the effective upload limit and prevents starting an oversized selection', async () => {
@@ -236,57 +311,44 @@ describe('FileBrowserPage', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('cancels an active upload when navigation changes the current folder', async () => {
-    let chunkAborted = false
+  it('keeps an upload in the same queue and target when navigation changes folders', async () => {
     let completeCalls = 0
     let deleteCalls = 0
+    let finishChunk!: () => void
     apiClient.defaults.adapter = async (config) => {
       const parentId = config.params?.parentId as number | undefined
       if (config.url === '/files/folders/7') return ok(config, folder(7, 'Documents', null))
       if (config.url === '/files/folders') return ok(config, parentId ? [] : [folder(7, 'Documents', null)])
       if (config.url === '/files') return ok(config, [])
-      if (config.url === '/uploads/limits') return ok(config, { maxFileBytes: 1099511627776, maxActiveBytes: 2199023255552, maxChunkBytes: 52428800, maxChunks: 100000, remainingActiveBytes: 2199023255552, quotaRemainingBytes: 107374182400, effectiveMaxFileBytes: 107374182400 })
-      if (config.url === '/uploads/session') return created(config, { uploadId: 'u-nav', totalChunks: 1 })
-      if (config.url === '/uploads/session/u-nav/chunk') {
-        return await new Promise<AxiosResponse>((_resolve, reject) => {
-          config.signal?.addEventListener?.('abort', () => {
-            chunkAborted = true
-            reject(new CanceledError('cancelled', config))
-          }, { once: true })
-        })
+      if (config.url === '/uploads/limits') return ok(config, { effectiveMaxFileBytes: 100, maxChunkBytes: 10485760, maxChunks: 100000 })
+      if (config.url === '/uploads/session') {
+        expect(JSON.parse(String(config.data)).parentId).toBeUndefined()
+        return created(config, { uploadId: 'u-nav', totalChunks: 1 })
       }
-      if (config.url === '/uploads/session/u-nav/complete') {
-        completeCalls += 1
-        return ok(config, file(1, 'never.png', 1))
-      }
-      if (config.method === 'delete') {
-        deleteCalls += 1
-        return ok(config, undefined)
-      }
+      if (config.url === '/uploads/session/u-nav/chunk') return await new Promise<AxiosResponse>((resolve) => { finishChunk = () => resolve(ok(config, {})) })
+      if (config.url === '/uploads/session/u-nav/complete') { completeCalls++; return ok(config, file(1, 'moving.bin', 1)) }
+      if (config.method === 'delete') { deleteCalls++; return ok(config, undefined) }
       throw new Error(`Unexpected request: ${config.url}`)
     }
-
     renderPage('/files')
     const user = userEvent.setup()
     await screen.findByRole('button', { name: 'Documents' })
-    await user.upload(
-      screen.getByLabelText('Выбрать файл для загрузки'),
-      new File([new Uint8Array([1])], 'moving.png', { type: 'image/png' }),
-    )
+    await user.upload(screen.getByLabelText('Выбрать файл для загрузки'), new File([new Uint8Array([1])], 'moving.bin'))
     await user.click(screen.getByRole('button', { name: 'Загрузить' }))
-    await screen.findByRole('button', { name: 'Отменить загрузку' })
+    await waitFor(() => expect(finishChunk).toBeTypeOf('function'))
     await user.click(screen.getByRole('button', { name: 'Documents' }))
-
     expect(await screen.findByRole('heading', { name: 'Documents' })).toBeInTheDocument()
-    expect(chunkAborted).toBe(true)
-    expect(completeCalls).toBe(0)
-    expect(deleteCalls).toBe(1)
+    expect(screen.getByRole('button', { name: 'Пауза: moving.bin' })).toBeInTheDocument()
+    expect(deleteCalls).toBe(0)
+    finishChunk()
+    expect(await screen.findByText('moving.bin — файл загружен.')).toBeInTheDocument()
+    expect(completeCalls).toBe(1)
+    expect(deleteCalls).toBe(0)
   })
 
   it.each([
-    ['File size exceeds allowed maximum', 'превышает ограничение загрузки'],
-    ['File type application/octet-stream is not allowed for upload', 'тип файла не разрешён'],
-    ['Upload session expired', 'Срок загрузки истёк'],
+    ['File size exceeds allowed maximum', 'превышает допустимый предел загрузки'],
+    ['Upload session expired', 'Сессия загрузки истекла'],
   ])('maps upload failure "%s" without showing success', async (backendMessage, expectedMessage) => {
     apiClient.defaults.adapter = async (config) => {
       if (config.url === '/files/folders' || config.url === '/files') return ok(config, [])

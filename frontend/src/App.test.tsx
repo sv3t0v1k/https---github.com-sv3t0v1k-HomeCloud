@@ -111,7 +111,7 @@ describe('authentication UX', () => {
         })
       }
       if (config.url === '/users/me') return userResponse(config)
-      if (isDirectoryRequest(config.url)) return emptyDirectoryResponse(config)
+      if (isDirectoryRequest(config.url) || config.url === '/uploads/sessions') return emptyDirectoryResponse(config)
       throw new Error(`Unexpected request: ${config.url}`)
     }
 
@@ -178,7 +178,7 @@ describe('authentication UX', () => {
     }
     apiClient.defaults.adapter = async (config) => {
       if (config.url === '/users/me') return userResponse(config)
-      if (isDirectoryRequest(config.url)) return emptyDirectoryResponse(config)
+      if (isDirectoryRequest(config.url) || config.url === '/uploads/sessions') return emptyDirectoryResponse(config)
       if (config.url === '/auth/logout') {
         expect(config.headers.Authorization).toBe('Bearer access-2')
         expect(JSON.parse(String(config.data))).toEqual({ refreshToken: 'refresh-2' })
@@ -211,7 +211,7 @@ describe('authentication UX', () => {
     }
     apiClient.defaults.adapter = async (config) => {
       if (config.url === '/users/me') return userResponse(config)
-      if (isDirectoryRequest(config.url)) return emptyDirectoryResponse(config)
+      if (isDirectoryRequest(config.url) || config.url === '/uploads/sessions') return emptyDirectoryResponse(config)
       if (config.url === '/auth/logout') throw new AxiosError('offline')
       throw new Error(`Unexpected request: ${config.url}`)
     }
@@ -261,7 +261,7 @@ describe('authentication UX', () => {
       if (config.url === '/files/folders' && config.method === 'post') {
         throw responseError(config, 401, 'Access token expired')
       }
-      if (isDirectoryRequest(config.url)) return emptyDirectoryResponse(config)
+      if (isDirectoryRequest(config.url) || config.url === '/uploads/sessions') return emptyDirectoryResponse(config)
       throw new Error(`Unexpected request: ${config.url}`)
     }
 
