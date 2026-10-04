@@ -1,0 +1,106 @@
+{
+  "checkpoint": "FULL50GiB Browser E2E Qualification",
+  "date": "2026-10-04",
+  "baselineHead": "7052f62c46868ca6353380b3054ddfbd381fb54a",
+  "mainAheadBehind": [
+    7,
+    0
+  ],
+  "status": "BLOCKED",
+  "reason": "Mandatory disk gate below170GiB; no fixture/transfer started",
+  "targetBytes": 53687091200,
+  "disk": {
+    "minimumBytes": 182536110080,
+    "initialStatvfsAvailableBytes": 180224000000,
+    "latestEscalatedStatvfsAvailableBytes": 180251762688,
+    "latestApfsContainerFreeBytes": 180256247808,
+    "latestDeficitBytes": 2284347392,
+    "filesystem": "APFS",
+    "device": "/dev/disk3s5",
+    "locations": [
+      "/private/tmp",
+      "/Users/aleksejkozemakin/Downloads",
+      "/Users/aleksejkozemakin/Desktop/HomeCloud"
+    ],
+    "measurementUtc": "2026-10-04T08:50:00Z",
+    "ownerReportedFreeGB": 190,
+    "ownerReportedSource": "Finder / macOS storage settings, confirmed by owner",
+    "latestMeasurementUtc": "2026-10-04T08:53:49Z",
+    "finalValidation": {
+      "utc": "2026-10-04T09:05:33Z",
+      "availableBytes": 180240629760,
+      "freeBytes": 180240629760,
+      "requiredBytes": 182536110080,
+      "deficitBytes": 2295480320,
+      "passesMinimum": false
+    }
+  },
+  "peakFootprint": {
+    "serverChunksGiB": 50,
+    "serverAssemblyGiB": 50,
+    "downloadGiB": 50,
+    "sourcePhysical": "not created; sparse semantics not yet verified",
+    "conservativeUnreclaimedPayloadGiB": 150,
+    "reserveGiB": 20,
+    "additionalOverhead": "ingress up to current10MiB chunk + metadata + source extents; must fit above budget before next start"
+  },
+  "stack": {
+    "project": "homecloud-preview",
+    "backend": "2e96f568af14df3bc3f5083f6916ddf4c12b0efe06ab3953797f53f38f33a3fe",
+    "frontend": "45daae40e2dac00412f5b22f66efc7f48adb2b7f19d2e9b61755e01e7fa3757f",
+    "postgres": "dc54838e53d414873d93ebf2b800ff7cc6babd7fc6c49cb21a44eebade7c7fa5",
+    "healthy": [
+      "backend",
+      "frontend",
+      "postgres"
+    ],
+    "oom": false,
+    "restarts": 0,
+    "readyHttp": 200,
+    "newStackCreated": false,
+    "unrelatedContainersTouched": false,
+    "ingressId": "e07d40f4e248",
+    "ingressState": "running; no healthcheck"
+  },
+  "uploadConfig": {
+    "maxFileBytes": 1099511627776,
+    "maxActiveBytes": 2199023255552,
+    "maxChunks": 100000,
+    "frontendChunkBytes": 10485760,
+    "runtimeChunkBytes": 10485760,
+    "maxChunkBytes": 52428800,
+    "expectedChunks": 5120
+  },
+  "quota": {
+    "testUserId": 3,
+    "quotaBytes": 107374182400,
+    "usedBytes": 37021,
+    "activeReservationBytes": 0,
+    "effectiveFileBytes": 107374145379,
+    "modified": false
+  },
+  "baseline": {
+    "backendDockerMemoryMiB": 51.69,
+    "backendCpuPercent": 0,
+    "backendRssKiB": 106132,
+    "backendHistoricalHwmKiB": 149596,
+    "postgresDockerMemoryMiB": 33.38,
+    "postgresCpuPercent": 0,
+    "storageKiB": 76,
+    "tempKiB": 8,
+    "hostRamBytes": 25769803776,
+    "dockerStorageAvailableKiB": 417132312,
+    "dockerVmFreeIsNotHostFree": true
+  },
+  "fixtureCreated": false,
+  "uiUploadInitiated": false,
+  "uiDownloadInitiated": false,
+  "hashes": {
+    "source": null,
+    "stored": null,
+    "downloaded": null
+  },
+  "regressionGates": "No product changes; qualification stopped before transfer: backend/frontend/integration/lint/typecheck/build NOT_RUN; docs git diff-check PASS",
+  "cleanup": "no transfer test data created; no data removed",
+  "review": "Independent read-only reviewer confirmed BLOCKED; disk below mandatory170GiB; no transfer evidence exists"
+}
