@@ -208,7 +208,7 @@ async function main() {
           Number(user.storageUsed) <= Number(user.storageQuota),
         sessionStatus: session.status,
         sessionUploadedSize: session.uploadedSize,
-        sessionUploadedChunks: session.uploadedChunks,
+        sessionUploadedChunks: session.uploadedCount,
         ok:
           files.length === 1 &&
           file?.uploadId === item.uploadId &&
@@ -218,8 +218,7 @@ async function main() {
             Number(user.storageUsed) <= Number(user.storageQuota)) &&
           session.status === "completed" &&
           session.uploadedSize === chunkBytes &&
-          session.uploadedChunks.length === 1 &&
-          session.uploadedChunks[0] === 0 &&
+          session.uploadedCount === 1 &&
           crypto.createHash("sha256").update(bytes).digest("hex") ===
             item.sha256,
       });

@@ -9,6 +9,7 @@ import { FolderEntity } from "../entities/folder.entity";
 import { RefreshTokenEntity } from "../entities/refresh-token.entity";
 import { ShareLinkEntity } from "../entities/share-link.entity";
 import { UploadSessionEntity } from "../entities/upload-session.entity";
+import { UploadChunkEntity } from "../entities/upload-chunk.entity";
 import { UserEntity } from "../entities/user.entity";
 import { StorageService } from "../storage/storage.service";
 import { UsersService } from "../users/users.service";
@@ -48,6 +49,7 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
         FolderEntity,
         ShareLinkEntity,
         UploadSessionEntity,
+        UploadChunkEntity,
         RefreshTokenEntity,
       ],
     });

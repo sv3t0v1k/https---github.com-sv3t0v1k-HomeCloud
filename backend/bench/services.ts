@@ -7,6 +7,7 @@ import { FileEntity } from "../src/entities/file.entity";
 import { FolderEntity } from "../src/entities/folder.entity";
 import { UserEntity } from "../src/entities/user.entity";
 import { ShareLinkEntity } from "../src/entities/share-link.entity";
+import { UploadChunkEntity } from "../src/entities/upload-chunk.entity";
 import { UploadSessionEntity } from "../src/entities/upload-session.entity";
 import { StorageService } from "../src/storage/storage.service";
 import { UsersService } from "../src/users/users.service";
@@ -94,6 +95,7 @@ export async function createDataSource(databaseUrl: string): Promise<DataSource>
       FolderEntity,
       ShareLinkEntity,
       UploadSessionEntity,
+      UploadChunkEntity,
       RefreshTokenEntity,
     ],
   });

@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { FileEntity } from "../entities/file.entity";
 import { FolderEntity } from "../entities/folder.entity";
+import { UploadChunkEntity } from "../entities/upload-chunk.entity";
 import { UploadSessionEntity } from "../entities/upload-session.entity";
 import { UploadsService } from "./uploads.service";
 import { UploadsController } from "./uploads.controller";
@@ -20,7 +21,12 @@ import { IngressFileCleanupInterceptor } from "./ingress-file-cleanup.intercepto
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([UploadSessionEntity, FileEntity, FolderEntity]),
+    TypeOrmModule.forFeature([
+      UploadSessionEntity,
+      UploadChunkEntity,
+      FileEntity,
+      FolderEntity,
+    ]),
     StorageModule,
     FilesModule,
     UsersModule,

@@ -8,6 +8,7 @@ import { UserEntity } from "../entities/user.entity";
 import { RefreshTokenEntity } from "../entities/refresh-token.entity";
 import { ShareLinkEntity } from "../entities/share-link.entity";
 import { UploadSessionEntity } from "../entities/upload-session.entity";
+import { UploadChunkEntity } from "../entities/upload-chunk.entity";
 import { FilesService } from "./files.service";
 import { SharingService } from "../sharing/sharing.service";
 import { PreviewsService } from "../previews/previews.service";
@@ -53,6 +54,7 @@ describeDatabase(
           FolderEntity,
           ShareLinkEntity,
           UploadSessionEntity,
+          UploadChunkEntity,
           RefreshTokenEntity,
         ],
       });

@@ -8,18 +8,16 @@ import { FileEntity } from "../entities/file.entity";
 import { FolderEntity } from "../entities/folder.entity";
 import { RefreshTokenEntity } from "../entities/refresh-token.entity";
 import { ShareLinkEntity } from "../entities/share-link.entity";
+import { UploadChunkEntity } from "../entities/upload-chunk.entity";
 import { UploadSessionEntity } from "../entities/upload-session.entity";
 import { UserEntity } from "../entities/user.entity";
 import { StorageService } from "../storage/storage.service";
 import { UsersService } from "../users/users.service";
 import { UploadsService } from "./uploads.service";
 
-jest.mock(
-  "./file-type.loader",
-  () => ({
-    fileTypeFromBuffer: jest.fn().mockResolvedValue(undefined),
-  }),
-);
+jest.mock("./file-type.loader", () => ({
+  fileTypeFromBuffer: jest.fn().mockResolvedValue(undefined),
+}));
 
 const testDatabaseUrl = process.env.HOMECLOUD_TEST_DATABASE_URL;
 const describePostgres = testDatabaseUrl ? describe : describe.skip;
@@ -49,6 +47,7 @@ describePostgres("UploadsService — реальный PostgreSQL", () => {
         FolderEntity,
         ShareLinkEntity,
         UploadSessionEntity,
+        UploadChunkEntity,
         RefreshTokenEntity,
       ],
     });
@@ -116,5 +115,358 @@ describePostgres("UploadsService — реальный PostgreSQL", () => {
         userId: user.id,
       });
     expect(completed.status).toBe("completed");
+  });
+  async function makeUser(quota = 1024 * 1024) {
+    return dataSource.getRepository(UserEntity).save({
+      email: `${randomUUID()}@example.test`,
+      password: "hash",
+      name: "Test",
+      storageQuota: quota,
+      storageUsed: 0,
+    });
+  }
+  function configured(overrides: Record<string, number>) {
+    const config = new ConfigService({
+      STORAGE_PATH: storageRoot,
+      MAX_FILE_SIZE: 1024 * 1024,
+      MAX_TOTAL_SIZE: 1024 * 1024,
+      MAX_CHUNK_SIZE: 10 * 1024 * 1024,
+      ALLOWED_UPLOAD_MIME_TYPES: "application/octet-stream,text/plain",
+      ...overrides,
+    });
+    return new UploadsService(
+      dataSource.getRepository(UploadSessionEntity),
+      dataSource.getRepository(FileEntity),
+      dataSource.getRepository(FolderEntity),
+      new StorageService(config),
+      new UsersService(dataSource.getRepository(UserEntity)),
+      config,
+    );
+  }
+
+  it.each([1, 2, 3, 7])(
+    "streams tiny/exact/chunk+1/multichunk %i-byte uploads",
+    async (size) => {
+      const user = await makeUser(size);
+      const session = await service.createUploadSession(
+        user.id,
+        "matrix.txt",
+        size,
+        2,
+      );
+      const content = Buffer.alloc(size, 0x61);
+      for (let index = 0; index < session.totalChunks; index++) {
+        await service.uploadChunk(
+          user.id,
+          session.uploadId,
+          index,
+          content.subarray(index * 2, (index + 1) * 2),
+        );
+      }
+      const file = await service.completeUpload(user.id, session.uploadId);
+      expect(fs.readFileSync(file.storagePath)).toEqual(content);
+      expect(
+        Number(
+          (
+            await dataSource
+              .getRepository(UserEntity)
+              .findOneByOrFail({ id: user.id })
+          ).storageUsed,
+        ),
+      ).toBe(size);
+    },
+  );
+
+  it("hydrates a preserved legacy session only once without rewriting legacy JSONB", async () => {
+    const user = await makeUser();
+    const created = await service.createUploadSession(
+      user.id,
+      "legacy.txt",
+      3,
+      2,
+    );
+    fs.writeFileSync(path.join(created.tempPath, "0"), "ab");
+    await dataSource
+      .getRepository(UploadSessionEntity)
+      .update(created.id, {
+        accountingInitialized: false,
+        uploadedSize: 2,
+        uploadedChunks: [0],
+      });
+    await service.uploadChunk(user.id, created.uploadId, 1, Buffer.from("c"));
+    await service.uploadChunk(user.id, created.uploadId, 1, Buffer.from("c"));
+    const loaded = await dataSource
+      .getRepository(UploadSessionEntity)
+      .findOneByOrFail({ id: created.id });
+    expect(loaded.uploadedSize).toBe(3);
+    expect(loaded.uploadedCount).toBe(2);
+    expect(loaded.accountingInitialized).toBe(true);
+    const [raw] = await dataSource.query(
+      'SELECT "uploadedChunks" FROM upload_sessions WHERE id = $1',
+      [created.id],
+    );
+    expect(raw.uploadedChunks).toEqual([0]);
+    expect(
+      await dataSource
+        .getRepository(UploadChunkEntity)
+        .countBy({ sessionId: created.id }),
+    ).toBe(2);
+    const row = await dataSource
+      .getRepository(UploadChunkEntity)
+      .findOneByOrFail({ sessionId: created.id, chunkIndex: 0 });
+    await expect(
+      dataSource.getRepository(UploadChunkEntity).insert(row),
+    ).rejects.toThrow();
+    expect(
+      fs
+        .readFileSync(
+          (await service.completeUpload(user.id, created.uploadId)).storagePath,
+        )
+        .toString(),
+    ).toBe("abc");
+  });
+
+  it("представляет ровно 50 ГиБ и 5120 chunks без bigint/string потери и без giant файла", async () => {
+    const size = 53687091200;
+    const user = await makeUser(size);
+    const large = configured({
+      MAX_FILE_SIZE: 1099511627776,
+      MAX_TOTAL_SIZE: 2199023255552,
+    });
+    const created = await large.createUploadSession(
+      user.id,
+      "50gib.bin",
+      size,
+      10485760,
+    );
+    const loaded = await dataSource
+      .getRepository(UploadSessionEntity)
+      .findOneByOrFail({ id: created.id });
+    expect(loaded.totalSize).toBe(size);
+    expect(loaded.totalChunks).toBe(5120);
+    expect(loaded.uploadedSize).toBe(0);
+    expect(loaded.uploadedChunks).toBeUndefined();
+    expect(loaded.accountingInitialized).toBe(true);
+    await expect(
+      large.createUploadSession(user.id, "over-quota", 1, 1),
+    ).rejects.toThrow("quota");
+    await large.abortUpload(user.id, created.uploadId);
+  });
+
+  it.each([1023, 1024])(
+    "accepts inclusive configured per-file boundary %i",
+    async (size) => {
+      const user = await makeUser(2048);
+      const limited = configured({ MAX_FILE_SIZE: 1024, MAX_TOTAL_SIZE: 2048 });
+      const session = await limited.createUploadSession(
+        user.id,
+        "limit.bin",
+        size,
+        1024,
+      );
+      expect(session.totalSize).toBe(size);
+      await limited.abortUpload(user.id, session.uploadId);
+    },
+  );
+  it("rejects limit+1 and quota0 before creating disk state", async () => {
+    const limited = configured({ MAX_FILE_SIZE: 1024, MAX_TOTAL_SIZE: 2048 });
+    const user = await makeUser(2048);
+    await expect(
+      limited.createUploadSession(user.id, "limit.bin", 1025, 1024),
+    ).rejects.toThrow("File size");
+    const zero = await makeUser(0);
+    await expect(
+      limited.createUploadSession(zero.id, "zero.bin", 1, 1),
+    ).rejects.toThrow("quota");
+  });
+
+  it("enforces aggregate active reservations independently from stored usage and file cap", async () => {
+    const user = await makeUser(4096);
+    const limited = configured({ MAX_FILE_SIZE: 2048, MAX_TOTAL_SIZE: 1024 });
+    const first = await limited.createUploadSession(
+      user.id,
+      "first.bin",
+      600,
+      600,
+    );
+    await expect(
+      limited.createUploadSession(user.id, "second.bin", 425, 425),
+    ).rejects.toThrow("Total upload size");
+    const exact = await limited.createUploadSession(
+      user.id,
+      "exact.bin",
+      424,
+      424,
+    );
+    await limited.abortUpload(user.id, first.uploadId);
+    await limited.abortUpload(user.id, exact.uploadId);
+  });
+
+  it("serializes concurrent exact retries and out-of-order chunks without double accounting", async () => {
+    const user = await makeUser();
+    const session = await service.createUploadSession(
+      user.id,
+      "order.txt",
+      5,
+      2,
+    );
+    await service.uploadChunk(user.id, session.uploadId, 2, Buffer.from("e"));
+    await Promise.all([
+      service.uploadChunk(user.id, session.uploadId, 0, Buffer.from("ab")),
+      service.uploadChunk(user.id, session.uploadId, 0, Buffer.from("ab")),
+    ]);
+    await expect(
+      service.uploadChunk(user.id, session.uploadId, 0, Buffer.from("xx")),
+    ).rejects.toThrow("different content");
+    await service.uploadChunk(user.id, session.uploadId, 1, Buffer.from("cd"));
+    const loaded = await dataSource
+      .getRepository(UploadSessionEntity)
+      .findOneByOrFail({ id: session.id });
+    expect(loaded.uploadedCount).toBe(3);
+    expect(loaded.uploadedSize).toBe(5);
+    expect(
+      await dataSource
+        .getRepository(UploadChunkEntity)
+        .countBy({ sessionId: session.id }),
+    ).toBe(3);
+    const file = await service.completeUpload(user.id, session.uploadId);
+    expect(fs.readFileSync(file.storagePath).toString()).toBe("abcde");
+    expect(
+      await dataSource
+        .getRepository(UploadChunkEntity)
+        .countBy({ sessionId: session.id }),
+    ).toBe(0);
+    expect(fs.existsSync(session.tempPath)).toBe(false);
+    expect(
+      Number(
+        (
+          await dataSource
+            .getRepository(UserEntity)
+            .findOneByOrFail({ id: user.id })
+        ).storageUsed,
+      ),
+    ).toBe(5);
+  });
+
+  it("recovers an atomic file orphan and repairs a missing published file without counter inflation", async () => {
+    const user = await makeUser();
+    const session = await service.createUploadSession(
+      user.id,
+      "crash.txt",
+      4,
+      4,
+    );
+    const chunkPath = path.join(session.tempPath, "0");
+    fs.writeFileSync(chunkPath, "data");
+    await service.uploadChunk(
+      user.id,
+      session.uploadId,
+      0,
+      Buffer.from("data"),
+    );
+    fs.unlinkSync(chunkPath);
+    await expect(
+      service.uploadChunk(user.id, session.uploadId, 0, Buffer.from("xxxx")),
+    ).rejects.toThrow("different content");
+    await service.uploadChunk(
+      user.id,
+      session.uploadId,
+      0,
+      Buffer.from("data"),
+    );
+    const loaded = await dataSource
+      .getRepository(UploadSessionEntity)
+      .findOneByOrFail({ id: session.id });
+    expect(loaded.uploadedCount).toBe(1);
+    expect(loaded.uploadedSize).toBe(4);
+    const file = await service.completeUpload(user.id, session.uploadId);
+    expect(fs.readFileSync(file.storagePath).toString()).toBe("data");
+  });
+
+  it("detects durable chunk corruption at finalization while preserving retryable chunks and quota", async () => {
+    const user = await makeUser();
+    const session = await service.createUploadSession(
+      user.id,
+      "tamper.txt",
+      4,
+      4,
+    );
+    await service.uploadChunk(
+      user.id,
+      session.uploadId,
+      0,
+      Buffer.from("data"),
+    );
+    fs.writeFileSync(path.join(session.tempPath, "0"), "xxxx");
+    await expect(
+      service.completeUpload(user.id, session.uploadId),
+    ).rejects.toThrow("integrity mismatch");
+    expect(fs.existsSync(session.tempPath)).toBe(true);
+    expect(
+      await dataSource
+        .getRepository(FileEntity)
+        .countBy({ uploadId: session.uploadId }),
+    ).toBe(0);
+    expect(
+      Number(
+        (
+          await dataSource
+            .getRepository(UserEntity)
+            .findOneByOrFail({ id: user.id })
+        ).storageUsed,
+      ),
+    ).toBe(0);
+    fs.writeFileSync(path.join(session.tempPath, "0"), "data");
+    await service.completeUpload(user.id, session.uploadId);
+  });
+
+  it("cancel and stale cleanup remove durable rows and recheck sessions under lock", async () => {
+    const user = await makeUser();
+    const cancelled = await service.createUploadSession(
+      user.id,
+      "cancel.txt",
+      4,
+      4,
+    );
+    await service.uploadChunk(
+      user.id,
+      cancelled.uploadId,
+      0,
+      Buffer.from("data"),
+    );
+    await service.abortUpload(user.id, cancelled.uploadId);
+    expect(fs.existsSync(cancelled.tempPath)).toBe(false);
+    expect(
+      await dataSource
+        .getRepository(UploadChunkEntity)
+        .countBy({ sessionId: cancelled.id }),
+    ).toBe(0);
+    const expired = await service.createUploadSession(
+      user.id,
+      "stale.txt",
+      4,
+      4,
+    );
+    await service.uploadChunk(
+      user.id,
+      expired.uploadId,
+      0,
+      Buffer.from("data"),
+    );
+    await dataSource
+      .getRepository(UploadSessionEntity)
+      .update(expired.id, { expiresAt: new Date(Date.now() - 1000) });
+    expect(await service.cleanupExpiredSessions()).toBeGreaterThanOrEqual(1);
+    expect(fs.existsSync(expired.tempPath)).toBe(false);
+    expect(
+      await dataSource
+        .getRepository(UploadSessionEntity)
+        .findOneBy({ id: expired.id }),
+    ).toBeNull();
+    expect(
+      await dataSource
+        .getRepository(UploadChunkEntity)
+        .countBy({ sessionId: expired.id }),
+    ).toBe(0);
   });
 });

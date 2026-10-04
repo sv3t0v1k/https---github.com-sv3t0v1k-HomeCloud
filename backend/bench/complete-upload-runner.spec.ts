@@ -39,6 +39,8 @@ function makeUploadSession(
     filename: "test.bin",
     totalSize: 100,
     uploadedSize: 0,
+    uploadedCount: 0,
+    accountingInitialized: true,
     chunkSize: 50,
     totalChunks: 2,
     uploadedChunks: [],

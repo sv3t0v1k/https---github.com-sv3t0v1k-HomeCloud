@@ -36,7 +36,7 @@ function mockServices(
   const calls: string[] = [];
   const uploadsService = {
     createUploadSession: async () => ({ uploadId: "sess-1", status: "pending" }),
-    uploadChunk: async () => ({ status: "uploading", uploadedChunks: [0] }),
+    uploadChunk: async () => ({ status: "uploading", uploadedCount: 1 }),
     abortUpload: async () => {},
     ...overrides,
   } as unknown as UploadsService;

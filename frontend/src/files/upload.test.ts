@@ -23,11 +23,13 @@ describe('uploadFile', () => {
   it.each([
     [UPLOAD_CHUNK_SIZE - 1, [UPLOAD_CHUNK_SIZE - 1]],
     [UPLOAD_CHUNK_SIZE, [UPLOAD_CHUNK_SIZE]],
+    [UPLOAD_CHUNK_SIZE + 1, [UPLOAD_CHUNK_SIZE, 1]],
     [UPLOAD_CHUNK_SIZE + 7, [UPLOAD_CHUNK_SIZE, 7]],
   ])('slices %i bytes into sequential chunks', async (size, expectedSizes) => {
     const file = fakeFile(size, 'данные.bin')
     const indexes: string[] = []
     apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/uploads/limits') return ok(config, { effectiveMaxFileBytes: Number.MAX_SAFE_INTEGER, maxChunkBytes: UPLOAD_CHUNK_SIZE, maxChunks: 100000 })
       if (config.url === '/uploads/session') {
         expect(config.data).toBe(JSON.stringify({
           filename: 'данные.bin',
@@ -60,6 +62,7 @@ describe('uploadFile', () => {
     const progress: UploadProgress[] = []
     let completeStarted = false
     apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/uploads/limits') return ok(config, { effectiveMaxFileBytes: Number.MAX_SAFE_INTEGER, maxChunkBytes: UPLOAD_CHUNK_SIZE, maxChunks: 100000 })
       if (config.url === '/uploads/session') {
         expect(JSON.parse(config.data as string)).toMatchObject({ parentId: 42 })
         return ok(config, { uploadId: 'u1', totalChunks: 1 }, 201)
@@ -97,6 +100,7 @@ describe('uploadFile', () => {
     let chunkAttempts = 0
     let completed = false
     apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/uploads/limits') return ok(config, { effectiveMaxFileBytes: Number.MAX_SAFE_INTEGER, maxChunkBytes: UPLOAD_CHUNK_SIZE, maxChunks: 100000 })
       if (config.url === '/uploads/session') return ok(config, { uploadId: 'u1', totalChunks: 1 }, 201)
       if (config.url?.endsWith('/chunk')) {
         chunkAttempts += 1
@@ -121,6 +125,7 @@ describe('uploadFile', () => {
     let completeCalls = 0
     let deleteCalls = 0
     apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/uploads/limits') return ok(config, { effectiveMaxFileBytes: Number.MAX_SAFE_INTEGER, maxChunkBytes: UPLOAD_CHUNK_SIZE, maxChunks: 100000 })
       if (config.url === '/uploads/session') return ok(config, { uploadId: 'u1', totalChunks: 1 }, 201)
       if (config.url?.endsWith('/chunk')) {
         chunkAttempts += 1
@@ -146,6 +151,7 @@ describe('uploadFile', () => {
     let chunkAttempts = 0
     let deleteCalls = 0
     apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/uploads/limits') return ok(config, { effectiveMaxFileBytes: Number.MAX_SAFE_INTEGER, maxChunkBytes: UPLOAD_CHUNK_SIZE, maxChunks: 100000 })
       if (config.url === '/uploads/session') return ok(config, { uploadId: 'u1', totalChunks: 1 }, 201)
       if (config.url?.endsWith('/chunk')) {
         chunkAttempts += 1
@@ -170,6 +176,7 @@ describe('uploadFile', () => {
     const chunkIndexes: string[] = []
     let deleteCalls = 0
     apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/uploads/limits') return ok(config, { effectiveMaxFileBytes: Number.MAX_SAFE_INTEGER, maxChunkBytes: UPLOAD_CHUNK_SIZE, maxChunks: 100000 })
       if (config.url === '/uploads/session') return ok(config, { uploadId: 'u1', totalChunks: 2 }, 201)
       if (config.method === 'delete') {
         deleteCalls += 1
@@ -193,6 +200,65 @@ describe('uploadFile', () => {
 
     expect(chunkIndexes).toEqual(['0'])
     expect(deleteCalls).toBe(1)
+  })
+
+  it('keeps exact 50 GiB metadata and sends all 5120 synthetic chunks without giant allocations', async () => {
+    const size = 53687091200
+    let chunks = 0
+    const file = fakeFile(size)
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/uploads/limits') return ok(config, { effectiveMaxFileBytes: size, maxChunkBytes: UPLOAD_CHUNK_SIZE, maxChunks: 100000 })
+      if (config.url === '/uploads/session') {
+        expect(JSON.parse(config.data as string)).toMatchObject({ totalSize: size, chunkSize: UPLOAD_CHUNK_SIZE })
+        return ok(config, { uploadId: 'large', totalChunks: 5120 }, 201)
+      }
+      if (config.url?.endsWith('/chunk')) { chunks++; return ok(config, {}) }
+      if (config.url?.endsWith('/complete')) return ok(config, uploadedFile(size))
+      throw new Error(`Unexpected request: ${config.url}`)
+    }
+    const result = await uploadFile({ file })
+    expect(result.size).toBe(size)
+    expect(chunks).toBe(5120)
+    expect(file.slice).toHaveBeenCalledTimes(5120)
+    expect(file.slice).toHaveBeenLastCalledWith(size - UPLOAD_CHUNK_SIZE, size)
+  })
+
+  it('negotiates a larger bounded chunk when the explicit count limit requires it', async () => {
+    const size = 3 * UPLOAD_CHUNK_SIZE
+    const selectedChunk = Math.ceil(size / 2)
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/uploads/limits') return ok(config, { effectiveMaxFileBytes: size, maxChunkBytes: 2 * UPLOAD_CHUNK_SIZE, maxChunks: 2 })
+      if (config.url === '/uploads/session') {
+        expect(JSON.parse(config.data as string).chunkSize).toBe(selectedChunk)
+        return ok(config, { uploadId: 'adaptive', totalChunks: 2 }, 201)
+      }
+      if (config.url?.endsWith('/chunk')) return ok(config, {})
+      if (config.url?.endsWith('/complete')) return ok(config, uploadedFile(size))
+      throw new Error(`Unexpected request: ${config.url}`)
+    }
+    const file = fakeFile(size)
+    await uploadFile({ file })
+    expect(file.slice).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([9, 10])('accepts inclusive effective server limit %i', async (size) => {
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/uploads/limits') return ok(config, { effectiveMaxFileBytes: 10, maxChunkBytes: 10, maxChunks: 10 })
+      if (config.url === '/uploads/session') return ok(config, { uploadId: 'limit', totalChunks: 1 }, 201)
+      if (config.url?.endsWith('/chunk')) return ok(config, {})
+      if (config.url?.endsWith('/complete')) return ok(config, uploadedFile(size))
+      throw new Error(`Unexpected request: ${config.url}`)
+    }
+    expect((await uploadFile({ file: fakeFile(size) })).size).toBe(size)
+  })
+
+  it('rejects effective limit + 1 before allocating chunks or reserving a session', async () => {
+    const adapter = vi.fn(async (config: InternalAxiosRequestConfig) => ok(config, { effectiveMaxFileBytes: 10, maxChunkBytes: 10, maxChunks: 10 }))
+    apiClient.defaults.adapter = adapter
+    const file = fakeFile(11)
+    await expect(uploadFile({ file })).rejects.toThrow('ограничение')
+    expect(adapter).toHaveBeenCalledTimes(1)
+    expect(file.slice).not.toHaveBeenCalled()
   })
 
   it('rejects empty and unsafe files before creating a session', async () => {

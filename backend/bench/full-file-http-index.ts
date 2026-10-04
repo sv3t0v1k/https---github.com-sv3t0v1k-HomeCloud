@@ -307,7 +307,7 @@ async function main() {
       storageQuota: Number(refreshed.storageQuota),
       sessionStatus: session.status,
       uploadedSize: session.uploadedSize,
-      uploadedChunks: session.uploadedChunks,
+      uploadedChunks: session.uploadedCount,
       sessionTempExistsBeforeCleanup: fs.existsSync(tmpPath),
       tempTopEntriesBeforeCleanup,
       ingressEntriesBeforeCleanup,
@@ -321,7 +321,7 @@ async function main() {
       verification.storageUsed === fileBytes &&
       session.status === "completed" &&
       session.uploadedSize === fileBytes &&
-      session.uploadedChunks.length === Math.ceil(fileBytes / chunkBytes) &&
+      session.uploadedCount === Math.ceil(fileBytes / chunkBytes) &&
       client.fullDownload.status === 200 &&
       client.fullDownload.bytes === fileBytes &&
       client.fullDownload.sha256 === client.expectedSha256 &&

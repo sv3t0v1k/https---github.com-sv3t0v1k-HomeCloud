@@ -32,6 +32,11 @@ interface UploadedChunkFile {
 export class UploadsController {
   constructor(private uploadsService: UploadsService) {}
 
+  @Get("limits")
+  getLimits(@NestRequest() req: ExpressRequest & { user: { userId: number } }) {
+    return this.uploadsService.getUploadLimits(req.user.userId);
+  }
+
   @Post("session")
   @HttpCode(HttpStatus.CREATED)
   async createSession(

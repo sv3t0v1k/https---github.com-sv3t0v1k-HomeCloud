@@ -54,7 +54,19 @@ export class UploadSessionEntity {
   @Column({ type: "int", default: 0, name: "totalChunks" })
   totalChunks!: number;
 
-  @Column({ type: "jsonb", default: "[]", name: "uploadedChunks" })
+  @Column({ type: "int", default: 0, name: "uploadedCount" })
+  uploadedCount!: number;
+
+  @Column({ type: "boolean", default: false, name: "accountingInitialized" })
+  accountingInitialized!: boolean;
+
+  // Preserved legacy data; never read or rewrite a growing array.
+  @Column({
+    type: "jsonb",
+    default: "[]",
+    name: "uploadedChunks",
+    select: false,
+  })
   uploadedChunks!: number[];
 
   @Column({ length: 500, name: "tempPath" })

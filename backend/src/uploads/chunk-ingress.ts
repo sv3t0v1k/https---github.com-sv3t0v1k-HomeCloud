@@ -18,6 +18,10 @@ export function parseMaxChunkSize(raw: unknown): number {
       `MAX_CHUNK_SIZE must be a positive safe integer, got "${value}"`,
     );
   }
+  if (size > 2147483647)
+    throw new BadRequestException(
+      "MAX_CHUNK_SIZE is too large for the database integer capacity",
+    );
   return size;
 }
 

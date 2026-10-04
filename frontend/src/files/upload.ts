@@ -6,6 +6,20 @@ export const UPLOAD_CHUNK_SIZE = 10 * 1024 * 1024
 const MAX_CHUNK_ATTEMPTS = 3
 const DEFAULT_RETRY_DELAY_MS = 250
 
+export interface UploadLimits {
+  maxFileBytes: number | null
+  maxActiveBytes: number | null
+  maxChunkBytes: number
+  maxChunks: number
+  remainingActiveBytes: number | null
+  quotaRemainingBytes: number
+  effectiveMaxFileBytes: number
+}
+
+export function getUploadLimits(signal?: AbortSignal): Promise<UploadLimits> {
+  return apiRequest<UploadLimits>({ method: 'GET', url: '/uploads/limits', signal })
+}
+
 interface UploadSession {
   uploadId: string
   totalChunks: number
@@ -41,13 +55,23 @@ export async function uploadFile({
   validateFile(file)
   throwIfAborted(signal)
 
-  const totalChunks = Math.ceil(file.size / UPLOAD_CHUNK_SIZE)
+  const limits = await getUploadLimits(signal)
+  if (!Number.isSafeInteger(limits.effectiveMaxFileBytes) || limits.effectiveMaxFileBytes < file.size) {
+    throw new RangeError('Размер файла превышает доступное ограничение загрузки.')
+  }
+  if (!Number.isSafeInteger(limits.maxChunks) || limits.maxChunks <= 0 ||
+      !Number.isSafeInteger(limits.maxChunkBytes) || limits.maxChunkBytes <= 0) {
+    throw new RangeError('Недопустимые ограничения загрузки.')
+  }
+  const chunkSize = Math.min(limits.maxChunkBytes, Math.max(UPLOAD_CHUNK_SIZE, Math.ceil(file.size / limits.maxChunks)))
+  const totalChunks = Math.ceil(file.size / chunkSize)
+  if (totalChunks > limits.maxChunks) throw new RangeError('Размер файла превышает число допустимых частей.')
   emit(onProgress, 'preparing', 0, file.size, null, totalChunks)
 
   const payload: Record<string, string | number> = {
     filename: file.name,
     totalSize: file.size,
-    chunkSize: UPLOAD_CHUNK_SIZE,
+    chunkSize,
   }
   if (parentId !== undefined) payload.parentId = parentId
 
@@ -62,8 +86,8 @@ export async function uploadFile({
     let completedBytes = 0
     for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex += 1) {
       throwIfAborted(signal)
-      const start = chunkIndex * UPLOAD_CHUNK_SIZE
-      const chunk = file.slice(start, Math.min(start + UPLOAD_CHUNK_SIZE, file.size))
+      const start = chunkIndex * chunkSize
+      const chunk = file.slice(start, Math.min(start + chunkSize, file.size))
       let furthestAttemptByte = 0
 
       await withChunkRetry(
@@ -148,10 +172,6 @@ async function abortSession(uploadId: string) {
 function validateFile(file: File) {
   if (!Number.isSafeInteger(file.size) || file.size <= 0) {
     throw new RangeError('File size must be a positive safe integer')
-  }
-  const totalChunks = Math.ceil(file.size / UPLOAD_CHUNK_SIZE)
-  if (!Number.isSafeInteger(totalChunks) || totalChunks > 100_000) {
-    throw new RangeError('File requires an unsafe number of upload chunks')
   }
 }
 

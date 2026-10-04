@@ -1,4 +1,5 @@
 import { UploadsService } from "./uploads.service";
+import { UploadChunkEntity } from "../entities/upload-chunk.entity";
 import { UploadSessionEntity } from "../entities/upload-session.entity";
 import { FileEntity } from "../entities/file.entity";
 import { FolderEntity } from "../entities/folder.entity";
@@ -42,6 +43,13 @@ describe("UploadsService - Post-Review Fixes", () => {
       getRawMany: jest.fn().mockResolvedValue([]),
     };
 
+    const records = new Map<number, unknown>();
+    const chunkRepository = {
+      findOne: jest.fn(async (options: any) => records.get(options.where.chunkIndex) || null),
+      insert: jest.fn(async (data: any) => { records.set(data.chunkIndex, data); }),
+      upsert: jest.fn(async (data: any) => { records.set(data.chunkIndex, data); }),
+      delete: jest.fn(),
+    };
     mockQueryRunner = {
       connect: jest.fn(),
       startTransaction: jest.fn(),
@@ -53,6 +61,8 @@ describe("UploadsService - Post-Review Fixes", () => {
         save: jest.fn((entity: any) => Promise.resolve(entity)),
         create: jest.fn(),
         createQueryBuilder: jest.fn(() => mockQueryBuilder),
+        delete: jest.fn(),
+        getRepository: jest.fn(() => chunkRepository),
       },
     };
     mockUploadSessionRepository = {
@@ -270,6 +280,8 @@ describe("UploadsService - Post-Review Fixes", () => {
         totalSize: 500,
         chunkSize: 500,
         totalChunks: 1,
+        accountingInitialized: true,
+        uploadedCount: 0,
         uploadedChunks: [],
         uploadedSize: 0,
         tempPath: sessionDir,
@@ -282,7 +294,7 @@ describe("UploadsService - Post-Review Fixes", () => {
             path: ingressPath,
             size: 500,
           }),
-        ).resolves.toMatchObject({ uploadedChunks: [0], uploadedSize: 500 });
+        ).resolves.toMatchObject({ uploadedCount: 1, uploadedSize: 500 });
         expect(fs.existsSync(ingressPath)).toBe(false);
         expect(fs.readFileSync(path.join(sessionDir, "0"))).toEqual(
           Buffer.alloc(500, 0x41),
@@ -338,6 +350,8 @@ describe("UploadsService - Post-Review Fixes", () => {
         totalSize: 2500,
         chunkSize: 1000,
         totalChunks: 3,
+        accountingInitialized: true,
+        uploadedCount: 0,
         uploadedChunks: [0, 1],
         uploadedSize: 2000,
         tempPath: "/tmp/abc",
@@ -363,6 +377,8 @@ describe("UploadsService - Post-Review Fixes", () => {
         totalSize: 1000,
         chunkSize: 500,
         totalChunks: 2,
+        accountingInitialized: true,
+        uploadedCount: 0,
         uploadedChunks: [],
         uploadedSize: 0,
         tempPath: "/tmp/abc",
@@ -392,6 +408,8 @@ describe("UploadsService - Post-Review Fixes", () => {
         totalSize: 2500,
         chunkSize: 1000,
         totalChunks: 3,
+        accountingInitialized: true,
+        uploadedCount: 0,
         uploadedChunks: [0, 1],
         uploadedSize: 2000,
         tempPath: tempDir,
@@ -404,13 +422,13 @@ describe("UploadsService - Post-Review Fixes", () => {
       mockQueryRunner.manager.save.mockResolvedValue(session);
 
       const result = await service.uploadChunk(1, "abc", 2, Buffer.alloc(500));
-      expect(result.uploadedChunks).toContain(2);
+      expect(result.uploadedCount).toBe(1);
       expect(result.uploadedSize).toBe(2500);
 
       fs.rmSync(tempDir, { recursive: true, force: true });
     });
 
-    it("should handle concurrent uploadChunk for same chunk index safely", async () => {
+    it("rejects a conflicting duplicate chunk after its first transaction", async () => {
       const tempDir = `/tmp/test-concurrency-${Date.now()}`;
       fs.mkdirSync(tempDir, { recursive: true });
 
@@ -421,6 +439,8 @@ describe("UploadsService - Post-Review Fixes", () => {
         totalSize: 2000,
         chunkSize: 1000,
         totalChunks: 2,
+        accountingInitialized: true,
+        uploadedCount: 0,
         uploadedChunks: [] as number[],
         uploadedSize: 0,
         tempPath: tempDir,
@@ -437,11 +457,8 @@ describe("UploadsService - Post-Review Fixes", () => {
       const chunkA = Buffer.alloc(1000, 0x41);
       const chunkB = Buffer.alloc(1000, 0x42);
 
-      const promises = [
-        service.uploadChunk(1, "abc", 0, chunkA),
-        service.uploadChunk(1, "abc", 0, chunkB),
-      ];
-      const results = await Promise.allSettled(promises);
+      const first = await service.uploadChunk(1, "abc", 0, chunkA);
+      const results = [{ status: "fulfilled", value: first }, ...(await Promise.allSettled([service.uploadChunk(1, "abc", 0, chunkB)]))];
 
       // One must succeed, the other must be rejected (different content).
       const fulfilled = results.filter(
@@ -464,7 +481,7 @@ describe("UploadsService - Post-Review Fixes", () => {
   });
 
   describe("completeUpload - guaranteed cleanup", () => {
-    it("should delete temp files when MIME validation fails", async () => {
+    it("preserves resumable chunks when MIME validation fails", async () => {
       const tempDir = `/tmp/test-cleanup-mime-${Date.now()}`;
       const finalPath = `/tmp/test-cleanup-mime-${Date.now()}-final.exe`;
       const session = {
@@ -474,6 +491,8 @@ describe("UploadsService - Post-Review Fixes", () => {
         totalSize: 8,
         chunkSize: 8,
         totalChunks: 1,
+        accountingInitialized: true,
+        uploadedCount: 0,
         uploadedChunks: [0],
         uploadedSize: 8,
         tempPath: tempDir,
@@ -506,7 +525,7 @@ describe("UploadsService - Post-Review Fixes", () => {
       );
 
       expect(mockFileRepository.create).not.toHaveBeenCalled();
-      expect(fs.existsSync(tempDir)).toBe(false);
+      expect(fs.existsSync(tempDir)).toBe(true);
       expect(fs.existsSync(finalPath)).toBe(false);
 
       if (fs.existsSync(tempDir)) {
@@ -517,7 +536,7 @@ describe("UploadsService - Post-Review Fixes", () => {
       }
     });
 
-    it("should delete temp files when quota update fails", async () => {
+    it("preserves resumable chunks when quota update fails", async () => {
       const tempDir = `/tmp/test-cleanup-quota-${Date.now()}`;
       const finalPath = `/tmp/test-cleanup-quota-${Date.now()}-final.jpg`;
       const session = {
@@ -527,6 +546,8 @@ describe("UploadsService - Post-Review Fixes", () => {
         totalSize: 8,
         chunkSize: 8,
         totalChunks: 1,
+        accountingInitialized: true,
+        uploadedCount: 0,
         uploadedChunks: [0],
         uploadedSize: 8,
         tempPath: tempDir,
@@ -559,7 +580,7 @@ describe("UploadsService - Post-Review Fixes", () => {
       );
 
       expect(mockQueryRunner.rollbackTransaction).toHaveBeenCalled();
-      expect(fs.existsSync(tempDir)).toBe(false);
+      expect(fs.existsSync(tempDir)).toBe(true);
       expect(fs.existsSync(finalPath)).toBe(false);
 
       if (fs.existsSync(tempDir)) {
@@ -611,6 +632,8 @@ describe("UploadsService - Post-Review Fixes", () => {
         totalChunks: 1,
         totalSize: 100,
         chunkSize: 100,
+        accountingInitialized: true,
+        uploadedCount: 0,
         uploadedChunks: [],
       };
       mockQueryRunner.manager.findOne.mockResolvedValue(session);
@@ -666,11 +689,12 @@ describe("UploadsService - Post-Review Fixes", () => {
       fs.mkdirSync(expiredSession.tempPath, { recursive: true });
 
       mockUploadSessionRepository.find.mockResolvedValue([expiredSession]);
+      mockQueryRunner.manager.findOne.mockResolvedValue(expiredSession);
 
       const result = await service.cleanupExpiredSessions();
 
       expect(result).toBe(1);
-      expect(mockUploadSessionRepository.delete).toHaveBeenCalledWith(1);
+      expect(mockQueryRunner.manager.delete).toHaveBeenCalledWith(UploadSessionEntity, 1);
       expect(fs.existsSync(expiredSession.tempPath)).toBe(false);
     });
 
@@ -685,11 +709,12 @@ describe("UploadsService - Post-Review Fixes", () => {
       };
       fs.mkdirSync(uploadingSession.tempPath, { recursive: true });
       mockUploadSessionRepository.find.mockResolvedValue([uploadingSession]);
+      mockQueryRunner.manager.findOne.mockResolvedValue(uploadingSession);
 
       const result = await service.cleanupExpiredSessions();
 
       expect(result).toBe(1);
-      expect(mockUploadSessionRepository.delete).toHaveBeenCalledWith(2);
+      expect(mockQueryRunner.manager.delete).toHaveBeenCalledWith(UploadSessionEntity, 2);
       expect(fs.existsSync(uploadingSession.tempPath)).toBe(false);
     });
 
@@ -704,6 +729,7 @@ describe("UploadsService - Post-Review Fixes", () => {
       };
       fs.mkdirSync(activeSession.tempPath, { recursive: true });
       mockUploadSessionRepository.find.mockResolvedValue([activeSession]);
+      mockQueryRunner.manager.findOne.mockResolvedValue(activeSession);
 
       const result = await service.cleanupExpiredSessions();
 
@@ -753,7 +779,7 @@ describe("UploadsService - Post-Review Fixes", () => {
       expect(mockUsersService.updateStorageUsed).not.toHaveBeenCalled();
       expect(mockQueryRunner.manager.create).not.toHaveBeenCalled();
       expect(fs.existsSync(path.join(root, "final"))).toBe(false);
-      expect(fs.existsSync(tempPath)).toBe(false);
+      expect(fs.existsSync(tempPath)).toBe(true);
     });
     it("preserves binary signature detector results", async () => {
       prepare(Buffer.from([0, 1, 2, 3]));
@@ -780,6 +806,8 @@ describe("UploadsService - Post-Review Fixes", () => {
         totalSize: 1024,
         chunkSize: 512,
         totalChunks: 2,
+        accountingInitialized: true,
+        uploadedCount: 0,
         uploadedChunks: [0, 1],
         uploadedSize: 1024,
         tempPath: tempDir,
@@ -834,6 +862,8 @@ describe("UploadsService - Post-Review Fixes", () => {
         totalSize: 16,
         chunkSize: 8,
         totalChunks: 2,
+        accountingInitialized: true,
+        uploadedCount: 0,
         uploadedChunks: [0, 1],
         uploadedSize: 16,
         tempPath: tempDir,
@@ -982,6 +1012,8 @@ describe("UploadsService - Post-Review Fixes", () => {
         totalSize: chunks.reduce((sum, chunk) => sum + chunk.length, 0),
         chunkSize,
         totalChunks: chunks.length,
+        accountingInitialized: true,
+        uploadedCount: 0,
         uploadedChunks: chunks.map((_chunk, index) => index),
         uploadedSize: chunks.reduce((sum, chunk) => sum + chunk.length, 0),
         tempPath: tempDir,
@@ -1136,7 +1168,7 @@ describe("UploadsService - Post-Review Fixes", () => {
         expect(mockQueryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
         expect(mockUsersService.updateStorageUsed).not.toHaveBeenCalled();
         expect(fs.existsSync(finalPath)).toBe(false);
-        expect(fs.existsSync(tempDir)).toBe(false);
+        expect(fs.existsSync(tempDir)).toBe(true);
       } finally {
         mutableFs.createReadStream = originalCreateReadStream;
         fs.rmSync(tempDir, { recursive: true, force: true });
@@ -1156,6 +1188,8 @@ describe("UploadsService - Post-Review Fixes", () => {
         totalSize: 8,
         chunkSize: 8,
         totalChunks: 1,
+        accountingInitialized: true,
+        uploadedCount: 0,
         uploadedChunks: [0],
         uploadedSize: 8,
         tempPath: tempDir,
@@ -1196,6 +1230,8 @@ describe("UploadsService - Post-Review Fixes", () => {
         totalSize: 8,
         chunkSize: 8,
         totalChunks: 1,
+        accountingInitialized: true,
+        uploadedCount: 0,
         uploadedChunks: [0],
         uploadedSize: 8,
         tempPath: tempDir,
@@ -1258,6 +1294,8 @@ describe("UploadsService - Post-Review Fixes", () => {
         totalSize: 2000,
         chunkSize: 1000,
         totalChunks: 2,
+        accountingInitialized: true,
+        uploadedCount: 0,
         uploadedChunks: [0],
         uploadedSize: 1000,
         tempPath: tempDir,
@@ -1288,6 +1326,8 @@ describe("UploadsService - Post-Review Fixes", () => {
         totalSize: 2000,
         chunkSize: 1000,
         totalChunks: 2,
+        accountingInitialized: true,
+        uploadedCount: 0,
         uploadedChunks: [0],
         uploadedSize: 1000,
         tempPath: tempDir,
@@ -1322,6 +1362,8 @@ describe("UploadsService - Post-Review Fixes", () => {
         totalSize: 100,
         chunkSize: 100,
         totalChunks: 1,
+        accountingInitialized: true,
+        uploadedCount: 0,
         uploadedChunks: [0],
         uploadedSize: 8,
         tempPath: tempDir,

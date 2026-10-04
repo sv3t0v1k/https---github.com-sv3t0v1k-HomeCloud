@@ -60,8 +60,9 @@ services:
       STORAGE_PATH: /storage
       # Метрики выключены без отдельного токена; endpoint требует Bearer.
       METRICS_TOKEN: ${METRICS_TOKEN:-}
-      MAX_FILE_SIZE: ${MAX_FILE_SIZE:-1073741824}
-      MAX_TOTAL_SIZE: ${MAX_TOTAL_SIZE:-10737418240}
+      MAX_FILE_SIZE: ${MAX_FILE_SIZE:-1099511627776}
+      MAX_TOTAL_SIZE: ${MAX_TOTAL_SIZE:-2199023255552}
+      MAX_UPLOAD_CHUNKS: ${MAX_UPLOAD_CHUNKS:-100000}
       CHUNK_SIZE: ${CHUNK_SIZE:-10485760}
       MAX_CHUNK_SIZE: ${MAX_CHUNK_SIZE:-52428800}
       FRONTEND_URL: https://${PUBLIC_HOST:?Set PUBLIC_HOST to the production hostname}

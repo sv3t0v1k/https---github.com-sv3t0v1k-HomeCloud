@@ -199,7 +199,7 @@ export async function measureUploadChunkScale(
       latencyMs,
       counters: instrument.snapshot(),
       sessionStatus: measured.status,
-      uploadedChunks: measured.uploadedChunks.length,
+      uploadedChunks: measured.uploadedCount,
     };
 
     const residualRows = await countRows(dataSource, userId);
