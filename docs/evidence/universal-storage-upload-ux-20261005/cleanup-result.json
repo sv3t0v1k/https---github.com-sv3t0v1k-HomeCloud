@@ -1,0 +1,21 @@
+{
+  "temporaryFiles": 0,
+  "emptyInfrastructureDirectory": "multipart-ingress",
+  "at": "2026-10-05T13:35:33.180Z",
+  "quota": {
+    "id": 3,
+    "storageUsed": "37021",
+    "storageQuota": "107374182400",
+    "activeReserve": "0"
+  },
+  "chunks": "0",
+  "remainingUXFiles": "0",
+  "remainingUXSessions": "0",
+  "remainingQAAccounts": "0",
+  "temporaryDatabases": "0",
+  "temporaryEntries": 1,
+  "physicalUser3Bytes": 37021,
+  "physicalUser4Bytes": 0,
+  "physicalUser5Bytes": 0,
+  "cleanupVerified": true
+}

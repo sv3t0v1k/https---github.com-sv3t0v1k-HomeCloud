@@ -1,0 +1,87 @@
+[
+  {
+    "name": "ux-policy.dmg",
+    "size": 768,
+    "sha256": "f3a25aa93aa2fbba28d79260535bbd6a5eb0fc1c24a8b0f04e12b484c1dfe363"
+  },
+  {
+    "name": "ux-safari-mismatch.jpg",
+    "size": 529,
+    "sha256": "683684c85d1663beabb1fd979ec77df09af223bd54efda1c95ccc4e56a534985"
+  },
+  {
+    "name": "ux-429.bin",
+    "size": 134217728,
+    "sha256": "a626d17da2e502f5b4b8e3ebd23f0bf9daef6255688d8e0bb482b3ae3794a682"
+  },
+  {
+    "name": "ux-policy.zip",
+    "size": 768,
+    "sha256": "f3a25aa93aa2fbba28d79260535bbd6a5eb0fc1c24a8b0f04e12b484c1dfe363"
+  },
+  {
+    "name": "ux-policy.unknown",
+    "size": 768,
+    "sha256": "f3a25aa93aa2fbba28d79260535bbd6a5eb0fc1c24a8b0f04e12b484c1dfe363"
+  },
+  {
+    "name": "ux-policy-empty.bin",
+    "size": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "name": "ux-safari-small.BIN",
+    "size": 262144,
+    "sha256": "2312394bd99545d9de131c24efb781e765ac1aec243f2ed9347597a793a415e9"
+  },
+  {
+    "name": "ux-policy-noext",
+    "size": 768,
+    "sha256": "f3a25aa93aa2fbba28d79260535bbd6a5eb0fc1c24a8b0f04e12b484c1dfe363"
+  },
+  {
+    "name": "ux-policy.png",
+    "size": 68,
+    "sha256": "431ced6916a2a21a156e38701afe55bbd7f88969fbbfc56d7fe099d47f265460"
+  },
+  {
+    "name": "ux-safari-unknown.custom",
+    "size": 589,
+    "sha256": "3ea307a08c635773222076cc1736d6cdae68b547096848e0cdb2c39d952d791f"
+  },
+  {
+    "name": "ux-safari-resume.bin",
+    "size": 134217728,
+    "sha256": "a626d17da2e502f5b4b8e3ebd23f0bf9daef6255688d8e0bb482b3ae3794a682"
+  },
+  {
+    "name": "ux-policy.iso",
+    "size": 768,
+    "sha256": "f3a25aa93aa2fbba28d79260535bbd6a5eb0fc1c24a8b0f04e12b484c1dfe363"
+  },
+  {
+    "name": "ux-policy.txt",
+    "size": 29,
+    "sha256": "d312685d6a89a5f16b521e0a1b876399263ee2ef593143bde00101fc248194f9"
+  },
+  {
+    "name": "ux-safari-noext",
+    "size": 272,
+    "sha256": "6aed54b2c80834cc921daeb23e938d39137f3c6878c1e56d8cbe176ac2bcd258"
+  },
+  {
+    "name": "ux-policy.apk",
+    "size": 768,
+    "sha256": "f3a25aa93aa2fbba28d79260535bbd6a5eb0fc1c24a8b0f04e12b484c1dfe363"
+  },
+  {
+    "name": "ux-safari-text.txt",
+    "size": 24,
+    "sha256": "e8e926418ad3270d894e6353036f7df60342ffdb7e893451f254a7e02b094372"
+  },
+  {
+    "name": "ux-cancel-check.bin",
+    "size": 134217728,
+    "sha256": "a626d17da2e502f5b4b8e3ebd23f0bf9daef6255688d8e0bb482b3ae3794a682"
+  }
+]

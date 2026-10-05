@@ -1,0 +1,80 @@
+[
+  {
+    "fileId": 36,
+    "name": "ux-safari-resume.bin",
+    "bytesMatch": true,
+    "hashMatch": true
+  },
+  {
+    "fileId": 37,
+    "name": "ux-safari-text.txt",
+    "bytesMatch": true,
+    "hashMatch": true
+  },
+  {
+    "fileId": 38,
+    "name": "ux-safari-small.BIN",
+    "bytesMatch": true,
+    "hashMatch": true
+  },
+  {
+    "fileId": 39,
+    "name": "ux-429.bin",
+    "bytesMatch": true,
+    "hashMatch": true
+  },
+  {
+    "fileId": 40,
+    "name": "ux-429.bin",
+    "bytesMatch": true,
+    "hashMatch": true
+  },
+  {
+    "fileId": 41,
+    "name": "ux-policy.dmg",
+    "bytesMatch": true,
+    "hashMatch": true
+  },
+  {
+    "fileId": 42,
+    "name": "ux-policy.iso",
+    "bytesMatch": true,
+    "hashMatch": true
+  },
+  {
+    "fileId": 43,
+    "name": "ux-policy.zip",
+    "bytesMatch": true,
+    "hashMatch": true
+  },
+  {
+    "fileId": 44,
+    "name": "ux-policy.apk",
+    "bytesMatch": true,
+    "hashMatch": true
+  },
+  {
+    "fileId": 45,
+    "name": "ux-policy.unknown",
+    "bytesMatch": true,
+    "hashMatch": true
+  },
+  {
+    "fileId": 46,
+    "name": "ux-policy-noext",
+    "bytesMatch": true,
+    "hashMatch": true
+  },
+  {
+    "fileId": 47,
+    "name": "ux-policy.txt",
+    "bytesMatch": true,
+    "hashMatch": true
+  },
+  {
+    "fileId": 48,
+    "name": "ux-policy.png",
+    "bytesMatch": true,
+    "hashMatch": true
+  }
+]

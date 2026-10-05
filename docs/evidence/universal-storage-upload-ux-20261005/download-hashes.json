@@ -1,0 +1,27 @@
+[
+  {
+    "downloadName": "ux-small.BIN",
+    "size": 262144,
+    "sha256": "2312394bd99545d9de131c24efb781e765ac1aec243f2ed9347597a793a415e9"
+  },
+  {
+    "downloadName": "ux-small (1).BIN",
+    "size": 262144,
+    "sha256": "2312394bd99545d9de131c24efb781e765ac1aec243f2ed9347597a793a415e9"
+  },
+  {
+    "downloadName": "ux-unknown.weird_ext",
+    "size": 589,
+    "sha256": "e22e4fe9c0f3dc8399a3055dc6efe0cf01dbd29c9b667d18739c375f80893acb"
+  },
+  {
+    "downloadName": "ux-pause.bin",
+    "size": 134217728,
+    "sha256": "a626d17da2e502f5b4b8e3ebd23f0bf9daef6255688d8e0bb482b3ae3794a682"
+  },
+  {
+    "downloadName": "ux-policy-noext",
+    "size": 768,
+    "sha256": "f3a25aa93aa2fbba28d79260535bbd6a5eb0fc1c24a8b0f04e12b484c1dfe363"
+  }
+]

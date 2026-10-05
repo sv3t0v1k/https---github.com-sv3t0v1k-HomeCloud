@@ -1,0 +1,38 @@
+{
+  "focused": {
+    "exitCode": 0,
+    "elapsedSeconds": 11.31
+  },
+  "postgres": {
+    "exitCode": 0,
+    "elapsedSeconds": 9.71
+  },
+  "full": {
+    "exitCode": 0,
+    "elapsedSeconds": 39.71
+  },
+  "lint": {
+    "exitCode": 0,
+    "elapsedSeconds": 2.43
+  },
+  "typecheck": {
+    "exitCode": 0,
+    "elapsedSeconds": 1.7
+  },
+  "build": {
+    "exitCode": 0,
+    "elapsedSeconds": 2.81
+  },
+  "bench-compile": {
+    "exitCode": 0,
+    "elapsedSeconds": 2.03
+  },
+  "compiled-detector": {
+    "exitCode": 0,
+    "elapsedSeconds": 0.04
+  },
+  "cleanup": {
+    "database": "hc_upload_ux_tests_93d0087d9fe0",
+    "removed": true
+  }
+}
