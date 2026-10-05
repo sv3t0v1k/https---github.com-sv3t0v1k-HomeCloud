@@ -422,6 +422,8 @@ export class UploadQueue {
         } finally { window.clearTimeout(timeout); control.abort() }
       }
       job.view.state = 'cancelled'
+      // Confirmed abort deletes accepted chunks; they are no longer durable progress.
+      job.view.committedBytes = 0
       job.view.needsFile = false
       job.file = undefined
       job.cancellationPending = false

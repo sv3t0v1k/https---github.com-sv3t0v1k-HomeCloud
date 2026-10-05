@@ -227,6 +227,7 @@ describe('UploadQueue', () => {
     await vi.waitFor(() => expect(state(q, siblingId).state).toBe('completed'))
     await vi.waitFor(() => expect(state(q, cancelId).state).toBe('error'))
     expect(state(q, cancelId).error).toContain('Не удалось подтвердить отмену')
+    expect(state(q, cancelId).committedBytes).toBeGreaterThan(0)
     expect(server.sessions.has(state(q, cancelId).uploadId!)).toBe(true)
     q.dispose()
     const restored = queue(window.localStorage)
@@ -234,6 +235,7 @@ describe('UploadQueue', () => {
     failDelete = false
     restored.cancel(cancelId)
     await vi.waitFor(() => expect(state(restored, cancelId).state).toBe('cancelled'))
+    expect(state(restored, cancelId)).toMatchObject({ committedBytes: 0, percent: 0 })
     expect(server.sessions.has(state(q, cancelId).uploadId!)).toBe(false)
   })
 
