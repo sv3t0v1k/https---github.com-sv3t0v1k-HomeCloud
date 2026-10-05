@@ -2,6 +2,7 @@
 services:
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${DB_NAME:-homecloud}
       POSTGRES_USER: ${DB_USER:-homecloud}
@@ -19,6 +20,7 @@ services:
   redis:
     profiles: [redis]
     image: redis:7-alpine
+    restart: unless-stopped
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     command:
@@ -104,6 +106,13 @@ services:
 
   ingress:
     image: nginx:alpine
+    healthcheck:
+      # Внутренняя проверка listener/UI; внешний trust проверяется отдельно.
+      test: ["CMD-SHELL", 'wget --no-check-certificate -q -O /dev/null --header="Host: $$PUBLIC_HOST" https://127.0.0.1/ || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     environment:
       PUBLIC_HOST: ${PUBLIC_HOST:?Set PUBLIC_HOST to the production hostname}
     ports:

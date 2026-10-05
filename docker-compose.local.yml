@@ -1,0 +1,26 @@
+# Единственное локальное окружение; использовать вместе с production Compose.
+# Compose >= 2.24.4: !override исключает добавление публичных bindings.
+name: homecloud-preview
+services:
+  backend:
+    image: homecloud-preview-backend:local-baseline
+    environment:
+      REDIS_URL: ""
+      REDIS_PASSWORD: ""
+  frontend:
+    image: homecloud-preview-frontend:local-baseline
+    ports:
+      - "127.0.0.1:8080:80"
+  ingress:
+    ports: !override
+      - "127.0.0.1:80:80"
+      - "127.0.0.1:443:443"
+
+# external запрещает молча создать пустую БД при отсутствии существующего volume.
+volumes:
+  db_data:
+    external: true
+    name: homecloud-preview_db_data
+  storage_data:
+    external: true
+    name: homecloud-preview_storage_data
