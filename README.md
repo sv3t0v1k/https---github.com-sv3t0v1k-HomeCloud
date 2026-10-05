@@ -91,75 +91,59 @@ git clone https://github.com/yourusername/homecloud.git
 cd homecloud
 ```
 
-### 2. Настройка окружения
+### 2. Единственное локальное окружение
 
-Скопируйте файл с переменными окружения и при необходимости измените значения:
+Обычная разработка использует **только `homecloud-preview`**: production topology плюс
+`docker-compose.local.yml`. Требуется Docker Compose >= 2.24.4 (`!override` заменяет
+публичные port bindings, а не добавляет loopback bindings к ним).
 
-```bash
-cp .env.example .env
+Runtime secrets и TLS находятся вне репозитория в
+`~/Library/Application Support/HomeCloud/{config,tls,challenges}`. Не копируйте
+секреты в repo `.env` и не используйте исчезающие `/private/tmp` overrides.
+Local override требует существующие external volumes
+`homecloud-preview_db_data` и `homecloud-preview_storage_data`: отсутствие volume
+останавливает запуск вместо создания пустой базы. Для нового хоста сначала
+восстановите проверенный backup по [runbook](docs/operations-runbook.md).
+
+### 3. Запуск и проверка
+
+```sh
+# Выполнять из корня HomeCloud. Файл env защищён правами 0600.
+hc() {
+  docker compose --project-name homecloud-preview \
+    --env-file "$HOME/Library/Application Support/HomeCloud/config/runtime.env" \
+    -f docker-compose.production.yml -f docker-compose.local.yml "$@"
+}
+hc config --quiet
+hc up -d --build --wait
+hc ps
 ```
 
-Доступные переменные в `.env`:
+[Полные инструкции запуска, обновления, миграций и восстановления](docs/operations-runbook.md).
+`docker-compose.yml` — историческая конфигурация; не запускайте её для обычной
+разработки: она связывает другие volumes и создаёт конкурирующее окружение.
 
-```env
-# База данных
-DB_NAME=homecloud
-DB_USER=homecloud
-DB_PASSWORD=change-me-in-production
+### 4. Создание пользователя
 
-# JWT (обязательно изменить в production!)
-JWT_SECRET=change-me-in-production
-JWT_REFRESH_SECRET=change-me-in-production
-
-# Redis
-REDIS_URL=redis://redis:6379
-REDIS_PASSWORD=change-me-in-production
-
-# Хранилище
-STORAGE_PATH=/storage
-MAX_FILE_SIZE=0
-CHUNK_SIZE=10485760
-
-# Frontend
-FRONTEND_URL=http://localhost:5173
-API_URL=http://localhost:3000
-```
-
-**Важно**: для production обязательно измените `DB_PASSWORD`, `JWT_SECRET`, `JWT_REFRESH_SECRET` и `REDIS_PASSWORD` на надёжные случайные строки.
-
-### 3. Запуск
-
-```bash
-docker compose up -d
-```
-
-### 4. Проверка статуса
-
-```bash
-docker compose ps
-```
-
-### 5. Создание пользователя
-
-После запуска создайте пользователя через API:
-
-```bash
-curl -X POST http://localhost:3000/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "user@example.com",
-    "password": "SecurePassword123",
-    "name": "User Name"
-  }'
-```
+Откройте HTTP UI и зарегистрируйте отдельный локальный аккаунт через штатный экран
+или `POST /api/v1/auth/register` на том же frontend URL. Пароли не хранятся в Git.
+Модель ролей отсутствует: регистрация создаёт обычного пользователя с нулевой
+квотой. Для загрузки оператор назначает квоту отдельно; local dev-аккаунт уже
+получил100GiB. См. runbook; пароли пользователей напрямую в БД не менять.
 
 ## Доступ
 
 | Сервис | URL | Описание |
 |--------|-----|----------|
-| Frontend | http://localhost | Веб-интерфейс |
-| Backend API | http://localhost:3000/api/v1 | REST API |
-| Health check | http://localhost:3000/api/v1/health | Статус приложения |
+| Frontend | http://localhost:8080 | Канонический локальный UI |
+| HTTPS ingress | https://homecloud.localhost | Локальный сертификат, без публичной CA-квалификации |
+| API | http://localhost:8080/api/v1 | API через frontend; backend port не опубликован |
+| HTTP ingress | http://homecloud.localhost | 308 на HTTPS; ACME challenge отдельно |
+
+DB/backend/Redis не публикуются; Redis profile отключён. Health/metrics недоступны
+через публичные proxy routes. Используйте `hc ps` и внутренний readiness endpoint.
+Локальный сертификат не установлен в системное доверие: браузер может показать
+предупреждение. HTTP localhost остаётся доступным для обычной работы.
 
 ## Структура проекта
 
@@ -357,9 +341,9 @@ HomeCloud/
 
 | Volume | Назначение |
 |--------|------------|
-| `db_data` | Данные PostgreSQL |
-| `redis_data` | Персистентность Redis |
-| `storage_data` | Загруженные пользовательские файлы |
+| `homecloud-preview_db_data` | Каноническая PostgreSQL БД |
+| `redis_data` | Опциональный Redis; в local baseline выключен |
+| `homecloud-preview_storage_data` | Канонические пользовательские файлы |
 
 ## Резервное копирование
 
@@ -367,19 +351,19 @@ HomeCloud/
 
 ## Переменные окружения
 
-| Переменная | По умолчанию | Описание |
+| Переменная | Локальный baseline | Описание |
 |------------|--------------|----------|
-| `DB_NAME` | `homecloud` | Имя базы данных |
-| `DB_USER` | `homecloud` | Пользователь PostgreSQL |
-| `DB_PASSWORD` | `changeme` | Пароль PostgreSQL |
-| `JWT_SECRET` | `changeme-change-in-production` | Секрет для access токенов |
-| `JWT_REFRESH_SECRET` | `changeme-change-in-production` | Секрет для refresh токенов |
-| `REDIS_URL` | `redis://redis:6379` | URL Redis |
+| `DB_NAME` | `homecloud_preview` | Имя базы данных |
+| `DB_USER` | `homecloud_preview` | Пользователь PostgreSQL |
+| `DB_PASSWORD` | Внешний сильный секрет | Пароль PostgreSQL |
+| `JWT_SECRET` | Внешний сильный секрет | Секрет для access токенов |
+| `JWT_REFRESH_SECRET` | Независимый внешний секрет | Секрет для refresh токенов |
+| `REDIS_URL` | Пусто; Redis выключен | URL Redis |
 | `STORAGE_PATH` | `/storage` | Путь к хранилищу файлов |
-| `MAX_FILE_SIZE` | `0` | Максимальный размер файла (0 = без ограничений) |
+| `MAX_FILE_SIZE` | `1099511627776` | Максимальный размер файла (0 = без ограничений) |
 | `CHUNK_SIZE` | `10485760` | Размер чанка для загрузки (10 MB) |
-| `FRONTEND_URL` | `http://localhost:5173` | URL фронтенда для CORS |
-| `API_URL` | `http://localhost:3000` | URL бэкенда для фронтенда |
+| `FRONTEND_URL` | `https://homecloud.localhost` | URL фронтенда для CORS |
+| API фронтенда | `/api/v1` относительно frontend URL | Backend наружу не опубликован |
 | `PORT` | `3000` | Порт бэкенда |
 
 ## Разработка

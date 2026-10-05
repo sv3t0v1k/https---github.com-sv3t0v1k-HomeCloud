@@ -652,3 +652,32 @@ Independent final review: **NO_GO** по raw evidence. Дополнительн�
 Свежая браузерная приёмка — **PASS** в IAB и отдельном Safari; [доказательства и ограничения](evidence/universal-storage-upload-ux-20261005/report.md) зафиксированы в ненумерованном checkpoint. Произвольные типы и точные скачивания, batch, file DnD, Pause / Resume / Cancel, reload с повторным выбором, контролируемые429/503 runtime проверены. Backend825/825, PostgreSQL68/68 без пропусков, frontend218/218; независимые review ACCEPT. Перетаскивание папок, пустые файлы, автоматическое восстановление файловых дескрипторов и постраничное обнаружение сессий остаются будущими возможностями. Предел 1 ТиБ на файл является настраиваемым инфраструктурным ограничением.
 
 Сертификат и ключ локального TLS-превью под `/private/tmp` остаются отдельной задачей перед развёртыванием. В этом checkpoint их расположение не меняется. `50_GIB_BROWSER_E2E_STATUS = FAIL / REQUALIFICATION_REQUIRED`; повторный 50 GiB Browser E2E здесь не запускается.
+
+
+## Docker Preservation + Consolidation + Auth Baseline (2026-10-06)
+
+Ненумерованный owner-directed checkpoint; новая Phase не создаётся. Обычная локальная
+разработка использует только `homecloud-preview`, production Compose + tracked local
+override, existing external preview DB/storage volumes и durable runtime/TLS/challenge
+paths вне repo и `/private/tmp`. Runtime frontend/ingress проверены и совпадают с принятыми
+streaming/privacy конфигурациями. Local self-signed TLS не является public CA или
+macOS atomic-rotation qualification. Не запускать legacy Compose и 50 GiB автоматически.
+
+Все uncertain legacy/acceptance/bench volumes сохранены локальными readable архивами
+с SHA256 и удерживаются `UNKNOWN/PRESERVE`; release/rollback images сохраняются.
+До первого изменения все известные HomeCloud containers/networks уже отсутствовали;
+исторические writable layers недоступны, их сохранность не доказана. Это отдельный
+preservation gap, который работающий canonical stack не устраняет. Полный factual
+report и manifest хранятся во внешнем operations path; secrets/passwords в Git отсутствуют.
+
+Фактическая приёмка: четыре canonical services healthy; Compose/config и runtime
+Nginx equality PASS; controlled force-recreate сохранил SQL/storage fingerprints,
+существующих пользователей/файлы/папки/shares/20 миграций, новый dev account и pending
+upload. Binary 2,097,289 bytes HTTP/HTTPS exact SHA256, разрешённый public text,
+API pause/resume/cancel и cleanup PASS; storage снова5files/37021bytes. Dev account
+обычный; квота100GiB назначена только ему оператором, registration default0/no quota
+API остаётся ограничением. Backend757 + isolated PostgreSQL68 =825, frontend218,
+lint/build, certificate10, hostname/Compose/diff checks PASS. Удалены только3
+empty/unreferenced verification volumes. Независимый review: runtime и remaining
+volumes ACCEPT; full historical preservation REJECT/UNVERIFIABLE. Полный checkpoint
+не получает безусловный PASS из-за недоступных прежних writable layers.

@@ -1,12 +1,111 @@
 Актуальная последовательность deploy/rollback/recovery: [операторский пакет](./go-live-checklist.md). Единственный текущий список внешних входов: [master checklist](./external-input-master-checklist.md). Overall **NOT_READY / NO_GO**.
 
+## Единственный локальный baseline HomeCloud
+
+Для обычной работы используется project **`homecloud-preview`**. Канонический
+Compose: `docker-compose.production.yml` + `docker-compose.local.yml`; legacy
+`docker-compose.yml` не запускать. Compose >= 2.24.4 обязателен для `!override`.
+Production topology сохранена; local override публикует только loopback
+`127.0.0.1:8080` (frontend), `127.0.0.1:80/443` (ingress) и явно использует external
+`homecloud-preview_db_data` → `/var/lib/postgresql/data`,
+`homecloud-preview_storage_data` → `/storage`. Redis выключен и не требуется
+текущим application modules. Не включать профиль без отдельной необходимости.
+
+Из корня repo:
+
+```sh
+hc() {
+  docker compose --project-name homecloud-preview \
+    --env-file "$HOME/Library/Application Support/HomeCloud/config/runtime.env" \
+    -f docker-compose.production.yml -f docker-compose.local.yml "$@"
+}
+hc config --quiet                   # Не выводит resolved secrets.
+hc up -d --build --wait             # Первый запуск / обновление из repo.
+hc ps
+hc stop                            # Остановка с сохранением данных.
+hc start                           # Возобновление существующих контейнеров.
+hc up -d --force-recreate --wait    # Проверяемое пересоздание, те же volumes.
+# При предусмотренной миграции: сначала verified DB + storage backup.
+hc stop ingress frontend backend
+hc up -d db
+hc run --rm --no-deps backend npm run migration:run
+hc up -d --build --wait
+```
+
+`restart` не применяет изменения Compose/env/image; используйте `up`.
+Не выполнять `down -v`, volume/system prune или переключение на project `homecloud`.
+Изолированные временные стеки допускаются для действительно destructive
+restore/rollback/migration/release qualification; удалить их сразу после проверки.
+Обычные smoke-проверки выполняются на canonical stack с отдельным dev-аккаунтом
+и полным удалением их файлов/резервов/временных частей.
+
+Durable operations root на этом Mac:
+`/Users/aleksejkozemakin/Library/Application Support/HomeCloud/`.
+`config/runtime.env` (0600, parent0700) содержит восстановленный DB_NAME/DB_USER,
+сильный DB_PASSWORD, независимые JWT secrets, `PUBLIC_HOST=homecloud.localhost`,
+`TLS_CERT_DIR` и `ACME_WEBROOT_DIR`. Никогда не печатать файл или `hc config`
+без `--quiet`. JWT secrets после утраты предыдущего runtime env заменены;
+старые access/refresh tokens больше не валидны. Пользовательские password hashes
+не меняются. Dev login хранится отдельно в защищённом local config, не в Git.
+Штатная регистрация создаёт storageQuota=0; quota API/role model отсутствуют.
+Только dev@homecloud.local получила operator provisioning квоты100GiB в PostgreSQL;
+её password hash создан штатной регистрацией. Новые аккаунты с нулевой квотой
+не могут загружать файлы, пока оператор не назначит квоту. Это существующее
+ограничение, application source в этом checkpoint не менялся.
+
+HTTP UI: http://localhost:8080. HTTPS: https://homecloud.localhost (loopback).
+При отсутствии resolver support проверять CLI с
+`--resolve homecloud.localhost:443:127.0.0.1`; не перенаправлять запрос на внешний DNS.
+HTTP ingress даёт308; `challenges/.well-known/acme-challenge` содержит только public
+challenge tokens. `tls/current` — поколение, установленное существующим
+`scripts/certificate-lifecycle.py`; key0600, state0700. Новая локальная self-signed
+pair имеет matching SAN, но не установлена в системное доверие и не подтверждает
+public CA issuance. CLI проверка без `-k`:
+
+```sh
+curl --noproxy '*' --resolve homecloud.localhost:443:127.0.0.1 \
+  --cacert "$HOME/Library/Application Support/HomeCloud/config/local-development-fullchain.pem" \
+  https://homecloud.localhost/
+```
+
+Локальное переиздание: OpenSSL RSA3072/SHA256, срок365 дней, SAN
+`DNS:homecloud.localhost,DNS:localhost,IP:127.0.0.1`; private key писать только
+в защищённый external config. Проверить matching key/SAN/expiry и установить
+через `certificate-lifecycle.py install --hostname homecloud.localhost
+--state-dir .../tls --cert ... --key ... --ca-file <явно доверенный local cert>`.
+После смены поколения на Docker Desktop/macOS **пересоздать ingress**, проверить
+`nginx -t`, served fingerprint и trust с явным local CA. Atomic symlink rotation
+на macOS не является production qualification; Linux/public CA runbook остаётся
+[отдельным контрактом](certificate-lifecycle.md). Healthcheck ingress проверяет
+локальный HTTPS listener/UI без CA trust; внешняя trust/SAN проверка обязательна
+отдельно.
+
+Preservation checkpoint: `preservation/2026-10-06-consolidation/manifest.json`
+и per-volume `.tar`/contents/SHA256. Архивы содержат private data и защищены0700/0600;
+они являются локальным сохранением, не encrypted/offsite production backup.
+Все uncertain legacy/acceptance/bench volumes удерживаются `UNKNOWN/PRESERVE`.
+По текущей проверке старые container shells отсутствовали **до начала изменений**;
+их прежние writable layers восстановить/сохранить невозможно, причины отсутствия
+не установлены. Manifest не утверждает сохранность этих layers.
+
+Backup/restore: для работающей БД использовать consistent logical dump или
+существующий [backup production workflow](backup-productionization.md), вместе со
+storage и выбранным maintenance/quiesce contract. Не делать live PG tar backup.
+Cold preservation archives сделаны с полностью остановленных volumes и проверены
+на отдельной PG16 copy. Restore сначала квалифицировать на disposable copy; никогда
+не запускать SQL inspection прямо на остановленном оригинале. Не накатывать старый
+PG archive поверх canonical volume. Перед approved recovery остановить application,
+сохранить текущее состояние, восстановить согласованные DB/storage в целевые
+существующие preview volumes и вернуть `hc up -d --wait`. DB credential и JWT из
+external config должны соответствовать восстановленной БД/принятому token cutover.
+
 # HomeCloud — эксплуатационная диагностика
 
 Этот runbook описывает наблюдаемость одного backend-процесса. Реализованные TLS/secrets/backup checkpoints и их boundaries перечислены в production-readiness-checkpoint.md. Финальный launch gate и operator checklist: [Final Production Acceptance](./final-production-acceptance.md); overall readiness NOT_READY.
 
 ## Запуск и health
 
-Используйте действующие инструкции запуска проекта; для Compose проверяйте `docker compose ps`, затем `docker compose logs --tail=100 backend`. Не удаляйте volumes и не выполняйте restore как первый ответ на ошибку.
+Используйте действующие инструкции запуска проекта; для Compose проверяйте `hc ps`, затем `hc logs --tail=100 backend`. Не удаляйте volumes и не выполняйте restore как первый ответ на ошибку.
 
 - `GET /api/v1/health` и `/api/v1/health/live` — совместимый liveness: процесс отвечает; доступность зависимостей не проверяется.
 - `GET /api/v1/health/ready` — readiness: PostgreSQL и storage должны быть доступны. HTTP 200 означает готовность, HTTP 503 — деградацию; поле `checks` показывает `database` и `storage` без credentials и путей. Успешные JSON-ответы API сохраняют существующую обёртку `success/data`.
@@ -19,7 +118,7 @@ Readiness является моментальным ограниченным п�
 
 ## Корреляция и логи
 
-Заголовок `X-Request-Id` возвращается для каждого HTTP-запроса. Клиент может передать ID из 1–64 символов `[A-Za-z0-9_-]`; отсутствующий, повторный/составной или недопустимый ID заменяется UUID. Заголовок разрешён и доступен через CORS. Используйте ID из ответа для поиска события запроса и связанных сообщений в `docker compose logs backend`. ID задаёт клиент и поэтому не является идентификатором пользователя или доказательством подлинности запроса.
+Заголовок `X-Request-Id` возвращается для каждого HTTP-запроса. Клиент может передать ID из 1–64 символов `[A-Za-z0-9_-]`; отсутствующий, повторный/составной или недопустимый ID заменяется UUID. Заголовок разрешён и доступен через CORS. Используйте ID из ответа для поиска события запроса и связанных сообщений в `hc logs backend`. ID задаёт клиент и поэтому не является идентификатором пользователя или доказательством подлинности запроса.
 
 Backend пишет JSON по одной записи на строку в stdout: timestamp, level, service, context, event/message, requestId при наличии контекста. Завершение HTTP содержит method, route/path, statusCode и durationMs; route является шаблоном, а неизвестный URL заменяется фиксированным маркером. Тела, query, заголовки Authorization/cookies, токены, passwords, содержимое файлов и сырые exception messages/stacks не записываются. Шаблон маршрута помогает диагностике без публикации имён файлов и share tokens. Сообщения вне запроса могут не иметь requestId.
 
@@ -99,4 +198,4 @@ Finalization bounded RAM, но удерживает transaction/session lock и 
 
 Ошибка отмены остаётся неподтверждённой отменой с возможностью повторить запрос. Очистку проверяют по конкретным идентификаторам тестовых загрузок: отсутствие активного резерва, строк частей и временных файлов. Терминальные записи сессий в БД сохраняются как история. Если ответ финализации потерян, сначала сверяют состояние сессии: уже сохранённый файл не следует удалять через отмену загрузки.
 
-Отдельная нерешённая проблема перед развёртыванием: сертификат и ключ локального TLS-превью находятся под `/private/tmp`. macOS может очистить этот каталог; перед развёртыванием требуется постоянное хранилище. Universal Storage & Upload UX этот путь не меняет. `50_GIB_BROWSER_E2E_STATUS = FAIL / REQUALIFICATION_REQUIRED`; полный 50 GiB Browser E2E требует отдельной квалификации и здесь не запускается.
+Исторический Universal Storage & Upload UX checkpoint оставлял TLS-превью под `/private/tmp`. В Docker consolidation (2026-10-06) локальные TLS/env/challenges перенесены в постоянный operations root по началу этого runbook; публичная CA и macOS atomic rotation по-прежнему не квалифицированы. `50_GIB_BROWSER_E2E_STATUS = FAIL / REQUALIFICATION_REQUIRED`; полный 50 GiB Browser E2E требует отдельной квалификации и здесь не запускается.
