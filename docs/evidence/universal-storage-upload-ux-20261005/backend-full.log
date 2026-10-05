@@ -1,0 +1,19 @@
+
+> homecloud-backend@1.0.0 test
+> jest --runInBand
+
+[Nest] 3221  - 10/05/2026, 11:21:48 PM   ERROR [FilesService] Failed to clean up copied file
+[Nest] 3221  - 10/05/2026, 11:21:48 PM   ERROR [FilesService] Failed to reconcile copied file after ambiguous commit
+[Nest] 3221  - 10/05/2026, 11:21:48 PM   ERROR [FilesService] Failed to release copied file transaction
+[Nest] 3221  - 10/05/2026, 11:21:48 PM   ERROR [FilesService] Failed to release copied file transaction
+[Nest] 3221  - 10/05/2026, 11:21:49 PM     LOG [AuthService] Cleaned up 3 expired refresh token(s)
+[Nest] 3221  - 10/05/2026, 11:21:49 PM     LOG [AuthService] Cleaned up 2 expired refresh token(s)
+[Nest] 3221  - 10/05/2026, 11:22:01 PM   ERROR [PreviewsService] Failed to generate thumbnail for file
+[Nest] 3221  - 10/05/2026, 11:22:16 PM    WARN [UploadsService] MIME metadata detection failed; storing as binary
+[Nest] 3221  - 10/05/2026, 11:22:17 PM   ERROR [UploadsService] Orphaned temp dir cleanup failed
+
+Test Suites: 63 passed, 63 total
+Tests:       825 passed, 825 total
+Snapshots:   0 total
+Time:        39.446 s
+Ran all test suites.

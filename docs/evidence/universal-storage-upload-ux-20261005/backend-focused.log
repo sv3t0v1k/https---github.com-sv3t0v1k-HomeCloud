@@ -1,0 +1,8 @@
+[Nest] 3062  - 10/05/2026, 11:21:29 PM    WARN [UploadsService] MIME metadata detection failed; storing as binary
+[Nest] 3062  - 10/05/2026, 11:21:29 PM   ERROR [UploadsService] Orphaned temp dir cleanup failed
+
+Test Suites: 5 passed, 5 total
+Tests:       138 passed, 138 total
+Snapshots:   0 total
+Time:        10.851 s
+Ran all test suites matching src/uploads/uploads.service.spec.ts|src/uploads/upload-rate-limit.spec.ts|src/uploads/uploads.scalability.spec.ts|src/storage/storage.service.spec.ts|src/files/files.controller.download.spec.ts.

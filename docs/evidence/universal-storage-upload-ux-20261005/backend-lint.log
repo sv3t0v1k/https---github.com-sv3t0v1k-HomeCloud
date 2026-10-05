@@ -1,0 +1,8 @@
+
+> homecloud-backend@1.0.0 lint
+> eslint "src/**/*.ts" --quiet
+
+(node:3346) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/aleksejkozemakin/Desktop/HomeCloud/backend/eslint.config.js?mtime=1788871274389 is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/aleksejkozemakin/Desktop/HomeCloud/backend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
