@@ -615,6 +615,8 @@ Evidence: focused 64/64 PASS; full backend 609 PASS / 15 SKIPPED (51 suites PASS
 
 Эти направления остаются будущей работой без новых номеров Phase; завершённые backend hardening и frontend здесь не дублируются:
 
+- **Многотомное хранение — DESIGN_REVIEW_PENDING_OWNER:** ненумерованный workstream перед deployment. [Аудит и архитектура](./multi-storage-architecture.md): Storage Location, Upload Workspace, policy, SSD→HDD финализация/recovery, admin boundary, backup/restore и безопасный legacy backfill. Реализация не начата и требует отдельного разрешения владельца после owner/ChatGPT review; Production остаётся NOT_READY / NO_GO.
+
 - **Production readiness — INCOMPLETE:** production offsite/operator qualification, final recovery/production deployment acceptance и public CA/domain qualification; TLS/proxy baseline см. checkpoint выше; incremental strategy — отдельное решение. Architecture & Release Gate см. checkpoint выше.
 
 Ни одно planned-направление не разрешено начинать автоматически.
