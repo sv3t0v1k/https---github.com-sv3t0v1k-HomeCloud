@@ -1,0 +1,47 @@
+{
+  "status": "PASS",
+  "version": "v0.9.0-local.1",
+  "kind": "GitHub prerelease; qualified local baseline",
+  "initial_head": "167498dd60bb298168a8b8b8a5a7a6154e2137ee",
+  "origin_before": "97ce78879db495c7fc3ab356e2b2d0aab6e30309",
+  "backend": {
+    "suites": 63,
+    "passed": 825,
+    "skipped": 0
+  },
+  "postgres": {
+    "suites": 7,
+    "passed": 68,
+    "skipped": 0,
+    "included_in_backend": true
+  },
+  "frontend": {
+    "files": 19,
+    "passed": 218,
+    "skipped": 0
+  },
+  "lint_typecheck_build": "PASS",
+  "backend_lint_warnings": 15,
+  "release_helpers": 50,
+  "recovery_config": 11,
+  "restore_schema_tests": 9,
+  "restore_schema_cases": 11,
+  "restore_schema_real_pg_cases": 6,
+  "cleanup_regression": 1,
+  "compose_validation": "PASS",
+  "runtime_smoke": "PASS",
+  "secret_scan": "PASS",
+  "independent_review": "ACCEPT",
+  "unresolved_critical_high": 0,
+  "production": "NOT_READY / NO_GO",
+  "safari_50_gib": "UNQUALIFIED",
+  "iab_50_gib": "PASS; reused qualification evidence dated 2026-10-06",
+  "raw_logs_sha256": {
+    "backend-full.log": "76af96c8ae21651055f7e228f13bbf5cc791555a55c1da873c5f578bb2a885fa",
+    "backend-postgres.log": "c6a25654351094d9b1d79a6b1b9f5ae6d877a14515f3db3e46492a103c64f4c7",
+    "frontend-full.log": "f9c7af81781f56493778643b99da4bab7784983546fbaf5b9782d65a2693ea94",
+    "backend-quality.log": "585ad537f34eca852758cbfae79c91e54f8c49a30d494d0cfb733b751bf2c78c",
+    "frontend-quality.log": "342bc1c3509b3cb486dc306e21e078bdf36574b3a405461153c9eb32ac4f5aa6"
+  },
+  "raw_log_boundary": "private local logs independently reviewed; only summaries/hashes published; no raw credentials/runtime config"
+}

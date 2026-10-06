@@ -5,7 +5,7 @@
 This document describes the **actually implemented** threat model of the
 Authentication & Sessions subsystem of HomeCloud at the Phase 9 baseline.
 
-It is derived from the current source code only:
+The original Phase 9 analysis is retained below; token storage and key cutover sections are updated to the local baseline of 2026-10-06. Sources:
 
 - `backend/src/auth/auth.service.ts`
 - `backend/src/auth/auth.controller.ts`
@@ -22,8 +22,7 @@ It is derived from the current source code only:
 
 Anything **not** present in that code is documented as *not implemented* —
 even if `README.md`, `docs/ROADMAP.md` or the Frontend roadmap mention it.
-In particular, mentions of `httpOnly cookie` storage in those documents are
-**aspirational**, not implemented.
+Access/refresh authentication does not use HttpOnly cookies. Native download uses a separate resource-bound HttpOnly capability cookie, not a JWT auth session; see [local release contract](./local-release-baseline.md).
 
 ## 2. Implemented — authentication flow
 
@@ -208,8 +207,7 @@ counter.
   requires `JWT_SECRET !== JWT_REFRESH_SECRET`.
 - `.env.example` ships `change-me-in-production` for both secrets — the
   startup guard will block the app unless these are replaced.
-- **Secret rotation is not implemented.** There is no mechanism to change a
-  secret and invalidate outstanding tokens.
+- Maintenance key cutover is implemented operationally: replace external keys and recreate backend. Tokens signed with a replaced key fail verification. No automatic key rotation, key ring, `kid` or grace period is implemented; [current contract](./secret-lifecycle.md#jwt-maintenance-cutover).
 
 ## 7. Threat coverage matrix
 
@@ -228,7 +226,7 @@ counter.
 | Token theft via XSS (frontend) | **Not mitigated** | See §8 |
 | Expired-token accumulation | Mitigated | §8.3
 | Per-session enumeration/revocation | **Not mitigated** | See §8 |
-| Secret rotation | **Not mitigated** | See §8 |
+| Secret rotation | Maintenance cutover | External keys + backend recreate invalidate tokens signed with replaced keys; no automatic rotation/key ring |
 | Email verification | **Not mitigated** | See §8 |
 | Password reset | **Not mitigated** | See §8 |
 
@@ -286,23 +284,13 @@ implemented; the bullets describe what is missing and the residual risk.
   from a cookie, which reduces the practical CSRF surface for token theft, but
   does not eliminate it for the account-state-changing operations.
 
-### 8.6 Secret rotation — NOT IMPLEMENTED
+### 8.6 JWT key cutover
 
-- `JWT_SECRET` / `JWT_REFRESH_SECRET` are read from config at sign/verify time
-  and never rotated. There is no key id (`kid`), no grace-period key list, and
-  no invalidation of outstanding tokens on rotation.
-- Risk: compromise of a secret invalidates nothing; all past tokens remain
-  valid until their natural expiry.
+Maintenance rotation is defined and locally qualified in [secret lifecycle](./secret-lifecycle.md#jwt-maintenance-cutover). Replacing access and refresh keys and recreating backend invalidates both token types signed with the old keys. There is no automated rotation, `kid`, previous-key grace period or uninterrupted session migration. Real production custody and host acceptance remain external gates.
 
-### 8.7 Frontend token storage — NOT httpOnly
+### 8.7 Frontend token storage
 
-- `frontend/src/api/client.ts` stores `access_token` and `refresh_token` in
-  `localStorage` and attaches `access_token` as a `Bearer` header on every
-  request. The 401 interceptor only removes both keys from `localStorage`.
-- The Frontend roadmap (`docs/ROADMAP.md` F2) mentions `httpOnly cookie` as a
-  **preference for a future phase**, not as implemented behaviour.
-- Risk: any XSS in the frontend reads both tokens from `localStorage` and can
-  exfiltrate them; the refresh token is usable directly from JS.
+`frontend/src/auth/tokenStorage.ts` keeps access token in memory and refresh token in `sessionStorage`. The client attaches Bearer access and performs guarded refresh on expiry. Logout clears both. Both remain accessible to injected JavaScript; this does not claim XSS-safe or synchronized multi-tab sessions. Upload metadata in `localStorage` contains no JWT/password/file content. HttpOnly native-download capability is a separate short-lived resource cookie and is not refresh-token storage.
 
 ## 9. Residual risk summary
 
@@ -314,9 +302,8 @@ implemented; the bullets describe what is missing and the residual risk.
    DB `UNIQUE` constraint is the only final guard.
 4. **CSRF** on state-changing auth endpoints (no CSRF token; credentialed
    CORS).
-5. **XSS** → both tokens live in `localStorage`.
+5. **XSS** → access memory and refresh `sessionStorage` remain JavaScript-readable.
 6. **Unbounded `refresh_tokens` growth** — mitigated (hourly cleanup
    via `cleanupExpiredTokens`, startup + periodic interval).
 7. **No account recovery** — no password reset; no email verification.
-8. **No secret rotation** — a secret compromise is unrecoverable without a
-   forced global logout.
+8. **Key compromise** — maintenance replacement invalidates affected tokens and requires login; automated rotation and production custody are not qualified.

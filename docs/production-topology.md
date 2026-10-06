@@ -14,9 +14,9 @@
 | health/metrics | live, ready, защищённый Bearer metrics или 404 без токена | Production ingress и frontend возвращают 404 для health/metrics; probes/scrape обращаются непосредственно к backend из приватной сети, metrics дополнительно требует Bearer |
 | migrations | отдельный TypeORM CLI, synchronize=false в production | Startup не запускает migrations; порядок задаёт release runbook |
 | rollback | backup/restore, отдельного orchestration нет | Предыдущие immutable images и совместимость схемы обязательны для app rollback |
-| secrets/config | production validator перед DB connect; startup storage check | Это baseline; ротация, доставка и хранение секретов остаются незавершёнными |
+| secrets/config | production validator перед DB connect; startup storage check | Локальные generation/delivery/maintenance rotation квалифицированы по [secret lifecycle](./secret-lifecycle.md); target host и реальный custody требуют внешней приёмки |
 
-В исходном docker-compose.yml `uploads_data` объявлен, но не смонтирован; только frontend публикует порт. В отдельном docker-compose.production.yml публикуется только ingress 80/443; db/backend/frontend без host ports. Production backend/db и frontend/backend используют internal Docker networks, ingress не подключён к backend network. DB/Redis не имеют явной restart policy; до запуска нужен операционный механизм восстановления после перезапуска узла и проверка этого сценария. Docker healthcheck сам по себе не перезапускает unhealthy service.
+В исходном docker-compose.yml `uploads_data` объявлен, но не смонтирован; только frontend публикует порт. В отдельном docker-compose.production.yml публикуется только ingress 80/443; db/backend/frontend без host ports. Production backend/db и frontend/backend используют internal Docker networks, ingress не подключён к backend network. В production Compose DB/Redis имеют `restart: unless-stopped`; проверка восстановления после перезапуска реального production узла остаётся внешним gate. Docker healthcheck сам по себе не перезапускает unhealthy service.
 
 ## Поддерживаемая схема
 
@@ -50,7 +50,7 @@ Production отвергает отсутствующие/очевидно сла
 
 ## Непокрытые условия go-live
 
-Жизненный цикл секретов (доставка, доступ, ротация, отзыв, recovery); encrypted/offsite backup; retention и alerting; проверка recovery узла; реальный rollback между двумя версиями и smoke через окончательный public ingress. JWT access после logout действителен до TTL; rate limits и metrics process-local; post-commit unlink может оставить orphan. Эти ограничения должны быть приняты владельцем, а не скрыты статусом checkpoint.
+Реальный target host, custody секретов, публичные DNS/CA, физически независимый offsite, утверждённые измеренные RPO/RTO, доставка alerts получателю, совместимость rollback при изменении схемы и smoke/operator acceptance через окончательный public ingress. Локальные механизмы secrets, encrypted backup, retention, alerting и immutable-pair rollback квалифицированы в ограниченных условиях; [актуальные внешние gates](./external-input-master-checklist.md). JWT access после logout действителен до TTL; rate limits и metrics process-local; post-commit unlink может оставить orphan. Эти ограничения должны быть приняты владельцем, а не скрыты статусом checkpoint.
 
 ## Secret Lifecycle baseline
 

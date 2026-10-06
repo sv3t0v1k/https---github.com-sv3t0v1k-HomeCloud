@@ -1,6 +1,6 @@
 # Единый индекс qualification evidence
 
-2026-10-02. **NOT_READY / NO_GO**. Локальная механика не равна реальному target/provider/human acceptance. Актуальные внешние inputs: [master checklist](../external-input-master-checklist.md). Standalone procedure: [операторский пакет](../go-live-checklist.md).
+Актуальный индекс на 2026-10-06. Production **NOT_READY / NO_GO**. Локальная механика не равна реальному target/provider/human acceptance. Актуальные внешние inputs: [master checklist](../external-input-master-checklist.md). Standalone procedure: [операторский пакет](../go-live-checklist.md).
 
 | Тема | Сохранённое evidence / воспроизведение | Граница |
 |---|---|---|
@@ -10,7 +10,10 @@
 | Cert lifecycle / TLS / secrets | [сохранённый checkpoint](../production-readiness-checkpoint.md), [cert contract](../certificate-lifecycle.md), [secret contract](../secret-lifecycle.md); `scripts/tests/certificate-lifecycle-runtime.py`, `scripts/tests/tls-proxy-runtime.py`, `scripts/tests/secret-lifecycle-runtime.py` | Исторические raw paths ephemeral; narrative qualification сохранена, raw archive отсутствует. Public CA/real host trust open |
 | Scheduler/alerts | [qualification](./scheduler-alerting/qualification.json), [systemd](./scheduler-alerting/systemd-runtime.json), [receiver](./scheduler-alerting/receiver.json), [review](./scheduler-alerting/review.md) | Disposable Linux PID1/loopback receiver; human recipient/target wrapper/watchdog open |
 | Final local acceptance/preflight/operator review | [сводка](../final-production-acceptance.md), [gates](./final-prep/gates.json), [API/pair](./final-prep/local-production-e2e.json), [browser](./final-prep/browser-acceptance.json), [fresh build](./final-prep/current-build-manifest.json), [cleanup](./final-prep/restore-cleanup-regression.json), [independent review](./final-prep/review.md), [final statuses](./final-prep/final-status.json); `scripts/tests/final-production-e2e.py` | Exact production ingress template/CSP, local hostname+selfsigned TLS; real endpoint/operator acceptance open |
-| Latest full application gates | [historical full gates](../final-production-acceptance.md#full-final-gates) | Backend59 suites/702, frontend12 files/96; fresh full suites нужны при app source changes, не выданы за текущий повтор |
+| Текущие полные application gates | [финальная локальная версия](../local-release-baseline.md), [release gate](./local-release-20261006/report.md) | Backend 63 suites/825, PostgreSQL 7 suites/68 без пропусков (включены в 825), frontend 19 files/218; дата и границы проверок в release gate |
+| Полные 50 ГиБ в браузере | [отчёт](./browser-50gib-qualification-20261006/report.md), [результат](./browser-50gib-qualification-20261006/qualification-result.json), [review](./browser-50gib-qualification-20261006/independent-review.md) | IAB/localhost PASS; Safari 50 ГиБ и production UNQUALIFIED |
+| Docker consolidation | [канонический runbook и preservation boundaries](../operations-runbook.md), `bf97bef` / `f578030` | Один стек; постоянные volumes/config/TLS; старые unknown volumes/archives PRESERVE, потерянные до checkpoint writable layers не объявлены сохранёнными |
+| Универсальное хранение / upload UX | [checkpoint](./universal-storage-upload-ux-20261005/report.md) | IAB/Safari функциональные сценарии PASS; исторические ограничения 50 ГиБ/TLS заменены checkpoint 2026-10-06 |
 
 Все `/private/tmp`, `/tmp`, `/private/var/folders` и `/var/folders` raw paths в исторических документах **NON_AUTHORITATIVE / EPHEMERAL**: не prerequisites оператора и не гарантия доступности архивного evidence. Сохранённые repo JSON/тексты authoritative только в явно указанном local scope. Harness позволяет повторить процедуру, но не создаёт отсутствующие historical raw snapshots задним числом. Не копировать keys/credentials/raw request/session data в индекс.
 

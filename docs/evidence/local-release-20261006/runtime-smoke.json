@@ -1,0 +1,95 @@
+{
+  "compose_config": "PASS",
+  "services": [
+    {
+      "name": "homecloud-preview-db-1",
+      "health": "healthy",
+      "oom": false,
+      "restarts": 0
+    },
+    {
+      "name": "homecloud-preview-backend-1",
+      "health": "healthy",
+      "oom": false,
+      "restarts": 0
+    },
+    {
+      "name": "homecloud-preview-frontend-1",
+      "health": "healthy",
+      "oom": false,
+      "restarts": 0
+    },
+    {
+      "name": "homecloud-preview-ingress-1",
+      "health": "healthy",
+      "oom": false,
+      "restarts": 0
+    }
+  ],
+  "persistence": {
+    "homecloud-preview-db-1": [
+      {
+        "type": "volume",
+        "volume": "homecloud-preview_db_data",
+        "destination": "/var/lib/postgresql/data"
+      }
+    ],
+    "homecloud-preview-backend-1": [
+      {
+        "type": "volume",
+        "volume": "homecloud-preview_storage_data",
+        "destination": "/storage"
+      }
+    ],
+    "homecloud-preview-frontend-1": [],
+    "homecloud-preview-ingress-1": [
+      {
+        "type": "bind",
+        "volume": null,
+        "destination": "/etc/nginx/tls"
+      },
+      {
+        "type": "bind",
+        "volume": null,
+        "destination": "/var/www/acme"
+      },
+      {
+        "type": "bind",
+        "volume": null,
+        "destination": "/docker-entrypoint.d/19-validate-public-host.sh"
+      },
+      {
+        "type": "bind",
+        "volume": null,
+        "destination": "/etc/nginx/templates/default.conf.template"
+      },
+      {
+        "type": "bind",
+        "volume": null,
+        "destination": "/etc/nginx/conf.d/upgrade.conf"
+      }
+    ]
+  },
+  "nginx_config": "PASS",
+  "readiness_status": 200,
+  "http_ui_status": 200,
+  "https_explicit_ca_status": 200,
+  "login": "PASS",
+  "dev_quota_bytes": 107374182400,
+  "storage_used_before": 0,
+  "files_api": "PASS",
+  "effective_limits": {
+    "maxFileBytes": 1099511627776,
+    "maxActiveBytes": 2199023255552,
+    "maxChunkBytes": 52428800,
+    "maxChunks": 100000,
+    "remainingActiveBytes": 2199023255552,
+    "quotaRemainingBytes": 107374182400,
+    "effectiveMaxFileBytes": 107374182400
+  },
+  "arbitrary_type_upload": "PASS",
+  "native_download_hash": "PASS",
+  "binary_bytes": 262144,
+  "storage_used_after": 0,
+  "own_test_cleanup": "PASS"
+}

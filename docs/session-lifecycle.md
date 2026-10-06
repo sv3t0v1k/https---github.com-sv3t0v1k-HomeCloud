@@ -18,7 +18,7 @@ session object, no session store (Redis is configured but not used for
 sessions), and no session enumeration API.
 
 Aspirational behaviour mentioned in `README.md` or `docs/ROADMAP.md` (for
-example `httpOnly cookie` storage) is **not** implemented and is called out as
+example HttpOnly access/refresh token storage) is **not** implemented and is called out as
 such.
 
 ## 2. The `refresh_tokens` table
@@ -215,14 +215,8 @@ it remains valid until its 15-minute expiry or until the user is deactivated.
 
 ### 11.4 Session store — NOT IMPLEMENTED
 
-- Redis is declared in `docker-compose.yml` and its password is validated at
-  startup, but it is **not used** for sessions or tokens. There is no
-  server-side session store.
+- Redis is optional and disabled in canonical local Compose; it is not used for sessions or tokens. Refresh-token records are persisted in PostgreSQL, not a Redis session store. A nonempty Redis password is validated as configuration only.
 
-### 11.5 httpOnly cookie transport — NOT IMPLEMENTED
+### 11.5 Auth token transport
 
-- The frontend (`frontend/src/api/client.ts`) stores `access_token` and
-  `refresh_token` in `localStorage` and sends the access token as a `Bearer`
-  header. The refresh token is posted in the request body.
-- Mentions of `httpOnly cookie` in `README.md` and in the Frontend roadmap
-  (`docs/ROADMAP.md` F2) describe **future** behaviour, not the current one.
+`frontend/src/auth/tokenStorage.ts` stores access token in memory and refresh token in `sessionStorage`. Bearer access is attached to API requests; refresh token is sent in JSON body. HttpOnly JWT/refresh transport is not implemented. The native-download HttpOnly capability cookie has a separate resource scope and short initiation TTL; it is not the user's authentication session. Tokens remain readable to injected JavaScript. [Key cutover and invalidation](./secret-lifecycle.md#jwt-maintenance-cutover).

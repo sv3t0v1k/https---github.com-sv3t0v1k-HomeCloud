@@ -40,7 +40,7 @@ restore/rollback/migration/release qualification; удалить их сразу
 и полным удалением их файлов/резервов/временных частей.
 
 Durable operations root на этом Mac:
-`/Users/aleksejkozemakin/Library/Application Support/HomeCloud/`.
+`$HOME/Library/Application Support/HomeCloud/`.
 `config/runtime.env` (0600, parent0700) содержит восстановленный DB_NAME/DB_USER,
 сильный DB_PASSWORD, независимые JWT secrets, `PUBLIC_HOST=homecloud.localhost`,
 `TLS_CERT_DIR` и `ACME_WEBROOT_DIR`. Никогда не печатать файл или `hc config`
@@ -110,7 +110,7 @@ external config должны соответствовать восстановл
 - `GET /api/v1/health` и `/api/v1/health/live` — совместимый liveness: процесс отвечает; доступность зависимостей не проверяется.
 - `GET /api/v1/health/ready` — readiness: PostgreSQL и storage должны быть доступны. HTTP 200 означает готовность, HTTP 503 — деградацию; поле `checks` показывает `database` и `storage` без credentials и путей. Успешные JSON-ответы API сохраняют существующую обёртку `success/data`.
 - Compose healthcheck backend использует readiness. `unhealthy` само по себе не перезапускает контейнер; `restart: unless-stopped` относится к завершению процесса. Startup зависит только от PostgreSQL.
-- Redis настроен в Compose, но backend не создаёт Redis-клиент и не обращается к Redis. Он не входит в readiness и не хранит сессии/кэш приложения. Существующая startup-проверка `REDIS_PASSWORD` сохраняется как проверка конфигурации, а не проверка доступности Redis.
+- Redis настроен в Compose, но backend не создаёт Redis-клиент и не обращается к Redis. Он не входит в readiness и не хранит сессии/кэш приложения. Production validator проверяет `REDIS_PASSWORD`, только если задано непустое значение; canonical local override отключает Redis и задаёт пустые значения. Это не проверка доступности Redis.
 
 Readiness использует отдельное PostgreSQL-соединение: connection timeout 1 s, server statement timeout 1 s, client query timeout 1.5 s. Результат кэшируется на 1 s; параллельные запросы объединяются в одну проверку. HTTP-ожидание ограничено 3 s. При общем timeout оба dependency status консервативно возвращаются как `unavailable`; это не доказывает одновременный отказ БД и диска. Probe storage создаёт собственный эксклюзивный `.health-*` каталог и файл, проверяет чтение/запись и удаляет только эти артефакты в root и `.tmp`. Зависшее файловое I/O нельзя отменить этим deadline: один probe остаётся pending до ответа ОС, новые probe не накапливаются.
 
@@ -186,7 +186,7 @@ Backend authoritative limits: MAX_FILE_SIZE=1099511627776, MAX_TOTAL_SIZE=219902
 
 Finalization bounded RAM, но удерживает transaction/session lock и делаетO(N) DB round trips; MIME text classifier может читать файл ещё раз. Session TTL default24h абсолютный. .tmp содержит working directories; terminal session DB records — history, не orphan chunks. После cleanup проверять отсутствие файлов внутри .tmp и правильную quota.
 
-[Умеренный128МиБ E2E в IAB/Safari и ограничения](evidence/large-file-remediation-20261004/report.md): remediationPASS, `50_GIB_QUALIFICATION_STATUS = BLOCKED / UNQUALIFIED`. Этот результат не меняет production NO_GO и не заменяет полный50ГиБ qualification.
+[Исторический 128 МиБ E2E в IAB/Safari](evidence/large-file-remediation-20261004/report.md) подтверждал remediation, а 50 ГиБ тогда оставались BLOCKED / UNQUALIFIED. Текущий [полный 50 ГиБ IAB E2E](evidence/browser-50gib-qualification-20261006/report.md) — PASS на 2026-10-06; Safari 50 ГиБ — UNQUALIFIED, production — NO_GO.
 
 ## Универсальное хранение и докачка
 

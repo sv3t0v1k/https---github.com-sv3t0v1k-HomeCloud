@@ -1,0 +1,36 @@
+{
+  "status": "PASS",
+  "scope": "schema-only dump restored to a dedicated temporary database; actual restore schema gate, not a full destructive DB/storage restore drill",
+  "cases": [
+    {
+      "case": "current-nine-tables",
+      "expected_accept": true,
+      "result": "PASS"
+    },
+    {
+      "case": "unknown-extra-table",
+      "expected_accept": false,
+      "result": "PASS"
+    },
+    {
+      "case": "intermediate-eight-tables",
+      "expected_accept": true,
+      "result": "PASS"
+    },
+    {
+      "case": "legacy-seven-tables",
+      "expected_accept": true,
+      "result": "PASS"
+    },
+    {
+      "case": "view-cannot-replace-base-table",
+      "expected_accept": false,
+      "result": "PASS"
+    },
+    {
+      "case": "missing-core-table",
+      "expected_accept": false,
+      "result": "PASS"
+    }
+  ]
+}

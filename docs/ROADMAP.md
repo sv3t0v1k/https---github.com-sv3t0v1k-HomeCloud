@@ -1,5 +1,9 @@
 # HomeCloud — единый roadmap
 
+**Текущее состояние на 2026-10-06:** полный 50 ГиБ Browser E2E — **PASS** в IAB/localhost ([доказательства](./evidence/browser-50gib-qualification-20261006/report.md)); универсальное хранение и очередь с докачкой подтверждены; единственный локальный стек — `homecloud-preview` с постоянными data/runtime/TLS. Safari 50 ГиБ — **UNQUALIFIED**, production — **NOT_READY / NO_GO**. Предпроизводственная версия `v0.9.0-local.1` не вводит новую Phase. [Контракт версии](./local-release-baseline.md).
+
+Разделы выполненных Phase и датированные checkpoints ниже — история на соответствующую дату. Старые 1/10 ГиБ, Blob/100 МиБ, O(N²), BLOCKED/FAIL и временные TLS paths сохраняются как исторические границы; актуальное состояние задают позднейшие ненумерованные checkpoints и эта сводка.
+
 > Единственный источник истины по статусам и последовательности работ. Архитектурный обзор находится в [`PROJECT-STATE.md`](./PROJECT-STATE.md). Статус `COMPLETE` присваивается только после проверки результата и фиксации подтверждающего commit/checkpoint.
 
 ## Правила ведения
@@ -27,6 +31,9 @@
 | Phase 13 — Frontend | `COMPLETE` | 13.1–13.7; checkpoint `0147a4c` |
 | Observability & Operations — ненумерованный operational baseline | `COMPLETE` | checkpoint `cefff50`; [evidence](./observability-checkpoint.md) |
 | Failure & Security Testing — ненумерованный checkpoint | `COMPLETE` | [evidence и границы](./failure-security-checkpoint.md) |
+| Универсальное хранение и докачка — ненумерованный checkpoint | `COMPLETE` | [IAB/Safari functional evidence](./evidence/universal-storage-upload-ux-20261005/report.md) |
+| Единый локальный Docker baseline — ненумерованный checkpoint | `COMPLETE` | `bf97bef` / `f578030`; [runbook и preservation boundaries](./operations-runbook.md) |
+| Полный 50 ГиБ IAB Browser E2E — ненумерованный checkpoint | `PASS` | `167498d`; [scope/evidence](./evidence/browser-50gib-qualification-20261006/report.md); Safari 50 ГиБ UNQUALIFIED |
 
 ## Completed
 
@@ -651,7 +658,7 @@ Independent final review: **NO_GO** по raw evidence. Дополнительн�
 
 Свежая браузерная приёмка — **PASS** в IAB и отдельном Safari; [доказательства и ограничения](evidence/universal-storage-upload-ux-20261005/report.md) зафиксированы в ненумерованном checkpoint. Произвольные типы и точные скачивания, batch, file DnD, Pause / Resume / Cancel, reload с повторным выбором, контролируемые429/503 runtime проверены. Backend825/825, PostgreSQL68/68 без пропусков, frontend218/218; независимые review ACCEPT. Перетаскивание папок, пустые файлы, автоматическое восстановление файловых дескрипторов и постраничное обнаружение сессий остаются будущими возможностями. Предел 1 ТиБ на файл является настраиваемым инфраструктурным ограничением.
 
-Сертификат и ключ локального TLS-превью под `/private/tmp` остаются отдельной задачей перед развёртыванием. В этом checkpoint их расположение не меняется. `50_GIB_BROWSER_E2E_STATUS = FAIL / REQUALIFICATION_REQUIRED`; повторный 50 GiB Browser E2E здесь не запускается.
+Исторически, на дату checkpoint 2026-10-05, сертификат и ключ TLS-превью оставались под `/private/tmp`. Consolidation 2026-10-06 перенесла их в постоянный внешний operations root; полный 50 ГиБ IAB PASS выполнен позднее. В том checkpoint расположение не менялось. `50_GIB_BROWSER_E2E_STATUS = FAIL / REQUALIFICATION_REQUIRED`; повторный 50 GiB Browser E2E здесь не запускается.
 
 
 ## Docker Preservation + Consolidation + Auth Baseline (2026-10-06)

@@ -1,5 +1,7 @@
 Phase 5.1 — Backup & Disaster Recovery Architecture
 
+Это исторический аудит Phase 5.1. Описанные семь таблиц, старые `.env`/Compose команды и незавершённые механизмы относятся к тому checkpoint. Текущая схема содержит девять таблиц; актуальные контракты: [backup/restore](./backup-and-restore.md), [production backup](./backup-productionization.md), [канонический runbook](./operations-runbook.md).
+
 Status: ARCHITECTURE PLAN (no code implemented in this session)
 Baseline: phase-1-4-baseline
 Analysis commits reviewed: 8ea84d2, 3038b95, 5642569, 67d39ec

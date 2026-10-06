@@ -1,5 +1,9 @@
 # HomeCloud — текущее состояние проекта
 
+**Текущий локальный baseline — 2026-10-06:** `167498dd60bb298168a8b8b8a5a7a6154e2137ee` подтвердил полный 50 ГиБ UI upload/native download в IAB, три SHA-256, восстановление и очистку; [отчёт](./evidence/browser-50gib-qualification-20261006/report.md). Финальная нумерованная предпроизводственная версия — `v0.9.0-local.1`; [контракт](./local-release-baseline.md). Production **NOT_READY / NO_GO**, Safari 50 ГиБ **UNQUALIFIED**.
+
+Ниже исторические Phase/checkpoints отражают результат на дату их выполнения. Старые числа тестов, ограничения 50 ГиБ/O(N²), незавершённые механизмы TLS/secrets/backup и прежние temporary runtime paths не описывают текущий baseline; текущие контракты задают README, ROADMAP, runbook и профильные документы.
+
 > Этот документ даёт краткую точку входа в подтверждённое состояние репозитория. План работ и статусы находятся в [`ROADMAP.md`](./ROADMAP.md). Детальные решения следует читать в профильных документах, ссылки на которые приведены ниже.
 
 ## Назначение
@@ -13,7 +17,7 @@ HomeCloud — самостоятельно размещаемое облачно
 - **Хранилище:** локальная файловая система через `StorageService`; постоянные файлы находятся в `/storage`, временные части загрузок — в `/storage/.tmp`.
 - **Аутентификация:** JWT access/refresh tokens, ротация и отзыв refresh-сессий, bcrypt для паролей.
 - **Основные backend-модули:** `auth`, `users`, `files`, `uploads`, `sharing`, `previews`, `storage`, `common`.
-- **Frontend:** React 18, Vite и Tailwind; аутентификация и защищённая навигация, файловый браузер, небольшие upload/download, sharing/preview, корзина и файловые операции интегрированы с backend. После Phase 13 выполнен адаптивный редизайн с русским UI, локальными Manrope/JetBrains Mono, списком/плиткой, контекстными меню и доступными drawer/диалогами. Универсальная загрузка и восстановление подтверждены отдельным checkpoint; полный файл 50 ГиБ загружен и скачан через IAB с точными SHA-256 и очисткой 2026-10-06, независимый review ACCEPT. [Доказательства и границы](./evidence/browser-50gib-qualification-20261006/report.md).
+- **Frontend:** React 18, Vite и Tailwind; аутентификация и защищённая навигация, файловый браузер, upload/download с очередью и потоковой выдачей, sharing/preview, корзина и файловые операции интегрированы с backend. После Phase 13 выполнен адаптивный редизайн с русским UI, локальными Manrope/JetBrains Mono, списком/плиткой, контекстными меню и доступными drawer/диалогами. Универсальная загрузка и восстановление подтверждены отдельным checkpoint; полный файл 50 ГиБ загружен и скачан через IAB с точными SHA-256 и очисткой 2026-10-06, независимый review ACCEPT. [Доказательства и границы](./evidence/browser-50gib-qualification-20261006/report.md).
 - **Резервное копирование:** `scripts/backup.sh`, `scripts/restore.sh`, `scripts/reconcile.py`, тесты безопасности в `scripts/tests`.
 
 ## Runtime и deployment
@@ -30,18 +34,18 @@ Backend пишет структурированные JSON-логи с безо�
 - **Phase 5 — Backup & Disaster Recovery.** Checkpoint `phase-5-backup-dr-complete` (`1297051`). Архитектура и эксплуатационный контракт описаны в [`PHASE-5.1-BACKUP-DR-ARCHITECTURE.md`](./PHASE-5.1-BACKUP-DR-ARCHITECTURE.md) и [`backup-and-restore.md`](./backup-and-restore.md).
 - **Phase 6 — Database Integrity & Performance.** Аудит и remediation подтверждены в [`phase-6.1-audit-report.md`](./phase-6.1-audit-report.md) и [`phase-6.2-remediation-report.md`](./phase-6.2-remediation-report.md).
 - **Phase 7 — Storage & Filesystem Integrity.** Завершены транзакционные операции файлового дерева, проверки имён/циклов и безопасный порядок DB/filesystem изменений.
-- **Phase 8 — Uploads & Large Files.** Завершены JSONB-учёт чанков, лимиты, idempotency, quota locking, reconciliation и очистка временных данных.
+- **Phase 8 — Uploads & Large Files.** Исторически завершены JSONB-учёт чанков, лимиты, idempotency, quota locking, reconciliation и очистка временных данных. Текущий учёт использует отдельные durable записи `upload_chunks` и компактные счётчики; JSONB остаётся legacy migration input.
 - **Phase 9 — Authentication & Sessions.** Завершены документирование модели угроз и жизненного цикла сессий, усиление refresh rotation/reuse/revocation и regression tests. Авторитетные документы: [`auth-threat-model.md`](./auth-threat-model.md) и [`session-lifecycle.md`](./session-lifecycle.md).
 - **Phase 10 — Sharing & Access Control.** Помимо исходных этапов подтверждены единая fail-closed проверка public share, запрет выдачи soft-deleted объектов, безопасный streaming, `Cache-Control: no-store`, отдельные IP/token/attempt rate limits и блокировка перебора пароля.
 - **Связанная целостность папок и их файловых представлений.** `FileEntity` связан с `FolderEntity` через `folderId`; rename/move/soft-delete/restore/permanent-delete и очистка корзины синхронизируют обе сущности транзакционно и не предполагают равенство их ID.
 
 - **Phase 11 — Backend/API Hardening.** Границы API, validation/error contracts, private cache policy и readiness для PostgreSQL и storage проверены; Compose healthcheck использует readiness. Redis не входит в readiness. Checkpoint `39dc751`.
-- **Phase 12 — Performance & Scalability.** Подтверждены database cleanup/N+1 fixes, асинхронные файловые пути, disk-backed multipart ingress, streaming/backpressure и authenticated Range download; 30 GiB end-to-end qualification PASS. Checkpoint `e408425`; 50 GiB не квалифицированы, O(N²)-style upload chunk reconciliation остаётся риском.
+- **Phase 12 — Performance & Scalability.** Подтверждены database cleanup/N+1 fixes, асинхронные файловые пути, disk-backed multipart ingress, streaming/backpressure и authenticated Range download; 30 GiB end-to-end qualification PASS. Checkpoint `e408425`; На дату этого checkpoint 50 GiB не были квалифицированы, O(N²)-style reconciliation оставался риском. Последующая remediation устранила повторный полный обход частей; 50 ГиБ IAB квалифицированы 2026-10-06.
 - **Phase 13 — Frontend.** Подэтапы 13.1–13.7 COMPLETE: auth, файловый браузер, upload/download, sharing/preview, корзина и файловые операции, финальная регрессия. Checkpoint `0147a4c`. Последующий redesign (`3f94b54`) и quota fix (`743b47e`) — отдельная работа без новых номеров Phase.
 
-## Стабильный checkpoint
+## Исторические стабильные checkpoints
 
-Текущий проверенный backend operational checkpoint — `cefff5094d9824c924afe06bb06ed9281e4056d1`: ненумерованный Observability & Operations baseline. Full backend 609 PASS / 15 SKIPPED, build и lint gate пройдены; изолированный runtime подтвердил health/degradation/recovery, logs/request ID и защищённые metrics. Independent review APPROVE. [Evidence и ограничения](./observability-checkpoint.md). Это не production release gate и не повторная полная browser qualification.
+Исторический backend operational checkpoint — `cefff5094d9824c924afe06bb06ed9281e4056d1`: ненумерованный Observability & Operations baseline. Full backend 609 PASS / 15 SKIPPED, build и lint gate пройдены; изолированный runtime подтвердил health/degradation/recovery, logs/request ID и защищённые metrics. Independent review APPROVE. [Evidence и ограничения](./observability-checkpoint.md). Это не production release gate и не повторная полная browser qualification.
 
 Предыдущий проверенный product checkpoint — `743b47e544b114970c777d3ca27222738e1aab11`. Он включает завершённые backend Phase 11 (`39dc751`) и Phase 12 (`e408425`), frontend Phase 13 (`0147a4c`), owner-directed redesign (`3f94b54`) и исправление расчёта квоты (`743b47e`). Последующий изолированный runtime verification подтвердил download при каноническом storage root, основные пользовательские сценарии, Chromium 1440/768/390 и accessibility spot-check (`POST_FIX_CHECKPOINT: PASS`); это историческое product evidence, выполненное до последующего observability checkpoint. Это не подтверждение production readiness.
 
@@ -82,7 +86,7 @@ Phase 10 завершена: listing, scoped download и ZIP реализова�
 1. Начинать знакомство с этим документом, затем читать только профильные authoritative документы.
 2. Проверять `git status`, текущий commit и статус активной работы перед изменениями.
 3. Не выводить завершённость этапа из названия ветки или коммита без подтверждённого результата и обновления roadmap.
-4. Не дублировать детальные контракты backup, auth или sharing в этом файле.
+Детальные актуальные контракты backup, auth и sharing находятся в профильных документах.
 
 ## Production Architecture & Release Gate
 

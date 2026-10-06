@@ -1,5 +1,9 @@
 # HomeCloud
 
+**Локальная квалификация на 6 октября 2026:** полный 50 ГиБ Browser E2E — **PASS** в IAB/Chromium через HTTP localhost: три SHA-256 совпали, восстановление той же сессии, отмена и очистка подтверждены [отчётом](docs/evidence/browser-50gib-qualification-20261006/report.md). Safari функциональные сценарии — PASS; Safari полный 50 ГиБ — **UNQUALIFIED**. Production — **NOT_READY / NO_GO**.
+
+Версия `v0.9.0-local.1` — первая нумерованная предпроизводственная локальная версия, не production deployment и не доля завершённости roadmap. [Контракт версии и ограничения](docs/local-release-baseline.md), [изменения](CHANGELOG.md), [план — источник истины](docs/ROADMAP.md).
+
 **Self-hosted универсальное хранилище файлов** с загрузкой по частям, публичными ссылками, превью и веб-интерфейсом. Расширение, MIME и содержимое определяют возможность превью. Они не ограничивают допуск к хранению: бинарные артефакты, архивы, файлы с неизвестным расширением и без расширения принимаются без списка разрешённых типов. Размер ограничивают квота и технические пределы инфраструктуры.
 
 ![Backend](https://img.shields.io/badge/Backend-NestJS_10-red)
@@ -24,7 +28,7 @@
 - Защищённые API endpoints через JWT guard
 - Обычный API: 100 запросов за 60 с; передача частей: 25 запросов/с с burst 50 на пользователя, максимум 4 параллельных запроса на пользователя и 32 на процесс; отмена имеет отдельный бюджет
 - Helmet, CORS, валидация входных данных
-- Шифрование паролей учётной записи (bcrypt, 12 раундов)
+- Хеширование паролей учётной записи (bcrypt, 12 раундов)
 - Парольная защита публичных ссылок (bcrypt, 10 раундов)
 
 ### Публичные ссылки
@@ -71,24 +75,24 @@
 - **Build**: Vite 6
 - **Language**: TypeScript 5.6
 - **Styling**: Tailwind CSS 3.4
-- **Routing**: React Router 6
+- **Routing**: React Router 7
 - **HTTP Client**: Axios
 - **Deploy**: Nginx Alpine (multi-stage Docker build)
 
 ## Требования
 
-- Docker Engine 20.10+
-- Docker Compose 2.0+
-- 2 GB свободной RAM
-- 5 GB свободного дискового пространства
+- Docker Engine с поддержкой используемых Compose features
+- Docker Compose >= 2.24.4
+- Ресурсы зависят от данных и параллельных передач; 2 ГиБ RAM и 5 ГиБ диска не являются квалифицированным бюджетом для больших файлов
+- Для финализации серверу требуется примерно 2 × размер файла плюс concurrent ingress; исходник и скачанная копия требуют отдельного места. Docker VM backing disk также учитывается
 
 ## Быстрый старт
 
 ### 1. Клонирование репозитория
 
 ```bash
-git clone https://github.com/yourusername/homecloud.git
-cd homecloud
+git clone https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud.git HomeCloud
+cd HomeCloud
 ```
 
 ### 2. Единственное локальное окружение
@@ -125,11 +129,11 @@ hc ps
 
 ### 4. Создание пользователя
 
-Откройте HTTP UI и зарегистрируйте отдельный локальный аккаунт через штатный экран
-или `POST /api/v1/auth/register` на том же frontend URL. Пароли не хранятся в Git.
+Регистрация доступна через `POST /api/v1/auth/register` на том же frontend URL;
+экран UI поддерживает вход, отдельного экрана регистрации пока нет. Пароли не хранятся в Git.
 Модель ролей отсутствует: регистрация создаёт обычного пользователя с нулевой
 квотой. Для загрузки оператор назначает квоту отдельно; local dev-аккаунт уже
-получил100GiB. См. runbook; пароли пользователей напрямую в БД не менять.
+получил 100 ГиБ. См. runbook; пароли пользователей напрямую в БД не менять.
 
 ## Доступ
 
@@ -149,7 +153,9 @@ DB/backend/Redis не публикуются; Redis profile отключён. He
 
 ```
 HomeCloud/
-├── docker-compose.yml          # Оркестрация сервисов
+├── docker-compose.production.yml # Топология
+├── docker-compose.local.yml     # Единственный локальный override
+├── docker-compose.yml          # Историческая конфигурация
 ├── .env.example                # Пример переменных окружения
 ├── README.md                   # Документация
 ├── backend/
@@ -277,7 +283,7 @@ HomeCloud/
 
 ### Uploads
 
-Архитектура больших файлов: durable unique chunk metadata и компактные counters; streaming finalization с server disk peak≈2S. Лимиты1ТиБ/file и2ТиБ/active user sessions — настраиваемая policy; quota действует отдельно. Подробнее и фактический статус квалификации: [remediation evidence](docs/evidence/large-file-remediation-20261004/report.md).
+Архитектура больших файлов: durable unique chunk metadata и компактные counters; streaming finalization с server disk peak≈2S. Лимиты1ТиБ/file и2ТиБ/active user sessions — настраиваемая policy; quota действует отдельно. Текущий полный 50 ГиБ PASS: [браузерная квалификация](docs/evidence/browser-50gib-qualification-20261006/report.md). История изменения архитектуры: [remediation evidence](docs/evidence/large-file-remediation-20261004/report.md). 50 ГиБ — размер квалификации, не максимальный размер файла.
 
 
 | Метод | Endpoint | Описание |
@@ -335,7 +341,10 @@ HomeCloud/
 
 | Метод | Endpoint | Описание |
 |-------|----------|----------|
-| GET | `/api/v1/health` | Статус приложения |
+| GET | `/api/v1/health` или `/health/live` | Liveness процесса, не зависимостей |
+| GET | `/api/v1/health/ready` | Readiness PostgreSQL и storage |
+
+Все пути относительно `/api/v1`; `/health/live` означает `/api/v1/health/live`. Proxy закрывает health/metrics от публичных запросов; проверки выполняются внутри canonical Compose.
 
 ## Docker Volumes
 
@@ -361,18 +370,23 @@ HomeCloud/
 | `REDIS_URL` | Пусто; Redis выключен | URL Redis |
 | `STORAGE_PATH` | `/storage` | Путь к хранилищу файлов |
 | `MAX_FILE_SIZE` | `1099511627776` | Максимальный размер файла (0 = без ограничений) |
-| `CHUNK_SIZE` | `10485760` | Размер чанка для загрузки (10 MB) |
+| Базовая часть клиента | `10485760` | Константа 10 МиБ с адаптацией по maxChunks; legacy `CHUNK_SIZE` env не управляет текущей UploadQueue |
+| `MAX_TOTAL_SIZE` | `2199023255552` | Активные резервы загрузок на пользователя (2 ТиБ) |
+| `MAX_UPLOAD_CHUNKS` | `100000` | Максимальное число частей |
+| `MAX_CHUNK_SIZE` | `52428800` | Максимальный размер части (50 МиБ) |
 | `FRONTEND_URL` | `https://homecloud.localhost` | URL фронтенда для CORS |
 | API фронтенда | `/api/v1` относительно frontend URL | Backend наружу не опубликован |
 | `PORT` | `3000` | Порт бэкенда |
 
 ## Разработка
 
+Канонический запуск — функция `hc` выше и [runbook](docs/operations-runbook.md). Команды ниже предназначены для отдельного запуска исходников при заранее настроенных зависимостях и внешнем runtime config; они не создают второй Compose-стек. Не публикуйте PostgreSQL/backend для обычной работы. Для воспроизводимой установки используйте lock-файлы:
+
 ### Backend
 
 ```bash
 cd backend
-npm install
+npm ci
 npm run start:dev
 ```
 
@@ -380,21 +394,17 @@ npm run start:dev
 
 ```bash
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
 ## Безопасность
 
-- Измените `JWT_SECRET` и `JWT_REFRESH_SECRET` в production
-- Используйте надёжный пароль для PostgreSQL
-- Настройте `FRONTEND_URL` для ограничения CORS
-- Для production рекомендуется настроить reverse proxy (Nginx/Traefik) с HTTPS
-- Убедитесь, что порт 5432 (PostgreSQL) не открыт наружу
+Production **NOT_READY / NO_GO**. Используйте существующий [TLS/proxy contract](docs/production-topology.md), [secret lifecycle](docs/secret-lifecycle.md), [backup/recovery](docs/backup-productionization.md) и [external gate checklist](docs/external-input-master-checklist.md). Canonical Compose уже закрывает DB/backend ports; публичный запуск требует фактической приёмки целевого окружения.
 
 ## Лицензия
 
-MIT
+Отдельный файл LICENSE в текущем репозитории отсутствует; условия лицензирования должны быть оформлены владельцем.
 
 ### Native browser download
 

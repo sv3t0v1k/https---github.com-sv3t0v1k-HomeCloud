@@ -17,7 +17,7 @@ Backup создается в директории `backups/` и содержит
 
 | Компонент | Что включено | Что исключено |
 |-----------|-------------|---------------|
-| PostgreSQL | Все таблицы: пользователи, файлы, папки, shares, upload sessions, refresh tokens | Временные данные Redis |
+| PostgreSQL | Все девять таблиц текущей схемы: пользователи, файлы, папки, shares, upload sessions, refresh tokens, upload_chunks, download_capabilities, migrations | Временные данные Redis |
 | Storage | Пользовательские файлы (`/storage/{userId}/`) | Временные upload chunks (`/storage/.tmp/`, `*.tmp`) |
 
 ## Формат backup
@@ -178,7 +178,7 @@ Restore flags:
 3. `DROP SCHEMA public CASCADE; CREATE SCHEMA public;` — чистый слой.
 4. `gunzip -c dump.sql.gz | psql -v ON_ERROR_STOP=1` — restore с немедленной остановкой при ошибке.
 5. Пост-валидация:
-   - 7 таблиц (users, files, folders, share_links, upload_sessions, refresh_tokens, migrations)
+   - Только известные полные наборы таблиц: исторические 7 (users, files, folders, share_links, upload_sessions, refresh_tokens, migrations), переходные 8 (+ upload_chunks), текущие 9 (+ download_capabilities). Каждая ожидаемая таблица обязательна; неизвестная или отсутствующая таблица блокирует storage switch. После восстановления старой схемы отдельно применяются проверенные миграции
    - Ключевые колонки (первичные ключи)
    - Row count таблицы users
 
@@ -252,23 +252,11 @@ Restore flags:
 2. Убедитесь, что ошибка устранена.
 3. Запустите `backup.sh` снова — stale lock и staging очищаются автоматически.
 
-### Manual
+### Ручное восстановление
 
-```bash
-# 1. Остановить сервисы
-docker compose down
+Для текущего baseline использовать проверяемый helper workflow с явным внешним recovery config и каноническими Compose project/volumes: [операторский runbook](./operations-runbook.md), [encrypted/offsite recovery](./backup-productionization.md), [release/recovery sequence](./release-and-rollback.md). `--validate-only` проверяет целостность входов, но не доказывает успешный destructive restore. Не восстанавливать canonical данные ради release smoke; реальная recovery квалификация требует согласованной disposable цели.
 
-# 2. Восстановить PostgreSQL
-gunzip -c backups/homecloud_db_YYYYMMDD_HHMMSS_<suffix>.sql.gz | \
-  docker compose exec -T db psql -v ON_ERROR_STOP=1 -U homecloud -d homecloud
-
-# 3. Восстановить файлы
-#    (safe approach: extract to staging, rename-swap)
-STAGE=$(docker run --rm -v storage_data:/storage homecloud-backend mktemp -d)
-tar -xzf backups/homecloud_storage_YYYYMMDD_HHMMSS_<suffix>.tar.gz -C "$STAGE"
-# Legacy backup без соответствующего .meta.sha256 не проходит restore.sh validation.
-# ... verify, rename-swap ...
-```
+Исторический пример ручного `down → exec` удалён: он не поднимал БД перед обращением к ней и смешивал container staging path с host tar extraction. Он не являлся исполняемым recovery runbook.
 
 ## Reconciliation
 
@@ -344,7 +332,7 @@ Production wrapper использует собственный verified-set rete
 - Production требует остановки writers и maintenance write barrier на весь backup; низкая активность сама по себе не обеспечивает согласованность.
 
 ### Redis
-- Redis данные не backupятся (кэш, rate limiting). После restore они будут пустыми.
+- Redis выключен в локальном baseline и не используется backend для кэша, сессий или rate limiting. Опциональные Redis данные не входят в backup; лимиты приложения process-local.
 
 ### Локальный backup
 - Локальный backup не защищает от потери самого сервера.
@@ -434,5 +422,5 @@ Production schedule настраивается после проверки mount
 - Restore останавливает сервисы перед изменением данных
 - При ошибке DB restore попытается запустить сервисы для recovery
 - При ошибке storage restore сервисы запускаются без изменений storage
-- Проверьте health endpoint после restore: `curl http://localhost:3000/api/v1/health`
+- Проверьте внутренний readiness после restore по [каноническому runbook](./operations-runbook.md#запуск-и-health); backend port не опубликован. Liveness не доказывает готовность данных
 - Проверьте reconciliation report для выявления несоответствий
