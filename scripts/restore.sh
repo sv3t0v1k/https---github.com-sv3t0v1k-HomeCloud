@@ -13,7 +13,7 @@ set -euo pipefail
 #   - Old storage data is NEVER deleted before new data is verified in staging.
 #   - Storage switch uses atomic rename (mv) on the same filesystem.
 #   - DB restore is fail-closed: ON_ERROR_STOP=1, schema wipe, post-restore
-#     validation (7 tables, column check, row-count check).
+#     validation (known 7/8/9-table schemas, column check, row-count check).
 #   - Checksum/size mismatches, malformed .meta, unsupported format_version
 #     all abort BEFORE any destructive operation.
 #   - Migration failure aborts restore (no WARNING+continue).
@@ -37,7 +37,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 SUPPORTED_FORMAT_VERSIONS="1"
-EXPECTED_TABLES=7
 EXPECTED_TABLE_NAMES="users files folders share_links upload_sessions refresh_tokens migrations"
 
 # ---------------------------------------------------------------------------
@@ -745,18 +744,24 @@ log "  PostgreSQL restored (ON_ERROR_STOP: enabled)."
 echo "[3/6] Validating restored database..."
 TABLE_COUNT=$(docker compose exec -T db psql -U "$DB_USER" -d "$DB_NAME" -tAc \
   "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'" 2>/dev/null | tr -d '[:space:]')
-if [ "$TABLE_COUNT" != "$EXPECTED_TABLES" ]; then
-  err "Database validation failed: expected $EXPECTED_TABLES tables, found $TABLE_COUNT"
-  err "Expected tables: $EXPECTED_TABLE_NAMES"
-  docker compose up -d
-  exit 1
-fi
-log "  Tables in database: $TABLE_COUNT (expected $EXPECTED_TABLES)"
+# Accept only the exact known schema generations. Legacy backups are migrated
+# later; unknown/missing tables must fail before the storage switch.
+case "$TABLE_COUNT" in
+  7) ;; # Before durable upload chunks / native downloads.
+  8) EXPECTED_TABLE_NAMES="$EXPECTED_TABLE_NAMES upload_chunks" ;;
+  9) EXPECTED_TABLE_NAMES="$EXPECTED_TABLE_NAMES upload_chunks download_capabilities" ;;
+  *)
+    err "Database validation failed: expected a known 7/8/9-table schema, found $TABLE_COUNT"
+    docker compose up -d
+    exit 1
+    ;;
+esac
+log "  Tables in database: $TABLE_COUNT (known schema generation)"
 
 # Verify each expected table exists
 for t in $EXPECTED_TABLE_NAMES; do
   EXISTS=$(docker compose exec -T db psql -U "$DB_USER" -d "$DB_NAME" -tAc \
-    "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='$t'" 2>/dev/null | tr -d '[:space:]')
+    "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='$t' AND table_type='BASE TABLE'" 2>/dev/null | tr -d '[:space:]')
   [ "$EXISTS" = "1" ] || die "Database validation failed: table '$t' missing after restore"
 done
 log "  All expected tables present: OK"
