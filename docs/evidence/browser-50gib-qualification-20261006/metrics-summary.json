@@ -1,0 +1,36 @@
+{
+  "sample_count": 186,
+  "host_min_free_bytes": 25063608320,
+  "backend_max_sampled_rss_bytes": 160911360,
+  "backend_max_hwm_bytes": 163147776,
+  "browser_app_aggregate_max_rss_bytes": 4981866496,
+  "browser_memory_scope": "whole app/browser helpers, not isolated tab",
+  "chunk_successful_requests": 5120,
+  "first256_chunk_median_ms": 87.74600000000001,
+  "middle256_chunk_median_ms": 92.534,
+  "last256_chunk_median_ms": 89.601,
+  "complete_requests": [
+    {
+      "timestamp": "2026-10-06T00:03:45.797Z",
+      "level": "info",
+      "service": "homecloud-backend",
+      "message": "http_request_completed",
+      "requestId": "4b0b9e11-ab8b-4abe-81e7-d82f43cd6ad5",
+      "context": "HTTP",
+      "method": "POST",
+      "route": "/api/v1/uploads/session/:uploadId/complete",
+      "statusCode": 200,
+      "durationMs": 181267.658
+    }
+  ],
+  "request_status_counts": {
+    "200": 5399,
+    "201": 3,
+    "304": 11,
+    "401": 2
+  },
+  "sampling_errors": 0,
+  "chunk_first_timestamp": "2026-10-05T23:47:47.476Z",
+  "chunk_last_timestamp": "2026-10-06T00:00:44.523Z",
+  "late_early_median_ratio": 1.021140564812071
+}

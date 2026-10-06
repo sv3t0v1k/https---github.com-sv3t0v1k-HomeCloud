@@ -1,0 +1,92 @@
+{
+  "status": "PASS",
+  "initial_head": "f57803028253d44c96bce9d17d9669277af0eee9",
+  "browser": "IAB Chromium; exact engine version unavailable",
+  "bytes": 53687091200,
+  "source_stored_browser_saved_sha256": "dee9a9d8b07f9acbf882d545a70abac0690408ec88d24e94246a7b0b064dab27",
+  "allocated_source_bytes": 53695479808,
+  "same_primary_upload_id": "71ccec23-a934-46a7-ae83-161e9989efa9",
+  "preserved_chunk_hashes": 479,
+  "complete_seconds": 181.26765799999998,
+  "native_download_seconds": 247.610402,
+  "native_saved_file_observed_at": "2026-10-06T00:13:22.892502+00:00",
+  "browser_saved_hash_seconds": 22.115251064300537,
+  "source_removed_only_after_server_full_hash": true,
+  "download_disk_gate_free_bytes": 131365429248,
+  "cancel": {
+    "id": 57,
+    "status": "aborted",
+    "accepted_before_cancel_bytes": 31457280,
+    "chunk_rows_after": 0,
+    "temp_path_exists": false,
+    "actual_ui_cancel": true
+  },
+  "cleanup": {
+    "verdict": "PASS",
+    "original_storage_files": 5,
+    "original_storage_bytes": 37021,
+    "original_data_fingerprints_unchanged": true,
+    "test_file_removed": 52,
+    "source_and_browser_saved_file_removed": true,
+    "active_sessions_chunks_refresh_tokens": 0,
+    "storage_used": 0,
+    "nginx_exact_source": true,
+    "host_free_bytes": 183992340480,
+    "terminal_session_history": "retained normally"
+  },
+  "runtime": {
+    "verdict": "PASS",
+    "compose_config": true,
+    "canonical_project": "homecloud-preview",
+    "health": [
+      {
+        "name": "homecloud-preview-backend-1",
+        "image": "sha256:2a073f4892ea5d609bf7b4af5d6c6c23376669b460f72731e8ccbb34c0f56b06",
+        "running": true,
+        "health": "healthy",
+        "oom": false,
+        "restarts": 0
+      },
+      {
+        "name": "homecloud-preview-db-1",
+        "image": "sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685",
+        "running": true,
+        "health": "healthy",
+        "oom": false,
+        "restarts": 0
+      },
+      {
+        "name": "homecloud-preview-frontend-1",
+        "image": "sha256:53e2930a4a59391928e8b4b602716534c12d80120ec3b16cb25f2d33835eb9a2",
+        "running": true,
+        "health": "healthy",
+        "oom": false,
+        "restarts": 0
+      },
+      {
+        "name": "homecloud-preview-ingress-1",
+        "image": "sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2",
+        "running": true,
+        "health": "healthy",
+        "oom": false,
+        "restarts": 0
+      }
+    ],
+    "http_https200_explicit_CA": true,
+    "frontend_ingress_runtime_exact_sources": true,
+    "initial_git_head_status_and_two_untracked_hashes_exact": true,
+    "all_volume_names_unchanged": true,
+    "only_four_canonical_homecloud_containers": [
+      "homecloud-preview-ingress-1",
+      "homecloud-preview-frontend-1",
+      "homecloud-preview-backend-1",
+      "homecloud-preview-db-1"
+    ],
+    "host_free_bytes": 183990308864
+  },
+  "test_scope": "docs/evidence only: prior same app825backend/218frontend + lint/build not repeated",
+  "console_scope": "0 entries after CUA reset; prior intentional drop evidenced by UI screenshot, not complete console retention",
+  "independent_review": "ACCEPT",
+  "unresolved_critical_high": 0,
+  "storage_quota_bytes": 107374182400
+}

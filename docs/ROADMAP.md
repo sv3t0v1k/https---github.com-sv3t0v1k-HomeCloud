@@ -681,3 +681,8 @@ lint/build, certificate10, hostname/Compose/diff checks PASS. Удалены т�
 empty/unreferenced verification volumes. Независимый review: runtime и remaining
 volumes ACCEPT; full historical preservation REJECT/UNVERIFIABLE. Полный checkpoint
 не получает безусловный PASS из-за недоступных прежних writable layers.
+
+
+## Полный 50 ГиБ Browser E2E — 2026-10-06
+
+Ненумерованная квалификация по прямому разрешению владельца. 50_GIB_BROWSER_E2E_STATUS = PASS в границах IAB/localhost: фактическая загрузка 5120 частей через IAB, Pause/точечный обрыв/reload/reselect с сохранением 479 частей, скачивание всех 53687091200 байт менеджером браузера, три SHA-256 совпали. Cancel и cleanup подтвердили сохранность исходных данных. Независимый review ACCEPT; нерешённых CRITICAL/HIGH нет. [Доказательства и ограничения](evidence/browser-50gib-qualification-20261006/report.md). Единственный локальный стек homecloud-preview. Safari50 ГиБ, public CA/production и старые writable layers этим прогоном не квалифицированы.

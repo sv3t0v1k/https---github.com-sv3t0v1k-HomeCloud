@@ -1,0 +1,16 @@
+{
+  "bytes": 53687091200,
+  "chunks": 5120,
+  "host_free_floor_bytes": 21474836480,
+  "docker_preflight_required_free_bytes": 128849018880,
+  "backend_sampled_rss_ceiling_bytes": 1073741824,
+  "late_early_full_chunk_median_ratio_ceiling": 3.0,
+  "sample_interval_seconds": 10,
+  "complete_seconds_ceiling": 1800,
+  "required_transport": "actual browser UI chooser upload + native browser save, all50GiB",
+  "required_hash": "source == full stored file == actual saved browser file SHA256",
+  "fault_scope": "exact test upload chunk route return444; not full browser offline",
+  "browser_memory_scope": "aggregate app browser helper process RSS only, no isolated-tab memory claim",
+  "required_recovery": "same uploadId/accepted chunks after Pause/Resume/drop/reload/reselect",
+  "cancel_scope": "small disposable session if needed;50GiB primary never Cancel/restart from scratch"
+}

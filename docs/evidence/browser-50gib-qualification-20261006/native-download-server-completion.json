@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-10-06T00:13:12.916Z",
+  "level": "info",
+  "service": "homecloud-backend",
+  "message": "http_request_completed",
+  "requestId": "077af669-64ae-4c86-8973-4ca338225230",
+  "context": "HTTP",
+  "method": "GET",
+  "route": "/api/v1/native-downloads/:id",
+  "statusCode": 200,
+  "durationMs": 247610.402
+}
