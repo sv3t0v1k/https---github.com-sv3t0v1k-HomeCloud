@@ -66,7 +66,7 @@ describe("large upload operation complexity", () => {
       repository as never,
       {} as never,
       {} as never,
-      { getTempPath: () => "/synthetic" } as never,
+      { assertTemporaryPath: jest.fn((target: string) => target), assertTrustedPath: jest.fn((target: string) => target), getTempPath: () => "/synthetic" } as never,
       {} as never,
       new ConfigService({
         MAX_FILE_SIZE: 0,

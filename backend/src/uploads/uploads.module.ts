@@ -6,6 +6,7 @@ import { UploadChunkEntity } from "../entities/upload-chunk.entity";
 import { UploadSessionEntity } from "../entities/upload-session.entity";
 import { UploadsService } from "./uploads.service";
 import { UploadsController } from "./uploads.controller";
+import { StorageService } from "../storage/storage.service";
 import { StorageModule } from "../storage/storage.module";
 import { FilesModule } from "../files/files.module";
 import { UsersModule } from "../users/users.module";
@@ -35,13 +36,15 @@ import { abortableDiskStorage } from "./abortable-disk-storage";
     UsersModule,
     AuthModule,
     MulterModule.registerAsync({
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => {
-        const storageRoot = configService.get("STORAGE_PATH") || "/storage";
-        const ingressPath = path.join(storageRoot, ".tmp", "multipart-ingress");
+      imports: [StorageModule],
+      inject: [ConfigService, StorageService],
+      useFactory: (configService: ConfigService, storageService: StorageService) => {
+        const ingressPath = path.join(storageService.getTempPath(), "multipart-ingress");
+        const guard = (target: string) => { storageService.assertTrustedPath(target); };
+        guard(ingressPath);
         fs.mkdirSync(ingressPath, { recursive: true });
         return {
-          storage: abortableDiskStorage(ingressPath),
+          storage: abortableDiskStorage(ingressPath, guard),
           limits: {
             fileSize: getMulterFileSizeLimit(
               configService.get("MAX_CHUNK_SIZE"),

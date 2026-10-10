@@ -34,7 +34,7 @@ def validate_storage_path(rel_path):
     if rel_path.startswith("/") or "\\" in rel_path:
         return False
     parts = rel_path.split("/")
-    if any(part in {"", ".", ".."} for part in parts) or parts[0] == ".tmp" or parts[0].startswith(".restore-") or "\x00" in rel_path:
+    if any(part in {"", ".", ".."} for part in parts) or parts[0] in {".tmp", ".homecloud-storage-identity"} or parts[0].startswith(".hc-probe-") or parts[0].startswith(".restore-") or "\x00" in rel_path:
         return False
     return True
 
@@ -59,7 +59,7 @@ def psql(query, db_user, db_name):
 
 
 def list_storage_files(storage_vol, backend_image):
-    """List all regular files in the storage volume (excluding .tmp, .restore-*).
+    """List all regular files in the storage volume (excluding workspace/restore and registry metadata).
     Returns a dict: {relative_path: size_in_bytes}.
     """
     cmd = [

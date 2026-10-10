@@ -6,6 +6,8 @@ import * as os from "os";
 import * as path from "path";
 import request from "supertest";
 import { HttpExceptionFilter } from "./errors/http-exception.filter";
+import { StorageService } from "../storage/storage.service";
+import { StorageRegistry } from "../storage/storage-placement";
 import { HealthController } from "./health.controller";
 
 describe("HealthController", () => {
@@ -25,9 +27,16 @@ describe("HealthController", () => {
     await fs.rm(root, { recursive: true, force: true });
   });
   async function app() {
+    const registry = new StorageRegistry(root);
     const module = await Test.createTestingModule({
       controllers: [HealthController],
       providers: [
+        { provide: StorageService, useValue: {
+          getStoragePath: () => { registry.assertLegacyAccess(); return root; },
+          getTempPath: () => registry.assertTemporaryPath(path.join(root, ".tmp")),
+          assertTrustedPath: (target: string) => target.startsWith(path.join(root, ".tmp"))
+            ? registry.assertTemporaryPath(target) : registry.assertDirectoryPath(target, true),
+        } },
         { provide: ConfigService, useValue: { get: () => root } },
         {
           provide: DataSource,

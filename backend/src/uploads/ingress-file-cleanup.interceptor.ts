@@ -32,9 +32,12 @@ export class IngressFileCleanupInterceptor implements NestInterceptor {
     const cleanup = () => {
       const ingressPath = request.file?.path ?? request.ingressFilePath;
       if (!ingressPath) return;
+      try {
+      this.storageService.assertTrustedPath(ingressPath);
       cleanupIngressFile(ingressPath, this.storageService.getTempPath(), () =>
         this.logger.warn("Failed to clean ingress file"),
       );
+      } catch { this.logger.warn("Storage unavailable; ingress cleanup deferred"); }
     };
     request.once("aborted", cleanup);
     response.once("close", cleanup);

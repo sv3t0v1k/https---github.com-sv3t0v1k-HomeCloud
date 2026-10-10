@@ -36,6 +36,7 @@ describe("IngressFileCleanupInterceptor", () => {
     const file = path.join(ingress, "request-id");
     fs.writeFileSync(file, "data");
     const interceptor = new IngressFileCleanupInterceptor({
+      assertTemporaryPath: jest.fn((target: string) => target), assertTrustedPath: jest.fn((target: string) => target),
       getTempPath: () => root,
     } as any);
     await expect(
@@ -51,6 +52,7 @@ describe("IngressFileCleanupInterceptor", () => {
     fs.writeFileSync(file, "data");
     const expected = new Error("dto rejected");
     const interceptor = new IngressFileCleanupInterceptor({
+      assertTemporaryPath: jest.fn((target: string) => target), assertTrustedPath: jest.fn((target: string) => target),
       getTempPath: () => root,
     } as any);
     await expect(
@@ -67,6 +69,7 @@ describe("IngressFileCleanupInterceptor", () => {
     const outside = path.join(root, "outside");
     fs.writeFileSync(outside, "keep");
     const interceptor = new IngressFileCleanupInterceptor({
+      assertTemporaryPath: jest.fn((target: string) => target), assertTrustedPath: jest.fn((target: string) => target),
       getTempPath: () => root,
     } as any);
     await lastValueFrom(
@@ -84,6 +87,7 @@ describe("IngressFileCleanupInterceptor", () => {
     delete ctx.request.file;
     ctx.request.ingressFilePath = file;
     const interceptor = new IngressFileCleanupInterceptor({
+      assertTemporaryPath: jest.fn((target: string) => target), assertTrustedPath: jest.fn((target: string) => target),
       getTempPath: () => root,
     } as any);
 

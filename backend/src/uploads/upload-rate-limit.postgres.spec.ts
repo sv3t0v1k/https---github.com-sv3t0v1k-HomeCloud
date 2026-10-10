@@ -97,7 +97,7 @@ postgres(
             secret: "upload-rate-postgres-test-no-production-credentials",
           }),
           MulterModule.register({
-            storage: abortableDiskStorage(ingress),
+            storage: abortableDiskStorage(ingress, target => { storage.assertTrustedPath(target); }),
             limits: {
               files: 1,
               fileSize: 2,

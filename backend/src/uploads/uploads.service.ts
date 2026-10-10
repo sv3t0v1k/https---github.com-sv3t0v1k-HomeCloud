@@ -302,6 +302,7 @@ export class UploadsService {
     // Create the temp directory AFTER the transaction commits.
     // This prevents orphaned directories when DB save fails (O-15).
     try {
+      this.storageService.assertTrustedPath(sessionTempDir);
       if (!fs.existsSync(sessionTempDir)) {
         fs.mkdirSync(sessionTempDir, { recursive: true });
       }
@@ -400,6 +401,7 @@ export class UploadsService {
           );
         }
 
+        this.storageService.assertTemporaryPath(session.tempPath);
         const chunkPath = path.join(session.tempPath, String(chunkIndex));
         const tempPath = chunkPath + "." + uuidv4() + ".tmp";
 
@@ -441,6 +443,7 @@ export class UploadsService {
           // Sync contents before publication and sync the directory before DB commit.
           // A crash before metadata commit leaves an atomic orphan, recovered by retry/finalize.
           try {
+            this.storageService.assertTrustedPath(tempPath);
             if (Buffer.isBuffer(chunkData))
               await fs.promises.writeFile(tempPath, chunkData, { flag: "wx" });
             else await fs.promises.rename(ingressPath!, tempPath);
@@ -450,16 +453,18 @@ export class UploadsService {
             } finally {
               await handle.close();
             }
+            this.storageService.assertTrustedPath(chunkPath);
             await fs.promises.rename(tempPath, chunkPath);
             await this.syncDirectory(session.tempPath);
           } catch (error) {
-            await fs.promises.unlink(tempPath).catch(() => undefined);
+            try { this.storageService.assertTrustedPath(tempPath); await fs.promises.unlink(tempPath).catch(() => undefined); } catch { /* Preserve on identity failure. */ }
             throw error;
           }
         }
         if (!record) {
           if (diskExists) {
-            const handle = await fs.promises.open(chunkPath, "r+");
+            this.storageService.assertTrustedPath(chunkPath);
+      const handle = await fs.promises.open(chunkPath, "r+");
             try {
               await handle.sync();
             } finally {
@@ -484,11 +489,14 @@ export class UploadsService {
       });
     } finally {
       if (!Buffer.isBuffer(chunkData)) {
+        try {
+        this.storageService.assertTrustedPath(chunkData.path);
         cleanupIngressFile(
           chunkData.path,
           this.storageService.getTempPath(),
           () => this.logger.warn("Failed to clean ingress file"),
         );
+        } catch { this.logger.warn("Storage unavailable; ingress cleanup deferred"); }
       }
     }
   }
@@ -508,6 +516,7 @@ export class UploadsService {
       session.filename,
     );
     try {
+      this.storageService.assertTrustedPath(finalPath);
       await fs.promises.unlink(finalPath);
     } catch (error) {
       if ((error as { code?: string }).code !== "ENOENT") throw error;
@@ -515,12 +524,14 @@ export class UploadsService {
   }
 
   private async hashFile(filePath: string): Promise<string> {
+    this.storageService.assertTrustedPath(filePath, false);
     const hash = createHash("sha256");
     for await (const bytes of fs.createReadStream(filePath)) hash.update(bytes);
     return hash.digest("hex");
   }
 
   private async syncDirectory(directory: string): Promise<void> {
+    this.storageService.assertTrustedPath(directory, true, true);
     const handle = await fs.promises.open(directory, "r");
     try {
       await handle.sync();
@@ -533,6 +544,7 @@ export class UploadsService {
     manager: EntityManager,
     session: UploadSessionEntity,
   ): Promise<void> {
+    this.storageService.assertTemporaryPath(session.tempPath);
     let count = 0;
     let bytes = 0;
     for (let index = 0; index < session.totalChunks; index++) {
@@ -547,6 +559,7 @@ export class UploadsService {
       if (!stats.isFile() || stats.isSymbolicLink())
         throw new BadRequestException("Invalid legacy chunk");
       const digest = await this.hashFile(chunkPath);
+      this.storageService.assertTrustedPath(chunkPath);
       const handle = await fs.promises.open(chunkPath, "r+");
       try {
         await handle.sync();
@@ -700,15 +713,19 @@ export class UploadsService {
         }
 
         let actualSize = 0;
+        const storage = this.storageService;
         const completedSession = session;
         const totalChunks = session.totalChunks;
         const tempPath = session.tempPath;
+        this.storageService.assertTemporaryPath(tempPath);
+        this.storageService.assertTrustedPath(finalPath);
         const writeStream = fs.createWriteStream(finalPath, { flags: "wx" });
 
         try {
           async function* chunkSequence() {
             for (let i = 0; i < totalChunks; i++) {
               const chunkPath = path.join(tempPath, String(i));
+              storage.assertTrustedPath(chunkPath, false);
               const chunkStats = await fs.promises.lstat(chunkPath);
               const expectedSize =
                 i === totalChunks - 1
@@ -749,6 +766,7 @@ export class UploadsService {
           if (!writeStream.destroyed) {
             writeStream.destroy();
           }
+          this.storageService.assertTrustedPath(finalPath);
           if (fs.existsSync(finalPath)) {
             fs.unlinkSync(finalPath);
           }
@@ -757,6 +775,7 @@ export class UploadsService {
 
         // Verify actual assembled size matches declared totalSize.
         if (actualSize !== session.totalSize) {
+          this.storageService.assertTrustedPath(finalPath);
           if (fs.existsSync(finalPath)) {
             fs.unlinkSync(finalPath);
           }
@@ -767,6 +786,7 @@ export class UploadsService {
 
         // MIME detection from header only (memory-safe for large files).
         const HEADER_SIZE = 4100;
+        this.storageService.assertTrustedPath(finalPath, false);
         const stats = fs.statSync(finalPath);
         const headerSize = Math.min(stats.size, HEADER_SIZE);
         const fd = fs.openSync(finalPath, "r");
@@ -802,6 +822,7 @@ export class UploadsService {
         await manager.save(file);
         await this.usersService.updateStorageUsed(userId, actualSize, manager);
 
+        this.storageService.assertTrustedPath(finalPath);
         const finalHandle = await fs.promises.open(finalPath, "r+");
         try {
           await finalHandle.sync();
@@ -821,8 +842,9 @@ export class UploadsService {
       } catch (error) {
         // Still holding the session lock: preserve retryable chunks and remove
         // only this attempt's unpublished assembly before rollback.
-        if (finalPathForCleanup)
-          await fs.promises.unlink(finalPathForCleanup).catch(() => undefined);
+        if (finalPathForCleanup) {
+          try { this.storageService.assertTrustedPath(finalPathForCleanup); await fs.promises.unlink(finalPathForCleanup).catch(() => undefined); } catch { /* Preserve on identity failure. */ }
+        }
         throw error;
       }
     });
@@ -1020,6 +1042,7 @@ export class UploadsService {
       return 0;
     }
     const ingressRoot = getIngressRoot(tempRoot);
+    this.storageService.assertTrustedPath(ingressRoot);
     fs.mkdirSync(ingressRoot, { recursive: true });
     this.cleanupStaleIngressFiles(ingressRoot);
 
@@ -1046,7 +1069,8 @@ export class UploadsService {
         if (path.resolve(entryPath) === ingressRoot) {
           continue;
         }
-        if (!fs.statSync(entryPath).isDirectory()) {
+        this.storageService.assertTrustedPath(entryPath);
+        if (!fs.lstatSync(entryPath).isDirectory()) {
           continue;
         }
 
@@ -1076,6 +1100,7 @@ export class UploadsService {
           (stats.isFile() || stats.isSymbolicLink()) &&
           stats.mtimeMs < cutoff
         ) {
+          this.storageService.assertTrustedPath(candidate);
           cleanupIngressFile(candidate, this.storageService.getTempPath());
         }
       } catch (error) {
@@ -1133,6 +1158,8 @@ export class UploadsService {
       if (!tempPath || !fs.existsSync(tempPath)) {
         return;
       }
+      this.storageService.assertTemporaryPath(tempPath);
+      if (tempPath === this.storageService.getTempPath()) throw new Error("Temporary root deletion refused");
       fs.rmSync(tempPath, { recursive: true, force: true });
     } catch {
       this.logger.warn("Failed to delete temp files at");

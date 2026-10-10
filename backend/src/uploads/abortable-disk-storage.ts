@@ -6,11 +6,12 @@ import { randomUUID } from "node:crypto";
 import { IngressRequestState } from "./chunk-ingress";
 
 /** Multer's default disk storage leaves pending writers on an aborted multipart. */
-export function abortableDiskStorage(destination: string): StorageEngine {
+export function abortableDiskStorage(destination: string, guard: (target: string) => void): StorageEngine {
   return {
     _handleFile(request: Request, file, callback) {
       const filename = randomUUID();
       const target = path.join(destination, filename);
+      try { guard(target); } catch (error) { callback(error as Error); return; }
       (request as IngressRequestState).ingressFilePath = target;
       const output = fs.createWriteStream(target, { flags: "wx" });
       let completed = false;
@@ -55,6 +56,7 @@ export function abortableDiskStorage(destination: string): StorageEngine {
         detach();
         if (completed) return;
         completed = true;
+        try { guard(target); } catch (error) { callback(error as Error); return; }
         fs.rm(target, { force: true }, () =>
           callback(failure ?? new Error("Upload stream closed")),
         );
@@ -68,6 +70,7 @@ export function abortableDiskStorage(destination: string): StorageEngine {
       else file.stream.pipe(output);
     },
     _removeFile(_request, file, callback) {
+      try { guard(file.path); } catch (error) { callback(error as Error); return; }
       fs.unlink(file.path, callback);
     },
   };

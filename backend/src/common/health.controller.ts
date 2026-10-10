@@ -1,9 +1,9 @@
 import { Controller, Get, HttpException, HttpStatus } from "@nestjs/common";
 import { InjectDataSource } from "@nestjs/typeorm";
 import { DataSource } from "typeorm";
-import { ConfigService } from "@nestjs/config";
 import { promises as fs } from "fs";
 import * as path from "path";
+import { StorageService } from "../storage/storage.service";
 
 interface ProbeClient {
   connect(): Promise<void>;
@@ -17,7 +17,7 @@ export class HealthController {
   private cached?: { checks: Record<string, string>; until: number };
   constructor(
     @InjectDataSource() private dataSource: DataSource,
-    private configService: ConfigService,
+    private storageService: StorageService,
   ) {}
 
   @Get()
@@ -110,12 +110,12 @@ export class HealthController {
   }
 
   private async storage(): Promise<string> {
-    const root = path.resolve(
-      this.configService.get<string>("STORAGE_PATH") || "/storage",
-    );
     try {
+      const root = this.storageService.getStoragePath();
+      this.storageService.assertTrustedPath(root, true, true);
       await this.probeDirectory(root);
-      await this.probeDirectory(path.join(root, ".tmp"));
+      const temporary = this.storageService.getTempPath();
+      await this.probeDirectory(temporary);
       return "ok";
     } catch {
       return "unavailable";
@@ -123,16 +123,19 @@ export class HealthController {
   }
 
   private async probeDirectory(directory: string): Promise<void> {
+    this.storageService.assertTrustedPath(directory, true, true);
     if (!(await fs.stat(directory)).isDirectory())
       throw new Error("storage unavailable");
     // mkdtemp is exclusive; cleanup can only touch this probe's own artifacts.
     const probe = await fs.mkdtemp(path.join(directory, ".health-"));
     const file = path.join(probe, "probe");
     try {
+      this.storageService.assertTrustedPath(directory, true, true);
       await fs.writeFile(file, "homecloud-health", { flag: "wx", mode: 0o600 });
       if ((await fs.readFile(file, "utf8")) !== "homecloud-health")
         throw new Error("storage unavailable");
     } finally {
+      this.storageService.assertTrustedPath(directory, true, true);
       await fs.unlink(file).catch((error: { code?: string }) => {
         if (error.code !== "ENOENT") throw error;
       });

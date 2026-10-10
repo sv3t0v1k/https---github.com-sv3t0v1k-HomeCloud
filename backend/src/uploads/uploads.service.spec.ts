@@ -104,6 +104,7 @@ describe("UploadsService - Post-Review Fixes", () => {
         (userId, uploadId, filename) =>
           `/storage/${userId}/${uploadId}_${filename}`,
       ),
+      assertTemporaryPath: jest.fn((target: string) => target), assertTrustedPath: jest.fn((target: string) => target),
       getTempPath: jest.fn(() => "/tmp"),
       fileExists: jest.fn(() => true),
       deleteFile: jest.fn(),

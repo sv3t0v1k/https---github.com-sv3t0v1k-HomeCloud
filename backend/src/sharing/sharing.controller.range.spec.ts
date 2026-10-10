@@ -48,8 +48,9 @@ const mockService = {
   incrementFolderArchiveDownloadCount: jest.fn(),
 };
 
+let trustedRoot: string;
 const mockStorage = {
-  resolveFilePath: (file: any) => new StorageRegistry(os.tmpdir()).resolve(file),
+  resolveFilePath: (file: any) => new StorageRegistry(trustedRoot).resolve(file),
   ensureWithinStorageRoot: (p: string) => p,
   getStoragePath: () => "/storage",
   getFileSize: () => 0,
@@ -61,6 +62,7 @@ describe("SharingController download — HTTP Range (integration)", () => {
   let port: number;
 
   beforeAll(async () => {
+    trustedRoot = fs.mkdtempSync(path.join(os.tmpdir(), "hc-share-range-"));
     const moduleRef = await Test.createTestingModule({
       controllers: [SharingController],
       providers: [
@@ -98,6 +100,7 @@ describe("SharingController download — HTTP Range (integration)", () => {
       else resolve();
     });
     await app.close();
+    fs.rmSync(trustedRoot, { recursive: true, force: true });
   });
 
   beforeEach(() => {
@@ -110,7 +113,7 @@ describe("SharingController download — HTTP Range (integration)", () => {
 
   function makeFile(buffer: Buffer): string {
     const file = path.join(
-      os.tmpdir(),
+      trustedRoot,
       `hc-range-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.bin`,
     );
     fs.writeFileSync(file, buffer);
@@ -123,7 +126,7 @@ describe("SharingController download — HTTP Range (integration)", () => {
         id: 1,
         name: "file.bin",
         size: buffer.length,
-        storagePath: file, storageLocationId: LEGACY_STORAGE_ID, relativeObjectKey: path.relative(os.tmpdir(), file),
+        storagePath: file, storageLocationId: LEGACY_STORAGE_ID, relativeObjectKey: path.relative(trustedRoot, file),
         isFolder: false,
         mimeType: "application/octet-stream",
       }),

@@ -71,7 +71,7 @@ describe("authenticated upload rate policy (HTTP)", () => {
       listUploadSessions: jest.fn(async () => []),
       toSessionMetadata: jest.fn((session) => session),
     };
-    const disk = abortableDiskStorage(ingress);
+    const disk = abortableDiskStorage(ingress, () => undefined);
     ingressWrites = jest.spyOn(disk, "_handleFile");
     const module = await Test.createTestingModule({
       imports: [
@@ -99,7 +99,7 @@ describe("authenticated upload rate policy (HTTP)", () => {
         { provide: UploadsService, useValue: service },
         {
           provide: StorageService,
-          useValue: { getTempPath: () => path.join(root, ".tmp") },
+          useValue: { assertTemporaryPath: jest.fn((target: string) => target), assertTrustedPath: jest.fn((target: string) => target), getTempPath: () => path.join(root, ".tmp") },
         },
       ],
     }).compile();
