@@ -1,0 +1,36 @@
+{
+  "targeted": {
+    "suitesPassed": 11,
+    "testsPassed": 212,
+    "postgresSkipped": 38,
+    "note": "host targeted; PostgreSQL cases verified in final full suite"
+  },
+  "finalBackend": {
+    "platform": "Linux Docker",
+    "user": 1001,
+    "node": "v20.20.2",
+    "suitesPassed": 66,
+    "testsPassed": 884,
+    "skipped": 0
+  },
+  "postgresSuites": [
+    "uploads.service.postgres",
+    "sharing.postgres",
+    "native-downloads.postgres",
+    "files.service.postgres",
+    "upload-rate-limit.postgres",
+    "security-ownership.postgres",
+    "storage-placement.postgres",
+    "share-locked-until-timestamptz.postgres"
+  ],
+  "metadataReconcileTests": 2,
+  "lint": {
+    "errors": 0,
+    "previousWarnings": 15
+  },
+  "typecheck": "PASS",
+  "build": "PASS",
+  "benchCompile": "PASS",
+  "runtimeImageBuild": "PASS",
+  "largeFileTest": "NOT_RUN"
+}

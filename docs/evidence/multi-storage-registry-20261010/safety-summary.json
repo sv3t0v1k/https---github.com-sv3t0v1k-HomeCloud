@@ -1,0 +1,24 @@
+{
+  "status": "PASS",
+  "tableEquality": {
+    "users": true,
+    "files": true,
+    "folders": true,
+    "share_links": true,
+    "upload_sessions": true,
+    "upload_chunks": true,
+    "storage_locations": true,
+    "refresh_tokens": true,
+    "download_capabilities": true,
+    "migrations": true
+  },
+  "originalFilesExactEquality": true,
+  "directoriesEqual": true,
+  "originalFileCount": 5,
+  "originalFileBytes": 37021,
+  "originalFileDigestBefore": "08f70b8bfe6f5a12cf234cb9580b8ec7fb9b76f65436fa708cf9755d2a6e7441",
+  "originalFileDigestAfter": "08f70b8bfe6f5a12cf234cb9580b8ec7fb9b76f65436fa708cf9755d2a6e7441",
+  "fileBytesMoved": 0,
+  "newInternalMetadata": "only root identity marker; excluded from original data inventory",
+  "largeFileTest": "NOT_RUN"
+}

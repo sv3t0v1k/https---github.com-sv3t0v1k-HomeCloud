@@ -2,7 +2,8 @@
 
 Дата аудита: 2026-10-06, Asia/Vladivostok. Обновление: 2026-10-10.
 Статус дизайна: **OWNER_APPROVED**. Первый implementation checkpoint
-**Schema & Legacy Compatibility: COMPLETE**; остальные checkpoints не реализованы.
+**Schema & Legacy Compatibility: COMPLETE**; **MS-2 Registry & Secure Resolver: COMPLETE**
+в owner-approved ограниченном trusted legacy профиле; остальные checkpoints не реализованы.
 Это ненумерованный workstream. Production остаётся **NOT_READY / NO_GO**.
 Разделы 1–15 сохраняют исходный аудит и целевой дизайн; утверждение ниже фиксирует
 фактическую реализацию и отдельно разрешённый владельцем scope.
@@ -37,6 +38,28 @@ secondary offline → DEGRADED; удаление location через drain/zero 
 payload. True SSD→HDD 50 GiB acceptance остаётся будущим обязательным gate.
 Следующие checkpoints требуют отдельного разрешения; второй диск, policy runtime, admin/UI,
 mount changes и cross-filesystem финализация в этом checkpoint не добавлялись.
+
+### MS-2 — Registry & Secure Resolver: COMPLETE, фактический профиль
+
+Owner scope допускает отсутствие native secure-open при явном fail-closed. Реализован
+operator-only immutable registry с approved root/mount keys, marker bootstrap, exact Linux
+mountinfo/root/statfs/marker process identity pin и проверкой capabilities. Production
+legacy требует non-root Linux + заранее provisioned marker; startup не создаёт root/marker.
+Missing/swapped identity, ordinary fallback directory, nested/stacked mounts блокируются.
+Marker FD anchor предотвращает inode reuse в lifetime process; физический диск хоста,
+clone+restart, NFS reconnect/durability и hostile mount mutations не аттестованы.
+
+Logical resolution отделено от safe descriptor opening: **secureOpen=false**, openSecure
+отказывает. Node20 не имеет штатного openat2/dirfd API; realpath эквивалентом не объявляется.
+Legacy сохраняет trusted exclusive-directory профиль с оставшимся check→open TOCTOU;
+новые/untrusted locations **не включены для bytes**. Secure descriptors всех consumers и
+capacity-domain qualification остаются будущими blocking gates до расширения доверия.
+StorageService, Health, Multer и существующие direct upload FS entry guards подключены
+к identity/confinement; File placement bridge/schema/IDs и chunk/finalizer protocol сохранены.
+
+[Операторский контракт и границы гарантий](storage-registry-operations.md),
+[MS-2 evidence](evidence/multi-storage-registry-20261010/report.md). Production NO_GO;
+MS-3 не начинается автоматически.
 
 ## 1. Исходное состояние и границы аудита
 
@@ -805,13 +828,13 @@ Zero-data-loss — acceptance требование будущего rollout, н�
 ## 13. Реализация: ограниченные checkpoints и acceptance gates
 
 Номера ниже — порядок работ внутри **ненумерованного workstream**, не новые ROADMAP Phase.
-Сам дизайн не разрешает реализацию. Отдельным owner request выполнен только первый
-Schema & Legacy Compatibility, включая необходимый legacy resolver (см. обновление выше).
+Сам дизайн не разрешает следующую реализацию. Отдельными owner requests разрешены MS-1
+и MS-2 с ограниченным secure-open профилем; следующие checkpoints не начинаются автоматически.
 
 | Порядок | Зависимости и scope | Обязательный gate |
 |---|---|---|
 | 1. Schema + bridge contract | Preflight/backup design; expanded model, compatibility gate, reservation invariants | Migration dry-run disposable copy, no loss IDs/paths/shares/trash, duplicate rejection, old writers blocked; restore tooling понимает schema |
-| 2. Registry/resolver + legacy | 1; approved mounts, secure descriptors всех consumers, identity/capacity-domain | All root consumers migrated, isolation/ancestor symlink/TOCTOU boundary, absent mount no mkdir/fallback; old downloads/native/share/ZIP/preview PASS |
+| 2. Registry/resolver + legacy | 1; approved bindings/identity/capabilities и legacy guards; owner-approved portable trusted legacy, extra locations blocked | Observed identity failure no write/mkdir/fallback, static confinement и old consumers regressions. Race-free descriptors/capacity domains НЕ реализованы; mandatory qualification до new/untrusted byte I/O |
 | 3. Workspace abstraction | 2; per-session workspace/ingress, legacy+default coexist | Restart/resume/cancel, ingress same mount, all-workspace cleanup, workspace change не перемещает active sessions |
 | 4. Finalizer/journal/recovery | 1–3; strict manifest, unique attempt keys, whole hash, fsync, short stream transactions | Crash injection каждое matrix boundary, DB ambiguous commit, stale worker, ENOSPC/EIO/EXDEV/full/disconnect; no lost bytes/duplicate File/quota |
 | 5. Placement policy/admission | 4; fixed default, explicit ordered fallback, logical+physical ledger | Concurrent users/uploads/copies, shared backing pool, reserve, target pinned, no implicit failover, no optimistic overcommit |

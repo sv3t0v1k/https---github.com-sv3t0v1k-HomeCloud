@@ -1,0 +1,23 @@
+{
+  "status": "PASS",
+  "platform": "linux",
+  "node": "v20.20.2",
+  "uid": 1001,
+  "euid": 1001,
+  "legacy": {
+    "id": "f2f5c4b0-8d57-4c49-9f8c-0d095b344601",
+    "state": "online",
+    "reason": "trusted-legacy",
+    "capabilities": {
+      "logicalResolution": true,
+      "secureOpen": false,
+      "read": true,
+      "write": true
+    }
+  },
+  "ordinaryDirectory": "OFFLINE/no writes",
+  "missingRoot": "OFFLINE/no mkdir",
+  "repeatBootstrap": "REFUSED",
+  "reservedMetadata": "REFUSED",
+  "secureDescriptor": "UNAVAILABLE/refused"
+}

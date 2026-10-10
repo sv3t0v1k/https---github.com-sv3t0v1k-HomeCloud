@@ -695,3 +695,22 @@ volumes ACCEPT; full historical preservation REJECT/UNVERIFIABLE. Полный c
 ## Полный 50 ГиБ Browser E2E — 2026-10-06
 
 Ненумерованная квалификация по прямому разрешению владельца. 50_GIB_BROWSER_E2E_STATUS = PASS в границах IAB/localhost: фактическая загрузка 5120 частей через IAB, Pause/точечный обрыв/reload/reselect с сохранением 479 частей, скачивание всех 53687091200 байт менеджером браузера, три SHA-256 совпали. Cancel и cleanup подтвердили сохранность исходных данных. Независимый review ACCEPT; нерешённых CRITICAL/HIGH нет. [Доказательства и ограничения](evidence/browser-50gib-qualification-20261006/report.md). Единственный локальный стек homecloud-preview. Safari50 ГиБ, public CA/production и старые writable layers этим прогоном не квалифицированы.
+
+
+## Multi-Storage — Storage Registry & Secure Resolver (MS-2)
+
+Ненумерованный owner-directed checkpoint **COMPLETE** в разрешённом ограниченном
+профиле. Immutable approved bindings, explicit marker bootstrap, exact Linux mountinfo,
+process identity pin с retained marker FD и capability diagnostics интегрированы в legacy
+consumers. Новые user storage locations заблокированы. **secureOpen=false**: Node20
+path-based legacy операции сохраняют trusted exclusive-directory/check→open TOCTOU
+ограничение; openat2 protection не заявляется. Container mount identity не доказывает
+physical host disk; NFS/Desktop/host disappearance требуют отдельной qualification.
+
+Final Linux backend66/884 с real PostgreSQL без skipped, lint/typecheck/build/bench compile,
+canonical preview identity и API smoke PASS. Original10 tables и5files/37021bytes сохранились,
+перенос0bytes; mounts и DB/frontend/ingress не менялись. Production **NOT_READY / NO_GO**.
+[Архитектура](multi-storage-architecture.md), [операторский контракт](storage-registry-operations.md),
+[MS-2 evidence](evidence/multi-storage-registry-20261010/report.md). MS-3 Workspace abstraction
+не начинается автоматически; расширение доверия/user locations требует secure-open и host
+identity qualification. 50 GiB здесь не запускался.

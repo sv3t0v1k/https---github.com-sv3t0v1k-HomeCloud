@@ -1,0 +1,10 @@
+{
+  "status": "PASS",
+  "oldImage": "homecloud-preview-backend:schema-checkpoint",
+  "newImage": "homecloud-preview-backend:registry-checkpoint",
+  "mounts": "UNCHANGED",
+  "environment": "UNCHANGED",
+  "user": "nextjs",
+  "otherContainers": "UNCHANGED",
+  "imageId": "sha256:5a7a550781b60d60a39d55b1a49299912812e6afdfbdcc2f643a7d5b258e9fec"
+}
