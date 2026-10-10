@@ -1,0 +1,140 @@
+TAP version 13
+# Subtest: generation is deterministic, full pair validates and override pins IDs without build/pull
+ok 1 - generation is deterministic, full pair validates and override pins IDs without build/pull
+  ---
+  duration_ms: 8.492334
+  ...
+# Subtest: missing backend rejected
+ok 2 - missing backend rejected
+  ---
+  duration_ms: 3.769583
+  ...
+# Subtest: missing frontend rejected
+ok 3 - missing frontend rejected
+  ---
+  duration_ms: 3.455542
+  ...
+# Subtest: mutable tags rejected
+ok 4 - mutable tags rejected
+  ---
+  duration_ms: 2.869375
+  ...
+# Subtest: wrong immutable image content rejected
+ok 5 - wrong immutable image content rejected
+  ---
+  duration_ms: 3.440625
+  ...
+# Subtest: nonexistent previous artifact rejected
+ok 6 - nonexistent previous artifact rejected
+  ---
+  duration_ms: 3.014583
+  ...
+# Subtest: mixed pair in manifest rejected
+ok 7 - mixed pair in manifest rejected
+  ---
+  duration_ms: 3.426709
+  ...
+# Subtest: mixed pair image provenance rejected
+ok 8 - mixed pair image provenance rejected
+  ---
+  duration_ms: 3.37825
+  ...
+# Subtest: image source commit mismatch rejected
+ok 9 - image source commit mismatch rejected
+  ---
+  duration_ms: 3.516916
+  ...
+# Subtest: source archive commit mismatch rejected
+ok 10 - source archive commit mismatch rejected
+  ---
+  duration_ms: 3.539583
+  ...
+# Subtest: changed source files rejected
+ok 11 - changed source files rejected
+  ---
+  duration_ms: 3.762208
+  ...
+# Subtest: modified migration marker rejected
+ok 12 - modified migration marker rejected
+  ---
+  duration_ms: 3.003834
+  ...
+# Subtest: changed migrations block compatibility
+ok 13 - changed migrations block compatibility
+  ---
+  duration_ms: 3.590416
+  ...
+# Subtest: changed entity mappings block compatibility
+ok 14 - changed entity mappings block compatibility
+  ---
+  duration_ms: 4.271166
+  ...
+# Subtest: missing live migrations block rollback
+ok 15 - missing live migrations block rollback
+  ---
+  duration_ms: 3.224083
+  ...
+# Subtest: extra live migrations block rollback
+ok 16 - extra live migrations block rollback
+  ---
+  duration_ms: 3.574084
+  ...
+# Subtest: duplicate live migrations block rollback
+ok 17 - duplicate live migrations block rollback
+  ---
+  duration_ms: 2.808875
+  ...
+# Subtest: manifest identity tampering rejected
+ok 18 - manifest identity tampering rejected
+  ---
+  duration_ms: 2.898125
+  ...
+# Subtest: missing production compose fails generation
+ok 19 - missing production compose fails generation
+  ---
+  duration_ms: 4.098584
+  ...
+# Subtest: unexpected secret-bearing field rejected
+ok 20 - unexpected secret-bearing field rejected
+  ---
+  duration_ms: 2.977375
+  ...
+# Subtest: unsupported TypeScript migration filename blocks generation
+ok 21 - unsupported TypeScript migration filename blocks generation
+  ---
+  duration_ms: 3.316208
+  ...
+# Subtest: JavaScript migration outside source policy blocks generation
+ok 22 - JavaScript migration outside source policy blocks generation
+  ---
+  duration_ms: 2.956333
+  ...
+# Subtest: duplicate migration classes block generation
+ok 23 - duplicate migration classes block generation
+  ---
+  duration_ms: 2.927292
+  ...
+# Subtest: duplicate classes in manifest rejected
+ok 24 - duplicate classes in manifest rejected
+  ---
+  duration_ms: 2.639458
+  ...
+# Subtest: rendered Compose override explicitly resets build and retains immutable full pair
+ok 25 - rendered Compose override explicitly resets build and retains immutable full pair
+  ---
+  duration_ms: 2.684083
+  ...
+# Subtest: actual Compose merge removes both inherited build contexts
+ok 26 - actual Compose merge removes both inherited build contexts
+  ---
+  duration_ms: 129.166917
+  ...
+1..26
+# tests 26
+# suites 0
+# pass 26
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 230.331167

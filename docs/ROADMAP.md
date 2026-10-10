@@ -615,7 +615,7 @@ Evidence: focused 64/64 PASS; full backend 609 PASS / 15 SKIPPED (51 suites PASS
 
 Эти направления остаются будущей работой без новых номеров Phase; завершённые backend hardening и frontend здесь не дублируются:
 
-- **Многотомное хранение — DESIGN_REVIEW_PENDING_OWNER:** ненумерованный workstream перед deployment. [Аудит и архитектура](./multi-storage-architecture.md): Storage Location, Upload Workspace, policy, SSD→HDD финализация/recovery, admin boundary, backup/restore и безопасный legacy backfill. Реализация не начата и требует отдельного разрешения владельца после owner/ChatGPT review; Production остаётся NOT_READY / NO_GO.
+- **Многотомное хранение — OWNER_APPROVED; Schema & Legacy Compatibility COMPLETE (2026-10-10):** ненумерованный workstream перед deployment. [Архитектура](./multi-storage-architecture.md) и [evidence](./evidence/multi-storage-schema-20261010/report.md): minimal StorageLocation, logical File placement, fail-closed legacy backfill и resolver текущего `/storage`; 6 File сохранены, 5 физических backfilled, **0 bytes moved**. Backup/isolated migration/restore, full backend real PostgreSQL 65 suites / 858 tests, lint/typecheck/build и runtime smoke PASS; A/B/C reviews ACCEPT. Второй storage, workspace/finalizer/policy/admin/UI и mount changes не реализованы; дальнейшие checkpoints требуют отдельного разрешения. Production NOT_READY / NO_GO; true SSD→HDD 50 GiB qualification остаётся будущим gate.
 
 - **Production readiness — INCOMPLETE:** production offsite/operator qualification, final recovery/production deployment acceptance и public CA/domain qualification; TLS/proxy baseline см. checkpoint выше; incremental strategy — отдельное решение. Architecture & Release Gate см. checkpoint выше.
 

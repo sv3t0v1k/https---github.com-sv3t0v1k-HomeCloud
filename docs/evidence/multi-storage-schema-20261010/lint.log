@@ -1,0 +1,28 @@
+
+> homecloud-backend@1.0.0 lint
+> eslint "src/**/*.ts"
+
+(node:36324) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/aleksejkozemakin/Desktop/HomeCloud/backend/eslint.config.js?mtime=1788871274389 is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/aleksejkozemakin/Desktop/HomeCloud/backend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+/Users/aleksejkozemakin/Desktop/HomeCloud/backend/src/common/security.config.spec.ts
+   28:3  warning  Test has no assertions  jest/expect-expect
+   65:3  warning  Test has no assertions  jest/expect-expect
+   79:3  warning  Test has no assertions  jest/expect-expect
+   99:3  warning  Test has no assertions  jest/expect-expect
+  133:3  warning  Test has no assertions  jest/expect-expect
+  145:3  warning  Test has no assertions  jest/expect-expect
+  172:3  warning  Test has no assertions  jest/expect-expect
+  185:3  warning  Test has no assertions  jest/expect-expect
+  212:3  warning  Test has no assertions  jest/expect-expect
+  251:3  warning  Test has no assertions  jest/expect-expect
+  273:3  warning  Test has no assertions  jest/expect-expect
+  295:3  warning  Test has no assertions  jest/expect-expect
+  317:3  warning  Test has no assertions  jest/expect-expect
+  332:3  warning  Test has no assertions  jest/expect-expect
+  353:3  warning  Test has no assertions  jest/expect-expect
+
+✖ 15 problems (0 errors, 15 warnings)
+

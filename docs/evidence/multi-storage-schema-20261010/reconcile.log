@@ -1,0 +1,18 @@
+Reconciliation Report
+============================================================
+Database tables:    10
+DB users:           4
+DB file records:    5
+Physical files:     5
+
+DB file paths with no physical file: 0  [CRITICAL]
+Physical files with no DB record:    0  [WARNING]
+Size mismatches:                    0  [CRITICAL]
+Storage usage drift:                0  [WARNING]
+Broken share links:                 0  [WARNING]
+Stale upload sessions:              7  [WARNING]
+
+Warnings:
+  STALE_UPLOAD_SESSIONS: 7 incomplete upload session(s) in DB
+
+RECONCILE_STATUS: OK

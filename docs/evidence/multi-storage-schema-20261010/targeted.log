@@ -1,0 +1,10 @@
+
+> homecloud-backend@1.0.0 test
+> jest --runInBand src/storage/storage-placement.spec.ts src/sharing/sharing.folder.zip.spec.ts bench/complete-upload-runner.spec.ts
+
+
+Test Suites: 3 passed, 3 total
+Tests:       43 passed, 43 total
+Snapshots:   0 total
+Time:        2.329 s
+Ran all test suites matching src/storage/storage-placement.spec.ts|src/sharing/sharing.folder.zip.spec.ts|bench/complete-upload-runner.spec.ts.

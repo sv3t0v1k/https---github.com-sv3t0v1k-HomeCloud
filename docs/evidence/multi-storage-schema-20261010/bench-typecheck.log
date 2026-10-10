@@ -1,0 +1,4 @@
+
+> homecloud-backend@1.0.0 bench:compile
+> tsc -p tsconfig.bench.json
+

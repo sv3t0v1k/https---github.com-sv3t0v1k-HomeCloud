@@ -1,0 +1,84 @@
+
+> homecloud-backend@1.0.0 test
+> jest --runInBand
+
+[Nest] 18  - 10/10/2026, 7:53:47 AM    WARN [UploadsService] MIME metadata detection failed; storing as binary
+[Nest] 18  - 10/10/2026, 7:53:48 AM   ERROR [UploadsService] Orphaned temp dir cleanup failed
+PASS src/uploads/uploads.service.spec.ts (5.165 s)
+PASS src/files/files.service.critical.spec.ts
+[Nest] 18  - 10/10/2026, 7:53:49 AM   ERROR [FilesService] Failed to clean up copied file
+[Nest] 18  - 10/10/2026, 7:53:49 AM   ERROR [FilesService] Failed to reconcile copied file after ambiguous commit
+[Nest] 18  - 10/10/2026, 7:53:49 AM   ERROR [FilesService] Failed to release copied file transaction
+[Nest] 18  - 10/10/2026, 7:53:49 AM   ERROR [FilesService] Failed to release copied file transaction
+PASS src/files/files.service.spec.ts
+PASS bench/complete-upload-runner.spec.ts
+PASS src/auth/auth.service.spec.ts
+[Nest] 18  - 10/10/2026, 7:53:50 AM     LOG [AuthService] Cleaned up 3 expired refresh token(s)
+[Nest] 18  - 10/10/2026, 7:53:50 AM     LOG [AuthService] Cleaned up 2 expired refresh token(s)
+PASS src/uploads/uploads.service.postgres.spec.ts
+PASS src/uploads/upload-rate-limit.spec.ts (13.129 s)
+PASS src/sharing/sharing.service.spec.ts
+PASS bench/http-preflight.spec.ts
+PASS src/sharing/sharing.postgres.spec.ts
+PASS src/sharing/sharing.controller.range.spec.ts
+PASS src/common/security.config.spec.ts
+PASS src/files/native-downloads.postgres.spec.ts
+PASS src/files/files.service.postgres.spec.ts
+PASS src/files/files.controller.download.spec.ts
+PASS src/uploads/upload-rate-limit.postgres.spec.ts
+PASS src/sharing/sharing.folder.archive.spec.ts
+PASS src/files/security-ownership.postgres.spec.ts
+PASS src/sharing/sharing.controller.spec.ts
+PASS src/storage/storage-placement.postgres.spec.ts
+PASS src/sharing/sharing.folder.download.spec.ts
+PASS src/common/startup-validation.service.spec.ts
+PASS src/auth/auth.lifecycle.spec.ts
+PASS src/storage/storage.service.spec.ts
+PASS bench/cleanup-runner.spec.ts
+PASS bench/multipart-memory.spec.ts
+PASS src/common/observability/request-observability.spec.ts
+PASS src/common/health.controller.spec.ts
+PASS src/sharing/sharing.folder.zip.spec.ts
+PASS src/auth/auth.validation.spec.ts
+PASS bench/copy-file-runner.spec.ts
+PASS bench/permanent-delete-runner.spec.ts
+PASS src/auth/auth.controller.spec.ts
+PASS bench/upload-chunk-runner.spec.ts
+PASS src/common/trusted-proxy.spec.ts
+PASS src/sharing/sharing.folder.zip.http.spec.ts
+PASS src/sharing/sharing.folder.spec.ts
+PASS src/sharing/sharing.range.util.spec.ts
+PASS bench/write-stream-instrument.spec.ts
+PASS src/users/users.service.spec.ts
+[Nest] 18  - 10/10/2026, 7:54:26 AM   ERROR [PreviewsService] Failed to generate thumbnail for file
+PASS src/previews/previews.service.spec.ts
+PASS src/uploads/uploads.scalability.spec.ts
+PASS src/common/production-config.spec.ts
+PASS src/sharing/share-locked-until-timestamptz.postgres.spec.ts
+PASS src/users/users.controller.contract.spec.ts
+PASS src/files/files.controller.operations.spec.ts
+PASS src/common/observability/metrics.service.spec.ts
+PASS src/storage/storage-placement.spec.ts
+PASS src/uploads/ingress-file-cleanup.interceptor.spec.ts
+PASS src/dto-input-bounds.spec.ts
+PASS src/files/files.controller.folder.spec.ts
+PASS bench/rss-sampler.spec.ts
+PASS src/sharing/sharing.folder.http.spec.ts
+PASS src/sharing/sharing.sql.spec.ts
+PASS src/previews/previews.controller.spec.ts
+PASS src/auth/auth.security-boundary.spec.ts
+PASS src/sharing/sharing.http.spec.ts
+PASS bench/fs-instrument.spec.ts
+PASS bench/fixture.scale.spec.ts
+PASS bench/identity.ownership.spec.ts
+PASS src/uploads/dtos/chunk.dto.spec.ts
+PASS bench/event-loop-probe.spec.ts
+PASS bench/full-file-http-client.spec.ts
+PASS src/uploads/chunk-ingress.spec.ts
+PASS src/common/database-size.spec.ts
+
+Test Suites: 65 passed, 65 total
+Tests:       858 passed, 858 total
+Snapshots:   0 total
+Time:        54.131 s
+Ran all test suites.

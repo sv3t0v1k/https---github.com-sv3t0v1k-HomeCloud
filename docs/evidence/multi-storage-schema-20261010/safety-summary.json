@@ -1,0 +1,116 @@
+{
+  "initial_head": "187a642ba30dbeb3d73737a582203d557f7de9bb",
+  "old_image_id": "sha256:2a073f4892ea5d609bf7b4af5d6c6c23376669b460f72731e8ccbb34c0f56b06",
+  "backup_directory": "/Users/aleksejkozemakin/Desktop/HomeCloud/backups/schema-legacy-checkpoint-20261010",
+  "new_image": "homecloud-preview-backend:schema-checkpoint",
+  "canonical_migrated": true,
+  "before": {
+    "users": {
+      "count": 4,
+      "sha256": "38dcb10fcfb237b0ddc558ea12b3bb19382acc3a1bed3225bbf6d3339e1eedf5"
+    },
+    "files": {
+      "count": 6,
+      "sha256": "9a7fb712e0db4c5cc85fcc370b82be22f21358d96b62c1d0d1d3874ec23c5321"
+    },
+    "folders": {
+      "count": 1,
+      "sha256": "d621c47af095d6e699a56355178cc837928db038e23d6a26f71393ff565b0f86"
+    },
+    "share_links": {
+      "count": 6,
+      "sha256": "57ef5f3dde42d00cf428b7a5c12794e97181be4e75a90af5f997bbd987e55ae6"
+    },
+    "upload_sessions": {
+      "count": 21,
+      "sha256": "48911cb5ae80ef89093670ebfe0f732a21fb3d985a76426678518d9112047b9d"
+    },
+    "refresh_tokens": {
+      "count": 55,
+      "sha256": "2095c3b4cbd5674c2e3235104de7d72d3c5e773262480f0945bd5c8d51db8c23"
+    },
+    "upload_chunks": {
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "download_capabilities": {
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    }
+  },
+  "inventory_before": {
+    "sha256": "537b6b81f09461a255638703b7c7bfb13c1e1cd686c5b7c3e440cb0bc672d19f",
+    "files": 5,
+    "bytes": 37021,
+    "directories": 8,
+    "portable_permissions": true
+  },
+  "db_dump": "/Users/aleksejkozemakin/Desktop/HomeCloud/backups/schema-legacy-checkpoint-20261010/homecloud_db_20261010_080140_9eb10963.sql.gz",
+  "backup_verified": true,
+  "dry_migration": {
+    "files": 6,
+    "physical": 5,
+    "placed": 5,
+    "folders_without_placement": 1,
+    "migrations": 21
+  },
+  "restore_boundary": "VERIFIED_PRE_CHECKPOINT_RESTORE",
+  "schema_down": "REFUSED_AND_UNCHANGED",
+  "canonical_placement": {
+    "files": 6,
+    "physical": 5,
+    "placed": 5,
+    "folders_without_placement": 1,
+    "migrations": 21
+  },
+  "inventory_after": {
+    "sha256": "537b6b81f09461a255638703b7c7bfb13c1e1cd686c5b7c3e440cb0bc672d19f",
+    "files": 5,
+    "bytes": 37021,
+    "directories": 8,
+    "portable_permissions": true
+  },
+  "original_db_rows_unchanged": true,
+  "file_bytes_moved": 0,
+  "preview_override": "/Users/aleksejkozemakin/Desktop/HomeCloud/backups/schema-legacy-checkpoint-20261010/preview-image.override.yml",
+  "after_smoke_original_db_rows_unchanged": true,
+  "after_smoke_inventory": {
+    "sha256": "537b6b81f09461a255638703b7c7bfb13c1e1cd686c5b7c3e440cb0bc672d19f",
+    "files": 5,
+    "bytes": 37021,
+    "directories": 8,
+    "portable_permissions": true
+  },
+  "runtime_smoke": {
+    "status": "PASS",
+    "checks": [
+      "normal/binary/image upload + reservation + finalize retry + logical pair + download bytes",
+      "owner Range + native capability download",
+      "public share + ZIP exact members",
+      "text preview + actual sharp thumbnail",
+      "rename/move/trash/restore/copy/permanent delete + quota invariants"
+    ],
+    "fixtureCleanup": "PASS",
+    "largeFileTest": "NOT_RUN"
+  },
+  "runtime_health": {
+    "/homecloud-preview-backend-1": "healthy",
+    "/homecloud-preview-db-1": "healthy",
+    "/homecloud-preview-frontend-1": "healthy",
+    "/homecloud-preview-ingress-1": "healthy"
+  },
+  "reconcile": "PASS",
+  "new_schema_backup_restore": {
+    "status": "PASS",
+    "tables": 10,
+    "placement": {
+      "files": 6,
+      "physical": 5,
+      "placed": 5,
+      "folders_without_placement": 1,
+      "migrations": 21
+    },
+    "dump": "/Users/aleksejkozemakin/Desktop/HomeCloud/backups/schema-legacy-checkpoint-20261010/post-checkpoint/homecloud_db_20261010_081059_9918f1be.sql.gz"
+  },
+  "source_commit": "281ae3d69c38f338e458e2e2d55b51c3db27a496"
+}

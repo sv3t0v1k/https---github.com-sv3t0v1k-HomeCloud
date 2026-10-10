@@ -1,10 +1,42 @@
 # HomeCloud — аудит и проект многотомного хранения
 
-Дата: 2026-10-06, Asia/Vladivostok. Статус: **DESIGN_REVIEW_PENDING_OWNER**.
-Это ненумерованный workstream. Документ фиксирует факты исходного кода и предлагаемый
-контракт; ни одна предлагаемая таблица, настройка, API или гарантия ещё не реализована.
-Production остаётся **NOT_READY / NO_GO**. Реализация требует отдельного разрешения
-владельца после его и ChatGPT review.
+Дата аудита: 2026-10-06, Asia/Vladivostok. Обновление: 2026-10-10.
+Статус дизайна: **OWNER_APPROVED**. Первый implementation checkpoint
+**Schema & Legacy Compatibility: COMPLETE**; остальные checkpoints не реализованы.
+Это ненумерованный workstream. Production остаётся **NOT_READY / NO_GO**.
+Разделы 1–15 сохраняют исходный аудит и целевой дизайн; утверждение ниже фиксирует
+фактическую реализацию и отдельно разрешённый владельцем scope.
+
+### Выполненный checkpoint — Schema & Legacy Compatibility
+
+Добавлены минимальный StorageLocation и logical File placement; deterministic
+`legacy-storage` (`f2f5c4b0-8d57-4c49-9f8c-0d095b344601`) представляет текущий `/storage`.
+Источник истины — `storageLocationId + relativeObjectKey`; retained storagePath является
+строго проверяемым bridge без absolute fallback. FK RESTRICT, UNIQUE pair, placement/identity
+triggers, fail-closed backfill и необходимый legacy resolver реализованы. `synchronize`
+отключён; обновление схемы только явной migration с fenced writer и видимым storage.
+
+Canonical migration: 6 File сохранились, все 5 физических получили placement, folder
+остался без него. Recoverable backup, isolated migration, down refusal и старый/new-schema
+dump restore проверены; исходные строки и полный FS inventory совпали. Перенос bytes: **0**.
+Full backend с real PostgreSQL: **65 suites / 858 tests PASS**, lint/typecheck/build PASS;
+runtime API smoke и четыре healthy preview контейнера подтверждены. A/B/C review: ACCEPT.
+[Подробный отчёт, доказательства и границы](evidence/multi-storage-schema-20261010/report.md).
+
+Для этого checkpoint выбран portable trusted exclusive-directory профиль: symlink chain
+отвергается, существующие download FD guards сохранены; race-free openat2 не заявлен.
+UploadSession.tempPath/chunks остаются legacy exception, workspace/finalizer не изменены.
+Root/mount — deployment binding; bridge trigger запечатывает текущий root до отдельно
+квалифицированного remap. Минимальная schema не вводит будущие capacity/policy/admin поля.
+
+Owner-approved решения следующих работ: fixed default + min-free reserve + ordered
+fallback в policy v1; multiple locations и design-ready workspaces с одним default в первой
+поведенческой реализации; admin/bootstrap позднее, UI выбирает только approved mount key;
+secondary offline → DEGRADED; удаление location через drain/zero references; final SHA-256
+при вычислении finalizer без обязательного rehash старых files; workspace не ordinary backup
+payload. True SSD→HDD 50 GiB acceptance остаётся будущим обязательным gate.
+Следующие checkpoints требуют отдельного разрешения; второй диск, policy runtime, admin/UI,
+mount changes и cross-filesystem финализация в этом checkpoint не добавлялись.
 
 ## 1. Исходное состояние и границы аудита
 
@@ -773,7 +805,8 @@ Zero-data-loss — acceptance требование будущего rollout, н�
 ## 13. Реализация: ограниченные checkpoints и acceptance gates
 
 Номера ниже — порядок работ внутри **ненумерованного workstream**, не новые ROADMAP Phase.
-Ни один checkpoint не разрешён к реализации этим документом.
+Сам дизайн не разрешает реализацию. Отдельным owner request выполнен только первый
+Schema & Legacy Compatibility, включая необходимый legacy resolver (см. обновление выше).
 
 | Порядок | Зависимости и scope | Обязательный gate |
 |---|---|---|
@@ -855,6 +888,6 @@ Mermaid source проверен вручную; runtime renderer и прилож
 проверяются перед commit. Backend/frontend tests, lint/build и 50 ГиБ не запускались:
 изменения только документационные. Работающий стек не изменялся.
 
-Следующее решение: owner и ChatGPT review архитектуры, выбор отмеченных v1 defaults и
-strict/portable qualification профиля, затем явное разрешение ограниченного первого
-implementation checkpoint. До него **остановиться после дизайна**.
+Исходное следующее решение от 2026-10-06 — owner review и разрешение первого checkpoint —
+выполнено. Текущий следующий шаг: отдельно утвердить scope продолжения Registry/resolver,
+mount identity и secure descriptor APIs. **Остановиться после Schema & Legacy Compatibility**.
