@@ -3,7 +3,8 @@
 Дата аудита: 2026-10-06, Asia/Vladivostok. Обновление: 2026-10-10.
 Статус дизайна: **OWNER_APPROVED**. Первый implementation checkpoint
 **Schema & Legacy Compatibility: COMPLETE**; **MS-2 Registry & Secure Resolver: COMPLETE**
-в owner-approved ограниченном trusted legacy профиле; остальные checkpoints не реализованы.
+в owner-approved ограниченном trusted legacy профиле; **MS-3A Upload Workspace Architecture & Session Binding: COMPLETE**
+в том же legacy профиле. MS-3B и остальные checkpoints не реализованы.
 Это ненумерованный workstream. Production остаётся **NOT_READY / NO_GO**.
 Разделы 1–15 сохраняют исходный аудит и целевой дизайн; утверждение ниже фиксирует
 фактическую реализацию и отдельно разрешённый владельцем scope.
@@ -60,6 +61,35 @@ StorageService, Health, Multer и существующие direct upload FS entr
 [Операторский контракт и границы гарантий](storage-registry-operations.md),
 [MS-2 evidence](evidence/multi-storage-registry-20261010/report.md). Production NO_GO;
 MS-3 не начинается автоматически.
+
+### MS-3A — Upload Workspace Architecture & Session Binding: COMPLETE
+
+Minimal `upload_workspaces` с deterministic UUID `87798389-88af-4ea5-a3e7-8e69a3c7bb01`,
+`legacy-upload-workspace`/approved `legacy-storage`; legacy workspace — `/storage/.tmp`.
+Session FK NOT NULL/RESTRICT, immutable workspace identity и session binding; абсолютный
+`tempPath` сохранён как exact bridge. Backfill 21/21 sessions, все старые поля/IDs/accounting
+и quota semantics сохранены. Schema теперь11 tables/22 migrations; bytes moved **0**.
+DB/API paths не выбирают root; missing/swapped/unapproved workspace fail closed без fallback.
+
+Ingest до Multer проверяет session binding, остальные lifecycle/recovery/cleanup используют
+ту же привязку. `.tmp` FD dev/ino anchor удерживается в lifetime процесса; production не
+создаёт отсутствующий workspace. Ingress/chunks только одна legacy FS: rename adoption,
+EXDEV отказ без copy fallback. Existing finalizer сохранён. `.tmp` identity между restart,
+secure-open и физическая host qualification не появились; **secureOpen=false**, TOCTOU
+остаётся. MS-3B/второй диск/policy/admin/UI/cross-FS и Docker mount changes запрещены.
+
+Verified fenced backup + отдельный private `.tmp` snapshot, isolated DB migration/restore,
+old/new dumps и down refusal PASS; canonical rows/bytes exact equal. После runtime startup
+старый AuthService штатно удалил12 истёкших refresh tokens (55→43), что отдельно доказано
+по backup; session/chunk/File/share/quota invariants сохранены. Full Linux backend68 suites/
+917 tests PASS, 0 skips, real PostgreSQL9 suites, lint/typecheck/build PASS. Runtime small
+pause/reload/resume/429/quota/cancel/expiry/recovery + byte/download/share smoke PASS;
+три независимых scoped reviews ACCEPT, максимум2 раунда исправлений.
+
+[Операторский контракт](upload-workspace-operations.md),
+[MS-3A evidence и процессное отклонение](evidence/upload-workspace-20261010/report.md).
+Production **NOT_READY / NO_GO**; следующий checkpoint — MS-3B Secure Workspace Activation
+только по отдельному разрешению владельца. В этом запросе работа остановлена после MS-3A.
 
 ## 1. Исходное состояние и границы аудита
 

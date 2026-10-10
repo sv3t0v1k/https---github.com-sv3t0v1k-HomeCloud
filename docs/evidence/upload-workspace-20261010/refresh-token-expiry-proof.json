@@ -1,0 +1,10 @@
+{
+  "status": "PASS",
+  "before": 55,
+  "after": 43,
+  "deleted": 12,
+  "allDeletedExpiredBeforeStartup": true,
+  "allRemainingRowsExactEquality": true,
+  "source": "existing AuthService cleanupExpiredTokens startup",
+  "startupLogTimestampUTC": "2026-10-10T13:19:19.020Z"
+}

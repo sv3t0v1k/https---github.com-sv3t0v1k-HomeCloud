@@ -1,0 +1,30 @@
+{
+  "status": "PASS",
+  "sourceDump": "homecloud_db_20261010_091050_0e789ae1.sql.gz",
+  "oldSchemaTables": 10,
+  "newSchemaTables": 11,
+  "migrationsAfter": 22,
+  "oldRowEqualityExcludingNewFK": {
+    "users": true,
+    "files": true,
+    "folders": true,
+    "share_links": true,
+    "upload_sessions": true,
+    "upload_chunks": true,
+    "storage_locations": true,
+    "refresh_tokens": true,
+    "download_capabilities": true
+  },
+  "bindings": {
+    "sessions": 21,
+    "bound": 21
+  },
+  "originalFileAndDirectoryExactEquality": true,
+  "fileBytesMoved": 0,
+  "newSchemaDumpRestore": "PASS",
+  "preCheckpointDumpRestore": "PASS",
+  "downRefusalAndUnchangedSchema": "PASS",
+  "canonicalMigrated": false,
+  "disposableDatabaseRemoved": true,
+  "credentialsPersisted": false
+}

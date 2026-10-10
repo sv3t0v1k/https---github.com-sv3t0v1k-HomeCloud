@@ -1,0 +1,13 @@
+{
+  "platform": "linux",
+  "node": "v20.20.2",
+  "uid": 1001,
+  "euid": 1001,
+  "legacyWorkspace": "/storage/.tmp",
+  "rootDevice": 65025,
+  "workspaceDevice": 65025,
+  "workspaceInode": 579530,
+  "ingressDevice": 65025,
+  "sameFilesystem": true,
+  "secureOpen": false
+}

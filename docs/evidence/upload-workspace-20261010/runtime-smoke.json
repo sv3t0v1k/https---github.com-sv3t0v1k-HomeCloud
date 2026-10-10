@@ -1,0 +1,14 @@
+{
+  "status": "PASS",
+  "checks": [
+    "immutable workspace binding + partial pause + fresh-auth reload + resume/finalize + controlled HTTP429 Retry-After + quota reservations/cancel",
+    "real PostgreSQL expiry + startup orphan recovery/cleanup + quota reservation release",
+    "normal/binary/image upload + reservation + finalize retry + logical pair + download bytes",
+    "owner Range + native capability download",
+    "public share + ZIP exact members",
+    "text preview + actual sharp thumbnail",
+    "rename/move/trash/restore/copy/permanent delete + quota invariants"
+  ],
+  "fixtureCleanup": "PASS",
+  "largeFileTest": "NOT_RUN"
+}

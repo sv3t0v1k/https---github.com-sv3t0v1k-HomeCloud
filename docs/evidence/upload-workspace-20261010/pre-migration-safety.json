@@ -1,0 +1,51 @@
+{
+  "writerFenced": true,
+  "tablesBefore": {
+    "users": {
+      "count": 4,
+      "digest": "119c470c241932200663c098f9ec13252465573409036fc113f48b781bd415ec"
+    },
+    "files": {
+      "count": 6,
+      "digest": "ae1a0174590dee6e09004e3e9a4bf12dc962e2b1b161c7487cf30c28cf96a88d"
+    },
+    "folders": {
+      "count": 1,
+      "digest": "4713f27450760c851127ee814bdd8fd15f2d05474dd08d10da26f26237868d3d"
+    },
+    "share_links": {
+      "count": 6,
+      "digest": "260237412fbbbf8ef54ccf034ae4799229db476b3519caef7956485b708520b3"
+    },
+    "upload_sessions": {
+      "count": 21,
+      "digest": "a1c087c6fee40ec71e91e6087bf57146d8184bccae4609287de52fa1c818cf52"
+    },
+    "upload_chunks": {
+      "count": 0,
+      "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "storage_locations": {
+      "count": 1,
+      "digest": "f5e7c62d5af58924b6904d25f6a7fe3158d91473be1888340176a31f6d1c2495"
+    },
+    "refresh_tokens": {
+      "count": 55,
+      "digest": "d98c2335ea0997b7ffa92be90f3ed22f813b70cc0244ad837d8ea858b1a3fd5f"
+    },
+    "download_capabilities": {
+      "count": 0,
+      "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "migrations": {
+      "count": 21,
+      "digest": "9eaa3c6ca4ac19d4ddddaf12e80a0293e7844c970a977f481ad82821f80e65f2"
+    }
+  },
+  "originalFileCount": 5,
+  "originalFileBytes": 37021,
+  "workspaceSupplementSha256": "421c1202a8e761a90131ab83d9cab6011695b97cf34527ae59c951712f096515",
+  "workspaceSupplementBytes": 143,
+  "backupVerified": true,
+  "credentialsPersisted": false
+}

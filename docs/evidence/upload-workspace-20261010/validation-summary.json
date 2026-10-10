@@ -1,0 +1,49 @@
+{
+  "targeted": {
+    "platform": "Linux",
+    "suitesPassed": 8,
+    "testsPassed": 179,
+    "skipped": 0
+  },
+  "fullBackend": {
+    "platform": "Linux Docker",
+    "user": 1001,
+    "node": "v20.20.2",
+    "suitesPassed": 68,
+    "testsPassed": 917,
+    "skipped": 0
+  },
+  "postgresSuites": [
+    "uploads.service.postgres",
+    "sharing.postgres",
+    "native-downloads.postgres",
+    "files.service.postgres",
+    "upload-rate-limit.postgres",
+    "security-ownership.postgres",
+    "storage-placement.postgres",
+    "share-locked-until-timestamptz.postgres",
+    "upload-workspace.postgres"
+  ],
+  "restoreExactSchema": 11,
+  "restoreCleanup": 1,
+  "releaseManifest": 26,
+  "releaseGate": 6,
+  "lint": {
+    "errors": 0,
+    "previousWarnings": 15
+  },
+  "typecheck": "PASS",
+  "build": "PASS",
+  "benchTypecheck": "PASS",
+  "runtimeImageBuild": "PASS",
+  "runtimeSmoke": "PASS",
+  "largeFileTest": "NOT_RUN",
+  "reviews": "ACCEPT scoped; two correction rounds",
+  "production": "NOT_READY / NO_GO",
+  "finalTargeted": {
+    "suitesPassed": 2,
+    "testsPassed": 57,
+    "skipped": 0,
+    "scope": "production startup and PostgreSQL lifecycle after test environment correction"
+  }
+}

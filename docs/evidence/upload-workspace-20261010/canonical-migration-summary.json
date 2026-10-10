@@ -1,0 +1,23 @@
+{
+  "status": "PASS",
+  "canonicalMigrated": true,
+  "tables": 11,
+  "migrations": 22,
+  "originalRowsEqualExceptNewFK": {
+    "users": true,
+    "files": true,
+    "folders": true,
+    "share_links": true,
+    "upload_sessions": true,
+    "upload_chunks": true,
+    "storage_locations": true,
+    "refresh_tokens": true,
+    "download_capabilities": true
+  },
+  "bindings": {
+    "sessions": 21,
+    "bound": 21
+  },
+  "originalFilesAndDirectoriesExactEquality": true,
+  "fileBytesMoved": 0
+}

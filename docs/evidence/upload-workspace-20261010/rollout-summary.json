@@ -1,0 +1,10 @@
+{
+  "status": "PASS",
+  "image": "homecloud-preview-backend:workspace-checkpoint",
+  "healthy": true,
+  "user": "nextjs",
+  "environment": "UNCHANGED",
+  "mounts": "UNCHANGED",
+  "networkSet": "UNCHANGED",
+  "otherContainerIds": "UNCHANGED"
+}

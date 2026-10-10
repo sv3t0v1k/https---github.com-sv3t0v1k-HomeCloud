@@ -1,0 +1,11 @@
+{
+  "status": "PASS",
+  "disposableStorageExtraction": true,
+  "originalFileContentAndSizesEqual": true,
+  "filesVerified": 5,
+  "bytesVerified": 37021,
+  "workspaceSupplementTreeEqual": true,
+  "canonicalStorageReadOnly": true,
+  "canonicalFileBytesMoved": 0,
+  "scratchRemoved": true
+}

@@ -714,3 +714,24 @@ canonical preview identity и API smoke PASS. Original10 tables и5files/37021by
 [MS-2 evidence](evidence/multi-storage-registry-20261010/report.md). MS-3 Workspace abstraction
 не начинается автоматически; расширение доверия/user locations требует secure-open и host
 identity qualification. 50 GiB здесь не запускался.
+
+
+## Multi-Storage — Upload Workspace Architecture & Session Binding (MS-3A)
+
+Ненумерованный checkpoint: **COMPLETE, 2026-10-10**, только legacy `/storage/.tmp`.
+Minimal UploadWorkspace, immutable session FK/bridge и backfill21/21, schema11 tables/
+22 migrations. Ingest/status/reconcile/finalize/cancel/expiry/recovery/cleanup используют
+binding; missing/swapped workspace fail closed без fallback. Ingress/chunks одна legacy FS,
+rename/EXDEV зависимость сохранена, bytes moved0. Проверенный fenced backup + `.tmp`
+supplement, isolated DB migration/old-new restore, canonical counts/row/FS invariants PASS.
+Full backend68 suites/917 tests, PostgreSQL9 suites без skips, lint/typecheck/build и runtime
+pause/reload/resume/429/quota/expiry/recovery PASS; scoped independent reviews ACCEPT.
+Обычный auth startup удалил12 подтверждённо expired refresh tokens; прочие source rows
+сохранены. Процессное нарушение запрета чтения одной audit matching строки зафиксировано
+в evidence; файл не изменён/staged/committed, три исходных untracked сохранены.
+
+[Архитектура](multi-storage-architecture.md), [операторский контракт](upload-workspace-operations.md),
+[evidence](evidence/upload-workspace-20261010/report.md). **secureOpen=false**, legacy TOCTOU
+и `.tmp` anchor only process lifetime. Production NOT_READY / NO_GO. MS-3B Secure Workspace
+Activation — следующий отдельный checkpoint; второй диск/cross-FS/политики/admin/UI,
+50GiB run, push/tag/release не выполнялись. После MS-3A работа остановлена.

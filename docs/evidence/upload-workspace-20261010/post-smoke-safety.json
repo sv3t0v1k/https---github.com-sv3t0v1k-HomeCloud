@@ -1,0 +1,36 @@
+{
+  "status": "PASS",
+  "originalTableEqualityExceptRefreshExpiry": {
+    "upload_workspaces": true,
+    "users": true,
+    "files": true,
+    "folders": true,
+    "share_links": true,
+    "upload_sessions": true,
+    "upload_chunks": true,
+    "storage_locations": true,
+    "download_capabilities": true,
+    "migrations": true
+  },
+  "originalSessionsAndChunkMetadataUnchanged": true,
+  "refreshTokenExpiry": {
+    "status": "PASS",
+    "before": 55,
+    "after": 43,
+    "deleted": 12,
+    "allDeletedExpiredBeforeStartup": true,
+    "allRemainingRowsExactEquality": true,
+    "source": "existing AuthService cleanupExpiredTokens startup",
+    "startupLogTimestampUTC": "2026-10-10T13:19:19.020Z"
+  },
+  "originalFileMetadataAndSHA256ExactEquality": true,
+  "directoriesExactEquality": true,
+  "originalFiles": 5,
+  "originalBytes": 37021,
+  "sessionBindings": {
+    "sessions": 21,
+    "bound": 21
+  },
+  "fileBytesMoved": 0,
+  "fixtureCleanup": "PASS"
+}
