@@ -1,3 +1,7 @@
+import {
+  UploadWorkspaceResolver,
+  LEGACY_UPLOAD_WORKSPACE,
+} from "./upload-workspace";
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { FileEntity } from "../entities/file.entity";
@@ -14,7 +18,6 @@ import { AuthModule } from "../auth/auth.module";
 import { MulterModule } from "@nestjs/platform-express";
 import { ConfigService } from "@nestjs/config";
 import * as fs from "fs";
-import * as path from "path";
 import { getMulterFileSizeLimit } from "./chunk-ingress";
 import { IngressFileCleanupInterceptor } from "./ingress-file-cleanup.interceptor";
 import {
@@ -38,9 +41,15 @@ import { abortableDiskStorage } from "./abortable-disk-storage";
     MulterModule.registerAsync({
       imports: [StorageModule],
       inject: [ConfigService, StorageService],
-      useFactory: (configService: ConfigService, storageService: StorageService) => {
-        const ingressPath = path.join(storageService.getTempPath(), "multipart-ingress");
-        const guard = (target: string) => { storageService.assertTrustedPath(target); };
+      useFactory: (
+        configService: ConfigService,
+        storageService: StorageService,
+      ) => {
+        const resolver = new UploadWorkspaceResolver(storageService);
+        const ingressPath = resolver.ingress(LEGACY_UPLOAD_WORKSPACE);
+        const guard = (target: string) => {
+          resolver.assertPath(target);
+        };
         guard(ingressPath);
         fs.mkdirSync(ingressPath, { recursive: true });
         return {

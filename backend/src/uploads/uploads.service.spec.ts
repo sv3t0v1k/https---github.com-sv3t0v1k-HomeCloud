@@ -1,3 +1,4 @@
+import { LEGACY_UPLOAD_WORKSPACE } from "../entities/upload-workspace.entity";
 import { UploadsService } from "./uploads.service";
 import { UploadChunkEntity } from "../entities/upload-chunk.entity";
 import { UploadSessionEntity } from "../entities/upload-session.entity";
@@ -33,6 +34,20 @@ describe("UploadsService - Post-Review Fixes", () => {
   let mockConfigService: any;
   let mockQueryRunner: any;
   let mockQueryBuilder: any;
+
+  // These lifecycle/quota tests keep synthetic IDs and paths. Workspace integrity
+  // is exercised with the real resolver in the focused workspace/PG suites.
+  function isolateWorkspaceBoundary(target: UploadsService): void {
+    jest.spyOn(target as any, "getWorkspace").mockResolvedValue(LEGACY_UPLOAD_WORKSPACE);
+    jest.spyOn(target as any, "resolveSessionWorkspace")
+      .mockImplementation(async (session: any) => session.tempPath);
+    const resolver = (target as any).workspaceResolver;
+    jest.spyOn(resolver, "root").mockImplementation(() => mockStorageService.getTempPath());
+    jest.spyOn(resolver, "ingress").mockImplementation(() => path.join(mockStorageService.getTempPath(), "multipart-ingress"));
+    jest.spyOn(resolver, "resolve").mockImplementation((session: any) => session.tempPath);
+    jest.spyOn(resolver, "assertPath").mockImplementation((target: unknown) => target);
+    jest.spyOn(resolver, "assertColocated").mockImplementation(() => undefined);
+  }
 
   beforeEach(() => {
     mockQueryBuilder = {
@@ -134,9 +149,11 @@ describe("UploadsService - Post-Review Fixes", () => {
       mockUsersService,
       mockConfigService,
     );
+    isolateWorkspaceBoundary(service);
   });
 
   afterEach(() => {
+    jest.restoreAllMocks();
     jest.clearAllMocks();
   });
 
@@ -161,7 +178,7 @@ describe("UploadsService - Post-Review Fixes", () => {
     );
     const session = () => ({ id: 7, uploadId: "owned", userId: 1, filename: "resume.bin", totalSize: 6,
       chunkSize: 2, totalChunks: 3, uploadedSize: 99, accountingInitialized: true,
-      status: "uploading", expiresAt: new Date(Date.now() + 86400000), parentId: 4, tempPath: "/private/internal" });
+      status: "uploading", expiresAt: new Date(Date.now() + 86400000), parentId: 4, workspaceId: LEGACY_UPLOAD_WORKSPACE.id, tempPath: "/private/internal" });
     it("returns locked owner-scoped authoritative committed chunks and no internal paths", async () => {
       mockQueryRunner.manager.findOne.mockResolvedValueOnce(session());
       mockQueryRunner.manager.getRepository().find.mockResolvedValue([
@@ -281,6 +298,7 @@ describe("UploadsService - Post-Review Fixes", () => {
         mockUsersService,
         mockConfigService,
       );
+      isolateWorkspaceBoundary(localService);
 
       mockUsersService.findById.mockResolvedValue({
         id: 1,
@@ -315,6 +333,7 @@ describe("UploadsService - Post-Review Fixes", () => {
         mockUsersService,
         mockConfigService,
       );
+      isolateWorkspaceBoundary(localService);
 
       mockUsersService.findById.mockResolvedValue({
         id: 1,
@@ -354,7 +373,7 @@ describe("UploadsService - Post-Review Fixes", () => {
         uploadedCount: 0,
         uploadedChunks: [],
         uploadedSize: 0,
-        tempPath: sessionDir,
+        workspaceId: LEGACY_UPLOAD_WORKSPACE.id, tempPath: sessionDir,
         status: "pending",
         expiresAt: new Date(Date.now() + 86400000),
       });
@@ -392,7 +411,7 @@ describe("UploadsService - Post-Review Fixes", () => {
       }
     });
 
-    it("cleans a controlled ingress file when the service rejects", async () => {
+    it("preserves ingress bytes when no session binding can be validated", async () => {
       const root = fs.mkdtempSync(
         path.join(os.tmpdir(), "test-ingress-error-"),
       );
@@ -406,7 +425,7 @@ describe("UploadsService - Post-Review Fixes", () => {
         await expect(
           service.uploadChunk(1, "missing", 0, { path: ingressPath, size: 4 }),
         ).rejects.toThrow("Upload session not found");
-        expect(fs.existsSync(ingressPath)).toBe(false);
+        expect(fs.readFileSync(ingressPath, "utf8")).toBe("data");
       } finally {
         fs.rmSync(root, { recursive: true, force: true });
       }
@@ -424,7 +443,7 @@ describe("UploadsService - Post-Review Fixes", () => {
         uploadedCount: 0,
         uploadedChunks: [0, 1],
         uploadedSize: 2000,
-        tempPath: "/tmp/abc",
+        workspaceId: LEGACY_UPLOAD_WORKSPACE.id, tempPath: "/tmp/abc",
         parentId: null,
         status: "uploading",
         expiresAt: new Date(Date.now() + 86400000),
@@ -451,7 +470,7 @@ describe("UploadsService - Post-Review Fixes", () => {
         uploadedCount: 0,
         uploadedChunks: [],
         uploadedSize: 0,
-        tempPath: "/tmp/abc",
+        workspaceId: LEGACY_UPLOAD_WORKSPACE.id, tempPath: "/tmp/abc",
         parentId: null,
         status: "pending",
         expiresAt: new Date(Date.now() + 86400000),
@@ -482,7 +501,7 @@ describe("UploadsService - Post-Review Fixes", () => {
         uploadedCount: 0,
         uploadedChunks: [0, 1],
         uploadedSize: 2000,
-        tempPath: tempDir,
+        workspaceId: LEGACY_UPLOAD_WORKSPACE.id, tempPath: tempDir,
         parentId: null,
         status: "uploading",
         expiresAt: new Date(Date.now() + 86400000),
@@ -513,7 +532,7 @@ describe("UploadsService - Post-Review Fixes", () => {
         uploadedCount: 0,
         uploadedChunks: [] as number[],
         uploadedSize: 0,
-        tempPath: tempDir,
+        workspaceId: LEGACY_UPLOAD_WORKSPACE.id, tempPath: tempDir,
         parentId: null,
         status: "pending" as string,
         expiresAt: new Date(Date.now() + 86400000),
@@ -565,7 +584,7 @@ describe("UploadsService - Post-Review Fixes", () => {
         uploadedCount: 0,
         uploadedChunks: [0],
         uploadedSize: 8,
-        tempPath: tempDir,
+        workspaceId: LEGACY_UPLOAD_WORKSPACE.id, tempPath: tempDir,
         parentId: null,
         status: "pending",
         expiresAt: new Date(Date.now() + 86400000),
@@ -620,7 +639,7 @@ describe("UploadsService - Post-Review Fixes", () => {
         uploadedCount: 0,
         uploadedChunks: [0],
         uploadedSize: 8,
-        tempPath: tempDir,
+        workspaceId: LEGACY_UPLOAD_WORKSPACE.id, tempPath: tempDir,
         parentId: null,
         status: "pending",
         expiresAt: new Date(Date.now() + 86400000),
@@ -754,7 +773,7 @@ describe("UploadsService - Post-Review Fixes", () => {
         userId: 1,
         expiresAt: new Date(Date.now() - 1000),
         status: "pending",
-        tempPath: `/tmp/exp-${Date.now()}`,
+        workspaceId: LEGACY_UPLOAD_WORKSPACE.id, tempPath: `/tmp/exp-${Date.now()}`,
       };
       fs.mkdirSync(expiredSession.tempPath, { recursive: true });
 
@@ -775,7 +794,7 @@ describe("UploadsService - Post-Review Fixes", () => {
         userId: 1,
         expiresAt: new Date(Date.now() - 1000),
         status: "uploading",
-        tempPath: `/tmp/stuck-${Date.now()}`,
+        workspaceId: LEGACY_UPLOAD_WORKSPACE.id, tempPath: `/tmp/stuck-${Date.now()}`,
       };
       fs.mkdirSync(uploadingSession.tempPath, { recursive: true });
       mockUploadSessionRepository.find.mockResolvedValue([uploadingSession]);
@@ -795,7 +814,7 @@ describe("UploadsService - Post-Review Fixes", () => {
         userId: 1,
         expiresAt: new Date(Date.now() + 86400000),
         status: "uploading",
-        tempPath: `/tmp/active-${Date.now()}`,
+        workspaceId: LEGACY_UPLOAD_WORKSPACE.id, tempPath: `/tmp/active-${Date.now()}`,
       };
       fs.mkdirSync(activeSession.tempPath, { recursive: true });
       mockUploadSessionRepository.find.mockResolvedValue([activeSession]);
@@ -823,7 +842,7 @@ describe("UploadsService - Post-Review Fixes", () => {
       const tempPath = path.join(root, "chunks");
       fs.mkdirSync(tempPath);
       fs.writeFileSync(path.join(tempPath, "0"), bytes);
-      const session = { uploadId: "plain-text", userId: 1, filename: "arbitrary.bin", totalSize: bytes.length, chunkSize: bytes.length, totalChunks: 1, uploadedChunks: [0], uploadedSize: bytes.length, tempPath, parentId: null, status: "pending", expiresAt: new Date(Date.now() + 86400000) };
+      const session = { uploadId: "plain-text", userId: 1, filename: "arbitrary.bin", totalSize: bytes.length, chunkSize: bytes.length, totalChunks: 1, uploadedChunks: [0], uploadedSize: bytes.length, workspaceId: LEGACY_UPLOAD_WORKSPACE.id, tempPath, parentId: null, status: "pending", expiresAt: new Date(Date.now() + 86400000) };
       mockQueryRunner.manager.findOne.mockResolvedValueOnce(session).mockResolvedValueOnce(null);
       mockStorageService.generateFinalPath.mockReturnValue(path.join(root, "final"));
       return tempPath;
@@ -887,7 +906,7 @@ describe("UploadsService - Post-Review Fixes", () => {
         uploadedCount: 0,
         uploadedChunks: [0, 1],
         uploadedSize: 1024,
-        tempPath: tempDir,
+        workspaceId: LEGACY_UPLOAD_WORKSPACE.id, tempPath: tempDir,
         parentId: null,
         status: "pending",
         expiresAt: new Date(Date.now() + 86400000),
@@ -943,7 +962,7 @@ describe("UploadsService - Post-Review Fixes", () => {
         uploadedCount: 0,
         uploadedChunks: [0, 1],
         uploadedSize: 16,
-        tempPath: tempDir,
+        workspaceId: LEGACY_UPLOAD_WORKSPACE.id, tempPath: tempDir,
         parentId: null,
         status: "pending",
         expiresAt: new Date(Date.now() + 86400000),
@@ -1093,7 +1112,7 @@ describe("UploadsService - Post-Review Fixes", () => {
         uploadedCount: 0,
         uploadedChunks: chunks.map((_chunk, index) => index),
         uploadedSize: chunks.reduce((sum, chunk) => sum + chunk.length, 0),
-        tempPath: tempDir,
+        workspaceId: LEGACY_UPLOAD_WORKSPACE.id, tempPath: tempDir,
         parentId: null,
         status: "pending",
         expiresAt: new Date(Date.now() + 86400000),
@@ -1269,7 +1288,7 @@ describe("UploadsService - Post-Review Fixes", () => {
         uploadedCount: 0,
         uploadedChunks: [0],
         uploadedSize: 8,
-        tempPath: tempDir,
+        workspaceId: LEGACY_UPLOAD_WORKSPACE.id, tempPath: tempDir,
         parentId: null,
         status: "completed",
         expiresAt: new Date(Date.now() + 86400000),
@@ -1311,7 +1330,7 @@ describe("UploadsService - Post-Review Fixes", () => {
         uploadedCount: 0,
         uploadedChunks: [0],
         uploadedSize: 8,
-        tempPath: tempDir,
+        workspaceId: LEGACY_UPLOAD_WORKSPACE.id, tempPath: tempDir,
         parentId: null,
         status: "pending",
         expiresAt: new Date(Date.now() + 86400000),
@@ -1375,7 +1394,7 @@ describe("UploadsService - Post-Review Fixes", () => {
         uploadedCount: 0,
         uploadedChunks: [0],
         uploadedSize: 1000,
-        tempPath: tempDir,
+        workspaceId: LEGACY_UPLOAD_WORKSPACE.id, tempPath: tempDir,
         parentId: null,
         status: "uploading",
         expiresAt: new Date(Date.now() + 86400000),
@@ -1407,7 +1426,7 @@ describe("UploadsService - Post-Review Fixes", () => {
         uploadedCount: 0,
         uploadedChunks: [0],
         uploadedSize: 1000,
-        tempPath: tempDir,
+        workspaceId: LEGACY_UPLOAD_WORKSPACE.id, tempPath: tempDir,
         parentId: null,
         status: "uploading",
         expiresAt: new Date(Date.now() + 86400000),
@@ -1443,7 +1462,7 @@ describe("UploadsService - Post-Review Fixes", () => {
         uploadedCount: 0,
         uploadedChunks: [0],
         uploadedSize: 8,
-        tempPath: tempDir,
+        workspaceId: LEGACY_UPLOAD_WORKSPACE.id, tempPath: tempDir,
         parentId: null,
         status: "pending",
         expiresAt: new Date(Date.now() + 86400000),
@@ -1481,7 +1500,7 @@ describe("UploadsService - Post-Review Fixes", () => {
       mockQueryRunner.manager.save.mockRejectedValueOnce(new Error("DB down"));
       mockUploadSessionRepository.create.mockReturnValue({
         uploadId: "new-session",
-        tempPath: "/tmp/should-not-exist-yet",
+        workspaceId: LEGACY_UPLOAD_WORKSPACE.id, tempPath: "/tmp/should-not-exist-yet",
       });
 
       await expect(
@@ -1511,7 +1530,7 @@ describe("UploadsService - Post-Review Fixes", () => {
       fs.mkdirSync(referenced, { recursive: true });
       fs.mkdirSync(orphan, { recursive: true });
 
-      mockQueryBuilder.getRawMany.mockResolvedValue([{ tempPath: referenced }]);
+      mockQueryBuilder.getRawMany.mockResolvedValue([{ workspaceId: LEGACY_UPLOAD_WORKSPACE.id, uploadId: "kept", status: "pending", tempPath: referenced }]);
 
       const cleaned = await service.cleanupOrphanedTempDirs();
 
@@ -1531,8 +1550,8 @@ describe("UploadsService - Post-Review Fixes", () => {
       fs.mkdirSync(c, { recursive: true });
 
       mockQueryBuilder.getRawMany.mockResolvedValue([
-        { tempPath: a },
-        { tempPath: c },
+        { workspaceId: LEGACY_UPLOAD_WORKSPACE.id, uploadId: "a", status: "pending", tempPath: a },
+        { workspaceId: LEGACY_UPLOAD_WORKSPACE.id, uploadId: "c", status: "pending", tempPath: c },
       ]);
 
       const cleaned = await service.cleanupOrphanedTempDirs();
@@ -1600,13 +1619,15 @@ describe("UploadsService - Post-Review Fixes", () => {
       expect(deleteSpy).not.toHaveBeenCalled();
     });
 
-    it("preserves existing filesystem failure behavior", async () => {
+    it("rejects unavailable workspace before querying or deleting orphans", async () => {
       const badRoot = "/nonexistent/path/for/orphan/cleanup";
       mockStorageService.getTempPath.mockReturnValue(badRoot);
 
-      const cleaned = await service.cleanupOrphanedTempDirs();
-
-      expect(cleaned).toBe(0);
+      (service as any).workspaceResolver.root.mockImplementation(() => {
+        throw new Error("Upload workspace root unavailable");
+      });
+      await expect(service.cleanupOrphanedTempDirs()).rejects.toThrow("Upload workspace root unavailable");
+      expect(deleteSpy).not.toHaveBeenCalled();
       expect(
         mockUploadSessionRepository.createQueryBuilder,
       ).not.toHaveBeenCalled();

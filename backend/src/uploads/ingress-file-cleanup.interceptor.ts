@@ -3,10 +3,16 @@ import {
   ExecutionContext,
   Injectable,
   Logger,
+  BadRequestException,
   NestInterceptor,
 } from "@nestjs/common";
 import { Observable } from "rxjs";
 import { finalize } from "rxjs/operators";
+import { UploadsService } from "./uploads.service";
+import {
+  UploadWorkspaceResolver,
+  LEGACY_UPLOAD_WORKSPACE,
+} from "./upload-workspace";
 import { StorageService } from "../storage/storage.service";
 import { cleanupIngressFile, IngressRequestState } from "./chunk-ingress";
 
@@ -23,21 +29,49 @@ interface ResponseEvents {
 @Injectable()
 export class IngressFileCleanupInterceptor implements NestInterceptor {
   private readonly logger = new Logger(IngressFileCleanupInterceptor.name);
-  constructor(private readonly storageService: StorageService) {}
+  private readonly workspaceResolver: UploadWorkspaceResolver;
+  constructor(
+    private readonly storageService: StorageService,
+    private readonly uploadsService: UploadsService,
+  ) {
+    this.workspaceResolver = new UploadWorkspaceResolver(storageService);
+  }
+  onModuleDestroy(): void {
+    this.workspaceResolver.close();
+  }
 
-  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+  async intercept(
+    context: ExecutionContext,
+    next: CallHandler,
+  ): Promise<Observable<unknown>> {
     const http = context.switchToHttp();
     const request = http.getRequest<RequestEvents>();
     const response = http.getResponse<ResponseEvents>();
+    const ingressRequest = request as RequestEvents & {
+      user: { userId: number };
+      params: { uploadId: string };
+    };
+    // JWT and rate admission precede this interceptor. Resolve the immutable
+    // session binding before Multer creates any ingress bytes.
+    const session = await this.uploadsService.getUploadSession(
+      ingressRequest.user.userId,
+      ingressRequest.params.uploadId,
+    );
+    if (session.status !== "pending" && session.status !== "uploading")
+      throw new BadRequestException("Upload session is not writable");
+    this.workspaceResolver.root(LEGACY_UPLOAD_WORKSPACE);
     const cleanup = () => {
       const ingressPath = request.file?.path ?? request.ingressFilePath;
       if (!ingressPath) return;
       try {
-      this.storageService.assertTrustedPath(ingressPath);
-      cleanupIngressFile(ingressPath, this.storageService.getTempPath(), () =>
-        this.logger.warn("Failed to clean ingress file"),
-      );
-      } catch { this.logger.warn("Storage unavailable; ingress cleanup deferred"); }
+        this.workspaceResolver.assertPath(ingressPath);
+        this.storageService.assertTrustedPath(ingressPath);
+        cleanupIngressFile(ingressPath, this.storageService.getTempPath(), () =>
+          this.logger.warn("Failed to clean ingress file"),
+        );
+      } catch {
+        this.logger.warn("Storage unavailable; ingress cleanup deferred");
+      }
     };
     request.once("aborted", cleanup);
     response.once("close", cleanup);

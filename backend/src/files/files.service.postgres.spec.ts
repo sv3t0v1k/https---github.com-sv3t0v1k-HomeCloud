@@ -1,3 +1,4 @@
+import { UploadWorkspaceEntity, LEGACY_UPLOAD_WORKSPACE } from "../entities/upload-workspace.entity";
 import { StorageLocationEntity, LEGACY_STORAGE_LOCATION } from "../entities/storage-location.entity";
 import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
@@ -51,6 +52,7 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
         FileEntity,
         FolderEntity,
         ShareLinkEntity,
+        UploadWorkspaceEntity,
         UploadSessionEntity,
         UploadChunkEntity,
         RefreshTokenEntity,
@@ -58,6 +60,7 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
     });
     await dataSource.initialize();
     await dataSource.getRepository(StorageLocationEntity).save(LEGACY_STORAGE_LOCATION);
+    await dataSource.getRepository(UploadWorkspaceEntity).save(LEGACY_UPLOAD_WORKSPACE);
     service = new FilesService(
       dataSource.getRepository(FileEntity),
       dataSource.getRepository(FolderEntity),

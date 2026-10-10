@@ -1,3 +1,4 @@
+import { UploadWorkspaceEntity } from "../src/entities/upload-workspace.entity";
 import { StorageLocationEntity } from "../src/entities/storage-location.entity";
 import * as fs from "fs";
 import * as os from "os";
@@ -96,6 +97,7 @@ export async function createDataSource(databaseUrl: string): Promise<DataSource>
       FileEntity,
       FolderEntity,
       ShareLinkEntity,
+      UploadWorkspaceEntity,
       UploadSessionEntity,
       UploadChunkEntity,
       RefreshTokenEntity,

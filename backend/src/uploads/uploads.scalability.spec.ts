@@ -1,3 +1,4 @@
+import { LEGACY_UPLOAD_WORKSPACE } from "../entities/upload-workspace.entity";
 import { ConfigService } from "@nestjs/config";
 import { UploadSessionEntity } from "../entities/upload-session.entity";
 import { UploadChunkEntity } from "../entities/upload-chunk.entity";
@@ -15,6 +16,7 @@ describe("large upload operation complexity", () => {
     const session = Object.assign(new UploadSessionEntity(), {
       id: 7,
       uploadId: "synthetic",
+      workspaceId: LEGACY_UPLOAD_WORKSPACE.id,
       userId: 1,
       filename: "synthetic.bin",
       totalSize: 5120,
@@ -74,6 +76,12 @@ describe("large upload operation complexity", () => {
         MAX_CHUNK_SIZE: 1,
       }),
     );
+    // Keep the 5120-chunk complexity measurement isolated from filesystem
+    // identity probes; focused workspace tests validate that boundary.
+    jest.spyOn(service as any, "resolveSessionWorkspace").mockResolvedValue(session.tempPath);
+    const resolver = (service as any).workspaceResolver;
+    jest.spyOn(resolver, "root").mockReturnValue("/synthetic");
+    jest.spyOn(resolver, "assertPath").mockImplementation((target: unknown) => target);
     let probes = 0;
     const notFound = () =>
       Object.assign(new Error("missing"), { code: "ENOENT" });

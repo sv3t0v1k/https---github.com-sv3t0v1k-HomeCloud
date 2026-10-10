@@ -1,3 +1,4 @@
+import { UploadWorkspaceEntity, LEGACY_UPLOAD_WORKSPACE } from "../entities/upload-workspace.entity";
 import { StorageLocationEntity, LEGACY_STORAGE_LOCATION } from "../entities/storage-location.entity";
 import { INestApplication, ValidationPipe } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
@@ -65,6 +66,7 @@ postgres(
           FileEntity,
           FolderEntity,
           ShareLinkEntity,
+          UploadWorkspaceEntity,
           UploadSessionEntity,
           UploadChunkEntity,
           RefreshTokenEntity,
@@ -72,6 +74,7 @@ postgres(
       });
       await database.initialize();
     await database.getRepository(StorageLocationEntity).save(LEGACY_STORAGE_LOCATION);
+    await database.getRepository(UploadWorkspaceEntity).save(LEGACY_UPLOAD_WORKSPACE);
       const config = new ConfigService({
         NODE_ENV: "test",
         STORAGE_PATH: root,

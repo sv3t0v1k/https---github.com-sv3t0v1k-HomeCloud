@@ -17,20 +17,42 @@ export class StorageService implements OnModuleDestroy {
   constructor(private configService: ConfigService) {
     this.storagePath = configService.get("STORAGE_PATH") || "/storage";
     this.tempPath = path.join(this.storagePath, ".tmp");
-    this.registry = new StorageRegistry(this.storagePath, configService.get("NODE_ENV") === "production");
-    try { this.ensureDirectories(); } catch (error) { this.registry.close(); throw error; }
+    this.registry = new StorageRegistry(
+      this.storagePath,
+      configService.get("NODE_ENV") === "production",
+    );
+    try {
+      this.ensureDirectories();
+    } catch (error) {
+      this.registry.close();
+      throw error;
+    }
   }
 
-  onModuleDestroy(): void { this.registry.close(); }
+  onModuleDestroy(): void {
+    this.registry.close();
+  }
 
   private ensureDirectories() {
     const diagnostic = this.registry.mounts.inspect(LEGACY_STORAGE_ID, true);
-    if (!diagnostic.capabilities.write) throw new Error(`Storage unavailable: ${diagnostic.state}/${diagnostic.reason}`);
+    if (!diagnostic.capabilities.write)
+      throw new Error(
+        `Storage unavailable: ${diagnostic.state}/${diagnostic.reason}`,
+      );
     this.registry.assertTemporaryPath(this.tempPath);
     const root = fs.lstatSync(this.storagePath);
-    if (!root.isDirectory() || root.isSymbolicLink()) throw new Error("Invalid storage root");
-    if (fs.existsSync(this.tempPath) && !fs.lstatSync(this.tempPath).isDirectory()) throw new Error("Invalid temporary directory");
+    if (!root.isDirectory() || root.isSymbolicLink())
+      throw new Error("Invalid storage root");
+    if (
+      fs.existsSync(this.tempPath) &&
+      !fs.lstatSync(this.tempPath).isDirectory()
+    )
+      throw new Error("Invalid temporary directory");
     if (!fs.existsSync(this.tempPath)) {
+      if (this.configService.get("NODE_ENV") === "production")
+        throw new Error(
+          "Upload workspace unavailable: provision legacy .tmp before startup",
+        );
       fs.mkdirSync(this.tempPath, { recursive: true });
     }
   }
@@ -110,7 +132,8 @@ export class StorageService implements OnModuleDestroy {
     if (!resolved.startsWith(root + path.sep) && resolved !== root) {
       throw new Error("Path traversal detected");
     }
-    if (resolved !== targetPath || resolved === root) throw new Error("Path traversal detected");
+    if (resolved !== targetPath || resolved === root)
+      throw new Error("Path traversal detected");
     this.registry.keyFromAbsolute(resolved, true);
     return resolved;
   }
@@ -188,7 +211,10 @@ export class StorageService implements OnModuleDestroy {
   /** Revalidate legacy admission before existing direct FS operations. Not openat2. */
   assertTrustedPath(absolute: string, write = true, directory = false): string {
     this.registry.assertLegacyAccess(write);
-    if (absolute === this.tempPath || absolute.startsWith(this.tempPath + path.sep))
+    if (
+      absolute === this.tempPath ||
+      absolute.startsWith(this.tempPath + path.sep)
+    )
       return this.registry.assertTemporaryPath(absolute, write);
     if (directory) return this.registry.assertDirectoryPath(absolute, write);
     return this.ensureWithinStorageRoot(absolute);

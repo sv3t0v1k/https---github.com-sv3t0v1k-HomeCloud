@@ -1,3 +1,4 @@
+import { UploadWorkspaceEntity, LEGACY_UPLOAD_WORKSPACE } from "../src/entities/upload-workspace.entity";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -35,6 +36,8 @@ function makeUploadSession(
   return {
     id: 1,
     uploadId: "sess-1",
+    workspaceId: LEGACY_UPLOAD_WORKSPACE.id,
+    workspace: LEGACY_UPLOAD_WORKSPACE as UploadWorkspaceEntity,
     filename: "test.bin",
     totalSize: 100,
     uploadedSize: 0,

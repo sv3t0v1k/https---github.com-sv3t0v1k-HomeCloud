@@ -1,3 +1,4 @@
+import { LEGACY_UPLOAD_WORKSPACE } from "../src/entities/upload-workspace.entity";
 import { DataSource, Repository } from "typeorm";
 import { v4 as uuidv4 } from "uuid";
 import { FileEntity } from "../src/entities/file.entity";
@@ -231,13 +232,14 @@ export async function createFixtures(
     for (let i = 0; i < sessionCount; i++) {
       const session = new UploadSessionEntity();
       session.uploadId = uuidv4();
+      session.workspaceId = LEGACY_UPLOAD_WORKSPACE.id;
       session.filename = makeName(i, options.searchToken);
       session.totalSize = 1024;
       session.uploadedSize = 0;
       session.chunkSize = 1024;
       session.totalChunks = 1;
       session.uploadedChunks = [];
-      session.tempPath = `/storage/.tmp/bench_${userId}_${i}`;
+      session.tempPath = `/storage/.tmp/${session.uploadId}`;
       session.parentId = rootFolderId;
       session.status = "pending";
       session.expiresAt = null;

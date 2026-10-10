@@ -1,3 +1,4 @@
+import { UploadWorkspaceEntity, LEGACY_UPLOAD_WORKSPACE } from "../entities/upload-workspace.entity";
 import { StorageLocationEntity, LEGACY_STORAGE_LOCATION } from "../entities/storage-location.entity";
 import { randomUUID } from "node:crypto";
 import { ConfigService } from "@nestjs/config";
@@ -56,6 +57,7 @@ describeDatabase(
           FileEntity,
           FolderEntity,
           ShareLinkEntity,
+          UploadWorkspaceEntity,
           UploadSessionEntity,
           UploadChunkEntity,
           RefreshTokenEntity,
@@ -63,6 +65,7 @@ describeDatabase(
       });
       await database.initialize();
     await database.getRepository(StorageLocationEntity).save(LEGACY_STORAGE_LOCATION);
+    await database.getRepository(UploadWorkspaceEntity).save(LEGACY_UPLOAD_WORKSPACE);
       const users = new UsersService(database.getRepository(UserEntity));
       files = new FilesService(
         database.getRepository(FileEntity),

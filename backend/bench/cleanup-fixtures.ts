@@ -1,3 +1,4 @@
+import { LEGACY_UPLOAD_WORKSPACE } from "../src/entities/upload-workspace.entity";
 import { DataSource } from "typeorm";
 import { v4 as uuidv4 } from "uuid";
 import * as fs from "fs";
@@ -96,6 +97,7 @@ export async function createCleanupFixtures(
     const isExpired = i < expiredSessions;
     const session = new UploadSessionEntity();
     session.uploadId = uuidv4();
+    session.workspaceId = LEGACY_UPLOAD_WORKSPACE.id;
     session.filename = `${BENCH_USER_NAME}_cleanup_${i}`;
     session.totalSize = 1024;
     session.uploadedSize = 0;

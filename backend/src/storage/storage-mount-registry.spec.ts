@@ -37,7 +37,10 @@ describe("operator storage bindings and identity fail closed", () => {
   let platform: PropertyDescriptor;
   let registries: StorageMountRegistry[];
   let services: StorageService[];
+  let previousNodeEnv: string | undefined;
   beforeEach(() => {
+    previousNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
     registries = []; services = [];
     root = fs.mkdtempSync(path.join(os.tmpdir(), "hc-registry-"));
     binding = legacyBinding(root, true);
@@ -58,6 +61,8 @@ describe("operator storage bindings and identity fail closed", () => {
           : (actualRead as any)(target, ...args)) as any);
   });
   afterEach(() => {
+    if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previousNodeEnv;
     jest.restoreAllMocks();
     for (const registry of registries) registry.close();
     for (const service of services) service.onModuleDestroy();
@@ -226,7 +231,14 @@ describe("operator storage bindings and identity fail closed", () => {
     bootstrapLegacyMarker(root);
     expect(make(binding).inspect(binding.id).state).toBe("online");
   });
+  it("refuses production startup with missing upload workspace without recreating it", () => {
+    expect(() => new StorageService(new ConfigService({ STORAGE_PATH: root, NODE_ENV: "production" })))
+      .toThrow("Upload workspace unavailable");
+    expect(fs.existsSync(root + "/.tmp")).toBe(false);
+    expect(fs.readdirSync(root)).toEqual([IDENTITY_MARKER]);
+  });
   it("reused real service denies create/write/copy/delete/read/temp and Multer after observed root replacement", async () => {
+    fs.mkdirSync(root + "/.tmp");
     const service = new StorageService(
       new ConfigService({ STORAGE_PATH: root, NODE_ENV: "production" }),
     );
@@ -265,6 +277,7 @@ describe("operator storage bindings and identity fail closed", () => {
     expect(fs.readFileSync(root + ".old/1/original", "utf8")).toBe("preserve");
   });
   it("rejects static workspace/ordinary ancestor symlink, marker keys and permissive directories", async () => {
+    fs.mkdirSync(root + "/.tmp");
     const service = new StorageService(
       new ConfigService({ STORAGE_PATH: root, NODE_ENV: "production" }),
     );

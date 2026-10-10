@@ -45,6 +45,7 @@ describe("authenticated upload rate policy (HTTP)", () => {
     uploadChunk: jest.Mock;
     abortUpload: jest.Mock;
     getUploadLimits: jest.Mock;
+    getUploadSession: jest.Mock;
     createUploadSession: jest.Mock;
     completeUpload: jest.Mock;
     listUploadSessions: jest.Mock;
@@ -63,6 +64,7 @@ describe("authenticated upload rate policy (HTTP)", () => {
         }),
       ),
       abortUpload: jest.fn(async () => undefined),
+      getUploadSession: jest.fn(async () => ({ status: "pending" })),
       getUploadLimits: jest.fn(async () => ({
         maxChunkBytes: 10 * 1024 * 1024,
       })),

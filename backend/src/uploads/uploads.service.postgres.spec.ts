@@ -1,3 +1,4 @@
+import { UploadWorkspaceEntity, LEGACY_UPLOAD_WORKSPACE } from "../entities/upload-workspace.entity";
 import { StorageLocationEntity, LEGACY_STORAGE_LOCATION } from "../entities/storage-location.entity";
 import * as fs from "node:fs";
 import * as os from "node:os";
@@ -48,6 +49,7 @@ describePostgres("UploadsService — реальный PostgreSQL", () => {
         FileEntity,
         FolderEntity,
         ShareLinkEntity,
+        UploadWorkspaceEntity,
         UploadSessionEntity,
         UploadChunkEntity,
         RefreshTokenEntity,
@@ -55,6 +57,7 @@ describePostgres("UploadsService — реальный PostgreSQL", () => {
     });
     await dataSource.initialize();
     await dataSource.getRepository(StorageLocationEntity).save(LEGACY_STORAGE_LOCATION);
+    await dataSource.getRepository(UploadWorkspaceEntity).save(LEGACY_UPLOAD_WORKSPACE);
     const config = new ConfigService({
       STORAGE_PATH: storageRoot,
       MAX_FILE_SIZE: 1024 * 1024,
@@ -556,4 +559,119 @@ describePostgres("UploadsService — реальный PostgreSQL", () => {
         .countBy({ sessionId: expired.id }),
     ).toBe(0);
   });
+
+  async function workspaceIntegritySnapshot() {
+    return Promise.all(["users", "files", "upload_sessions", "upload_chunks"].map(
+      (table) => dataSource.query(`SELECT * FROM "${table}" ORDER BY ${table === "upload_chunks" ? '"sessionId", "chunkIndex"' : "id"}`),
+    ));
+  }
+
+  async function expectWorkspaceUnavailable(target: UploadsService, userId: number,
+    session: UploadSessionEntity, ingressPath: string) {
+    const operations = [
+      () => target.getUploadSession(userId, session.uploadId),
+      () => target.listUploadSessions(userId),
+      () => target.reconcileUploadSession(userId, session.uploadId),
+      () => target.uploadChunk(userId, session.uploadId, 1, { path: ingressPath, size: 2 }),
+      () => target.completeUpload(userId, session.uploadId),
+      () => target.abortUpload(userId, session.uploadId),
+      () => target.cleanupExpiredSessions(),
+      () => target.cleanupOrphanedTempDirs(),
+      () => target.createUploadSession(userId, "blocked.bin", 2, 2),
+    ];
+    for (const operation of operations) {
+      await expect(operation()).rejects.toMatchObject({ status: 503 });
+    }
+  }
+
+  it("fails closed across the lifecycle after workspace DB identity substitution without changing reservations or bytes", async () => {
+    const user = await makeUser(32);
+    const session = await service.createUploadSession(user.id, "workspace-bound.bin", 4, 2);
+    await service.uploadChunk(user.id, session.uploadId, 0, Buffer.from("ok"));
+    const ingressRoot = path.join(storageRoot, ".tmp", "multipart-ingress");
+    fs.mkdirSync(ingressRoot, { recursive: true });
+    const ingressPath = path.join(ingressRoot, randomUUID());
+    fs.writeFileSync(ingressPath, "go");
+    const stale = new Date(Date.now() - 25 * 60 * 60 * 1000);
+    fs.utimesSync(ingressPath, stale, stale);
+    const ingressMtimeBefore = fs.statSync(ingressPath).mtimeMs;
+    const chunkPath = path.join(session.tempPath, "0");
+    const before = await workspaceIntegritySnapshot();
+    const inode = fs.statSync(chunkPath).ino;
+    try {
+      // synchronize fixtures have no production immutability trigger; the
+      // exact-migration suite separately proves that operator writes are blocked.
+      await dataSource.getRepository(UploadWorkspaceEntity).update(
+        LEGACY_UPLOAD_WORKSPACE.id, { mountKey: "substituted-storage" },
+      );
+      await expectWorkspaceUnavailable(service, user.id, session, ingressPath);
+      expect(await workspaceIntegritySnapshot()).toEqual(before);
+      expect(fs.readFileSync(chunkPath, "utf8")).toBe("ok");
+      expect(fs.statSync(chunkPath).ino).toBe(inode);
+      expect(fs.readFileSync(ingressPath, "utf8")).toBe("go");
+      expect(fs.statSync(ingressPath).mtimeMs).toBe(ingressMtimeBefore);
+    } finally {
+      await dataSource.getRepository(UploadWorkspaceEntity).update(
+        LEGACY_UPLOAD_WORKSPACE.id, { mountKey: LEGACY_UPLOAD_WORKSPACE.mountKey },
+      );
+      fs.rmSync(ingressPath, { force: true });
+      await service.abortUpload(user.id, session.uploadId);
+    }
+  });
+
+  it.each(["missing", "replacement"])(
+    "fails closed after initialized legacy workspace root %s without mutating either filesystem or DB", async (kind) => {
+      const isolatedRoot = fs.mkdtempSync(path.join(os.tmpdir(), "hc-workspace-service-"));
+      const tempRoot = path.join(isolatedRoot, ".tmp");
+      const preservedRoot = path.join(isolatedRoot, ".tmp-preserved");
+      fs.mkdirSync(tempRoot);
+      const config = new ConfigService({ STORAGE_PATH: isolatedRoot,
+        MAX_FILE_SIZE: 1024, MAX_TOTAL_SIZE: 1024, MAX_CHUNK_SIZE: 2 });
+      const isolatedService = new UploadsService(
+        dataSource.getRepository(UploadSessionEntity),
+        dataSource.getRepository(FileEntity),
+        dataSource.getRepository(FolderEntity),
+        new StorageService(config),
+        new UsersService(dataSource.getRepository(UserEntity)), config,
+      );
+      const user = await makeUser(32);
+      let session: UploadSessionEntity | undefined;
+      try {
+        session = await isolatedService.createUploadSession(user.id, "root-bound.bin", 4, 2);
+        await isolatedService.uploadChunk(user.id, session.uploadId, 0, Buffer.from("ok"));
+        const ingressRoot = path.join(tempRoot, "multipart-ingress");
+        fs.mkdirSync(ingressRoot);
+        const ingressPath = path.join(ingressRoot, randomUUID());
+        fs.writeFileSync(ingressPath, "go");
+        const before = await workspaceIntegritySnapshot();
+        const inode = fs.statSync(path.join(session.tempPath, "0")).ino;
+        fs.renameSync(tempRoot, preservedRoot);
+        if (kind === "replacement") {
+          fs.mkdirSync(tempRoot);
+          fs.mkdirSync(path.join(tempRoot, "multipart-ingress"));
+          fs.writeFileSync(path.join(tempRoot, "replacement-marker"), "keep");
+          fs.writeFileSync(ingressPath, "replacement-ingress");
+        }
+        await expectWorkspaceUnavailable(isolatedService, user.id, session, ingressPath);
+        expect(await workspaceIntegritySnapshot()).toEqual(before);
+        const preservedChunk = path.join(preservedRoot, session.uploadId, "0");
+        expect(fs.readFileSync(preservedChunk, "utf8")).toBe("ok");
+        expect(fs.statSync(preservedChunk).ino).toBe(inode);
+        expect(fs.readFileSync(path.join(preservedRoot, "multipart-ingress", path.basename(ingressPath)), "utf8")).toBe("go");
+        const replacement = kind === "replacement";
+        expect(fs.existsSync(tempRoot)).toBe(replacement);
+        const replacementBytes = replacement ? [
+          fs.readFileSync(path.join(tempRoot, "replacement-marker"), "utf8"),
+          fs.readFileSync(ingressPath, "utf8"),
+        ] : [];
+        expect(replacementBytes).toEqual(replacement ? ["keep", "replacement-ingress"] : []);
+      } finally {
+        isolatedService.onModuleDestroy();
+        if (session) await dataSource.getRepository(UploadSessionEntity).delete(session.id);
+        await dataSource.getRepository(UserEntity).delete(user.id);
+        fs.rmSync(isolatedRoot, { recursive: true, force: true });
+      }
+    },
+  );
+
 });
