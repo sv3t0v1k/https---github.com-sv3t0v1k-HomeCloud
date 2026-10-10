@@ -1,0 +1,25 @@
+{
+  "checkpoint": "MS-3B-R1",
+  "date": "2026-10-11",
+  "timezone": "Asia/Vladivostok",
+  "initialHead": "8821f976d3349d0bbb2a7b749893c5fcdf4639c4",
+  "r1Gate": "BLOCKED",
+  "phase": "pre-implementation",
+  "r2Gate": "NOT_STARTED",
+  "independentReview": "UNAVAILABLE_PLATFORM_REJECTION",
+  "platform": {
+    "host": "Darwin",
+    "dockerOS": "Docker Desktop",
+    "kernel": "6.12.76-linuxkit",
+    "arch": "aarch64"
+  },
+  "sourceChanged": false,
+  "testsRun": false,
+  "canonicalDataRequalified": false,
+  "permittedOriginalUntrackedSha256": {
+    "docs/evidence/frontend-functional/closure-checkpoint.json": "1b579e8f3f25462c45bd3ac1fbfabd2987a4165e2a971cb65ca46af8130518ff",
+    "docs/evidence/frontend-functional/closure-controls.json": "26e0b0f92a23e0be631427752552c680d8372de726ec86a13c5c28582c33b9d4"
+  },
+  "forbiddenAuditContentRead": false,
+  "forbiddenAuditHashComputed": false
+}

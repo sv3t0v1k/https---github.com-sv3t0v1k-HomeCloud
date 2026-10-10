@@ -995,3 +995,15 @@ Mermaid source проверен вручную; runtime renderer и прилож
 Исходное следующее решение от 2026-10-06 — owner review и разрешение первого checkpoint —
 выполнено. Текущий следующий шаг: отдельно утвердить scope продолжения Registry/resolver,
 mount identity и secure descriptor APIs. **Остановиться после Schema & Legacy Compatibility**.
+
+## Multi-Storage — MS-3B-R1: остановка до реализации (2026-10-11)
+
+**R1_GATE=BLOCKED**, preliminary STOP; adapter не реализован и новых test PASS нет.
+Оба независимых scoped reviewer-запуска отклонены платформенной проверкой безопасности;
+review verdict отсутствует. Доступная среда подтверждена как macOS + Docker Desktop
+LinuxKit; native Linux target для обязательной отдельной qualification не определён.
+Это внешние prerequisites, а не вывод о невозможности реализации adapter.
+По owner stop-условию R2 не начат; MS-4 не начат. `secureOpen=false`, extras disabled,
+Production NOT_READY / NO_GO. Production source/schema/config/runtime/data не изменены.
+Исторические 68/921 и 21/21 не выдаются за новый прогон.
+[Факты остановки, ограничения и варианты владельцу](evidence/secure-filesystem-adapter-r1-20261011/report.md).
