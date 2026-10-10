@@ -1,0 +1,8 @@
+FROM alpine@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6 AS compiler
+RUN apk add --no-cache gcc musl-dev linux-headers
+WORKDIR /build
+COPY kernel-probe.c ./
+RUN cc -std=c11 -O2 -static -Wall -Wextra -Werror kernel-probe.c -o kernel-probe
+FROM homecloud-ms3a-tests:latest
+COPY --from=compiler /build/kernel-probe /usr/local/bin/homecloud-ms3br-kernel-probe
+USER 1001:1001
