@@ -13,7 +13,7 @@ set -euo pipefail
 #   - Old storage data is NEVER deleted before new data is verified in staging.
 #   - Storage switch uses atomic rename (mv) on the same filesystem.
 #   - DB restore is fail-closed: ON_ERROR_STOP=1, schema wipe, post-restore
-#     validation (known 7/8/9-table schemas, column check, row-count check).
+#     validation (known 7/8/9/10-table schemas, column check, row-count check).
 #   - Checksum/size mismatches, malformed .meta, unsupported format_version
 #     all abort BEFORE any destructive operation.
 #   - Migration failure aborts restore (no WARNING+continue).
@@ -750,8 +750,9 @@ case "$TABLE_COUNT" in
   7) ;; # Before durable upload chunks / native downloads.
   8) EXPECTED_TABLE_NAMES="$EXPECTED_TABLE_NAMES upload_chunks" ;;
   9) EXPECTED_TABLE_NAMES="$EXPECTED_TABLE_NAMES upload_chunks download_capabilities" ;;
+  10) EXPECTED_TABLE_NAMES="$EXPECTED_TABLE_NAMES upload_chunks download_capabilities storage_locations" ;;
   *)
-    err "Database validation failed: expected a known 7/8/9-table schema, found $TABLE_COUNT"
+    err "Database validation failed: expected a known 7/8/9/10-table schema, found $TABLE_COUNT"
     docker compose up -d
     exit 1
     ;;
@@ -908,20 +909,10 @@ echo "STORAGE_RESTORE_OK: files=$ROOT_TOTAL"
 fi
 log "  Storage restored into volume $STORAGE_VOLUME."
 
-# --- Start backend and run migrations ---
-echo "[5/6] Starting backend and running migrations..."
-docker compose up -d backend
-# Wait for DB to be reachable through backend
-for i in $(seq 1 15); do
-  if docker compose exec -T backend pg_isready -U "$DB_USER" -d "$DB_NAME" >/dev/null 2>&1; then
-    break
-  fi
-  sleep 1
-done
-
-# Migration must be fatal (no WARNING + continue)
+# --- Migrate while the backend and its startup cleanup remain fenced ---
+echo "[5/6] Running migrations with backend stopped..."
 set +e
-docker compose exec -T backend npm run migration:run
+docker compose run --rm --no-deps -T backend npm run migration:run
 MIGRATION_RC=$?
 set -e
 if [ "$MIGRATION_RC" -ne 0 ]; then
@@ -950,6 +941,9 @@ if [ "$RECONCILE_RC" -ne 0 ]; then
   exit 1
 fi
 log "  Reconciliation: OK (no critical discrepancies)"
+
+# Start writers only after migration and reconciliation have passed.
+docker compose up -d
 
 # --- Health check (actual HTTP probe, output captured) ---
 echo ""

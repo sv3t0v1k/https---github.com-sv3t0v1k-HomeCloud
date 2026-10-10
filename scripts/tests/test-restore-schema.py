@@ -47,7 +47,7 @@ docker() {
         return subprocess.run(['bash','-c',script + block],env=env,text=True,capture_output=True)
 
     def test_known_schema_generations(self):
-        for extra in [set(), {'upload_chunks'}, {'upload_chunks', 'download_capabilities'}]:
+        for extra in [set(), {'upload_chunks'}, {'upload_chunks', 'download_capabilities'}, {'upload_chunks', 'download_capabilities', 'storage_locations'}]:
             with self.subTest(extra=extra):
                 result = self.gate(CORE | extra)
                 self.assertEqual(result.returncode, 0, result.stderr)

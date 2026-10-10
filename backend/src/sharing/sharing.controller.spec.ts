@@ -48,7 +48,7 @@ describe("SharingController - streaming code verification", () => {
 
     const controller = new SharingController(
       mockService as any,
-      { ensureWithinStorageRoot: (p: string) => p } as any,
+      { resolveFilePath: (file: any) => file.storagePath, ensureWithinStorageRoot: (p: string) => p } as any,
     );
     await controller.downloadShare("tok", { password: "" }, res as any);
 
@@ -100,7 +100,7 @@ describe("SharingController - streaming code verification", () => {
 
     const controller = new SharingController(
       mockService as any,
-      { ensureWithinStorageRoot: (p: string) => p } as any,
+      { resolveFilePath: (file: any) => file.storagePath, ensureWithinStorageRoot: (p: string) => p } as any,
     );
     const promise = controller.downloadShare("tok", { password: "" }, mockRes);
 

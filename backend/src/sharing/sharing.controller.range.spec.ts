@@ -1,3 +1,4 @@
+import { StorageRegistry, LEGACY_STORAGE_ID } from "../storage/storage-placement";
 import { Test } from "@nestjs/testing";
 import { INestApplication, ValidationPipe } from "@nestjs/common";
 import * as http from "http";
@@ -18,6 +19,8 @@ type ShareFile = {
   name: string;
   size: number;
   storagePath: string;
+  storageLocationId?: string;
+  relativeObjectKey?: string;
   isFolder: boolean;
   mimeType: string;
 };
@@ -46,6 +49,7 @@ const mockService = {
 };
 
 const mockStorage = {
+  resolveFilePath: (file: any) => new StorageRegistry(os.tmpdir()).resolve(file),
   ensureWithinStorageRoot: (p: string) => p,
   getStoragePath: () => "/storage",
   getFileSize: () => 0,
@@ -119,12 +123,24 @@ describe("SharingController download — HTTP Range (integration)", () => {
         id: 1,
         name: "file.bin",
         size: buffer.length,
-        storagePath: file,
+        storagePath: file, storageLocationId: LEGACY_STORAGE_ID, relativeObjectKey: path.relative(os.tmpdir(), file),
         isFolder: false,
         mimeType: "application/octet-stream",
       }),
     );
   }
+
+  it("rejects a stale absolute bridge before consuming a public download slot", async () => {
+    const file = makeFile(Buffer.from("logical"));
+    shareFor(file, Buffer.from("logical"));
+    const share = await mockService.findShareByToken();
+    share.file.storagePath = file + ".different";
+    mockService.findShareByToken.mockResolvedValue(share);
+    const result = await doRequest();
+    expect(result.status).toBe(404);
+    expect(mockService.incrementDownloadCount).not.toHaveBeenCalled();
+    fs.rmSync(file, {force:true});
+  });
 
   function doRequest(range?: string): Promise<{
     status: number;

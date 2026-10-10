@@ -1,3 +1,4 @@
+import { StorageLocationEntity, LEGACY_STORAGE_LOCATION } from "../entities/storage-location.entity";
 import { randomUUID } from "node:crypto";
 import { ConfigService } from "@nestjs/config";
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
@@ -33,6 +34,7 @@ describeDatabase(
     let file: FileEntity;
     let share: ShareLinkEntity;
     const storage = {
+    resolveFilePath: (file: { storagePath: string }) => file.storagePath,
       deleteFile: jest.fn(),
       copyFile: jest.fn(),
       fileExists: jest.fn(),
@@ -49,6 +51,7 @@ describeDatabase(
         synchronize: true,
         extra: { options: `-c search_path=${schema}` },
         entities: [
+        StorageLocationEntity,
           UserEntity,
           FileEntity,
           FolderEntity,
@@ -59,6 +62,7 @@ describeDatabase(
         ],
       });
       await database.initialize();
+    await database.getRepository(StorageLocationEntity).save(LEGACY_STORAGE_LOCATION);
       const users = new UsersService(database.getRepository(UserEntity));
       files = new FilesService(
         database.getRepository(FileEntity),
@@ -121,7 +125,7 @@ describeDatabase(
         name: "private.txt",
         userId: owner.id,
         parentId: folder.id,
-        storagePath: "/disposable/private.txt",
+        storagePath: "/disposable/private.txt", storageLocationId: LEGACY_STORAGE_LOCATION.id, relativeObjectKey: "private.txt",
         mimeType: "text/plain",
         size: 7,
       });

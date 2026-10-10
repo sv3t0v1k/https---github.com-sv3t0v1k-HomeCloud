@@ -4,26 +4,36 @@ import * as fs from "fs";
 import * as path from "path";
 import * as crypto from "crypto";
 import { Readable } from "stream";
+import { FilePlacement, StorageRegistry } from "./storage-placement";
 
 @Injectable()
 export class StorageService {
   private readonly logger = new Logger(StorageService.name);
   private readonly storagePath: string;
   private readonly tempPath: string;
+  private readonly registry: StorageRegistry;
 
   constructor(private configService: ConfigService) {
     this.storagePath = configService.get("STORAGE_PATH") || "/storage";
     this.tempPath = path.join(this.storagePath, ".tmp");
+    this.registry = new StorageRegistry(this.storagePath);
     this.ensureDirectories();
   }
 
   private ensureDirectories() {
-    if (!fs.existsSync(this.storagePath)) {
-      fs.mkdirSync(this.storagePath, { recursive: true });
-    }
+    const root = fs.lstatSync(this.storagePath);
+    if (!root.isDirectory() || root.isSymbolicLink()) throw new Error("Invalid storage root");
     if (!fs.existsSync(this.tempPath)) {
       fs.mkdirSync(this.tempPath, { recursive: true });
     }
+  }
+
+  placementForPath(absolutePath: string) {
+    return this.registry.placementForPath(absolutePath);
+  }
+
+  resolveFilePath(file: FilePlacement, allowMissing = false): string {
+    return this.registry.resolve(file, allowMissing);
   }
 
   getStoragePath(): string {
@@ -44,6 +54,7 @@ export class StorageService {
 
   generatePath(userId: number, filename: string): string {
     const userDir = path.join(this.storagePath, String(userId));
+    this.registry.keyFromAbsolute(path.join(userDir, "probe"), true);
     if (!fs.existsSync(userDir)) {
       fs.mkdirSync(userDir, { recursive: true });
     }
@@ -62,6 +73,7 @@ export class StorageService {
     filename: string,
   ): string {
     const userDir = path.join(this.storagePath, String(userId));
+    this.registry.keyFromAbsolute(path.join(userDir, "probe"), true);
     if (!fs.existsSync(userDir)) {
       fs.mkdirSync(userDir, { recursive: true });
     }

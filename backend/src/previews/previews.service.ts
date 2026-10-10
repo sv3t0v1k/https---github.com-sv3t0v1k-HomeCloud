@@ -31,12 +31,9 @@ export class PreviewsService {
       throw new NotFoundException("File not found");
     }
 
-    if (
-      !file.storagePath ||
-      !this.storageService.fileExists(file.storagePath)
-    ) {
-      throw new NotFoundException("File not found on storage");
-    }
+    let filePath: string;
+    try { filePath = this.storageService.resolveFilePath(file); }
+    catch { throw new NotFoundException("File not found on storage"); }
 
     const mimeType = file.mimeType || "";
     if (!mimeType.startsWith("image/")) {
@@ -44,11 +41,11 @@ export class PreviewsService {
     }
 
     try {
-      const stats = await fs.promises.stat(file.storagePath);
+      const stats = await fs.promises.stat(filePath);
       if (stats.size > this.maxPreviewBytes) {
         throw new BadRequestException("Image exceeds maximum preview size");
       }
-      const buffer = fs.readFileSync(file.storagePath);
+      const buffer = fs.readFileSync(filePath);
       const thumbnail = await sharp(buffer)
         .resize(this.thumbnailSize, this.thumbnailSize, {
           fit: "inside",
@@ -75,12 +72,9 @@ export class PreviewsService {
       throw new NotFoundException("File not found");
     }
 
-    if (
-      !file.storagePath ||
-      !this.storageService.fileExists(file.storagePath)
-    ) {
-      throw new NotFoundException("File not found on storage");
-    }
+    let filePath: string;
+    try { filePath = this.storageService.resolveFilePath(file); }
+    catch { throw new NotFoundException("File not found on storage"); }
 
     const mimeType = file.mimeType || "";
 
@@ -90,7 +84,7 @@ export class PreviewsService {
       mimeType === "application/javascript" ||
       mimeType === "application/xml"
     ) {
-      const stream = fs.createReadStream(file.storagePath, {
+      const stream = fs.createReadStream(filePath, {
         encoding: "utf-8",
       });
       let content = "";
@@ -107,11 +101,11 @@ export class PreviewsService {
     }
 
     if (mimeType.startsWith("image/")) {
-      const stats = await fs.promises.stat(file.storagePath);
+      const stats = await fs.promises.stat(filePath);
       if (stats.size > this.maxPreviewBytes) {
         throw new BadRequestException("Image exceeds maximum preview size");
       }
-      const buffer = fs.readFileSync(file.storagePath);
+      const buffer = fs.readFileSync(filePath);
       const chunks: Buffer[] = [buffer];
       return { type: "image", content: Buffer.concat(chunks), mimeType };
     }

@@ -8,12 +8,17 @@ import {
   OneToMany,
   JoinColumn,
   Index,
+  Check,
 } from "typeorm";
 import { UserEntity } from "./user.entity";
 import { FolderEntity } from "./folder.entity";
 import { ShareLinkEntity } from "./share-link.entity";
 
+import { StorageLocationEntity } from "./storage-location.entity";
+
 @Entity("files")
+@Index("UQ_files_placement", ["storageLocationId", "relativeObjectKey"], { unique: true })
+@Check("CHK_files_placement", `("isFolder" AND "storageLocationId" IS NULL AND "relativeObjectKey" IS NULL AND "storagePath" IS NULL) OR (NOT "isFolder" AND "storageLocationId" IS NOT NULL AND "relativeObjectKey" IS NOT NULL AND "storagePath" IS NOT NULL)`)
 @Index(["parentId"])
 @Index(["isDeleted"])
 @Index(["mimeType"])
@@ -27,6 +32,16 @@ export class FileEntity {
 
   @Column({ length: 500, nullable: true, name: "storagePath" })
   storagePath!: string;
+
+  @Column({ type: "uuid", nullable: true })
+  storageLocationId!: string | null;
+
+  @Column({ type: "text", nullable: true })
+  relativeObjectKey!: string | null;
+
+  @ManyToOne(() => StorageLocationEntity, { nullable: true, onDelete: "RESTRICT" })
+  @JoinColumn({ name: "storageLocationId", foreignKeyConstraintName: "FK_files_storage_location" })
+  storageLocation!: StorageLocationEntity | null;
 
   @Column({ type: "bigint", default: 0, name: "size" })
   size!: number;

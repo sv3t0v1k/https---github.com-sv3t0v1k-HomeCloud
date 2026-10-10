@@ -1,4 +1,5 @@
 import { DataSource } from "typeorm";
+import { StorageLocationEntity } from "./entities/storage-location.entity";
 import { UserEntity } from "./entities/user.entity";
 import { FileEntity } from "./entities/file.entity";
 import { FolderEntity } from "./entities/folder.entity";
@@ -14,6 +15,7 @@ export default new DataSource({
   synchronize: false,
   logging: false,
   entities: [
+    StorageLocationEntity,
     UserEntity,
     FileEntity,
     FolderEntity,

@@ -226,7 +226,7 @@ export class SharingController {
     // Path confinement: refuse any path that resolves outside the storage root.
     let safePath: string;
     try {
-      safePath = this.storageService.ensureWithinStorageRoot(filePath);
+      safePath = this.storageService.resolveFilePath(downloadFile);
       safePath = this.storageService.ensureWithinStorageRoot(
         fs.realpathSync(safePath),
       );

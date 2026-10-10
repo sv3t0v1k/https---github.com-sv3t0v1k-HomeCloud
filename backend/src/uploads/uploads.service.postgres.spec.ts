@@ -1,3 +1,4 @@
+import { StorageLocationEntity, LEGACY_STORAGE_LOCATION } from "../entities/storage-location.entity";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -42,6 +43,7 @@ describePostgres("UploadsService — реальный PostgreSQL", () => {
       synchronize: true,
       extra: { options: `-c search_path=${schema}` },
       entities: [
+        StorageLocationEntity,
         UserEntity,
         FileEntity,
         FolderEntity,
@@ -52,6 +54,7 @@ describePostgres("UploadsService — реальный PostgreSQL", () => {
       ],
     });
     await dataSource.initialize();
+    await dataSource.getRepository(StorageLocationEntity).save(LEGACY_STORAGE_LOCATION);
     const config = new ConfigService({
       STORAGE_PATH: storageRoot,
       MAX_FILE_SIZE: 1024 * 1024,
@@ -108,6 +111,8 @@ describePostgres("UploadsService — реальный PostgreSQL", () => {
 
     const file = await service.completeUpload(user.id, created.uploadId);
     expect(fs.readFileSync(file.storagePath)).toEqual(content);
+    expect(file.storageLocationId).toBe(LEGACY_STORAGE_LOCATION.id);
+    expect(file.relativeObjectKey).toBe(path.relative(storageRoot,file.storagePath));
     const completed = await dataSource
       .getRepository(UploadSessionEntity)
       .findOneByOrFail({
@@ -163,6 +168,8 @@ describePostgres("UploadsService — реальный PostgreSQL", () => {
     const file = await service.completeUpload(user.id, session.uploadId);
     expect(file.name).toBe(filename);
     expect(file.mimeType).toBe("application/octet-stream");
+    expect(file.storageLocationId).toBe(LEGACY_STORAGE_LOCATION.id);
+    expect(file.relativeObjectKey).toBe(path.relative(storageRoot,file.storagePath));
     const stored = fs.readFileSync(file.storagePath);
     expect(stored).toEqual(content);
     expect(createHash("sha256").update(stored).digest("hex")).toBe(createHash("sha256").update(content).digest("hex"));
@@ -243,6 +250,8 @@ describePostgres("UploadsService — реальный PostgreSQL", () => {
       }
       const file = await service.completeUpload(user.id, session.uploadId);
       expect(fs.readFileSync(file.storagePath)).toEqual(content);
+    expect(file.storageLocationId).toBe(LEGACY_STORAGE_LOCATION.id);
+    expect(file.relativeObjectKey).toBe(path.relative(storageRoot,file.storagePath));
       expect(
         Number(
           (

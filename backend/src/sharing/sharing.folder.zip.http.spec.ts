@@ -32,7 +32,7 @@ describe("SharingController - folder ZIP download", () => {
         { provide: SharingService, useValue: sharing },
         {
           provide: StorageService,
-          useValue: { ensureWithinStorageRoot: (p: string) => p },
+          useValue: { resolveFilePath: (file: any) => file.storagePath, ensureWithinStorageRoot: (p: string) => p },
         },
       ],
     })

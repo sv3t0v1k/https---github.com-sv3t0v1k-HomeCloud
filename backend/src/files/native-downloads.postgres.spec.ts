@@ -1,3 +1,4 @@
+import { StorageRegistry, LEGACY_STORAGE_ID } from "../storage/storage-placement";
 import { randomUUID, createHash } from "crypto";
 import * as fs from "fs";
 import * as os from "os";
@@ -65,6 +66,7 @@ describeDatabase(
           {
             provide: StorageService,
             useValue: {
+              resolveFilePath: (file: any) => new StorageRegistry(root).resolve(file),
               ensureWithinStorageRoot: (value: string) => {
                 const resolved = path.resolve(value);
                 if (!resolved.startsWith(root + path.sep))
@@ -85,7 +87,7 @@ describeDatabase(
                 return {
                   ...row,
                   name: 'proof\r\n".bin',
-                  storagePath: fixture,
+                  storagePath: fixture, storageLocationId: LEGACY_STORAGE_ID, relativeObjectKey: "fixture.bin",
                   size: fs.statSync(fixture).size,
                   mimeType: "application/octet-stream",
                 };

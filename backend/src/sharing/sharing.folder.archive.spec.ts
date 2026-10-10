@@ -50,7 +50,7 @@ describe("SharingService — folder archive foundation", () => {
       files,
       { findOne: jest.fn() } as any,
       new ConfigService(),
-      { ensureWithinStorageRoot: (p: string) => p } as any,
+      { resolveFilePath: (file: any) => file.storagePath, ensureWithinStorageRoot: (p: string) => p } as any,
     );
     shares.findOne.mockResolvedValue(rootShare());
   });

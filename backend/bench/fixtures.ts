@@ -177,6 +177,8 @@ export async function createFixtures(
         fileRepo.create({
           name: makeName(i, token),
           storagePath: `/storage/bench/${userId}/${i}`,
+          storageLocationId: "f2f5c4b0-8d57-4c49-9f8c-0d095b344601",
+          relativeObjectKey: `bench/${userId}/${i}`,
           size: 1024,
           mimeType: "text/plain",
           isFolder: false,

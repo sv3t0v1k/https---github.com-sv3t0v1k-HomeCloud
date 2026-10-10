@@ -80,6 +80,8 @@ describe("permanent-delete benchmark harness", () => {
       manager: { connection: { createQueryRunner: () => queryRunner } },
     };
     const storageService = {
+      resolveFilePath: (file: any) => file.storagePath,
+      placementForPath: (storagePath: string) => ({storagePath, storageLocationId: "f2f5c4b0-8d57-4c49-9f8c-0d095b344601", relativeObjectKey: path.basename(storagePath)}),
       deleteFile: jest.fn(async (file: string) => {
         await fs.promises.unlink(file);
       }),

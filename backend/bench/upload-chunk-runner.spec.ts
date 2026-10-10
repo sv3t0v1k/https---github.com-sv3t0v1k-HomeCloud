@@ -120,6 +120,7 @@ describe("uploadChunk measurement runner", () => {
       get: (k: string) =>
         k === "STORAGE_PATH" ? benchRoot : undefined,
     } as unknown as ConfigService;
+    fs.mkdirSync(benchRoot, { recursive: true });
     const storageService = new StorageService(configService);
     expect(() =>
       verifyIsolation(storageService, "/storage"),

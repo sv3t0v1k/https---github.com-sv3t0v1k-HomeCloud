@@ -76,7 +76,7 @@ describe("SharingController — scoped descendant download streaming", () => {
     const service = makeService();
     const controller = new SharingController(
       service as any,
-      { ensureWithinStorageRoot: (p: string) => p } as any,
+      { resolveFilePath: (file: any) => file.storagePath, ensureWithinStorageRoot: (p: string) => p } as any,
     );
 
     const promise = controller.downloadShare("tok", { password: "", fileId: 1300 }, res, undefined);
@@ -104,7 +104,7 @@ describe("SharingController — scoped descendant download streaming", () => {
     const service = makeService();
     const controller = new SharingController(
       service as any,
-      { ensureWithinStorageRoot: (p: string) => p } as any,
+      { resolveFilePath: (file: any) => file.storagePath, ensureWithinStorageRoot: (p: string) => p } as any,
     );
 
     const promise = controller.downloadShare(
@@ -131,7 +131,7 @@ describe("SharingController — scoped descendant download streaming", () => {
     const service = makeService();
     const controller = new SharingController(
       service as any,
-      { ensureWithinStorageRoot: (p: string) => p } as any,
+      { resolveFilePath: (file: any) => file.storagePath, ensureWithinStorageRoot: (p: string) => p } as any,
     );
 
     await controller.downloadShare(
@@ -167,7 +167,7 @@ describe("SharingController — scoped descendant download streaming", () => {
     });
     const controller = new SharingController(
       service as any,
-      { ensureWithinStorageRoot: (p: string) => p } as any,
+      { resolveFilePath: (file: any) => file.storagePath, ensureWithinStorageRoot: (p: string) => p } as any,
     );
 
     await expect(
@@ -184,7 +184,7 @@ describe("SharingController — scoped descendant download streaming", () => {
     service.resolveSharedFolderFile = jest.fn().mockRejectedValue(new NotFoundException("Shared file not found"));
     const controller = new SharingController(
       service as any,
-      { ensureWithinStorageRoot: (p: string) => p } as any,
+      { resolveFilePath: (file: any) => file.storagePath, ensureWithinStorageRoot: (p: string) => p } as any,
     );
 
     await expect(
@@ -205,7 +205,7 @@ describe("SharingController — scoped descendant download streaming", () => {
     service.streamFolderArchive.mockResolvedValue(undefined);
     const controller = new SharingController(
       service as any,
-      { ensureWithinStorageRoot: (p: string) => p } as any,
+      { resolveFilePath: (file: any) => file.storagePath, ensureWithinStorageRoot: (p: string) => p } as any,
     );
 
     await controller.downloadShare("tok", { password: "" }, res, undefined);

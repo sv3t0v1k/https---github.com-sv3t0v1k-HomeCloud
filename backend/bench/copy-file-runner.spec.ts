@@ -89,6 +89,8 @@ describe("copy-file benchmark harness", () => {
     };
     const folderRepository = { findOne: jest.fn() };
     const storageService = {
+      resolveFilePath: (file: any) => file.storagePath,
+      placementForPath: (storagePath: string) => ({storagePath, storageLocationId: "f2f5c4b0-8d57-4c49-9f8c-0d095b344601", relativeObjectKey: path.basename(storagePath)}),
       generateSafeFilename: jest.fn(() => "copy.bin"),
       generatePath: jest.fn(() => destination),
       copyFile: jest.fn((from, to) =>

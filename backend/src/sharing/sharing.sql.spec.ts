@@ -1,3 +1,4 @@
+import { StorageLocationEntity, LEGACY_STORAGE_LOCATION } from "../entities/storage-location.entity";
 import { ConfigService } from "@nestjs/config";
 import { DataSource, UpdateQueryBuilder, UpdateResult } from "typeorm";
 import { FileEntity } from "../entities/file.entity";
@@ -23,6 +24,7 @@ describe("SharingService — SQL ограничения скачиваний", (
     const dataSource = new MetadataOnlyDataSource({
       type: "postgres",
       entities: [
+        StorageLocationEntity,
         ShareLinkEntity,
         FileEntity,
         UserEntity,
@@ -48,7 +50,7 @@ describe("SharingService — SQL ограничения скачиваний", (
       dataSource.getRepository(FileEntity),
       dataSource.getRepository(UserEntity),
       new ConfigService(),
-      { ensureWithinStorageRoot: (p: string) => p } as any,
+      { resolveFilePath: (file: any) => file.storagePath, ensureWithinStorageRoot: (p: string) => p } as any,
     );
     const token = "token-with-'quote";
 

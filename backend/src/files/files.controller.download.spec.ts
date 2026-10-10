@@ -1,3 +1,4 @@
+import { StorageRegistry, LEGACY_STORAGE_ID } from "../storage/storage-placement";
 import {
   ExecutionContext,
   INestApplication,
@@ -21,6 +22,7 @@ describe("FilesController authenticated original download", () => {
 
   const findOne = jest.fn();
   const storage = {
+    resolveFilePath: (file: any) => new StorageRegistry(storageRoot).resolve(file),
     ensureWithinStorageRoot(target: string) {
       const resolved = path.resolve(target);
       const root = path.resolve(storageRoot);
@@ -77,7 +79,7 @@ describe("FilesController authenticated original download", () => {
         userId: 42,
         name: 'report\r\nX-Evil: yes".bin',
         size: 16,
-        storagePath: fixturePath,
+        storagePath: fixturePath, storageLocationId: LEGACY_STORAGE_ID, relativeObjectKey: "fixture.bin",
         isFolder: false,
         isDeleted: false,
         mimeType: "application/octet-stream",
@@ -110,7 +112,7 @@ describe("FilesController authenticated original download", () => {
       id: 7,
       isFolder: false,
       isDeleted: true,
-      storagePath: fixturePath,
+      storagePath: fixturePath, storageLocationId: LEGACY_STORAGE_ID, relativeObjectKey: "fixture.bin",
     });
     expect((await get().expect(404)).status).toBe(404);
 
@@ -143,7 +145,7 @@ describe("FilesController authenticated original download", () => {
       findOne.mockResolvedValueOnce({
         id: 7,
         name,
-        storagePath: fixturePath,
+        storagePath: fixturePath, storageLocationId: LEGACY_STORAGE_ID, relativeObjectKey: "fixture.bin",
         isFolder: false,
         isDeleted: false,
         mimeType: "application/octet-stream",
@@ -207,7 +209,7 @@ describe("FilesController authenticated original download", () => {
       userId: 42,
       name: "large.bin",
       size: String(size),
-      storagePath: sparsePath,
+      storagePath: sparsePath, storageLocationId: LEGACY_STORAGE_ID, relativeObjectKey: path.basename(sparsePath),
       isFolder: false,
       isDeleted: false,
       mimeType: "application/octet-stream",
@@ -269,7 +271,7 @@ describe("FilesController authenticated original download", () => {
     findOne.mockResolvedValueOnce({
       id: 7,
       name: "fixture.bin",
-      storagePath: fixturePath,
+      storagePath: fixturePath, storageLocationId: LEGACY_STORAGE_ID, relativeObjectKey: "fixture.bin",
       isFolder: false,
       isDeleted: false,
       mimeType: "text/plain\r\nX-Evil: yes",

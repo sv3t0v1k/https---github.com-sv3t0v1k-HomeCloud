@@ -199,7 +199,7 @@ export async function measureCopyFileScale(
     const source = await fileRepo.save(
       fileRepo.create({
         name: "source.bin",
-        storagePath: sourcePath,
+        ...storageService.placementForPath(sourcePath),
         size: scaleBytes,
         mimeType: "application/octet-stream",
         checksum: expectedSha256,

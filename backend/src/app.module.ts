@@ -27,7 +27,7 @@ import { HealthController } from "./common/health.controller";
       useFactory: (configService: ConfigService) => ({
         type: "postgres",
         url: configService.get("DATABASE_URL"),
-        synchronize: process.env.NODE_ENV !== "production",
+        synchronize: false,
         logging: false,
         entities: [__dirname + "/**/*.entity{.js,.ts}"],
         migrations: [__dirname + "/migrations/*{.ts,.js}"],

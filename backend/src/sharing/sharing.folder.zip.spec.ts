@@ -1,3 +1,5 @@
+import { StorageService } from "../storage/storage.service";
+import { StorageRegistry } from "../storage/storage-placement";
 import { ConfigService } from "@nestjs/config";
 import { Writable } from "stream";
 import * as fs from "fs";
@@ -40,7 +42,7 @@ describe("SharingService - folder ZIP download contract", () => {
     });
 
   beforeEach(() => {
-    tempDir = fs.mkdtempSync(path.join("/tmp", "homecloud-zip-svc-"));
+    tempDir = fs.realpathSync(fs.mkdtempSync(path.join("/tmp", "homecloud-zip-svc-")));
     shares = { findOne: jest.fn(), query: jest.fn(), createQueryBuilder: jest.fn() };
     files = { findOne: jest.fn(), query: jest.fn() };
     service = new SharingService(
@@ -48,7 +50,7 @@ describe("SharingService - folder ZIP download contract", () => {
       files,
       { findOne: jest.fn() } as any,
       new ConfigService(),
-      { ensureWithinStorageRoot: (p: string) => p } as any,
+      new StorageService(new ConfigService({ STORAGE_PATH: tempDir })),
     );
     shares.findOne.mockResolvedValue(rootShare());
   });
@@ -69,7 +71,7 @@ describe("SharingService - folder ZIP download contract", () => {
 
     files.query.mockResolvedValueOnce([
       { folderId: 40, name: "Root", isFolder: true, storagePath: null, size: null, parentId: null },
-      { folderId: 100, name: "a.txt", isFolder: false, storagePath: memberPath, size: 9, parentId: 40 },
+      { folderId: 100, name: "a.txt", isFolder: false, ...new StorageRegistry(tempDir).placementForPath(memberPath), size: 9, parentId: 40 },
     ]);
 
     const written: Buffer[] = [];
@@ -121,7 +123,7 @@ describe("SharingService - folder ZIP download contract", () => {
     fs.writeFileSync(memberPath, Buffer.from("hello-zip"));
     files.query.mockResolvedValueOnce([
       { folderId: 40, name: "Root", isFolder: true, storagePath: null, size: null, parentId: null },
-      { folderId: 100, name: "a.txt", isFolder: false, storagePath: memberPath, size: 9, parentId: 40 },
+      { folderId: 100, name: "a.txt", isFolder: false, ...new StorageRegistry(tempDir).placementForPath(memberPath), size: 9, parentId: 40 },
     ]);
 
     const res = new Writable({
@@ -132,4 +134,15 @@ describe("SharingService - folder ZIP download contract", () => {
 
     await expect(service.streamFolderArchive(share, res)).resolves.toBeUndefined();
   });
+  it("rejects a ZIP member whose compatibility path disagrees with logical placement", async () => {
+    const memberPath = path.join(tempDir, "a.txt");
+    fs.writeFileSync(memberPath, "logical");
+    files.query.mockResolvedValueOnce([
+      { folderId: 100, name: "a.txt", isFolder: false, parentId: 40, size: 7,
+        ...new StorageRegistry(tempDir).placementForPath(memberPath), storagePath: path.join(tempDir,"other.txt") },
+    ]);
+    const res = new Writable({ write(_chunk,_encoding,callback) { callback(); } }) as any;
+    await expect(service.streamFolderArchive(rootShare(),res)).rejects.toThrow("Inconsistent");
+  });
+
 });

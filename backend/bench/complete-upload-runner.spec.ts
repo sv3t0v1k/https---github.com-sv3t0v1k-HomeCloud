@@ -60,7 +60,7 @@ function makeFile(overrides: Partial<FileEntity> = {}): FileEntity {
   return {
     id: 1,
     name: "test.bin",
-    storagePath: "/tmp/bench/final.bin",
+    storagePath: "/tmp/bench/final.bin", storageLocationId: "f2f5c4b0-8d57-4c49-9f8c-0d095b344601", relativeObjectKey: "final.bin", storageLocation: null,
     size: 100,
     mimeType: "application/octet-stream",
     checksum: "bench-checksum",
@@ -327,6 +327,7 @@ describe("complete-upload-runner", () => {
     const configService = {
       get: (k: string) => (k === "STORAGE_PATH" ? benchRoot : undefined),
     } as unknown as ConfigService;
+    fs.mkdirSync(benchRoot, { recursive: true });
     const storageService = new StorageService(configService);
     expect(() => verifyIsolation(storageService, "/storage")).toThrow(
       /SAFETY_BLOCKER/,

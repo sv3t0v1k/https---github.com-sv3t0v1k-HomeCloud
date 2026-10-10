@@ -790,7 +790,7 @@ export class UploadsService {
         // Create the file entity and update storage quota atomically.
         const file = manager.create(FileEntity, {
           name: session.filename,
-          storagePath: finalPath,
+          ...this.storageService.placementForPath(finalPath),
           size: actualSize,
           mimeType,
           isFolder: false,

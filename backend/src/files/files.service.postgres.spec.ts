@@ -1,3 +1,4 @@
+import { StorageLocationEntity, LEGACY_STORAGE_LOCATION } from "../entities/storage-location.entity";
 import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
@@ -27,6 +28,7 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
   let copyStorage: StorageService;
   let copyRoot: string;
   const storage = {
+    resolveFilePath: (file: { storagePath: string }) => file.storagePath,
     deleteFile: jest.fn(),
   };
   const users = {
@@ -44,6 +46,7 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
       synchronize: true,
       extra: { options: `-c search_path=${schema}` },
       entities: [
+        StorageLocationEntity,
         UserEntity,
         FileEntity,
         FolderEntity,
@@ -54,6 +57,7 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
       ],
     });
     await dataSource.initialize();
+    await dataSource.getRepository(StorageLocationEntity).save(LEGACY_STORAGE_LOCATION);
     service = new FilesService(
       dataSource.getRepository(FileEntity),
       dataSource.getRepository(FolderEntity),
@@ -123,13 +127,13 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
     const root = await folders.save({ name: "root", userId: user.id });
     const child = await folders.save({ name: "child", userId: user.id, parentId: root.id });
     await files.save(files.create({
-      name: "offset", storagePath: "/storage/offset", size: 1,
+      name: "offset", storagePath: "/storage/offset", storageLocationId: LEGACY_STORAGE_LOCATION.id, relativeObjectKey: "offset", size: 1,
       mimeType: "text/plain", isFolder: false, userId: user.id,
     }));
     const rootMirror = await createMirror(user.id, root.id, "root");
     const childMirror = await createMirror(user.id, child.id, "child");
     const content = await files.save(files.create({
-      name: "content", storagePath: "/storage/content", size: 23,
+      name: "content", storagePath: "/storage/content", storageLocationId: LEGACY_STORAGE_LOCATION.id, relativeObjectKey: "content", size: 23,
       mimeType: "text/plain", isFolder: false,
       parentId: child.id, userId: user.id,
     }));
@@ -178,7 +182,7 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
     await files.save(rootMirror);
     await createMirror(user.id, child.id, "child");
     await files.save(files.create({
-      name: "content", storagePath: "/storage/content", size: 42,
+      name: "content", storagePath: "/storage/content", storageLocationId: LEGACY_STORAGE_LOCATION.id, relativeObjectKey: "content", size: 42,
       mimeType: "text/plain", isFolder: false,
       isDeleted: true, deletedAt: new Date(), parentId: child.id, userId: user.id,
     }));
@@ -209,7 +213,7 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
     const source = await files.save(
       files.create({
         name: "source.bin",
-        storagePath: sourcePath,
+        ...copyStorage.placementForPath(sourcePath),
         size: 100,
         mimeType: "application/octet-stream",
         isFolder: false,
@@ -232,5 +236,19 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
     ).toBe(100);
     expect(await files.countBy({ userId: user.id })).toBe(2);
     expect(fs.readdirSync(path.dirname(sourcePath))).toHaveLength(2);
+    const placement = { storageLocationId: source.storageLocationId, relativeObjectKey: source.relativeObjectKey, storagePath: source.storagePath };
+    const destination = await copyService.createFolder(user.id, "destination");
+    await copyService.updateFile(user.id, source.id, { name: "renamed.BIN" });
+    await copyService.moveFile(user.id, source.id, destination.folderId!);
+    await copyService.removeFile(user.id, source.id);
+    await copyService.restoreFile(user.id, source.id);
+    expect(await files.findOneByOrFail({ id: source.id })).toMatchObject({ ...placement, name: "renamed.BIN", parentId: destination.folderId, isDeleted: false });
+    const copy = (results.find(result => result.status === "fulfilled") as PromiseFulfilledResult<FileEntity>).value;
+    expect(copy.storageLocationId).toBe(LEGACY_STORAGE_LOCATION.id);
+    expect(copy.relativeObjectKey).toBe(path.relative(copyRoot,copy.storagePath));
+    await copyService.deleteFilePermanently(user.id,copy.id);
+    expect(fs.existsSync(copy.storagePath)).toBe(false);
+    expect(fs.readFileSync(sourcePath)).toEqual(Buffer.alloc(100,7));
+
   });
 });

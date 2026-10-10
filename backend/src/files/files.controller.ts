@@ -360,7 +360,7 @@ export async function streamOriginalDownload(
 
   let safePath: string;
   try {
-    safePath = storageService.ensureWithinStorageRoot(file.storagePath);
+    safePath = storageService.resolveFilePath(file);
     safePath = storageService.ensureWithinStorageRoot(
       fs.realpathSync(safePath),
     );

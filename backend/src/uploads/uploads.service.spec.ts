@@ -94,6 +94,8 @@ describe("UploadsService - Post-Review Fixes", () => {
       findOne: jest.fn(),
     };
     mockStorageService = {
+      resolveFilePath: jest.fn((file) => file.storagePath),
+      placementForPath: jest.fn((storagePath: string) => ({ storagePath, storageLocationId: "f2f5c4b0-8d57-4c49-9f8c-0d095b344601", relativeObjectKey: storagePath.replace(/^\/storage\//, "") })),
       generateSafeFilename: jest.fn((name) => name),
       generatePath: jest.fn(
         (userId, filename) => `/storage/${userId}/${filename}`,

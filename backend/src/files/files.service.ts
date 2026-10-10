@@ -192,7 +192,7 @@ export class FilesService {
     try {
       const file = queryRunner.manager.create(FileEntity, {
         name: displayName,
-        storagePath: this.storageService.generatePath(userId, safeName),
+        ...this.storageService.placementForPath(this.storageService.generatePath(userId, safeName)),
         size,
         mimeType,
         isFolder: false,
@@ -525,7 +525,7 @@ export class FilesService {
       // Physical deletion AFTER successful commit — safe from rollback
       if (fileToDelete.storagePath) {
         try {
-          await this.storageService.deleteFile(fileToDelete.storagePath);
+          await this.storageService.deleteFile(this.storageService.resolveFilePath(fileToDelete, true));
         } catch {
           this.logger.error("Failed to delete physical file");
         }
@@ -641,7 +641,7 @@ export class FilesService {
       for (const file of physicalFilesToDelete) {
         if (file.storagePath) {
           try {
-            await this.storageService.deleteFile(file.storagePath);
+            await this.storageService.deleteFile(this.storageService.resolveFilePath(file, true));
           } catch {
             this.logger.error("Failed to delete physical file");
           }
@@ -764,7 +764,7 @@ export class FilesService {
       for (const file of physicalFilesToDelete) {
         if (file.storagePath) {
           try {
-            await this.storageService.deleteFile(file.storagePath);
+            await this.storageService.deleteFile(this.storageService.resolveFilePath(file, true));
           } catch {
             this.logger.error("Failed to delete physical file");
           }
@@ -800,7 +800,7 @@ export class FilesService {
     const safeName = this.storageService.generateSafeFilename(displayName);
     const targetPath = this.storageService.generatePath(userId, safeName);
 
-    await this.storageService.copyFile(source.storagePath, targetPath);
+    await this.storageService.copyFile(this.storageService.resolveFilePath(source), targetPath);
 
     let queryRunner: QueryRunner | undefined;
     let copy: FileEntity | undefined;
@@ -818,7 +818,7 @@ export class FilesService {
       queryRunner = this.fileRepository.manager.connection.createQueryRunner();
       copy = queryRunner.manager.create(FileEntity, {
         name: displayName,
-        storagePath: targetPath,
+        ...this.storageService.placementForPath(targetPath),
         size,
         mimeType: source.mimeType,
         isFolder: false,
@@ -844,7 +844,7 @@ export class FilesService {
             throw new Error("Copy record identity is unavailable");
           }
           const persistedCopy = await this.fileRepository.findOne({
-            where: { id: copy.id, userId, storagePath: targetPath },
+            where: { id: copy.id, userId, storageLocationId: copy.storageLocationId!, relativeObjectKey: copy.relativeObjectKey! },
           });
           if (!persistedCopy) {
             await cleanupDestination();

@@ -1,3 +1,4 @@
+import { StorageLocationEntity } from "../entities/storage-location.entity";
 import { randomUUID } from "node:crypto";
 import { NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -47,6 +48,7 @@ describePostgres("SharingService — реальный PostgreSQL", () => {
       synchronize: false,
       migrationsRun: false,
       entities: [
+        StorageLocationEntity,
         ShareLinkEntity,
         FileEntity,
         UserEntity,
@@ -74,6 +76,7 @@ describePostgres("SharingService — реальный PostgreSQL", () => {
     await migration.up(migrationRunner);
     await new AddShareFailedAttempts1746825100000().up(migrationRunner);
     await new ShareLockedUntilTimestamptz1746825120000().up(migrationRunner);
+    await migrationRunner.query(`ALTER TABLE files ADD COLUMN "storageLocationId" uuid, ADD COLUMN "relativeObjectKey" text`);
     await dataSource.query(
       `INSERT INTO "${schema}"."users" ("id", "email", "password", "isActive") VALUES ($1, $2, $3, $4)`,
       [testUserId, "test@test", "test-password", true],
@@ -87,7 +90,7 @@ describePostgres("SharingService — реальный PostgreSQL", () => {
       dataSource.getRepository(FileEntity),
       dataSource.getRepository(UserEntity),
       new ConfigService(),
-      { ensureWithinStorageRoot: (p: string) => p } as unknown as StorageService,
+      { resolveFilePath: (file: any) => file.storagePath, ensureWithinStorageRoot: (p: string) => p } as unknown as StorageService,
     );
   }, 30000);
 

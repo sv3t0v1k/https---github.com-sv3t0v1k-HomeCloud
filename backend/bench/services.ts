@@ -1,3 +1,4 @@
+import { StorageLocationEntity } from "../src/entities/storage-location.entity";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -90,6 +91,7 @@ export async function createDataSource(databaseUrl: string): Promise<DataSource>
     synchronize: false,
     migrationsRun: false,
     entities: [
+        StorageLocationEntity,
       UserEntity,
       FileEntity,
       FolderEntity,

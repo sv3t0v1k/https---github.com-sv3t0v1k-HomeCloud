@@ -1,3 +1,4 @@
+import { StorageLocationEntity, LEGACY_STORAGE_LOCATION } from "../entities/storage-location.entity";
 import { INestApplication, ValidationPipe } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import { ConfigService } from "@nestjs/config";
@@ -59,6 +60,7 @@ postgres(
         synchronize: true,
         extra: { options: `-c search_path=${schema}` },
         entities: [
+        StorageLocationEntity,
           UserEntity,
           FileEntity,
           FolderEntity,
@@ -69,6 +71,7 @@ postgres(
         ],
       });
       await database.initialize();
+    await database.getRepository(StorageLocationEntity).save(LEGACY_STORAGE_LOCATION);
       const config = new ConfigService({
         NODE_ENV: "test",
         STORAGE_PATH: root,

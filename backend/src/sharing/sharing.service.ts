@@ -278,6 +278,8 @@ export class SharingService {
       logicalPath: string;
       isFolder: boolean;
       storagePath: string | null;
+      storageLocationId: string | null;
+      relativeObjectKey: string | null;
       size: number;
     }>
   > {
@@ -288,7 +290,7 @@ export class SharingService {
     const rows = await this.fileRepository.query(
       `${this.folderSubtreeSql()}
        SELECT folder.id AS "folderId", folder.name AS "name", true AS "isFolder",
-         NULL::varchar AS "storagePath", NULL::bigint AS "size",
+         NULL::varchar AS "storagePath", NULL::uuid AS "storageLocationId", NULL::text AS "relativeObjectKey", NULL::bigint AS "size",
          folder."parentId" AS "parentId"
        FROM folders folder
        JOIN subtree parent ON folder."parentId" = parent.id
@@ -297,7 +299,7 @@ export class SharingService {
        WHERE folder."userId" = $2 AND folder."isDeleted" = false
        UNION ALL
        SELECT folder.id AS "folderId", folder.name AS "name", true AS "isFolder",
-         NULL::varchar AS "storagePath", NULL::bigint AS "size",
+         NULL::varchar AS "storagePath", NULL::uuid AS "storageLocationId", NULL::text AS "relativeObjectKey", NULL::bigint AS "size",
          folder."parentId" AS "parentId"
        FROM folders folder
        JOIN subtree root ON root.id = $1
@@ -306,7 +308,7 @@ export class SharingService {
        WHERE folder.id = $1 AND folder."userId" = $2 AND folder."isDeleted" = false
        UNION ALL
        SELECT file.id AS "folderId", file.name AS "name", false AS "isFolder",
-         file."storagePath", file."size",
+         file."storagePath", file."storageLocationId", file."relativeObjectKey", file."size",
          file."parentId" AS "parentId"
        FROM files file
        JOIN subtree parent ON file."parentId" = parent.id
@@ -349,6 +351,8 @@ export class SharingService {
         logicalPath,
         isFolder: row.isFolder,
         storagePath: row.storagePath as string | null,
+        storageLocationId: row.storageLocationId as string | null,
+        relativeObjectKey: row.relativeObjectKey as string | null,
         size: Number(row.size ?? 0),
       };
     });
@@ -789,9 +793,7 @@ export class SharingService {
               throw new BadRequestException(
                 "Archive member has no storage path",
               );
-            const safePath = this.storageService.ensureWithinStorageRoot(
-              member.storagePath,
-            );
+            const safePath = this.storageService.resolveFilePath(member);
             const realPath = this.storageService.ensureWithinStorageRoot(
               fs.realpathSync(safePath),
             );

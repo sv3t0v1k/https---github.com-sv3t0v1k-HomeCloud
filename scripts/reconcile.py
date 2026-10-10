@@ -34,7 +34,7 @@ def validate_storage_path(rel_path):
     if rel_path.startswith("/") or "\\" in rel_path:
         return False
     parts = rel_path.split("/")
-    if any(part == ".." for part in parts):
+    if any(part in {"", ".", ".."} for part in parts) or parts[0] == ".tmp" or parts[0].startswith(".restore-") or "\x00" in rel_path:
         return False
     return True
 
@@ -140,11 +140,15 @@ def main():
     # --- 1. Get DB file records ---
     db_rows = psql(
         """
-        SELECT "storagePath", size, "userId"
-        FROM files
+        SELECT CASE WHEN location."machineKey" = 'legacy-storage'
+                         AND location."mountKey" = 'legacy-storage'
+                         AND file."storagePath" = '/storage/' || file."relativeObjectKey"
+                    THEN file."relativeObjectKey" ELSE '' END,
+               file.size, file."userId"
+        FROM files file
+        LEFT JOIN storage_locations location ON location.id = file."storageLocationId"
         WHERE "isFolder" = false
           AND "isDeleted" = false
-          AND "storagePath" IS NOT NULL
         """,
         args.db_user, args.db_name,
     )
@@ -159,7 +163,7 @@ def main():
                 raw_path = parts[0]
                 path = sanitize_storage_path(raw_path)
                 if path is None:
-                    warnings.append(f"  INVALID_PATH: DB row has invalid storagePath '{raw_path}' — skipping")
+                    errors.append("  INVALID_PLACEMENT: DB row has unsafe or inconsistent logical placement")
                     continue
                 size_str = parts[1]
                 uid_str = parts[2]
