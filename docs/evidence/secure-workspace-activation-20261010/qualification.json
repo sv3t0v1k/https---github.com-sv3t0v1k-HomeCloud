@@ -1,0 +1,115 @@
+{
+  "secureOpen": false,
+  "activation": "disabled",
+  "securityQualification": "BLOCKED",
+  "runtime": {
+    "node": "v20.20.2",
+    "platform": "linux",
+    "kernel": "6.12.76-linuxkit",
+    "uid": 1001,
+    "effectiveCapabilities": "0",
+    "seccomp": "2",
+    "fsApi": {
+      "openat2": "undefined",
+      "openat": "undefined",
+      "renameat": "undefined",
+      "unlinkat": "undefined"
+    },
+    "promisesOpenat2": "undefined",
+    "resolveFlags": [],
+    "kernelOpenat2Syscall": "UNPROBED; no deployed callable adapter"
+  },
+  "actualMountBoundary": {
+    "namespaceMount": [
+      "282",
+      "273",
+      "0:96",
+      "/",
+      "/qualified",
+      "tmpfs",
+      "tmpfs"
+    ],
+    "dev": 96,
+    "ino": 1,
+    "fdMountId": "282",
+    "diagnostic": {
+      "id": "f2f5c4b0-8d57-4c49-9f8c-0d095b344601",
+      "state": "online",
+      "reason": "trusted-legacy",
+      "capabilities": {
+        "logicalResolution": true,
+        "secureOpen": false,
+        "read": true,
+        "write": true
+      }
+    },
+    "scope": "disposable tmpfs, not physical SSD qualification"
+  },
+  "markerRestartReenrollment": {
+    "id": "f2f5c4b0-8d57-4c49-9f8c-0d095b344601",
+    "state": "online",
+    "reason": "trusted-legacy",
+    "capabilities": {
+      "logicalResolution": true,
+      "secureOpen": false,
+      "read": true,
+      "write": true
+    }
+  },
+  "absentAndEmptyUnderlying": {
+    "emptyResult": {
+      "id": "f2f5c4b0-8d57-4c49-9f8c-0d095b344601",
+      "state": "offline",
+      "reason": "exact-mount-absent-ambiguous-or-nested",
+      "capabilities": {
+        "logicalResolution": true,
+        "secureOpen": false,
+        "read": false,
+        "write": false
+      }
+    },
+    "missingResult": {
+      "id": "f2f5c4b0-8d57-4c49-9f8c-0d095b344601",
+      "state": "offline",
+      "reason": "root-unavailable",
+      "capabilities": {
+        "logicalResolution": true,
+        "secureOpen": false,
+        "read": false,
+        "write": false
+      }
+    },
+    "rootsCreated": false,
+    "bytesWritten": 0
+  },
+  "additionalMount": {
+    "id": "a2e8a3b0-8d57-4c49-9f8c-0d095b344602",
+    "state": "degraded",
+    "reason": "secure-open-unavailable",
+    "capabilities": {
+      "logicalResolution": true,
+      "secureOpen": false,
+      "read": false,
+      "write": false
+    }
+  },
+  "actualExdev": {
+    "code": "EXDEV",
+    "sourcePreserved": true,
+    "destinationCreated": false,
+    "scope": "kernel rename primitive; service no-copy behavior requires separate tests"
+  },
+  "legacyToctouDisqualifier": {
+    "interleaving": "real guard completes -> ingress ancestor replaced by symlink -> actual Multer pathname writer opens",
+    "escapedScratchWriteObserved": true,
+    "fixtureBytes": 5,
+    "securityResult": "FAIL: not TOCTOU-safe; excludes additional activation"
+  },
+  "workspaceRestartDisqualifier": {
+    "newResolverAcceptedReplacement": true,
+    "securityResult": "FAIL: no durable workspace identity"
+  },
+  "physicalMountRemovalRemount": "UNQUALIFIED: no host disk or privileged mount mutation performed",
+  "originalUserBytesMoved": 0,
+  "cleanup": "scratch removed; tmpfs removed with disposable container"
+}

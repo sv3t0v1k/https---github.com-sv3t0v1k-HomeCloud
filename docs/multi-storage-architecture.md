@@ -4,7 +4,8 @@
 Статус дизайна: **OWNER_APPROVED**. Первый implementation checkpoint
 **Schema & Legacy Compatibility: COMPLETE**; **MS-2 Registry & Secure Resolver: COMPLETE**
 в owner-approved ограниченном trusted legacy профиле; **MS-3A Upload Workspace Architecture & Session Binding: COMPLETE**
-в том же legacy профиле. MS-3B и остальные checkpoints не реализованы.
+в том же legacy профиле. **MS-3B Secure Workspace Activation: BLOCKED / activation disabled**;
+остальные checkpoints не реализованы.
 Это ненумерованный workstream. Production остаётся **NOT_READY / NO_GO**.
 Разделы 1–15 сохраняют исходный аудит и целевой дизайн; утверждение ниже фиксирует
 фактическую реализацию и отдельно разрешённый владельцем scope.
@@ -90,6 +91,31 @@ pause/reload/resume/429/quota/cancel/expiry/recovery + byte/download/share smoke
 [MS-3A evidence и процессное отклонение](evidence/upload-workspace-20261010/report.md).
 Production **NOT_READY / NO_GO**; следующий checkpoint — MS-3B Secure Workspace Activation
 только по отдельному разрешению владельца. В этом запросе работа остановлена после MS-3A.
+
+
+### MS-3B — Secure Workspace Activation: BLOCKED, activation disabled
+
+Qualification подтвердил отсутствие deployed descriptor-relative Node20 adapter и реальный
+Multer guard→pathname open TOCTOU: ancestor symlink interleaving записал5 fixture bytes в
+другой private scratch. Новые registry/resolver принимают replacement marker/`.tmp` после
+restart: durable provenance не реализована. Actual Linux tmpfs mount/mnt_id и empty plain
+directory refusal/EXDEV доказаны только для namespace boundary; физический SSD/NVMe,
+host removal/remount/Desktop/NFS/SMB — UNQUALIFIED. Kernel openat2 syscall/seccomp UNPROBED.
+
+Production код, config, schema и mounts не менялись; approved workspace остаётся legacy
+`/storage/.tmp` UUID87798389-88af-4ea5-a3e7-8e69a3c7bb01, 21/21 bindings сохранены. Additional
+activation/config не поставлен. Fixed legacy Multer, legacy-only immutable DB path bridge и
+secure descriptor/identity gates не обходятся. Finalizer streams legacy finalPath, безопасный
+cross-FS publication/recovery не квалифицирован; MS-4 не начат.
+
+Full backend real PostgreSQL68/921 PASS без skips, targeted7/197, lint/typecheck/build PASS;
+новые EXDEV no-copy/rollback/retry и same workspace return+explicit service restart tests
+сохраняют confirmed binary bytes/inode/accounting. Canonical11tables/5files/37021bytes exact
+equal, bytes moved0; read-only runtime identity/live200, preview healthy, rollout отсутствует.
+Four independent narrow reviews ACCEPT только blocked outcome. **secureOpen=false**;
+Production **NOT_READY / NO_GO**. [Threat/platform/evidence](evidence/secure-workspace-activation-20261010/report.md).
+Следующий gate — отдельно reviewed descriptor adapter, durable operator identity, actual
+mount qualification, secure session ingress/DB admission; дальше автоматически не идём.
 
 ## 1. Исходное состояние и границы аудита
 

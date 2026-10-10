@@ -735,3 +735,25 @@ pause/reload/resume/429/quota/expiry/recovery PASS; scoped independent reviews A
 и `.tmp` anchor only process lifetime. Production NOT_READY / NO_GO. MS-3B Secure Workspace
 Activation — следующий отдельный checkpoint; второй диск/cross-FS/политики/admin/UI,
 50GiB run, push/tag/release не выполнялись. После MS-3A работа остановлена.
+
+
+## Multi-Storage — Secure Workspace Activation (MS-3B)
+
+Ненумерованный checkpoint: **BLOCKED / activation disabled, 2026-10-10**.
+Actual Node20 Linux qualification подтверждает отсутствие callable descriptor adapter;
+Multer ancestor swap записал5 test bytes через symlink, restart принимает replacement
+workspace. **secureOpen=false**. tmpfs namespace/empty-dir refusal/EXDEV доказаны; physical
+SSD/NVMe/removal/remount, Docker Desktop host disk и NFS/SMB **UNQUALIFIED**.
+
+Production code/config/schema/mounts неизменны; only legacy workspace,21/21 bindings,
+11tables/22migrations, original5files/37021bytes сохранены,0bytes moved. Full backend
+68/921 real PostgreSQL без skips, targeted7/197, lint/typecheck/build PASS; EXDEV no-copy
+rollback/retry и original `.tmp` return+explicit restart regression PASS. Four independent
+reviews ACCEPT только disabled outcome, read-only canonical runtime identity/live200,
+preview healthy; rollout не выполнялся.
+
+[Architecture](multi-storage-architecture.md), [operator contract](upload-workspace-operations.md),
+[MS-3B evidence/platform matrix/blockers](evidence/secure-workspace-activation-20261010/report.md).
+Next gate: reviewed descriptor-safe lifecycle adapter, durable operator identity/recovery,
+actual target mount qualification, secure ingress и DB admission. MS-4 cross-FS finalizer
+не начат. Production **NOT_READY / NO_GO**. Остановились после MS-3B; no50GiB/push/tag/release.

@@ -1,7 +1,8 @@
-# Upload Workspace — операторский контракт MS-3A
+# Upload Workspace — операторский контракт MS-3A / MS-3B
 
-Только legacy `/storage/.tmp`. Production **NOT_READY / NO_GO**. Второй диск, MS-3B,
-policy/admin/UI/cross-FS finalizer не реализованы.
+Только legacy `/storage/.tmp`. Production **NOT_READY / NO_GO**.
+MS-3A COMPLETE; **MS-3B BLOCKED / activation disabled** после qualification. Второй диск,
+additional workspace config, policy/admin/UI/cross-FS finalizer не включены.
 
 ## Идентичность и привязка
 
@@ -64,3 +65,33 @@ provisioning approved `.tmp` до migration/startup; существующий re
 Destructive full-stack DR/power-loss сценарии не заявлены.
 
 [Evidence и команды](evidence/upload-workspace-20261010/report.md).
+
+
+## MS-3B — activation disabled, операторский gate
+
+Нет env flag/config, которым можно разрешить новый UploadWorkspace. Не добавлять DB rows
+или менять STORAGE_PATH ради включения SSD: runtime allowlist и migration exact legacy
+session bridge не расширены. Новая session всегда legacy, существующие не переназначаются.
+Дополнительный mount с правильным marker всё равно не имеет read/write/secureOpen capability.
+
+Actual qualification обнаружила guard→Multer ancestor-symlink write и replacement `.tmp`
+acceptance новым resolver. Marker label и process FD не подтверждают disk/workspace после
+restart. Empty directory вместо exact Linux mount отказал без записи; это не SSD removal
+qualification. Docker Desktop показывает VM filesystem, не provenance диска Mac. NFS/SMB,
+physical unmount/remount/power loss — UNQUALIFIED. **secureOpen=false**.
+
+После observed loss resolver сохраняет sticky503; данные не удаляются и legacy fallback
+не запускается. Для tested legacy recovery оператор возвращает **тот же** preserved volume
+и каталог, самостоятельно подтверждает identity, затем явно перезапускает сервис. Tests
+проверили сохранённый fixture/inode/binary/accounting; новый процесс не способен доказать
+сам, что оператор вернул тот же workspace. Не обещается auto-recovery или safe acceptance
+неизвестной подмены. Missing production root/`.tmp` не создаются автоматически.
+
+Прежде чем additional activation станет допустима, требуются reviewed descriptor-relative
+create/read/rename/delete/recovery enforcement, durable external enrollment authority и
+actual mount qualification выбранной платформы, безопасный session-specific Multer ingress,
+изменение legacy-only DB admission и отдельно разрешённая cross-FS publication/recovery.
+Ingress/chunks должны оставаться на одной FS; EXDEV без copy обхода. Существующий finalizer
+пишет legacy finalPath и не является квалифицированным MS-4 протоколом.
+
+[Полный MS-3B report, threat model и platform matrix](evidence/secure-workspace-activation-20261010/report.md).

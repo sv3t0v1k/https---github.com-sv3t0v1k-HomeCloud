@@ -1,0 +1,50 @@
+{
+  "targeted": {
+    "platform": "Linux Docker",
+    "suitesPassed": 7,
+    "testsPassed": 197,
+    "skipped": 0
+  },
+  "fullBackend": {
+    "platform": "Linux Docker",
+    "user": 1001,
+    "node": "v20.20.2",
+    "suitesPassed": 68,
+    "testsPassed": 921,
+    "skipped": 0
+  },
+  "postgresSuites": [
+    "uploads.service.postgres",
+    "sharing.postgres",
+    "native-downloads.postgres",
+    "files.service.postgres",
+    "upload-rate-limit.postgres",
+    "security-ownership.postgres",
+    "storage-placement.postgres",
+    "share-locked-until-timestamptz.postgres",
+    "upload-workspace.postgres"
+  ],
+  "postgresIsolation": "temporary schemas, source root/bench read-only, no canonical storage mount",
+  "postgresServiceFixtures": "synchronize:true; lifecycle accounting only",
+  "postgresExactMigrationSuite": "MS-2 to MS-3A migrations/triggers/FK/immutability unchanged and PASS",
+  "lint": {
+    "exitCode": 0,
+    "errors": 0,
+    "existingWarnings": 15
+  },
+  "typecheck": {
+    "exitCode": 0
+  },
+  "build": {
+    "exitCode": 0,
+    "output": "disposable UID1001 tmpfs /app/dist"
+  },
+  "qualification": {
+    "harnessExitCode": 0,
+    "securityOutcome": "BLOCKED",
+    "secureOpen": false,
+    "activation": "disabled",
+    "probeSha256": "c3b7f69549c54e32c1eea425fbc399ad373cf898d608a86499a6c6c46fa06751"
+  },
+  "runtime": "read-only canonical identity/live HTTP200/snapshot; four healthy preview services; unchanged production code, no rollout"
+}
