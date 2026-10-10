@@ -319,9 +319,7 @@ export class UploadsService {
     try {
       await this.resolveSessionWorkspace(savedSession);
       this.assertUploadPath(sessionTempDir!);
-      if (!fs.existsSync(sessionTempDir!)) {
-        fs.mkdirSync(sessionTempDir!, { recursive: true });
-      }
+      this.workspaceResolver.filesystem().mkdir(sessionTempDir!);
     } catch {
       this.logger.error("Failed to create temp dir for session");
       // Best-effort cleanup of the orphaned session row.
@@ -372,6 +370,7 @@ export class UploadsService {
 
     let ingressPath: string | null = null;
     let bindingValidated = false;
+    let ingressFd: number | undefined;
     const chunkSize = Buffer.isBuffer(chunkData)
       ? chunkData.length
       : chunkData.size;
@@ -379,6 +378,8 @@ export class UploadsService {
     try {
       if (!Buffer.isBuffer(chunkData)) {
         ingressPath = this.validateIngressChunk(chunkData);
+        ingressFd = this.workspaceResolver.filesystem().open(ingressPath);
+        if (fs.fstatSync(ingressFd).size !== chunkSize) throw new BadRequestException("Ingress size changed");
       }
       return await this.withTransaction(async (manager) => {
         const session = await manager.findOne(UploadSessionEntity, {
@@ -435,7 +436,7 @@ export class UploadsService {
           await this.hydrateLegacyAccounting(manager, session);
         const incomingHash = Buffer.isBuffer(chunkData)
           ? createHash("sha256").update(chunkData).digest("hex")
-          : await this.hashFile(ingressPath!);
+          : await this.hashDescriptor(ingressFd!, chunkSize);
         const record = await manager.getRepository(UploadChunkEntity).findOne({
           where: { sessionId: session.id, chunkIndex },
         });
@@ -448,61 +449,58 @@ export class UploadsService {
           );
         }
         let diskExists = false;
+        let existingFd: number | undefined;
         try {
           this.assertUploadPath(chunkPath);
-          const stats = await fs.promises.lstat(chunkPath);
+          existingFd = this.workspaceResolver.filesystem().open(chunkPath, "rw");
+          const stats = fs.fstatSync(existingFd);
           diskExists = true;
-          if (
-            !stats.isFile() ||
-            stats.isSymbolicLink() ||
-            stats.size !== chunkSize ||
-            (await this.hashFile(chunkPath)) !== incomingHash
-          ) {
-            throw new BadRequestException(
-              `Chunk ${chunkIndex} already uploaded with different content`,
-            );
+          if (stats.size !== chunkSize ||
+              (await this.hashDescriptor(existingFd, chunkSize)) !== incomingHash) {
+            throw new BadRequestException(`Chunk ${chunkIndex} already uploaded with different content`);
           }
+          await this.syncDescriptor(existingFd);
+          this.assertSameInode(existingFd, chunkPath);
         } catch (error) {
-          if ((error as { code?: string }).code !== "ENOENT") throw error;
+          if (existingFd !== undefined || (error as { code?: string }).code !== "ENOENT") throw error;
+        } finally {
+          if (existingFd !== undefined) fs.closeSync(existingFd);
         }
         if (!diskExists) {
-          // Sync contents before publication and sync the directory before DB commit.
-          // A crash before metadata commit leaves an atomic orphan, recovered by retry/finalize.
+          // Retain the original inode through sync and publication. Never derive
+          // hash authority from a reopened staging name.
+          let stagedFd: number | undefined;
           try {
             this.assertUploadPath(tempPath);
-            if (Buffer.isBuffer(chunkData))
-              await fs.promises.writeFile(tempPath, chunkData, { flag: "wx" });
-            else await fs.promises.rename(ingressPath!, tempPath);
-            const handle = await fs.promises.open(tempPath, "r+");
-            try {
-              await handle.sync();
-            } finally {
-              await handle.close();
+            if (Buffer.isBuffer(chunkData)) {
+              stagedFd = this.workspaceResolver.filesystem().open(tempPath, "wx");
+              await new Promise<void>((resolve, reject) => {
+                fs.writeFile(stagedFd!, chunkData, error => error ? reject(error) : resolve());
+              });
+            } else {
+              stagedFd = ingressFd!;
+              this.workspaceResolver.filesystem().rename(ingressPath!, tempPath);
+              this.assertSameInode(stagedFd, tempPath);
             }
+            await this.syncDescriptor(stagedFd);
             this.assertUploadPath(chunkPath);
-            await fs.promises.rename(tempPath, chunkPath);
+            this.workspaceResolver.filesystem().rename(tempPath, chunkPath);
+            this.assertSameInode(stagedFd, chunkPath);
             await this.syncDirectory(session.tempPath);
           } catch (error) {
             try {
               this.assertUploadPath(tempPath);
-              await fs.promises.unlink(tempPath).catch(() => undefined);
+              this.workspaceResolver.filesystem().remove(tempPath);
             } catch {
               /* Preserve on identity failure. */
             }
             throw error;
+          } finally {
+            if (stagedFd !== undefined && Buffer.isBuffer(chunkData)) fs.closeSync(stagedFd);
           }
         }
         if (!record) {
-          if (diskExists) {
-            this.assertUploadPath(chunkPath);
-            const handle = await fs.promises.open(chunkPath, "r+");
-            try {
-              await handle.sync();
-            } finally {
-              await handle.close();
-            }
-            await this.syncDirectory(session.tempPath);
-          }
+          if (diskExists) await this.syncDirectory(session.tempPath);
           await manager.getRepository(UploadChunkEntity).insert({
             sessionId: session.id,
             chunkIndex,
@@ -519,6 +517,7 @@ export class UploadsService {
         return session;
       });
     } finally {
+      if (ingressFd !== undefined) fs.closeSync(ingressFd);
       if (!Buffer.isBuffer(chunkData) && bindingValidated) {
         try {
           this.assertUploadPath(chunkData.path);
@@ -526,6 +525,7 @@ export class UploadsService {
             chunkData.path,
             this.storageService.getTempPath(),
             () => this.logger.warn("Failed to clean ingress file"),
+            this.workspaceResolver.filesystem(),
           );
         } catch {
           this.logger.warn("Storage unavailable; ingress cleanup deferred");
@@ -556,14 +556,40 @@ export class UploadsService {
     }
   }
 
-  private async hashFile(filePath: string): Promise<string> {
-    this.assertUploadPath(filePath, false);
+  private assertSameInode(fd: number, target: string): void {
+    const original = fs.fstatSync(fd);
+    const current = this.workspaceResolver.filesystem().stat(target);
+    if (original.dev !== current.dev || original.ino !== current.ino)
+      throw new Error("Upload file identity changed");
+  }
+
+  private async syncDescriptor(fd: number): Promise<void> {
+    await new Promise<void>((resolve, reject) => fs.fsync(fd, error => error ? reject(error) : resolve()));
+  }
+
+  private async hashDescriptor(fd: number, expectedBytes: number): Promise<string> {
     const hash = createHash("sha256");
-    for await (const bytes of fs.createReadStream(filePath)) hash.update(bytes);
+    const buffer = Buffer.alloc(64 * 1024);
+    let offset = 0;
+    for (;;) {
+      const count = await new Promise<number>((resolve, reject) => {
+        fs.read(fd, buffer, 0, Math.min(buffer.length, expectedBytes - offset + 1), offset, (error, bytesRead) =>
+          error ? reject(error) : resolve(bytesRead));
+      });
+      if (!count) break;
+      hash.update(buffer.subarray(0, count));
+      offset += count;
+      if (offset > expectedBytes) throw new BadRequestException("Chunk grew during hashing");
+    }
+    if (offset !== expectedBytes) throw new BadRequestException("Chunk size changed during hashing");
     return hash.digest("hex");
   }
 
   private async syncDirectory(directory: string): Promise<void> {
+    if (directory === this.storageService.getTempPath() || directory.startsWith(this.storageService.getTempPath() + path.sep)) {
+      this.workspaceResolver.filesystem().sync(directory, true);
+      return;
+    }
     this.assertUploadPath(directory, true, true);
     const handle = await fs.promises.open(directory, "r");
     try {
@@ -585,21 +611,21 @@ export class UploadsService {
       let stats: fs.Stats;
       try {
         this.assertUploadPath(chunkPath);
-        stats = await fs.promises.lstat(chunkPath);
+        stats = this.workspaceResolver.filesystem().stat(chunkPath);
       } catch (error) {
         if ((error as { code?: string }).code === "ENOENT") continue;
         throw error;
       }
       if (!stats.isFile() || stats.isSymbolicLink())
         throw new BadRequestException("Invalid legacy chunk");
-      const digest = await this.hashFile(chunkPath);
-      this.assertUploadPath(chunkPath);
-      const handle = await fs.promises.open(chunkPath, "r+");
+      const fd = this.workspaceResolver.filesystem().open(chunkPath, "rw");
+      let digest: string;
       try {
-        await handle.sync();
-      } finally {
-        await handle.close();
-      }
+        stats = fs.fstatSync(fd);
+        digest = await this.hashDescriptor(fd, stats.size);
+        await this.syncDescriptor(fd);
+        this.assertSameInode(fd, chunkPath);
+      } finally { fs.closeSync(fd); }
       await manager.getRepository(UploadChunkEntity).upsert(
         {
           sessionId: session.id,
@@ -670,7 +696,7 @@ export class UploadsService {
     let stats: fs.Stats;
     try {
       this.assertUploadPath(resolved);
-      stats = fs.lstatSync(resolved);
+      stats = this.workspaceResolver.filesystem().stat(resolved);
     } catch {
       throw new BadRequestException("Ingress chunk file is missing");
     }
@@ -757,6 +783,7 @@ export class UploadsService {
         const tempPath = session.tempPath;
         this.assertUploadPath(tempPath);
         this.assertUploadPath(finalPath);
+        const filesystem = this.workspaceResolver.filesystem();
         const writeStream = fs.createWriteStream(finalPath, { flags: "wx" });
 
         try {
@@ -764,11 +791,13 @@ export class UploadsService {
             for (let i = 0; i < totalChunks; i++) {
               const chunkPath = path.join(tempPath, String(i));
               assertUploadPath(chunkPath, false);
-              const chunkStats = await fs.promises.lstat(chunkPath);
               const expectedSize =
                 i === totalChunks - 1
                   ? completedSession.totalSize - i * completedSession.chunkSize
                   : completedSession.chunkSize;
+              const chunkStream = filesystem.readStream(chunkPath, expectedSize);
+              try {
+              const chunkStats = fs.fstatSync((chunkStream as fs.ReadStream & { fd: number }).fd);
               if (
                 !chunkStats.isFile() ||
                 chunkStats.isSymbolicLink() ||
@@ -784,7 +813,7 @@ export class UploadsService {
                   where: { sessionId: completedSession.id, chunkIndex: i },
                 });
               const hash = createHash("sha256");
-              for await (const bytes of fs.createReadStream(chunkPath)) {
+              for await (const bytes of chunkStream) {
                 hash.update(bytes);
                 actualSize += (bytes as Buffer).length;
                 yield bytes;
@@ -796,6 +825,7 @@ export class UploadsService {
               ) {
                 throw new BadRequestException(`Chunk ${i} integrity mismatch`);
               }
+              } finally { chunkStream.destroy(); }
             }
           }
 
@@ -1118,21 +1148,23 @@ export class UploadsService {
       return 0;
     }
     this.assertUploadPath(ingressRoot);
-    fs.mkdirSync(ingressRoot, { recursive: true });
+    this.workspaceResolver.filesystem().mkdir(ingressRoot);
     this.cleanupStaleIngressFiles(ingressRoot);
 
     let cleaned = 0;
     try {
       this.assertUploadPath(tempRoot);
-      const entries = fs.readdirSync(tempRoot);
+      const entries = this.workspaceResolver.filesystem().list(tempRoot);
       for (const entry of entries) {
         const entryPath = path.join(tempRoot, entry);
         if (path.resolve(entryPath) === ingressRoot) {
           continue;
         }
         this.assertUploadPath(entryPath);
-        if (!fs.lstatSync(entryPath).isDirectory()) {
-          continue;
+        try { this.workspaceResolver.filesystem().stat(entryPath, true); }
+        catch (error) {
+          if (["ENOENT", "ENOTDIR"].includes((error as { code?: string }).code ?? "")) continue;
+          throw error;
         }
 
         // Keep active session directories. Terminal sessions cannot accept chunks,
@@ -1154,17 +1186,17 @@ export class UploadsService {
   private cleanupStaleIngressFiles(ingressRoot: string): void {
     const cutoff = Date.now() - this.sessionTtlMs;
     this.assertUploadPath(ingressRoot);
-    for (const name of fs.readdirSync(ingressRoot)) {
+    for (const name of this.workspaceResolver.filesystem().list(ingressRoot)) {
       const candidate = path.join(ingressRoot, name);
       try {
         this.assertUploadPath(candidate);
-        const stats = fs.lstatSync(candidate);
+        const stats = this.workspaceResolver.filesystem().stat(candidate);
         if (
           (stats.isFile() || stats.isSymbolicLink()) &&
           stats.mtimeMs < cutoff
         ) {
           this.assertUploadPath(candidate);
-          cleanupIngressFile(candidate, this.storageService.getTempPath());
+          cleanupIngressFile(candidate, this.storageService.getTempPath(), undefined, this.workspaceResolver.filesystem());
         }
       } catch (error) {
         if ((error as { code?: string }).code !== "ENOENT") {
@@ -1221,8 +1253,7 @@ export class UploadsService {
     this.assertUploadPath(tempPath);
     if (tempPath === this.workspaceResolver.root(LEGACY_UPLOAD_WORKSPACE))
       throw new Error("Temporary root deletion refused");
-    if (fs.existsSync(tempPath))
-      fs.rmSync(tempPath, { recursive: true, force: true });
+    this.workspaceResolver.filesystem().remove(tempPath, true);
   }
 
   private async getWorkspace(

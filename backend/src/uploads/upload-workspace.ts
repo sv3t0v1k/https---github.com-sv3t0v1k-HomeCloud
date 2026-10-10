@@ -1,4 +1,5 @@
 import * as fs from "fs";
+import { SecureFilesystem } from "./secure-filesystem";
 import * as path from "path";
 import { StorageService } from "../storage/storage.service";
 
@@ -30,7 +31,8 @@ export interface WorkspaceBoundSession {
 /**
  * MS-3A operator approval: only the existing legacy .tmp is admitted.
  * Database paths never select a workspace. Revalidation detects observable
- * replacement; legacy pathname I/O still has TOCTOU races (no openat2).
+ * replacement. Upload I/O uses a Linux descriptor boundary; durable enrollment
+ * across process restart remains outside R1.
  */
 export class UploadWorkspaceResolver {
   private legacyRoot!: string;
@@ -38,6 +40,12 @@ export class UploadWorkspaceResolver {
   private rootInode!: number;
   private rootFd: number | undefined;
   private failed = false;
+  private boundary: SecureFilesystem | undefined;
+
+  filesystem(): SecureFilesystem {
+    this.assertRoot();
+    return this.boundary!;
+  }
 
   constructor(private readonly storage: StorageService) {}
 
@@ -47,6 +55,7 @@ export class UploadWorkspaceResolver {
 
   close(): void {
     this.failed = true;
+    this.boundary?.close();
     if (this.rootFd !== undefined) {
       fs.closeSync(this.rootFd);
       this.rootFd = undefined;
@@ -111,8 +120,8 @@ export class UploadWorkspaceResolver {
     this.assertDirectory(sessionPath, false);
     this.assertDirectory(ingressPath, false);
     if (
-      fs.lstatSync(sessionPath).dev !== this.rootDevice ||
-      fs.lstatSync(ingressPath).dev !== this.rootDevice
+      this.filesystem().stat(sessionPath, true).dev !== this.rootDevice ||
+      this.filesystem().stat(ingressPath, true).dev !== this.rootDevice
     ) {
       throw new Error("Upload workspace ingress and chunks are not colocated");
     }
@@ -121,7 +130,7 @@ export class UploadWorkspaceResolver {
   private assertDirectory(absolute: string, allowMissing: boolean): void {
     this.assertPath(absolute);
     try {
-      const stat = fs.lstatSync(absolute);
+      const stat = this.filesystem().stat(absolute, true);
       if (!stat.isDirectory() || stat.isSymbolicLink()) {
         throw new Error("Unsafe upload workspace directory");
       }
@@ -132,7 +141,7 @@ export class UploadWorkspaceResolver {
       if (allowMissing && (error as { code?: string }).code === "ENOENT") {
         return;
       }
-      throw error;
+      throw new Error("Unsafe upload workspace directory", { cause: error });
     }
   }
 
@@ -154,6 +163,7 @@ export class UploadWorkspaceResolver {
           this.legacyRoot,
           fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
         );
+        this.boundary = new SecureFilesystem(this.legacyRoot, fs.fstatSync(this.rootFd));
       }
       // MS-2 additionally qualifies the storage mount, root/marker identity,
       // child ownership, symlinks and nested mounts in production.

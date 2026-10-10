@@ -61,6 +61,7 @@ export class IngressFileCleanupInterceptor implements NestInterceptor {
       throw new BadRequestException("Upload session is not writable");
     this.workspaceResolver.root(LEGACY_UPLOAD_WORKSPACE);
     const cleanup = () => {
+      if (request.ingressWritePending) return; // Writer close owns aborted-file cleanup.
       const ingressPath = request.file?.path ?? request.ingressFilePath;
       if (!ingressPath) return;
       try {
@@ -68,6 +69,7 @@ export class IngressFileCleanupInterceptor implements NestInterceptor {
         this.storageService.assertTrustedPath(ingressPath);
         cleanupIngressFile(ingressPath, this.storageService.getTempPath(), () =>
           this.logger.warn("Failed to clean ingress file"),
+          this.workspaceResolver.filesystem(),
         );
       } catch {
         this.logger.warn("Storage unavailable; ingress cleanup deferred");

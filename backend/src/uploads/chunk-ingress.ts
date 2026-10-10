@@ -1,5 +1,5 @@
 import { BadRequestException } from "@nestjs/common";
-import * as fs from "fs";
+import { SecureFilesystem } from "./secure-filesystem";
 import * as path from "path";
 
 export const DEFAULT_MAX_CHUNK_SIZE = 50 * 1024 * 1024;
@@ -44,6 +44,7 @@ export interface IngressChunkFile {
 
 export interface IngressRequestState {
   ingressFilePath?: string;
+  ingressWritePending?: boolean;
   file?: { path?: string };
 }
 
@@ -59,12 +60,14 @@ export function cleanupIngressFile(
   filePath: string | undefined,
   tempRoot: string,
   onError?: (error: FileSystemError) => void,
+  filesystem?: SecureFilesystem,
 ): boolean {
   if (!filePath) return false;
   const resolved = path.resolve(filePath);
   if (path.dirname(resolved) !== getIngressRoot(tempRoot)) return false;
   try {
-    fs.unlinkSync(resolved);
+    if (!filesystem) throw new Error("Secure ingress cleanup requires descriptor boundary");
+    filesystem.remove(resolved);
     return true;
   } catch (error) {
     const fsError = error as FileSystemError;

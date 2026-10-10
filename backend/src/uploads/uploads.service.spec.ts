@@ -1,5 +1,6 @@
 import { LEGACY_UPLOAD_WORKSPACE } from "../entities/upload-workspace.entity";
 import { UploadsService } from "./uploads.service";
+import { SecureFilesystem } from "./secure-filesystem";
 import { UploadChunkEntity } from "../entities/upload-chunk.entity";
 import { UploadSessionEntity } from "../entities/upload-session.entity";
 import { FileEntity } from "../entities/file.entity";
@@ -47,6 +48,34 @@ describe("UploadsService - Post-Review Fixes", () => {
     jest.spyOn(resolver, "resolve").mockImplementation((session: any) => session.tempPath);
     jest.spyOn(resolver, "assertPath").mockImplementation((target: unknown) => target);
     jest.spyOn(resolver, "assertColocated").mockImplementation(() => undefined);
+    // This test boundary deliberately isolates admission from lifecycle behavior.
+    // Real descriptor confinement is exercised by Linux native/workspace suites;
+    // these synthetic bindings retain their original IDs and scratch paths.
+    const open = (target: string, mode: "r" | "rw" | "wx" = "r") =>
+      fs.openSync(target, mode === "rw" ? "r+" : mode);
+    const boundary = {
+      open,
+      stat: (target: string) => fs.lstatSync(target),
+      readStream: (target: string) =>
+        fs.createReadStream("", { fd: open(target), autoClose: true }),
+      writeStream: (target: string) =>
+        fs.createWriteStream("", { fd: open(target, "wx"), autoClose: true }),
+      write: (target: string, bytes: Buffer) => {
+        const fd = open(target, "wx");
+        try { fs.writeFileSync(fd, bytes); fs.fsyncSync(fd); }
+        finally { fs.closeSync(fd); }
+      },
+      sync: (target: string, directory = false) => {
+        const fd = fs.openSync(target, directory ? "r" : "r+");
+        try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+      },
+      mkdir: (target: string) => { fs.mkdirSync(target, { recursive: true }); },
+      rename: (source: string, destination: string) => fs.renameSync(source, destination),
+      remove: (target: string, recursive = false) => fs.rmSync(target, { recursive, force: true }),
+      list: (target: string) => fs.readdirSync(target),
+      close: () => undefined,
+    };
+    jest.spyOn(resolver, "filesystem").mockReturnValue(boundary as unknown as SecureFilesystem);
   }
 
   beforeEach(() => {
@@ -1242,19 +1271,27 @@ describe("UploadsService - Post-Review Fixes", () => {
       const sourceError = new Error("chunk read failed");
       const originalCreateReadStream = mutableFs.createReadStream;
 
-      mutableFs.createReadStream = jest.fn((filePath: fs.PathLike) => {
-        if (path.basename(String(filePath)) !== "1") {
-          return originalCreateReadStream(filePath);
+      const secondChunkInode = fs.statSync(path.join(tempDir, "1")).ino;
+      mutableFs.createReadStream = jest.fn((filePath: fs.PathLike, options?: { fd?: number }) => {
+        if (options?.fd === undefined || fs.fstatSync(options.fd).ino !== secondChunkInode) {
+          return originalCreateReadStream(filePath, options);
         }
+        const fd = options.fd;
         let read = false;
-        return new Readable({
+        const stream = new Readable({
           read() {
             if (read) return;
             read = true;
             this.push(Buffer.alloc(8, 2));
             this.destroy(sourceError);
           },
-        }) as fs.ReadStream;
+          destroy(error, callback) {
+            fs.closeSync(fd);
+            callback(error);
+          },
+        });
+        Object.assign(stream, { fd });
+        return stream as fs.ReadStream;
       }) as typeof fs.createReadStream;
 
       try {

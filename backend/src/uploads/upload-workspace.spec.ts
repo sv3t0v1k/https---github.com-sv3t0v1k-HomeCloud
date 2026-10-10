@@ -1,3 +1,4 @@
+import { SecureFilesystem } from "./secure-filesystem";
 import { ConfigService } from "@nestjs/config";
 import fs from "fs";
 import * as os from "os";
@@ -136,9 +137,9 @@ describe("UploadWorkspaceResolver legacy binding", () => {
     expect(() =>
       resolver.assertColocated(session().tempPath, ingress),
     ).not.toThrow();
-    const actual = fs.lstatSync;
-    jest.spyOn(fs, "lstatSync").mockImplementation((target, options) => {
-      const stat = actual(target, options as { bigint?: false });
+    const actual = SecureFilesystem.prototype.stat;
+    jest.spyOn(SecureFilesystem.prototype, "stat").mockImplementation(function (this: SecureFilesystem, target, directory) {
+      const stat = actual.call(this, target, directory);
       return target === ingress
         ? Object.assign(stat, { dev: stat.dev + 1 })
         : stat;

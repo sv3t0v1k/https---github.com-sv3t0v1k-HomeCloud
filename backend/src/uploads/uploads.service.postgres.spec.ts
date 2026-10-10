@@ -1,3 +1,4 @@
+import { SecureFilesystem } from "./secure-filesystem";
 import { UploadWorkspaceEntity, LEGACY_UPLOAD_WORKSPACE } from "../entities/upload-workspace.entity";
 import { StorageLocationEntity, LEGACY_STORAGE_LOCATION } from "../entities/storage-location.entity";
 import * as fs from "node:fs";
@@ -633,8 +634,7 @@ describePostgres("UploadsService — реальный PostgreSQL", () => {
     const before = await workspaceIntegritySnapshot();
     const copy = jest.spyOn(fs.promises, "copyFile");
     const syncCopy = jest.spyOn(jest.requireActual<typeof fs>("node:fs"), "copyFileSync");
-    const rename = jest.spyOn(fs.promises, "rename").mockRejectedValueOnce(
-      Object.assign(new Error("Cross-device link"), { code: "EXDEV" }));
+    const rename = jest.spyOn(SecureFilesystem.prototype, "rename").mockImplementationOnce(() => { throw Object.assign(new Error("Cross-device link"), { code: "EXDEV" }); });
     try {
       await expect(service.uploadChunk(user.id, session.uploadId, 1, { path: ingress, size: 2 }))
         .rejects.toMatchObject({ code: "EXDEV" });

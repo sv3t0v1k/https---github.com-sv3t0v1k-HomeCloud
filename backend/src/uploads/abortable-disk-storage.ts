@@ -3,17 +3,43 @@ import { StorageEngine } from "multer";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { randomUUID } from "node:crypto";
+import { SecureFilesystem } from "./secure-filesystem";
 import { IngressRequestState } from "./chunk-ingress";
 
 /** Multer's default disk storage leaves pending writers on an aborted multipart. */
-export function abortableDiskStorage(destination: string, guard: (target: string) => void): StorageEngine {
+export function abortableDiskStorage(
+  destination: string,
+  guard: (target: string) => void,
+  filesystem?: () => SecureFilesystem,
+): StorageEngine {
+  let localBoundary: SecureFilesystem | undefined;
+  const boundary =
+    filesystem ??
+    (() =>
+      (localBoundary ??= new SecureFilesystem(
+        destination,
+        fs.lstatSync(destination),
+      )));
   return {
     _handleFile(request: Request, file, callback) {
       const filename = randomUUID();
       const target = path.join(destination, filename);
-      try { guard(target); } catch (error) { callback(error as Error); return; }
+      try {
+        guard(target);
+      } catch (error) {
+        callback(error as Error);
+        return;
+      }
       (request as IngressRequestState).ingressFilePath = target;
-      const output = fs.createWriteStream(target, { flags: "wx" });
+      let output: fs.WriteStream;
+      try {
+        output = boundary().writeStream(target);
+      } catch (error) {
+        callback(error as Error);
+        return;
+      }
+      (request as IngressRequestState).ingressWritePending = true;
+      let finished = false;
       let completed = false;
       let failure: Error | undefined;
       const detach = () => {
@@ -43,23 +69,35 @@ export function abortableDiskStorage(destination: string, guard: (target: string
           aborted();
           return;
         }
-        completed = true;
-        detach();
-        callback(null, {
-          destination,
-          filename,
-          path: target,
-          size: output.bytesWritten,
-        });
+        finished = true;
       });
       output.once("close", () => {
+        (request as IngressRequestState).ingressWritePending = false;
         detach();
         if (completed) return;
         completed = true;
-        try { guard(target); } catch (error) { callback(error as Error); return; }
-        fs.rm(target, { force: true }, () =>
-          callback(failure ?? new Error("Upload stream closed")),
-        );
+        if (finished && !failure) {
+          callback(null, {
+            destination,
+            filename,
+            path: target,
+            size: output.bytesWritten,
+          });
+          return;
+        }
+        try {
+          guard(target);
+        } catch (error) {
+          callback(error as Error);
+          return;
+        }
+        try {
+          boundary().remove(target);
+        } catch (error) {
+          callback(error as Error);
+          return;
+        }
+        callback(failure ?? new Error("Upload stream closed"));
       });
       if (
         request.aborted ||
@@ -70,8 +108,18 @@ export function abortableDiskStorage(destination: string, guard: (target: string
       else file.stream.pipe(output);
     },
     _removeFile(_request, file, callback) {
-      try { guard(file.path); } catch (error) { callback(error as Error); return; }
-      fs.unlink(file.path, callback);
+      try {
+        guard(file.path);
+      } catch (error) {
+        callback(error as Error);
+        return;
+      }
+      try {
+        boundary().remove(file.path);
+        callback(null);
+      } catch (error) {
+        callback(error as Error);
+      }
     },
   };
 }
