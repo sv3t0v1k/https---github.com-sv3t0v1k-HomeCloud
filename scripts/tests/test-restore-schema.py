@@ -47,12 +47,18 @@ docker() {
         return subprocess.run(['bash','-c',script + block],env=env,text=True,capture_output=True)
 
     def test_known_schema_generations(self):
-        for extra in [set(), {'upload_chunks'}, {'upload_chunks', 'download_capabilities'}, {'upload_chunks', 'download_capabilities', 'storage_locations'}]:
+        for extra in [set(), {'upload_chunks'}, {'upload_chunks', 'download_capabilities'}, {'upload_chunks', 'download_capabilities', 'storage_locations'}, {'upload_chunks', 'download_capabilities', 'storage_locations', 'upload_workspaces'}]:
             with self.subTest(extra=extra):
                 result = self.gate(CORE | extra)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn('All expected tables present: OK', result.stdout)
                 self.assertNotIn('RECOVERY_START', result.stdout)
+
+    def test_workspace_cannot_replace_storage_location(self):
+        self.assertNotEqual(self.gate(CORE | {'upload_chunks', 'download_capabilities', 'upload_workspaces'}).returncode, 0)
+
+    def test_unknown_eleventh_table_is_rejected(self):
+        self.assertNotEqual(self.gate(CORE | {'upload_chunks', 'download_capabilities', 'storage_locations', 'unexpected'}).returncode, 0)
 
     def test_unknown_extra_table_is_rejected(self):
         result = self.gate(CORE | {'upload_chunks','download_capabilities','unexpected'})

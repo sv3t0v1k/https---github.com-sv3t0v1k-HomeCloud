@@ -23,7 +23,7 @@ postgres(
       .filter(
         (name) =>
           /^\d{13}-/.test(name) &&
-          !name.startsWith("1746825150000") &&
+          Number(name.slice(0, 13)) < 1746825150000 &&
           name.endsWith(".ts"),
       )
       .sort();

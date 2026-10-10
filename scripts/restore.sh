@@ -13,7 +13,7 @@ set -euo pipefail
 #   - Old storage data is NEVER deleted before new data is verified in staging.
 #   - Storage switch uses atomic rename (mv) on the same filesystem.
 #   - DB restore is fail-closed: ON_ERROR_STOP=1, schema wipe, post-restore
-#     validation (known 7/8/9/10-table schemas, column check, row-count check).
+#     validation (known 7/8/9/10/11-table schemas, column check, row-count check).
 #   - Checksum/size mismatches, malformed .meta, unsupported format_version
 #     all abort BEFORE any destructive operation.
 #   - Migration failure aborts restore (no WARNING+continue).
@@ -751,8 +751,9 @@ case "$TABLE_COUNT" in
   8) EXPECTED_TABLE_NAMES="$EXPECTED_TABLE_NAMES upload_chunks" ;;
   9) EXPECTED_TABLE_NAMES="$EXPECTED_TABLE_NAMES upload_chunks download_capabilities" ;;
   10) EXPECTED_TABLE_NAMES="$EXPECTED_TABLE_NAMES upload_chunks download_capabilities storage_locations" ;;
+  11) EXPECTED_TABLE_NAMES="$EXPECTED_TABLE_NAMES upload_chunks download_capabilities storage_locations upload_workspaces" ;;
   *)
-    err "Database validation failed: expected a known 7/8/9/10-table schema, found $TABLE_COUNT"
+    err "Database validation failed: expected a known 7/8/9/10/11-table schema, found $TABLE_COUNT"
     docker compose up -d
     exit 1
     ;;

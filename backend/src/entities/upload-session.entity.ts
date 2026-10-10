@@ -8,6 +8,7 @@ import {
   JoinColumn,
 } from "typeorm";
 import { UserEntity } from "./user.entity";
+import { UploadWorkspaceEntity } from "./upload-workspace.entity";
 
 const safeBigintNumberTransformer = {
   to: (value: number): number => value,
@@ -68,6 +69,13 @@ export class UploadSessionEntity {
     select: false,
   })
   uploadedChunks!: number[];
+
+  @Column({ type: "uuid", name: "workspaceId" })
+  workspaceId!: string;
+
+  @ManyToOne(() => UploadWorkspaceEntity, { onDelete: "RESTRICT" })
+  @JoinColumn({ name: "workspaceId" })
+  workspace!: UploadWorkspaceEntity;
 
   @Column({ length: 500, name: "tempPath" })
   tempPath!: string;
