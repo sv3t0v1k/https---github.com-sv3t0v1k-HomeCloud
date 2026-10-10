@@ -128,3 +128,11 @@ Anti-loop: настройки эмулятора не переключались
 сверкой; запреты не обходились. Повторяемый orchestrator — отдельная проверка воспроизводимости.
 
 Scope stop: **после R1Q**. R2/MS-4/workspace activation/50GiB/push/tag/release не выполнялись.
+
+## Продолжение: домашний native AMD64 host, 2026-10-11
+
+SSH hs@192.168.3.44 подтверждён; native x86_64/N100 и Docker linux/amd64 доступны.
+Preflight остановлен до изменений: hs не может создать `/mnt/1TB/homecloud-test`,
+а sudo без пароля недоступен. **R1Q_GATE=BLOCKED_STORAGE_PERMISSION / R1_GATE=BLOCKED**;
+qualification NOT_RUN, production NO_GO. Прежняя диагностика Rosetta остаётся исторической.
+[Новый baseline, полный отчёт и безопасный следующий шаг владельца](../secure-filesystem-adapter-home-server-r1q-20261011/report.md).

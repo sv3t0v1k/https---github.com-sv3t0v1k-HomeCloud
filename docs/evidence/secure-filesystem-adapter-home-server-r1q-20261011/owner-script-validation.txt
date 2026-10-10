@@ -1,0 +1,8 @@
+SYNTAX PASS
+create PASS
+existing-directory PASS
+existing-symlink PASS
+ancestor-symlink PASS
+mount-mismatch PASS
+uid-mismatch PASS
+Local disposable fixture only; UID/mount/root metadata and fchown mocked; no real sudo/SSH/Docker; no server qualification
