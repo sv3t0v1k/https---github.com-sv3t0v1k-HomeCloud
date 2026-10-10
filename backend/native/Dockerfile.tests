@@ -1,0 +1,6 @@
+FROM homecloud-ms3a-tests:latest
+USER root
+RUN apk add --no-cache gcc musl-dev linux-headers
+COPY native /app/native
+RUN cd /app && sh native/build.sh
+USER 1001:1001

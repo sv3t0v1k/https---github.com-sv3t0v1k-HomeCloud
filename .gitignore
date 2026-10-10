@@ -57,3 +57,6 @@ backups/
 *.sql.gz
 *.tar.gz
 *.meta
+
+# Native addon is produced inside the Linux Docker build.
+backend/native/*.node
