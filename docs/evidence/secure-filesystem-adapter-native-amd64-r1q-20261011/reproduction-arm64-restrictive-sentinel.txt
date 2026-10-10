@@ -1,0 +1,23 @@
+COMMAND=["docker", "run", "--rm", "--platform", "linux/arm64", "--user", "1001:1001", "--cap-drop", "ALL", "--network", "none", "--security-opt", "no-new-privileges=true", "--read-only", "--tmpfs", "/qualified:uid=1001,gid=1001,mode=0700", "--mount", "type=bind,src=/private/tmp/homecloud-r1q-reproduced,dst=/evidence,readonly", "--entrypoint", "/evidence/probe-arm64", "homecloud-r1q-0fe061b5-arm64-tests:temporary", "deny-openat2"]
+compiled=aarch64 uname=Linux 6.12.76-linuxkit aarch64 uid=1001 SYS_openat2=437 SYS_renameat2=276 how_size=24 offsets=0,8,16
+CapInh:	0000000000000000
+CapPrm:	0000000000000000
+CapEff:	0000000000000000
+CapBnd:	0000000000000000
+CapAmb:	0000000000000000
+NoNewPrivs:	1
+Seccomp:	2
+Seccomp_filters:	1
+self_exe=/evidence/probe-arm64
+restrictive_filter rc=0 errno=0
+libc valid-no-resolve result=-1 errno=13 (Permission denied)
+raw valid-no-resolve result=-13 errno=13 (Permission denied)
+libc full-resolve result=-1 errno=13 (Permission denied)
+raw full-resolve result=-13 errno=13 (Permission denied)
+libc zero-size result=-1 errno=13 (Permission denied)
+raw zero-size result=-13 errno=13 (Permission denied)
+libc bad-pointer result=-1 errno=13 (Permission denied)
+raw bad-pointer result=-13 errno=13 (Permission denied)
+renameat2 result=-1 errno=2
+
+EXIT=0

@@ -1,0 +1,25 @@
+COMMAND=["docker", "run", "--rm", "--platform", "linux/amd64", "--user", "1001:1001", "--cap-drop", "ALL", "--network", "none", "--security-opt", "no-new-privileges=true", "--read-only", "--tmpfs", "/qualified:uid=1001,gid=1001,mode=0700", "--mount", "type=bind,src=/tmp/homecloud-r1q,dst=/evidence,readonly", "--entrypoint", "/evidence/probe-amd64", "homecloud-r1q-amd64:temporary"]
+compiled=x86_64 uname=Linux 6.12.76-linuxkit x86_64 uid=1001 SYS_openat2=437 SYS_renameat2=316 how_size=24 offsets=0,8,16
+CapInh:	0000000000000000
+CapPrm:	0000000000000000
+CapEff:	0000000000000000
+CapBnd:	0000000000000000
+CapAmb:	0000000000000000
+NoNewPrivs:	1
+Seccomp:	2
+Seccomp_filters:	1
+self_exe=/evidence/probe-amd64
+800000000000-800000027000 r--p 00000000 00:3d 2                          /run/rosetta/rosetta
+800000027000-80000009a000 r-xp 00027000 00:3d 2                          /run/rosetta/rosetta
+8000000a0000-8000001a6000 rw-p 000a0000 00:3d 2                          /run/rosetta/rosetta
+libc valid-no-resolve result=-1 errno=38 (Function not implemented)
+raw valid-no-resolve result=-38 errno=38 (Function not implemented)
+libc full-resolve result=-1 errno=38 (Function not implemented)
+raw full-resolve result=-38 errno=38 (Function not implemented)
+libc zero-size result=-1 errno=38 (Function not implemented)
+raw zero-size result=-38 errno=38 (Function not implemented)
+libc bad-pointer result=-1 errno=38 (Function not implemented)
+raw bad-pointer result=-38 errno=38 (Function not implemented)
+renameat2 result=-1 errno=2
+
+EXIT=0

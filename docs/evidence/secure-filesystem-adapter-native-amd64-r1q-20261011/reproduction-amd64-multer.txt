@@ -1,0 +1,4 @@
+COMMAND=["docker", "run", "--rm", "--platform", "linux/amd64", "--user", "1001:1001", "--cap-drop", "ALL", "--network", "none", "--security-opt", "no-new-privileges=true", "--read-only", "--tmpfs", "/qualified:uid=1001,gid=1001,mode=0700", "--mount", "type=bind,src=/private/tmp/homecloud-r1q-reproduced,dst=/evidence,readonly", "--entrypoint", "node", "homecloud-r1q-0fe061b5-amd64:temporary", "/evidence/failclosed.cjs"]
+HCRESULT={"platform":"linux","architecture":"x64","kernel":"6.12.76-linuxkit","uid":1001,"runtime":"Docker Desktop amd64 emulation context","rootAcquisition":"ENOSYS","multer":"FAIL_CLOSED","uploadBytesWritten":0,"ingressDirectoryCreated":false,"fallback":false,"cause":"NOT_ESTABLISHED","qualification":"BLOCKED"}
+
+EXIT=0

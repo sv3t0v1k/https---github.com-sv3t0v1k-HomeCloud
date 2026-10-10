@@ -811,3 +811,19 @@ secureOpen=false, additional activation disabled, production NOT_READY/NO_GO.
 R2 не начат; переход только после полного R1 PASS и отдельного решения. MS-4 не начат.
 Durable enrollment/restart substitution остаются вне R1; canonical data/21bindings
 сохранены. [Текущий R1 report/design/evidence](evidence/secure-filesystem-adapter-implementation-r1-20261011/report.md).
+
+
+## MS-3B-R1Q — диагностика ENOSYS / native AMD64 qualification (2026-10-11)
+
+**R1Q_GATE=BLOCKED / BLOCKED_ENVIRONMENT, R1_GATE=BLOCKED.** Локальный ENOSYS
+экспериментально локализован в Rosetta guest→host syscall path до native openat2:
+x86 raw/libc437→ENOSYS, ARM437 работает в том же контейнере; дополнительный
+inherited deny437-filter меняет native результат на EACCES, guest остаётся ENOSYS.
+Fresh AMD64 Docker build/ELF addon PASS; production Multer FAIL_CLOSED до bytes.
+Настоящий Linux AMD64 host/VM в доступных local contexts отсутствует, qualification
+UNQUALIFIED. Fresh ARM64 boundary10/10 PASS не заменяет target qualification.
+Независимый scoped review COMPLETED_WITH_LIMITATIONS; canonical11table/FS hashes
+и21/21bindings сохранены,4services healthy. secureOpen=false, extra workspaces disabled;
+production NOT_READY/NO_GO. R2/MS-4 не начаты. Следующий owner action — разрешённый
+existing native x86-64 host с disposable FS/PG для полного qualification; остановка после R1Q.
+[Отдельный отчёт, evidence и требования](evidence/secure-filesystem-adapter-native-amd64-r1q-20261011/report.md).

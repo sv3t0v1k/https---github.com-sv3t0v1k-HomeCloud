@@ -1,0 +1,80 @@
+COMMAND=["docker", "build", "--pull=false", "--platform", "linux/amd64", "-t", "homecloud-r1q-0fe061b5-amd64:temporary", "."]
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 779B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/node:20-alpine
+#2 DONE 1.9s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 353B done
+#3 DONE 0.0s
+
+#4 [base 1/4] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+#4 resolve docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 done
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 1.63MB 0.6s done
+#5 DONE 0.6s
+
+#6 [builder 1/5] RUN apk add --no-cache gcc musl-dev linux-headers
+#6 CACHED
+
+#7 [base 2/4] WORKDIR /app
+#7 CACHED
+
+#8 [runner 3/5] COPY --from=builder /app/dist ./dist
+#8 CACHED
+
+#9 [runner 4/5] COPY --from=builder /app/native/secure-fs.node ./native/secure-fs.node
+#9 CACHED
+
+#10 [deps 2/3] COPY package.json package-lock.json* ./
+#10 CACHED
+
+#11 [builder 4/5] COPY . .
+#11 CACHED
+
+#12 [runner 1/5] WORKDIR /app
+#12 CACHED
+
+#13 [deps 1/3] RUN apk add --no-cache libc6-compat
+#13 CACHED
+
+#14 [base 4/4] RUN adduser -S nextjs -u 1001
+#14 CACHED
+
+#15 [base 3/4] RUN addgroup -g 1001 -S nodejs
+#15 CACHED
+
+#16 [builder 3/5] RUN npm ci
+#16 CACHED
+
+#17 [runner 2/5] COPY --from=deps /app/node_modules ./node_modules
+#17 CACHED
+
+#18 [builder 2/5] COPY package.json package-lock.json* ./
+#18 CACHED
+
+#19 [builder 5/5] RUN sh native/build.sh && npm run build
+#19 CACHED
+
+#20 [deps 3/3] RUN npm ci --only=production && npm cache clean --force
+#20 CACHED
+
+#21 [runner 5/5] COPY --from=builder /app/package.json ./
+#21 CACHED
+
+#22 exporting to image
+#22 exporting layers done
+#22 exporting manifest sha256:0b688223b3e67ec503a7f76092d1406ee740c778fd68d71657291e09a793a9e1 done
+#22 exporting config sha256:b8c1e9592310b7bab08f4e40924c76e35747783b006a35b0d88d94c03dc747b6 done
+#22 exporting attestation manifest sha256:863a35b2d6bee02c1aa4935897a4f8fc0f113f0dfd754c008f7dbcb034765eae done
+#22 exporting manifest list sha256:5d60f2595f09c79ca69fb7bbf23d00d7097bdee48752ad49d89933746fd832cc done
+#22 naming to docker.io/library/homecloud-r1q-0fe061b5-amd64:temporary done
+#22 DONE 0.0s
+
+EXIT=0

@@ -1,0 +1,42 @@
+COMMAND=["docker", "build", "--pull=false", "--platform", "linux/arm64", "-f", "native/Dockerfile.tests", "-t", "homecloud-r1q-0fe061b5-arm64-tests:temporary", "."]
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile.tests
+#1 transferring dockerfile: 211B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/homecloud-ms3a-tests:latest
+#2 DONE 0.0s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 353B done
+#3 DONE 0.0s
+
+#4 [1/4] FROM docker.io/library/homecloud-ms3a-tests:latest@sha256:b708c8f0f759eac85fa45499471ae06062db3d4e66f18ab98690511ee28435c5
+#4 resolve docker.io/library/homecloud-ms3a-tests:latest@sha256:b708c8f0f759eac85fa45499471ae06062db3d4e66f18ab98690511ee28435c5 done
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 144B done
+#5 DONE 0.0s
+
+#6 [2/4] RUN apk add --no-cache gcc musl-dev linux-headers
+#6 CACHED
+
+#7 [3/4] COPY native /app/native
+#7 CACHED
+
+#8 [4/4] RUN cd /app && sh native/build.sh
+#8 CACHED
+
+#9 exporting to image
+#9 exporting layers done
+#9 exporting manifest sha256:cb6ffb76c464f24697e449aa1afb1df82945420e0dec50b9c9a858cb424e6da3 done
+#9 exporting config sha256:8248429dca0046d80058f08c78792820f2a46f658c567b123030bbdafcbef2e1 done
+#9 exporting attestation manifest sha256:921f2bd0639c103c8d9b4817dc82a1a28356def9b5171995136d30a9e70e4bd8 done
+#9 exporting manifest list sha256:1fb976e9655dedb303d274f8e8f901d9a746d17fdeeaa0afcd6ac008ef0bc323 done
+#9 naming to docker.io/library/homecloud-r1q-0fe061b5-arm64-tests:temporary done
+#9 unpacking to docker.io/library/homecloud-r1q-0fe061b5-arm64-tests:temporary done
+#9 DONE 0.0s
+
+EXIT=0

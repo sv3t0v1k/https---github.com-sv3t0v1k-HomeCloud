@@ -1,0 +1,23 @@
+[
+  {
+    "name": "homecloud-r1q-amd64:temporary",
+    "id": "sha256:61e376783389e3c89b231446ce89d82a7260ae141b2e8a70b4138de6dd1efaa5",
+    "arch": "amd64",
+    "os": "linux",
+    "user": "nextjs"
+  },
+  {
+    "name": "homecloud-r1q-amd64-builder:temporary",
+    "id": "sha256:68b32518558bd59f6369609b0d240ff4fdc99522341bc786393f7aa90d92fdf5",
+    "arch": "amd64",
+    "os": "linux",
+    "user": ""
+  },
+  {
+    "name": "homecloud-r1q-arm64-tests:temporary",
+    "id": "sha256:b0adcb0cc5e674417572ce5fa58eac9efa441fcb258e02553c387d7237e5311a",
+    "arch": "arm64",
+    "os": "linux",
+    "user": "1001:1001"
+  }
+]

@@ -1,0 +1,77 @@
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 779B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/node:20-alpine
+#2 DONE 2.0s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 353B done
+#3 DONE 0.0s
+
+#4 [base 1/4] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+#4 resolve docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 done
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 12.93kB 1.1s done
+#5 DONE 1.1s
+
+#6 [deps 2/3] COPY package.json package-lock.json* ./
+#6 CACHED
+
+#7 [deps 1/3] RUN apk add --no-cache libc6-compat
+#7 CACHED
+
+#8 [builder 1/5] RUN apk add --no-cache gcc musl-dev linux-headers
+#8 CACHED
+
+#9 [deps 3/3] RUN npm ci --only=production && npm cache clean --force
+#9 CACHED
+
+#10 [runner 4/5] COPY --from=builder /app/native/secure-fs.node ./native/secure-fs.node
+#10 CACHED
+
+#11 [runner 1/5] WORKDIR /app
+#11 CACHED
+
+#12 [builder 4/5] COPY . .
+#12 CACHED
+
+#13 [builder 5/5] RUN sh native/build.sh && npm run build
+#13 CACHED
+
+#14 [base 2/4] WORKDIR /app
+#14 CACHED
+
+#15 [builder 2/5] COPY package.json package-lock.json* ./
+#15 CACHED
+
+#16 [builder 3/5] RUN npm ci
+#16 CACHED
+
+#17 [base 3/4] RUN addgroup -g 1001 -S nodejs
+#17 CACHED
+
+#18 [base 4/4] RUN adduser -S nextjs -u 1001
+#18 CACHED
+
+#19 [runner 2/5] COPY --from=deps /app/node_modules ./node_modules
+#19 CACHED
+
+#20 [runner 3/5] COPY --from=builder /app/dist ./dist
+#20 CACHED
+
+#21 [runner 5/5] COPY --from=builder /app/package.json ./
+#21 CACHED
+
+#22 exporting to image
+#22 exporting layers done
+#22 exporting manifest sha256:0b688223b3e67ec503a7f76092d1406ee740c778fd68d71657291e09a793a9e1 done
+#22 exporting config sha256:b8c1e9592310b7bab08f4e40924c76e35747783b006a35b0d88d94c03dc747b6 done
+#22 exporting attestation manifest sha256:8ebe68f63fc9b38b878f74cef8d08eea2e1336daa4738aaadebd1945dd3eea5b done
+#22 exporting manifest list sha256:61e376783389e3c89b231446ce89d82a7260ae141b2e8a70b4138de6dd1efaa5 done
+#22 naming to docker.io/library/homecloud-r1q-amd64:temporary done
+#22 DONE 0.0s

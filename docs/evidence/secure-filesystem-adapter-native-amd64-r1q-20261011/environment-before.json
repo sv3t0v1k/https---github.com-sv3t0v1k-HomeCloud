@@ -1,0 +1,130 @@
+{
+  "version": {
+    "Client": {
+      "Version": "29.4.1",
+      "ApiVersion": "1.54",
+      "DefaultAPIVersion": "1.54",
+      "GitCommit": "055a478",
+      "GoVersion": "go1.26.2",
+      "Os": "darwin",
+      "Arch": "arm64",
+      "BuildTime": "Mon Apr 20 16:31:59 2026",
+      "Context": "desktop-linux"
+    },
+    "Server": {
+      "Platform": {
+        "Name": "Docker Desktop 4.71.0 (225177)"
+      },
+      "Version": "29.4.1",
+      "ApiVersion": "1.54",
+      "MinAPIVersion": "1.40",
+      "Os": "linux",
+      "Arch": "arm64",
+      "Components": [
+        {
+          "Name": "Engine",
+          "Version": "29.4.1",
+          "Details": {
+            "ApiVersion": "1.54",
+            "Arch": "arm64",
+            "BuildTime": "Mon Apr 20 16:34:04 2026",
+            "Experimental": "false",
+            "GitCommit": "6c91b92",
+            "GoVersion": "go1.26.2",
+            "KernelVersion": "6.12.76-linuxkit",
+            "MinAPIVersion": "1.40",
+            "Module": "github.com/moby/moby/v2",
+            "ModuleVersion": "v2.0.0+unknown",
+            "Os": "linux"
+          }
+        },
+        {
+          "Name": "containerd",
+          "Version": "v2.2.3",
+          "Details": {
+            "GitCommit": "77c84241c7cbdd9b4eca2591793e3d4f4317c590"
+          }
+        },
+        {
+          "Name": "runc",
+          "Version": "1.3.5",
+          "Details": {
+            "GitCommit": "v1.3.5-0-g488fc13e"
+          }
+        },
+        {
+          "Name": "docker-init",
+          "Version": "0.19.0",
+          "Details": {
+            "GitCommit": "de40ad0"
+          }
+        }
+      ],
+      "GitCommit": "6c91b92",
+      "GoVersion": "go1.26.2",
+      "KernelVersion": "6.12.76-linuxkit",
+      "BuildTime": "2026-04-20T16:34:04.000000000+00:00"
+    }
+  },
+  "info": {
+    "Architecture": "aarch64",
+    "KernelVersion": "6.12.76-linuxkit",
+    "OperatingSystem": "Docker Desktop",
+    "SecurityOptions": [
+      "name=seccomp,profile=builtin",
+      "name=cgroupns"
+    ],
+    "ServerVersion": "29.4.1",
+    "DefaultRuntime": "runc"
+  },
+  "contexts": [
+    "{\"Current\":false,\"Description\":\"Current DOCKER_HOST based configuration\",\"DockerEndpoint\":\"unix:///var/run/docker.sock\",\"Error\":\"\",\"Name\":\"default\"}",
+    "{\"Current\":true,\"Description\":\"Docker Desktop\",\"DockerEndpoint\":\"unix:///Users/aleksejkozemakin/.docker/run/docker.sock\",\"Error\":\"\",\"Name\":\"desktop-linux\"}"
+  ],
+  "canonical": [
+    {
+      "name": "homecloud-preview-backend-1",
+      "id": "19f2e2ab27f1c8f04dcf50366e4fc7f278a434fd0ae12801cc9263d4fcc7a66a",
+      "image": "sha256:5407fe2d7d50fc8fcd6e0a88bde0302a7aa73095d60c9195b6a9d33a1ae4d00c",
+      "started": "2026-10-10T13:19:18.457369138Z",
+      "health": "healthy",
+      "user": "nextjs",
+      "securityOpts": null,
+      "privileged": false
+    },
+    {
+      "name": "homecloud-preview-frontend-1",
+      "id": "aab3644f93e90df24acdc7067e34d434948a0a714fbe782e183217e4958de75d",
+      "image": "sha256:53e2930a4a59391928e8b4b602716534c12d80120ec3b16cb25f2d33835eb9a2",
+      "started": "2026-10-06T00:47:23.277867458Z",
+      "health": "healthy",
+      "user": "",
+      "securityOpts": null,
+      "privileged": false
+    },
+    {
+      "name": "homecloud-preview-db-1",
+      "id": "4495424397ac02a38195dc3d105d6bc6b3c979fcc28cbfa39d398fac7018907d",
+      "image": "sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685",
+      "started": "2026-10-06T00:47:23.27747575Z",
+      "health": "healthy",
+      "user": "",
+      "securityOpts": null,
+      "privileged": false
+    },
+    {
+      "name": "homecloud-preview-ingress-1",
+      "id": "d961c9b18a98eff882ec4966668bbcf54d7f2c7ed62584343abf0faedfcb8882",
+      "image": "sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2",
+      "started": "2026-10-06T00:47:23.319309375Z",
+      "health": "healthy",
+      "user": "",
+      "securityOpts": null,
+      "privileged": false
+    }
+  ],
+  "permittedUntrackedSha256": {
+    "docs/evidence/frontend-functional/closure-checkpoint.json": "1b579e8f3f25462c45bd3ac1fbfabd2987a4165e2a971cb65ca46af8130518ff",
+    "docs/evidence/frontend-functional/closure-controls.json": "26e0b0f92a23e0be631427752552c680d8372de726ec86a13c5c28582c33b9d4"
+  }
+}

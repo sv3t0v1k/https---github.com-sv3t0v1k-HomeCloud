@@ -1,0 +1,42 @@
+COMMAND=["docker", "run", "--rm", "--platform", "linux/amd64", "--user", "1001:1001", "--cap-drop", "ALL", "--network", "none", "--security-opt", "no-new-privileges=true", "--read-only", "--tmpfs", "/qualified:uid=1001,gid=1001,mode=0700", "--mount", "type=bind,src=/private/tmp/homecloud-r1q-reproduced,dst=/evidence,readonly", "--entrypoint", "node", "homecloud-r1q-0fe061b5-amd64:temporary", "/evidence/artifact-probe.cjs"]
+{
+  "arch": "x64",
+  "node": "v20.20.2",
+  "napi": "9",
+  "uid": 1001,
+  "uname": "Linux 9bb268825363 6.12.76-linuxkit #1 SMP Fri Apr 17 14:56:37 UTC 2026 x86_64 Linux",
+  "artifacts": [
+    {
+      "path": "/usr/local/bin/node",
+      "class": 2,
+      "endian": 1,
+      "machine": 62,
+      "sha256": "055aea7f9aa306e3c6860e916b023aa78674064d521d25c5f6bc9f65d838f38f"
+    },
+    {
+      "path": "/app/native/secure-fs.node",
+      "class": 2,
+      "endian": 1,
+      "machine": 62,
+      "sha256": "bdadb25e4dab704ce19235564baaf27deacb821c25f0ec166d76d68c9d82ff09"
+    }
+  ],
+  "status": [
+    "CapInh:\t0000000000000000",
+    "CapPrm:\t0000000000000000",
+    "CapEff:\t0000000000000000",
+    "CapBnd:\t0000000000000000",
+    "CapAmb:\t0000000000000000",
+    "NoNewPrivs:\t1",
+    "Seccomp:\t2",
+    "Seccomp_filters:\t1"
+  ],
+  "emulationMaps": [
+    "800000000000-800000027000 r--p 00000000 00:3d 2                          /run/rosetta/rosetta",
+    "800000027000-80000009a000 r-xp 00027000 00:3d 2                          /run/rosetta/rosetta",
+    "8000000a0000-8000001a6000 rw-p 000a0000 00:3d 2                          /run/rosetta/rosetta"
+  ]
+}
+ADDON_ROOT=ENOSYS
+
+EXIT=0

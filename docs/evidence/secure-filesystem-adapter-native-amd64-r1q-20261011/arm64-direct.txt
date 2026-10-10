@@ -1,0 +1,22 @@
+COMMAND=["docker", "run", "--rm", "--platform", "linux/arm64", "--user", "1001:1001", "--cap-drop", "ALL", "--network", "none", "--security-opt", "no-new-privileges=true", "--read-only", "--tmpfs", "/qualified:uid=1001,gid=1001,mode=0700", "--mount", "type=bind,src=/tmp/homecloud-r1q,dst=/evidence,readonly", "--entrypoint", "/evidence/probe-arm64", "homecloud-r1q-arm64-tests:temporary"]
+compiled=aarch64 uname=Linux 6.12.76-linuxkit aarch64 uid=1001 SYS_openat2=437 SYS_renameat2=276 how_size=24 offsets=0,8,16
+CapInh:	0000000000000000
+CapPrm:	0000000000000000
+CapEff:	0000000000000000
+CapBnd:	0000000000000000
+CapAmb:	0000000000000000
+NoNewPrivs:	1
+Seccomp:	2
+Seccomp_filters:	1
+self_exe=/evidence/probe-arm64
+libc valid-no-resolve result=4 errno=0 (No error information)
+raw valid-no-resolve result=4 errno=0 (No error information)
+libc full-resolve result=4 errno=0 (No error information)
+raw full-resolve result=4 errno=0 (No error information)
+libc zero-size result=-1 errno=22 (Invalid argument)
+raw zero-size result=-22 errno=22 (Invalid argument)
+libc bad-pointer result=-1 errno=14 (Bad address)
+raw bad-pointer result=-14 errno=14 (Bad address)
+renameat2 result=-1 errno=2
+
+EXIT=0

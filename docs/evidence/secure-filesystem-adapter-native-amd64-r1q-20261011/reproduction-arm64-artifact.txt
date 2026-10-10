@@ -1,0 +1,38 @@
+COMMAND=["docker", "run", "--rm", "--platform", "linux/arm64", "--user", "1001:1001", "--cap-drop", "ALL", "--network", "none", "--security-opt", "no-new-privileges=true", "--read-only", "--tmpfs", "/qualified:uid=1001,gid=1001,mode=0700", "--mount", "type=bind,src=/private/tmp/homecloud-r1q-reproduced,dst=/evidence,readonly", "--entrypoint", "node", "homecloud-r1q-0fe061b5-arm64-tests:temporary", "/evidence/artifact-probe.cjs"]
+{
+  "arch": "arm64",
+  "node": "v20.20.2",
+  "napi": "9",
+  "uid": 1001,
+  "uname": "Linux db93d49fa0fc 6.12.76-linuxkit #1 SMP Fri Apr 17 14:56:37 UTC 2026 aarch64 Linux",
+  "artifacts": [
+    {
+      "path": "/usr/local/bin/node",
+      "class": 2,
+      "endian": 1,
+      "machine": 183,
+      "sha256": "bc2958c0c0823c7ad20245a11be776dcf525b37b33c0f05a74304ddab779fdf2"
+    },
+    {
+      "path": "/app/native/secure-fs.node",
+      "class": 2,
+      "endian": 1,
+      "machine": 183,
+      "sha256": "d566697a561a2906f4ddc31db021330cd2c135515ec0523c75d2fb76a1af775d"
+    }
+  ],
+  "status": [
+    "CapInh:\t0000000000000000",
+    "CapPrm:\t0000000000000000",
+    "CapEff:\t0000000000000000",
+    "CapBnd:\t0000000000000000",
+    "CapAmb:\t0000000000000000",
+    "NoNewPrivs:\t1",
+    "Seccomp:\t2",
+    "Seccomp_filters:\t1"
+  ],
+  "emulationMaps": []
+}
+ADDON_ROOT=PASS
+
+EXIT=0

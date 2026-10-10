@@ -1,0 +1,46 @@
+{
+  "canonicalUnchanged": true,
+  "canonical": [
+    {
+      "name": "homecloud-preview-backend-1",
+      "id": "19f2e2ab27f1c8f04dcf50366e4fc7f278a434fd0ae12801cc9263d4fcc7a66a",
+      "image": "sha256:5407fe2d7d50fc8fcd6e0a88bde0302a7aa73095d60c9195b6a9d33a1ae4d00c",
+      "started": "2026-10-10T13:19:18.457369138Z",
+      "health": "healthy",
+      "user": "nextjs",
+      "securityOpts": null,
+      "privileged": false
+    },
+    {
+      "name": "homecloud-preview-frontend-1",
+      "id": "aab3644f93e90df24acdc7067e34d434948a0a714fbe782e183217e4958de75d",
+      "image": "sha256:53e2930a4a59391928e8b4b602716534c12d80120ec3b16cb25f2d33835eb9a2",
+      "started": "2026-10-06T00:47:23.277867458Z",
+      "health": "healthy",
+      "user": "",
+      "securityOpts": null,
+      "privileged": false
+    },
+    {
+      "name": "homecloud-preview-db-1",
+      "id": "4495424397ac02a38195dc3d105d6bc6b3c979fcc28cbfa39d398fac7018907d",
+      "image": "sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685",
+      "started": "2026-10-06T00:47:23.27747575Z",
+      "health": "healthy",
+      "user": "",
+      "securityOpts": null,
+      "privileged": false
+    },
+    {
+      "name": "homecloud-preview-ingress-1",
+      "id": "d961c9b18a98eff882ec4966668bbcf54d7f2c7ed62584343abf0faedfcb8882",
+      "image": "sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2",
+      "started": "2026-10-06T00:47:23.319309375Z",
+      "health": "healthy",
+      "user": "",
+      "securityOpts": null,
+      "privileged": false
+    }
+  ],
+  "httpReadiness": 200
+}

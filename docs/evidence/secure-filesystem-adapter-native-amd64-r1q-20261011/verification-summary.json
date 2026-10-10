@@ -1,0 +1,65 @@
+{
+  "checkpoint": "MS-3B-R1Q",
+  "date": "2026-10-11",
+  "timezone": "Asia/Vladivostok",
+  "initialHead": "f18aa3c0f8fa1c8b0263b3ebfddc5f9d2231affc",
+  "r1qGate": "BLOCKED",
+  "reason": "BLOCKED_ENVIRONMENT: native Linux AMD64 Docker runtime not available in inspected local contexts",
+  "enosysLocalization": "Observed Rosetta guest-to-host translation path returns ENOSYS without invoking host openat2; exact internal cause/version unverified",
+  "nativeAmd64": "UNQUALIFIED",
+  "r1Gate": "BLOCKED",
+  "r2": "NOT_STARTED",
+  "ms4": "NOT_STARTED",
+  "secureOpen": false,
+  "additionalWorkspaces": "disabled",
+  "production": "NOT_READY_NO_GO",
+  "review": "COMPLETED_WITH_LIMITATIONS",
+  "amd64Build": "PASS",
+  "amd64OperationalRuntime": "FAIL_CLOSED_ENOSYS",
+  "arm64TargetedSuites": 1,
+  "arm64TargetedTests": 10,
+  "nativeAmd64FullRegressions": "NOT_RUN_ENVIRONMENT_BLOCKED",
+  "currentSourceSha256": {
+    "backend/native/secure-fs.c": "4bef4f7078b720fd7af00193133be8ce5bbeecc3444e9563c2a6b1775d81cb9f",
+    "backend/native/build.sh": "55546cbb993e0ffc6540f1343ad62e66db3a5e1a733dc079adf425ee6efe3046",
+    "backend/native/Dockerfile.tests": "2c583f1c0e4c903117e6e31af281cb1e3333d8ddfeaf88b8f5832cd4a32962ef",
+    "backend/Dockerfile": "8701031b9e982cad896525ff93aa231ffce7c5694ccd7b7ec9778a885b0ff1be",
+    "backend/src/uploads/secure-filesystem.ts": "8b943dd4ff590d811ed00f3d453f3ce185e55236b32e7212821ab76d1a01b560",
+    "backend/src/uploads/secure-filesystem.spec.ts": "26eb8e556ded00b04a2993fcd08b35e7ddd73882f308bef87dd32ca8c545ce49",
+    "backend/src/uploads/abortable-disk-storage.ts": "9d41303a944475f4f8be2bf4351d455ecfef5e22f8e9b9258b5200ef9baad195",
+    "backend/src/uploads/uploads.module.ts": "e40124f77e84cc40d4a03062b7b5e8cc36f0b40c03dbbd847236893828ee791e",
+    "backend/src/uploads/uploads.service.ts": "a7fa4b32d47c5d8993da5b1404743d63519034ab6881a8ce5445eb5a80e46d73",
+    "backend/src/uploads/upload-workspace.ts": "01a103be09553662b26a6cc7d09de73bc3700ce475d5673cf5508d75aaaada95",
+    "backend/src/storage/storage-mount-registry.ts": "4b08dd4e9bdc22b892d9a6a25be103213aaf107e97ea1452ca7efb37e77a47fa",
+    "docker-compose.yml": "7805fa70f2ec438cb2ef872f17b34e766c6b68b7f8b40b664a51996dc7e2e215",
+    "docker-compose.local.yml": "7007872dcb27f8bed7400796339d460ccd695fb752a8286666530704e092d04c",
+    "docker-compose.production.yml": "d39a3d4d21656c517328c8bfde761164eed7a872f223d8bccd119ef6075baf2c"
+  },
+  "permittedUntrackedSha256": {
+    "docs/evidence/frontend-functional/closure-checkpoint.json": "1b579e8f3f25462c45bd3ac1fbfabd2987a4165e2a971cb65ca46af8130518ff",
+    "docs/evidence/frontend-functional/closure-controls.json": "26e0b0f92a23e0be631427752552c680d8372de726ec86a13c5c28582c33b9d4"
+  },
+  "forbiddenAuditRead": false,
+  "forbiddenAuditChangedOrStaged": false,
+  "reproducibleHarness": {
+    "result": "PASS_REPRODUCTION_OF_BLOCKED_RUNTIME",
+    "nativeQualification": false,
+    "manifest": "reproduction-manifest.json"
+  },
+  "probeBinarySha256OriginalExperiments": {
+    "probe-amd64": "58f286aea36195c1b31a9aa213eca3e13aba231af57c8cbd9a7b65f75dc2f295",
+    "probe-arm64": "4ee5633a87f2ee9cf38fa3888d42823f6d0362d663b4b18aaccbf2b059f4df01"
+  },
+  "finalProbeBinarySha256": {
+    "syscall-probe.c": "a97ca0ba3b94834e293685c68cfac6e67dcd2dd09c308a75f3d9bc7e42ef904a",
+    "artifact-probe.cjs": "4784a1e202c7db59ee575ac0e91e3697217d8e093a559506ee58f1f96678bfb4",
+    "probe-amd64": "9d301ae6a10e8a334a7475f1485517e1a5b3874e6b65219d50ccb5eb4765eea6",
+    "probe-arm64": "4ee5633a87f2ee9cf38fa3888d42823f6d0362d663b4b18aaccbf2b059f4df01"
+  },
+  "reviewer": "/root/r1q_independent_review",
+  "materialReviewFindings": 0,
+  "cleanup": "All owned temporary containers auto-removed; three owned image tags removed; reproduction UUID tags removed by finally",
+  "privateInventory": "NOT_COMMITTED_REMOVED_FROM_TEMP",
+  "finalDataIntegrity": "PASS_EQUAL_AFTER_REPRODUCTION",
+  "dockerBuildCache": "USED; no clean/no-cache rebuild claimed"
+}

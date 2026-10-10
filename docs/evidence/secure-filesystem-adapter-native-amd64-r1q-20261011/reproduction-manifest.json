@@ -1,0 +1,6 @@
+{
+  "syscall-probe.c": "a97ca0ba3b94834e293685c68cfac6e67dcd2dd09c308a75f3d9bc7e42ef904a",
+  "artifact-probe.cjs": "4784a1e202c7db59ee575ac0e91e3697217d8e093a559506ee58f1f96678bfb4",
+  "probe-amd64": "9d301ae6a10e8a334a7475f1485517e1a5b3874e6b65219d50ccb5eb4765eea6",
+  "probe-arm64": "4ee5633a87f2ee9cf38fa3888d42823f6d0362d663b4b18aaccbf2b059f4df01"
+}
