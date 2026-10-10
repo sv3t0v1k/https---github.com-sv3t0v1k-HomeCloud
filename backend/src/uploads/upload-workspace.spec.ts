@@ -170,6 +170,41 @@ describe("UploadWorkspaceResolver legacy binding", () => {
     expect(() => resolver.ingress(record)).toThrow("directory");
   });
 
+  it("keeps additional workspace activation blocked after resolver restart even with legacy-looking keys", () => {
+    const extra = { ...record, id: "a2e8a3b0-8d57-4c49-9f8c-0d095b344602" };
+    const extraPath = path.join(storageRoot, "operator-ssd", uploadId);
+    for (let restart = 0; restart < 2; restart++) {
+      expect(() => resolver.resolve({ ...session(), workspaceId: extra.id, tempPath: extraPath }, extra))
+        .toThrow("Unapproved upload workspace identity");
+      expect(fs.existsSync(path.dirname(extraPath))).toBe(false);
+      expect(fs.readdirSync(workspaceRoot)).toEqual([]);
+      resolver.close();
+      resolver = new UploadWorkspaceResolver(storage);
+    }
+  });
+
+  it("recovers the same legacy workspace only with a new resolver after observed loss, preserving binary bytes", () => {
+    const saved = path.join(storageRoot, "saved-workspace");
+    fs.mkdirSync(session().tempPath);
+    const chunk = path.join(session().tempPath, "0");
+    const bytes = Buffer.from([0, 255, 128, 0]);
+    fs.writeFileSync(chunk, bytes);
+    const inode = fs.statSync(chunk).ino;
+    resolver.resolve(session(), record);
+    fs.renameSync(workspaceRoot, saved);
+    fs.mkdirSync(workspaceRoot);
+    expect(() => resolver.resolve(session(), record)).toThrow("root unavailable");
+    expect(fs.readdirSync(workspaceRoot)).toEqual([]);
+    fs.rmdirSync(workspaceRoot);
+    fs.renameSync(saved, workspaceRoot);
+    expect(() => resolver.resolve(session(), record)).toThrow("root unavailable");
+    resolver.close();
+    resolver = new UploadWorkspaceResolver(storage);
+    expect(resolver.resolve(session(), record)).toBe(session().tempPath);
+    expect(fs.statSync(chunk).ino).toBe(inode);
+    expect(fs.readFileSync(chunk)).toEqual(bytes);
+  });
+
   it("releases its root anchor and refuses subsequent reuse", () => {
     resolver.root(record);
     resolver.close();

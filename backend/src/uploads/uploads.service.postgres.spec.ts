@@ -619,6 +619,114 @@ describePostgres("UploadsService — реальный PostgreSQL", () => {
     }
   });
 
+  it("rejects ingress adoption EXDEV without copy, preserves confirmed binary chunks and accounting, and permits retry", async () => {
+    const user = await makeUser(32);
+    const session = await service.createUploadSession(user.id, "exdev.bin", 4, 2);
+    const bytes = Buffer.from([0, 255, 128, 0]);
+    const ingressRoot = path.join(storageRoot, ".tmp", "multipart-ingress");
+    fs.mkdirSync(ingressRoot, { recursive: true });
+    const ingress = path.join(ingressRoot, randomUUID());
+    await service.uploadChunk(user.id, session.uploadId, 0, bytes.subarray(0, 2));
+    const firstChunk = path.join(session.tempPath, "0");
+    const inode = fs.statSync(firstChunk).ino;
+    fs.writeFileSync(ingress, bytes.subarray(2));
+    const before = await workspaceIntegritySnapshot();
+    const copy = jest.spyOn(fs.promises, "copyFile");
+    const syncCopy = jest.spyOn(jest.requireActual<typeof fs>("node:fs"), "copyFileSync");
+    const rename = jest.spyOn(fs.promises, "rename").mockRejectedValueOnce(
+      Object.assign(new Error("Cross-device link"), { code: "EXDEV" }));
+    try {
+      await expect(service.uploadChunk(user.id, session.uploadId, 1, { path: ingress, size: 2 }))
+        .rejects.toMatchObject({ code: "EXDEV" });
+      expect(rename).toHaveBeenCalledWith(ingress, expect.stringMatching(/1\..*\.tmp$/));
+      expect(copy).not.toHaveBeenCalled();
+      expect(syncCopy).not.toHaveBeenCalled();
+      expect(await workspaceIntegritySnapshot()).toEqual(before);
+      expect(fs.statSync(firstChunk).ino).toBe(inode);
+      expect(fs.readFileSync(firstChunk)).toEqual(bytes.subarray(0, 2));
+      expect(fs.readdirSync(session.tempPath)).toEqual(["0"]);
+      expect(fs.existsSync(ingress)).toBe(false); // Unconfirmed request ingress is normally cleaned.
+      rename.mockRestore();
+      fs.writeFileSync(ingress, bytes.subarray(2));
+      await service.uploadChunk(user.id, session.uploadId, 1, { path: ingress, size: 2 });
+      const file = await service.completeUpload(user.id, session.uploadId);
+      expect(fs.readFileSync(file.storagePath)).toEqual(bytes);
+      expect(Number((await dataSource.getRepository(UserEntity).findOneByOrFail({ id: user.id })).storageUsed)).toBe(4);
+    } finally {
+      rename.mockRestore(); copy.mockRestore(); syncCopy.mockRestore();
+      fs.rmSync(ingress, { force: true });
+      await dataSource.getRepository(FileEntity).delete({ uploadId: session.uploadId, userId: user.id });
+      await dataSource.getRepository(UploadSessionEntity).delete(session.id);
+      await dataSource.getRepository(UserEntity).delete(user.id);
+      fs.rmSync(session.tempPath, { recursive: true, force: true });
+    }
+  });
+
+  it("resumes binary chunks after the same workspace returns and explicit service restart without fallback or accounting loss", async () => {
+    const isolatedRoot = fs.mkdtempSync(path.join(os.tmpdir(), "hc-workspace-return-"));
+    const tempRoot = path.join(isolatedRoot, ".tmp");
+    const savedRoot = path.join(isolatedRoot, "preserved-workspace");
+    fs.mkdirSync(tempRoot);
+    const config = new ConfigService({ STORAGE_PATH: isolatedRoot,
+      MAX_FILE_SIZE: 1024, MAX_TOTAL_SIZE: 1024, MAX_CHUNK_SIZE: 2 });
+    const instances: { uploads: UploadsService; storage: StorageService }[] = [];
+    const start = () => {
+      const storage = new StorageService(config);
+      const uploads = new UploadsService(
+        dataSource.getRepository(UploadSessionEntity), dataSource.getRepository(FileEntity),
+        dataSource.getRepository(FolderEntity), storage,
+        new UsersService(dataSource.getRepository(UserEntity)), config);
+      instances.push({ uploads, storage });
+      return uploads;
+    };
+    const user = await makeUser(32);
+    let session: UploadSessionEntity | undefined;
+    try {
+      const original = start();
+      session = await original.createUploadSession(user.id, "returned.bin", 4, 2);
+      const bytes = Buffer.from([0, 255, 128, 0]);
+      await original.uploadChunk(user.id, session.uploadId, 0, bytes.subarray(0, 2));
+      const firstChunk = path.join(session.tempPath, "0");
+      const inode = fs.statSync(firstChunk).ino;
+      const before = await workspaceIntegritySnapshot();
+      fs.renameSync(tempRoot, savedRoot);
+      fs.mkdirSync(tempRoot); // Empty underlying directory must never become a fallback.
+      await expect(original.getUploadSession(user.id, session.uploadId)).rejects.toMatchObject({ status: 503 });
+      await expect(original.uploadChunk(user.id, session.uploadId, 1, bytes.subarray(2))).rejects.toMatchObject({ status: 503 });
+      expect(await workspaceIntegritySnapshot()).toEqual(before);
+      expect(fs.readdirSync(tempRoot)).toEqual([]);
+      fs.rmdirSync(tempRoot);
+      fs.renameSync(savedRoot, tempRoot);
+      await expect(original.getUploadSession(user.id, session.uploadId)).rejects.toMatchObject({ status: 503 });
+      original.onModuleDestroy();
+      const resumed = start(); // Explicit restart releases the sticky workspace refusal.
+      const reloaded = await resumed.getUploadSession(user.id, session.uploadId);
+      expect(reloaded.workspaceId).toBe(LEGACY_UPLOAD_WORKSPACE.id);
+      expect(reloaded.uploadedSize).toBe(2);
+      expect(reloaded.uploadedCount).toBe(1);
+      expect(fs.statSync(firstChunk).ino).toBe(inode);
+      expect(fs.readFileSync(firstChunk)).toEqual(bytes.subarray(0, 2));
+      expect(await workspaceIntegritySnapshot()).toEqual(before);
+      await resumed.uploadChunk(user.id, session.uploadId, 1, bytes.subarray(2));
+      const file = await resumed.completeUpload(user.id, session.uploadId);
+      expect(fs.readFileSync(file.storagePath)).toEqual(bytes);
+      expect(Number((await dataSource.getRepository(UserEntity).findOneByOrFail({ id: user.id })).storageUsed)).toBe(4);
+      expect((await dataSource.getRepository(UploadSessionEntity).findOneByOrFail({ id: session.id })).workspaceId)
+        .toBe(LEGACY_UPLOAD_WORKSPACE.id);
+    } finally {
+      for (const instance of instances) {
+        instance.uploads.onModuleDestroy();
+        instance.storage.onModuleDestroy();
+      }
+      if (session) {
+        await dataSource.getRepository(FileEntity).delete({ uploadId: session.uploadId, userId: user.id });
+        await dataSource.getRepository(UploadSessionEntity).delete(session.id);
+      }
+      await dataSource.getRepository(UserEntity).delete(user.id);
+      fs.rmSync(isolatedRoot, { recursive: true, force: true });
+    }
+  });
+
   it.each(["missing", "replacement"])(
     "fails closed after initialized legacy workspace root %s without mutating either filesystem or DB", async (kind) => {
       const isolatedRoot = fs.mkdtempSync(path.join(os.tmpdir(), "hc-workspace-service-"));
