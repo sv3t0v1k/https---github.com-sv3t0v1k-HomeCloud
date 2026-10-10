@@ -1,0 +1,64 @@
+{
+  "tablesEqual": true,
+  "filesEqual": true,
+  "directoriesEqual": true,
+  "bindings": {
+    "sessions": 21,
+    "bound": 21
+  },
+  "temporarySchemasRemaining": 0,
+  "originalFileCount": 5,
+  "originalFileBytes": 37021,
+  "tableCounts": {
+    "upload_workspaces": 1,
+    "users": 4,
+    "files": 6,
+    "folders": 1,
+    "share_links": 6,
+    "upload_sessions": 21,
+    "upload_chunks": 0,
+    "storage_locations": 1,
+    "refresh_tokens": 43,
+    "download_capabilities": 0,
+    "migrations": 22
+  },
+  "tableDigests": {
+    "upload_workspaces": "d3f9ea777320182556eb2074b51381eb8bbcbbf6a1b9089385e1ec0d0b58a91b",
+    "users": "119c470c241932200663c098f9ec13252465573409036fc113f48b781bd415ec",
+    "files": "ae1a0174590dee6e09004e3e9a4bf12dc962e2b1b161c7487cf30c28cf96a88d",
+    "folders": "4713f27450760c851127ee814bdd8fd15f2d05474dd08d10da26f26237868d3d",
+    "share_links": "260237412fbbbf8ef54ccf034ae4799229db476b3519caef7956485b708520b3",
+    "upload_sessions": "8b1388ad8f7c9544a3170dedb7682f148db35c143e9600fe5d5f49c369653851",
+    "upload_chunks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "storage_locations": "f5e7c62d5af58924b6904d25f6a7fe3158d91473be1888340176a31f6d1c2495",
+    "refresh_tokens": "453935dafd036ec30f90cf9395d46d572fb9671c2b2c1392f28078c384eed018",
+    "download_capabilities": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "migrations": "23fbd78f8ce412a1072e4c7472c4b57a76ad22d0a3a76ff03380b1177f167374"
+  },
+  "runtime": {
+    "node": "v20.20.2",
+    "platform": "linux",
+    "uid": 1001,
+    "euid": 1001,
+    "diagnostic": {
+      "id": "f2f5c4b0-8d57-4c49-9f8c-0d095b344601",
+      "state": "online",
+      "reason": "trusted-legacy",
+      "capabilities": {
+        "logicalResolution": true,
+        "secureOpen": false,
+        "read": true,
+        "write": true
+      }
+    },
+    "workspaceDevice": 65025,
+    "workspaceInode": 579530,
+    "ingressDevice": 65025,
+    "sameFilesystem": true,
+    "healthHttp": 200,
+    "smokeScope": "read-only identity/health/snapshot; no rollout or new activation"
+  },
+  "sourceBytesMoved": 0,
+  "rollout": false,
+  "finalCanonicalRecheckEqual": true
+}

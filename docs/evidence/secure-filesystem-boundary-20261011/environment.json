@@ -1,0 +1,36 @@
+{
+  "node": "v20.20.2",
+  "kernel": "6.12.76-linuxkit",
+  "arch": "arm64",
+  "uid": 1001,
+  "euid": 1001,
+  "capEff": "0000000000000000",
+  "seccomp": "2",
+  "fsApi": {
+    "openat2": "undefined",
+    "openat": "undefined",
+    "renameat": "undefined",
+    "unlinkat": "undefined"
+  },
+  "resolveFlags": [],
+  "canonicalStorageVisible": false,
+  "images": {
+    "homecloud-ms3br-probe:temporary": "sha256:791552ab7f12b417dbc6778a3f6df4a6ae48b02bce5de327c89c8b7cfc49a198",
+    "homecloud-ms3a-tests:latest": "sha256:b708c8f0f759eac85fa45499471ae06062db3d4e66f18ab98690511ee28435c5",
+    "homecloud-preview-backend:workspace-checkpoint": "sha256:5407fe2d7d50fc8fcd6e0a88bde0302a7aa73095d60c9195b6a9d33a1ae4d00c"
+  },
+  "compiler": {
+    "baseDigest": "sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6",
+    "gcc": "15.2.0-r5",
+    "muslDev": "1.2.6-r2",
+    "linuxHeaders": "7.0.0-r1",
+    "flags": "-std=c11 -O2 -static -Wall -Wextra -Werror",
+    "support": "test-only; mutable apk repository/test base, not production build support"
+  },
+  "sourceSha256": {
+    "kernel-probe.c": "4dac7af569958b6307e583661505f14a548bad303d5c3d9acc5c805c2db839de",
+    "runtime-probe.cjs": "1641212d646b9b0be288a1abc92d6ef28592a76cc665a950fa869623a9644e0f",
+    "mount-probe.cjs": "ca6a9d9c6396da882fcbfaf9c8bc84bbb2564afc642fe51d5273a2ec2d59c69c",
+    "Dockerfile.probe": "cba6229809811e9ca07d8409a37ac57b9a49cac3d3f1405a3ade165e900ea352"
+  }
+}

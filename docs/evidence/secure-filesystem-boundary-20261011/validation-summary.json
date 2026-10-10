@@ -1,0 +1,32 @@
+{
+  "image": "homecloud-preview-backend:workspace-checkpoint",
+  "testImage": "homecloud-ms3a-tests:latest",
+  "sourceHead": "36216688e48d4d4b526bcd95498ac0e49fe0b858",
+  "postgres": "real existing preview DB; disposable per-suite schemas; no public writes intended",
+  "results": {
+    "targeted": {
+      "exitCode": 0
+    },
+    "full": {
+      "exitCode": 0
+    },
+    "lint": {
+      "exitCode": 0
+    },
+    "typecheck": {
+      "exitCode": 0
+    },
+    "build": {
+      "exitCode": 0
+    }
+  },
+  "targetedSuites": 7,
+  "targetedTests": 178,
+  "fullSuites": 68,
+  "fullTests": 921,
+  "skips": 0,
+  "postgresSuites": 9,
+  "lintErrors": 0,
+  "lintWarnings": 15,
+  "runtimeImageProductionSource": "same production src as initial HEAD; intervening source changes only two test files"
+}

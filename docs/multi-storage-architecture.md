@@ -1,10 +1,11 @@
 # HomeCloud — аудит и проект многотомного хранения
 
-Дата аудита: 2026-10-06, Asia/Vladivostok. Обновление: 2026-10-10.
+Дата аудита: 2026-10-06, Asia/Vladivostok. Обновление: 2026-10-11.
 Статус дизайна: **OWNER_APPROVED**. Первый implementation checkpoint
 **Schema & Legacy Compatibility: COMPLETE**; **MS-2 Registry & Secure Resolver: COMPLETE**
 в owner-approved ограниченном trusted legacy профиле; **MS-3A Upload Workspace Architecture & Session Binding: COMPLETE**
 в том же legacy профиле. **MS-3B Secure Workspace Activation: BLOCKED / activation disabled**;
+**MS-3B-R Secure Filesystem Boundary: BLOCKED** после отдельного исследования;
 остальные checkpoints не реализованы.
 Это ненумерованный workstream. Production остаётся **NOT_READY / NO_GO**.
 Разделы 1–15 сохраняют исходный аудит и целевой дизайн; утверждение ниже фиксирует
@@ -116,6 +117,30 @@ Four independent narrow reviews ACCEPT только blocked outcome. **secureOpe
 Production **NOT_READY / NO_GO**. [Threat/platform/evidence](evidence/secure-workspace-activation-20261010/report.md).
 Следующий gate — отдельно reviewed descriptor adapter, durable operator identity, actual
 mount qualification, secure session ingress/DB admission; дальше автоматически не идём.
+
+### MS-3B-R — Secure Filesystem Boundary: BLOCKED, 2026-10-11
+
+Отдельный syscall-probe подтвердил доступность openat2 и unique mount ID через statx
+в текущем Linux под UID1001, CapEff0 и default seccomp. Проверены операции по FD,
+NO_XDEV и 2000 попыток открытия при concurrent symlink swaps без записи вне root.
+Это не production adapter. Реальный compiled Multer вновь записал 5 fixture bytes
+вне root; новый production Node process принял заменённый `.tmp`.
+**Оба runtime-блокера не исправлены; secureOpen=false**.
+
+В private user/mount namespace (test-only unconfined, UID0→host UID1001) выполнены
+реальные tmpfs unmount/remount и SIGKILL fixture recovery. Новый mount повторил весь
+обычный tuple dev/ino/mnt_id/workspace inode. STATX_MNT_ID_UNIQUE различил mount instances,
+но не подтверждает физический диск или generation `.tmp`. Physical SSD/NVMe, Desktop,
+NFS/SMB остаются UNQUALIFIED. Внешний enrollment и Node-API boundary пока design-only.
+
+Production, schema, config и finalizer неизменны; исходные bytes не перемещались.
+Hashes 11 таблиц и captured FS inventory совпали; 21/21 legacy bindings сохранены.
+Полный backend: 68 suites / 921 tests, 9 real PostgreSQL suites без skips;
+lint/typecheck/build PASS, read-only runtime live HTTP200. Два независимых scoped reviews
+приняли только blocked outcome. Дополнительная activation disabled, Production
+NOT_READY/NO_GO; MS-4 не начат.
+[Design, actual evidence, blockers и next gate](evidence/secure-filesystem-boundary-20261011/report.md).
+Работа остановлена после MS-3B-R; 50GiB/push/tag/release/deploy не выполнялись.
 
 ## 1. Исходное состояние и границы аудита
 

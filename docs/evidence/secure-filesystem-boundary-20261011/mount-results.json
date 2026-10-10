@@ -1,0 +1,57 @@
+{
+  "scope": "actual disposable tmpfs in private user/mount namespace; NOT runtime identity enforcement",
+  "uidMap": [
+    0,
+    1001,
+    1
+  ],
+  "seccomp": "unconfined only for isolated test",
+  "applicationSecureOpen": false,
+  "activation": "disabled",
+  "absent": "PASS: absent test root observed; no runtime enrollment tested",
+  "emptyUnderlying": "PASS: actual plain empty root has no exact mount",
+  "processRestart": {
+    "identityEqual": true,
+    "original": {
+      "dev": 72,
+      "ino": 1,
+      "mntId": "200",
+      "workspaceDev": 72,
+      "workspaceIno": 2
+    },
+    "scope": "fresh processes observe same object, not deployed enrollment"
+  },
+  "substitutedWorkspace": {
+    "identityChanged": true,
+    "substituted": {
+      "dev": 72,
+      "ino": 1,
+      "mntId": "200",
+      "workspaceDev": 72,
+      "workspaceIno": 4
+    },
+    "scope": "observed difference; application rejection is absent"
+  },
+  "crashRecovery": "PASS: fixture process SIGKILL after fsync; no DB/service/power-loss guarantee",
+  "unmount": "PASS: normal unmount exposes empty underlying dir; no runtime fallback exercised",
+  "substitutedRoot": "PASS: copied marker on plain root has no exact namespace mount",
+  "remount": {
+    "remounted": {
+      "dev": 72,
+      "ino": 1,
+      "mntId": "200",
+      "workspaceDev": 72,
+      "workspaceIno": 2
+    },
+    "originalUniqueMountId": 2147807279,
+    "remountedUniqueMountId": 2147807280,
+    "uniqueMountIdChanged": true,
+    "ordinaryMountIdReused": true,
+    "fullObservedTupleReused": true,
+    "securityResult": "ordinary mnt_id/dev/ino tuple not durable identity",
+    "scope": "new tmpfs instance; not physical same-disk remount"
+  },
+  "physicalDisk": "UNQUALIFIED",
+  "runtimeMountPolicy": "default seccomp denies unshare; test-only unconfined succeeds",
+  "cleanup": "PASS: both mounts normally unmounted, scratch removed, private namespaces/container destroyed"
+}

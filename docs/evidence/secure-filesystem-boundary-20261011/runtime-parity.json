@@ -1,0 +1,11 @@
+{
+  "modules": {
+    "storage/storage.service.js": "07a07316921c1db3403caead4c1cb0dbce8542771cd5ae54c4500ec11015fba9",
+    "storage/storage-mount-registry.js": "ccf40b283c620919f2cf8d7f6dcb22183e051ef13b85cd13bd196254901beea3",
+    "storage/storage-placement.js": "393c4674c13f52a70de9ba44a93dc483e34e1bd7ae68f2c9b47f43a54fff93ab",
+    "uploads/upload-workspace.js": "09685f9a1099c61e5e5fb9e1554f4296c6827e44098bcb69b0fcab79a4b5d1fb",
+    "uploads/abortable-disk-storage.js": "46339480cd678a3c1025a5ba61035f020bdf0b3d27c4bd4ddc0e9a04b6965f6b"
+  },
+  "allFiveCompiledModulesEqual": true,
+  "rollout": false
+}

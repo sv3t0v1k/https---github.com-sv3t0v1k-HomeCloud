@@ -757,3 +757,24 @@ preview healthy; rollout не выполнялся.
 Next gate: reviewed descriptor-safe lifecycle adapter, durable operator identity/recovery,
 actual target mount qualification, secure ingress и DB admission. MS-4 cross-FS finalizer
 не начат. Production **NOT_READY / NO_GO**. Остановились после MS-3B; no50GiB/push/tag/release.
+
+
+## Multi-Storage — Secure Filesystem Boundary (MS-3B-R)
+
+Отдельный remediation checkpoint **BLOCKED**, 2026-10-11. Standalone openat2/FD probe
+прошёл 2000 попыток открытия при symlink swaps без записи вне root. Production ingress
+race и restart `.tmp` substitution **не исправлены**. Native Node adapter и внешний
+enrollment не внедрены. Реальные isolated tmpfs unmount/remount показали reuse полного
+обычного mountID/dev/ino tuple; unique mount IDs различились. Физическая identity не доказана.
+
+Полный backend: 68 suites / 921 tests, 9 real PostgreSQL suites без skips;
+targeted 7/178, lint/typecheck/build PASS. Canonical hashes 11 таблиц и FS inventory
+совпали, 21/21 bindings сохранены, исходные bytes не перемещались; runtime live HTTP200.
+Два независимых scoped reviews приняли только blocked outcome. **secureOpen=false**,
+additional activation disabled; physical SSD/NVMe, Desktop, NFS/SMB UNQUALIFIED.
+[Design, probes и итоговый report](evidence/secure-filesystem-boundary-20261011/report.md).
+
+Production **NOT_READY/NO_GO**; MS-3B не COMPLETE, MS-4 не начат. Остановились после MS-3B-R.
+Следующий gate: реально используемый descriptor lifecycle, доверенный внешний enrollment,
+workspace generation и qualification целевой физической платформы.
+50GiB/push/tag/release/deploy не выполнялись.

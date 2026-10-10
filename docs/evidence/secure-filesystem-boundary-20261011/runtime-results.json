@@ -1,0 +1,47 @@
+{
+  "scope": "compiled production StorageService/resolver/Multer; NODE_ENV=production, isolated actual Linux tmpfs",
+  "secureOpen": false,
+  "activation": "disabled",
+  "mountAdmission": {
+    "plainCopiedMarker": {
+      "accepted": false,
+      "error": "Storage unavailable: offline/exact-mount-absent-ambiguous-or-nested",
+      "pid": 13
+    },
+    "absentRoot": {
+      "accepted": false,
+      "error": "Storage unavailable: offline/root-unavailable",
+      "pid": 20
+    },
+    "noRootCreation": true
+  },
+  "restart": {
+    "missingWorkspace": {
+      "accepted": false,
+      "error": "Upload workspace unavailable: provision legacy .tmp before startup",
+      "pid": 27
+    },
+    "initial": {
+      "accepted": true,
+      "dev": 96,
+      "ino": 4,
+      "pid": 34
+    },
+    "replacement": {
+      "accepted": true,
+      "dev": 96,
+      "ino": 7,
+      "pid": 41
+    },
+    "securityResult": "FAIL: new production process accepted substituted .tmp",
+    "originalFixturePreserved": true
+  },
+  "ingress": {
+    "actualMulterWriter": true,
+    "guard": "actual production resolver guard then deterministic ancestor swap",
+    "escapedFixtureBytes": 5,
+    "securityResult": "FAIL: production ingress race unresolved"
+  },
+  "checkpointStatus": "BLOCKED",
+  "cleanup": "private scratch and fixture tree removed; tmpfs destroyed with --rm"
+}

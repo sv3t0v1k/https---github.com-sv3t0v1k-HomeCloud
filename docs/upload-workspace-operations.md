@@ -95,3 +95,26 @@ Ingress/chunks должны оставаться на одной FS; EXDEV бе�
 пишет legacy finalPath и не является квалифицированным MS-4 протоколом.
 
 [Полный MS-3B report, threat model и platform matrix](evidence/secure-workspace-activation-20261010/report.md).
+
+
+## MS-3B-R — операторский контракт остаётся legacy-only
+
+2026-10-11: **BLOCKED**, activation disabled, secureOpen=false. Доступность Linux
+openat2/FD primitives доказана только standalone qualification executable.
+Production Multer/lifecycle не переведены на descriptors; новый production process
+по-прежнему принимает заменённый `.tmp`. Обе проблемы остаются; включать SSD нельзя.
+
+Внешний enrollment требует доверенного read-only operator record вне атакуемого
+storage tree и проверки открытых root/workspace FD перед любой записью. Runtime
+не должен принимать first-seen identity, создавать mount root или использовать fallback.
+Это **design-only**: новых env/config/bootstrap implementation нет. Marker можно клонировать;
+обычный mountID/dev/ino tuple реально повторился после fresh tmpfs remount.
+STATX_MNT_ID_UNIQUE различил mounts в одном boot, но не доказывает физический диск или
+persistent generation workspace. Для remount/reboot нужны host operator attestation
+и qualified object identity; автоматическое обновление enrollment проектом запрещено.
+
+Tmpfs namespace tests и SIGKILL fixture не подтверждают physical SSD, power loss или
+production recovery. Runtime policy не изменена; test-only private namespace UID0
+отображался на host UID1001. Ограничения legacy recovery MS-3B сохраняются.
+Новые roots/workspaces/DB admissions не разрешены; finalizer/MS-4 не изменены.
+[Исследование, реальные probes, reviews и blockers](evidence/secure-filesystem-boundary-20261011/report.md).
