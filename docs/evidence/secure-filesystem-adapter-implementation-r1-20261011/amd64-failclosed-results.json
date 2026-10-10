@@ -1,0 +1,14 @@
+{
+  "platform": "linux",
+  "architecture": "x64",
+  "kernel": "6.12.76-linuxkit",
+  "uid": 1001,
+  "runtime": "Docker Desktop amd64 emulation context",
+  "rootAcquisition": "ENOSYS",
+  "multer": "FAIL_CLOSED",
+  "uploadBytesWritten": 0,
+  "ingressDirectoryCreated": false,
+  "fallback": false,
+  "cause": "NOT_ESTABLISHED",
+  "qualification": "BLOCKED"
+}

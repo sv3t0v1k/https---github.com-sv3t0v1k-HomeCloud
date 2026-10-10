@@ -1,0 +1,40 @@
+{
+  "platform": "linux",
+  "architecture": "arm64",
+  "kernel": "6.12.76-linuxkit",
+  "uid": 1001,
+  "scope": "Docker Desktop/LinuxKit; disposable tmpfs; actual compiled production modules; no canonical rollout",
+  "multer": {
+    "guard": "real production resolver; deterministic symlink swap immediately after guard",
+    "result": "FAIL_CLOSED",
+    "errorCode": "ELOOP",
+    "outsideWrittenBytes": 0
+  },
+  "exdev": {
+    "actualNestedMount": true,
+    "result": "EXDEV",
+    "sourceRetained": true,
+    "copyFallback": false
+  },
+  "concurrency": {
+    "attempts": 2000,
+    "successes": 616,
+    "explicitRefusals": 1384,
+    "ancestorSwaps": 11402,
+    "outsideWrittenBytes": 0
+  },
+  "cleanup": {
+    "symlinkOutsidePreserved": true
+  },
+  "crashRestart": {
+    "result": "PASS",
+    "scope": "SIGKILL after file+directory fsync; fresh capability reads retained bytes; not power-loss qualification"
+  },
+  "fdLifecycle": {
+    "cycles": 100,
+    "leaks": 0
+  },
+  "result": "LOCALLY_VERIFIED",
+  "secureOpen": false,
+  "production": "NOT_READY/NO_GO"
+}

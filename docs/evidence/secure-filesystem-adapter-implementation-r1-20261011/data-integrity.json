@@ -1,0 +1,14 @@
+{
+  "tablesEqual": true,
+  "fileInventoryEqual": true,
+  "directoryInventoryEqual": true,
+  "bindings": {
+    "sessions": 21,
+    "bound": 21
+  },
+  "remainingDisposableSchemas": 0,
+  "canonicalFiles": 5,
+  "canonicalFileBytes": 37021,
+  "httpHealth": 200,
+  "secureOpen": false
+}

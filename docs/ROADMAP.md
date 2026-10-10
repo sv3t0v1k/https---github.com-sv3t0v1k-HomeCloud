@@ -790,3 +790,24 @@ LinuxKit; native Linux target для обязательной отдельной
 Production NOT_READY / NO_GO. Production source/schema/config/runtime/data не изменены.
 Исторические 68/921 и 21/21 не выдаются за новый прогон.
 [Факты остановки, ограничения и варианты владельцу](evidence/secure-filesystem-adapter-r1-20261011/report.md).
+
+
+## MS-3B-R1 — реализация сохранена, qualification BLOCKED (2026-10-11)
+
+Прежняя остановка до кода снята решением владельца: разработка macOS/Docker Desktop,
+целевой image Linux amd64, ARM64 не обязателен, ARMv7/32-bit исключены. Реальный
+Linux Node-API descriptor adapter подключён к production Multer и upload lifecycle,
+включая staging/chunks/read/hash/rename/delete/cleanup/recovery; finalizer publication
+не переписан. Native LinuxKit arm64: ingress FAIL_CLOSED/outside0,2000concurrent attempts,
+actual EXDEV без fallback, two-process UploadsService+PostgreSQL SIGKILL recovery PASS;
+69suites/931tests с9PG suites PASS, lint0errors/15existing warnings, typecheck/build PASS.
+Независимый scoped review завершён с limitations, все выявленные P1/P2 исправлены.
+
+Docker linux/amd64 BUILD PASS, но Desktop amd64 RUNTIME FAIL_CLOSED/ENOSYS до upload
+bytes. Точная причина ENOSYS не установлена; syscall downgrade или изменение Docker
+не выполнялись. Владелец выбрал сохранить implementation/evidence до native amd64
+host qualification. **R1_GATE=BLOCKED**, native Linux amd64 host UNQUALIFIED,
+secureOpen=false, additional activation disabled, production NOT_READY/NO_GO.
+R2 не начат; переход только после полного R1 PASS и отдельного решения. MS-4 не начат.
+Durable enrollment/restart substitution остаются вне R1; canonical data/21bindings
+сохранены. [Текущий R1 report/design/evidence](evidence/secure-filesystem-adapter-implementation-r1-20261011/report.md).
