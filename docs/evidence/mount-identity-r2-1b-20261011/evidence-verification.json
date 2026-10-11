@@ -1,0 +1,25 @@
+{
+  "status": "PASS",
+  "scope": "preflight evidence consistency only; R2.1B_GATE=BLOCKED",
+  "count": 18,
+  "checks": {
+    "baseline-26-containers": true,
+    "baseline-all-running": true,
+    "baseline-mountinfo-hash": true,
+    "baseline-17-old-fixture-entries": true,
+    "final-26-containers": true,
+    "final-all-running": true,
+    "final-mountinfo-hash": true,
+    "final-17-old-fixture-entries": true,
+    "container-records-identical": true,
+    "host-mountinfo-byte-identical": true,
+    "boot-id-identical": true,
+    "host-mount-namespace-identical": true,
+    "old-fixtures-metadata-content-identical": true,
+    "sudo-root-entry-unavailable": true,
+    "userns-probe-success": true,
+    "child-mount-namespace-different": true,
+    "initial-userns-mount-entry-denied": true,
+    "remote-stderr-empty": true
+  }
+}

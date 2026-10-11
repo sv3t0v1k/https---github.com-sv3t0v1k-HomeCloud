@@ -878,3 +878,22 @@ checkpoint — отдельно разрешённое продолжение R2
 host attestation qualification. Privileged namespace tests требуют отдельного прямого
 разрешения; реальные диски не размонтировать.
 [Матрица, evidence, scope, ограничения и review](evidence/persistent-identity-r2-1-20261011/report.md).
+
+
+## MS-3B-R2.1B — Mount Identity Qualification: ожидает ручного запуска (2026-10-11)
+
+**R2.1B_GATE=BLOCKED; R2.1_GATE=BLOCKED.** Preflight подтвердил отдельную user/mount
+namespace с UID0→host1000, но не initial-userns права для ext4/XFS. Обычный mountns
+вход EPERM; sudo требует пароль. Пользователь отдельно разрешил собственные disposable
+loop allocations и ручной однократный root-вход владельцем. Подготовлен проверенный
+isolated-helper, source/launcher переданы в exclusive server test project; ещё не выполнен.
+18 offline consistency checks PASS не являются filesystem qualification PASS.
+26 исходных container records, полный host mountinfo и прежние R2.1 fixture metadata/content
+равны в preflight; после загрузки source container records и mountinfo SHA прежние.
+Новых loops/FS mounts/containers0. Независимый scoped AI review ACCEPT только historical
+preflight BLOCKED; исправленный helper допускает manual run с явными ограничениями
+trusted quiescent hs/root writers и own-loop identity/cleanup. Матрица ext4/XFS и
+rprivate/attestation trust boundary design-only; fresh experiment evidence ещё нет.
+**secureOpen=false; additional workspaces disabled; production NO_GO.** R2.2/MS-4
+не начаты; production code/config неизменны, suites/lint/build не запускались.
+[Отчёт, raw evidence, helper и независимые reviews](evidence/mount-identity-r2-1b-20261011/report.md).
