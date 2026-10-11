@@ -1,0 +1,387 @@
+{
+  "status": "PASS",
+  "count": 95,
+  "scope": "offline verification of observed native root/disposable FS run; gate BLOCKED, ordinary-container FS continuity/attestation/reboot unqualified",
+  "checks": [
+    {
+      "check": "exact v2 source executed",
+      "status": "PASS"
+    },
+    {
+      "check": "remote source unchanged since review",
+      "status": "PASS"
+    },
+    {
+      "check": "child rc0, no research/parse error",
+      "status": "PASS"
+    },
+    {
+      "check": "journal/parsed result/raw stdout identical",
+      "status": "PASS"
+    },
+    {
+      "check": "gates BLOCKED despite successful run",
+      "status": "PASS"
+    },
+    {
+      "check": "single record research-status",
+      "status": "PASS"
+    },
+    {
+      "check": "successful recorded research scope",
+      "status": "PASS"
+    },
+    {
+      "check": "recovery detached only old own loop8",
+      "status": "PASS"
+    },
+    {
+      "check": "old recorded image matches",
+      "status": "PASS"
+    },
+    {
+      "check": "root association stable before detach",
+      "status": "PASS"
+    },
+    {
+      "check": "actual padded string explains first false mismatch",
+      "status": "PASS"
+    },
+    {
+      "check": "root recovery unused proof",
+      "status": "PASS"
+    },
+    {
+      "check": "root recovery kernel ENXIO",
+      "status": "PASS"
+    },
+    {
+      "check": "recovery host invariants",
+      "status": "PASS"
+    },
+    {
+      "check": "26 unique running records snapshot 14",
+      "status": "PASS"
+    },
+    {
+      "check": "original container/mountinfo equality snapshot 15",
+      "status": "PASS"
+    },
+    {
+      "check": "26 unique running records snapshot 16",
+      "status": "PASS"
+    },
+    {
+      "check": "original container/mountinfo equality snapshot 17",
+      "status": "PASS"
+    },
+    {
+      "check": "26 unique running records snapshot 18",
+      "status": "PASS"
+    },
+    {
+      "check": "original container/mountinfo equality snapshot 19",
+      "status": "PASS"
+    },
+    {
+      "check": "26 unique running records snapshot 20",
+      "status": "PASS"
+    },
+    {
+      "check": "original container/mountinfo equality snapshot 21",
+      "status": "PASS"
+    },
+    {
+      "check": "26 unique running records snapshot 22",
+      "status": "PASS"
+    },
+    {
+      "check": "original container/mountinfo equality snapshot 23",
+      "status": "PASS"
+    },
+    {
+      "check": "root five invariants",
+      "status": "PASS"
+    },
+    {
+      "check": "root/post original boot/namespaces",
+      "status": "PASS"
+    },
+    {
+      "check": "original full mountinfo SHA",
+      "status": "PASS"
+    },
+    {
+      "check": "all old R2.1 fixtures preserved",
+      "status": "PASS"
+    },
+    {
+      "check": "single record namespace-before-private",
+      "status": "PASS"
+    },
+    {
+      "check": "single record namespace-private-mountinfo",
+      "status": "PASS"
+    },
+    {
+      "check": "child mountns distinct, initial-userns same",
+      "status": "PASS"
+    },
+    {
+      "check": "every child propagation private",
+      "status": "PASS"
+    },
+    {
+      "check": "private proof before mkfs/loop",
+      "status": "PASS"
+    },
+    {
+      "check": "four raw identity guards",
+      "status": "PASS"
+    },
+    {
+      "check": "single record ext4-fresh-image",
+      "status": "PASS"
+    },
+    {
+      "check": "single record ext4-mkfs",
+      "status": "PASS"
+    },
+    {
+      "check": "ext4 image provenance and budget",
+      "status": "PASS"
+    },
+    {
+      "check": "ext4 pinned-file mkfs",
+      "status": "PASS"
+    },
+    {
+      "check": "single record ext4-loop",
+      "status": "PASS"
+    },
+    {
+      "check": "ext4 loop current backing",
+      "status": "PASS"
+    },
+    {
+      "check": "single record ext4-copy-replacement",
+      "status": "PASS"
+    },
+    {
+      "check": "ext4 observation handle payloads",
+      "status": "PASS"
+    },
+    {
+      "check": "ext4 copied marker does not equal object identity",
+      "status": "PASS"
+    },
+    {
+      "check": "single record ext4-new-process",
+      "status": "PASS"
+    },
+    {
+      "check": "ext4 new process continuity",
+      "status": "PASS"
+    },
+    {
+      "check": "single record ext4-nested",
+      "status": "PASS"
+    },
+    {
+      "check": "ext4 nested same object new mount instance",
+      "status": "PASS"
+    },
+    {
+      "check": "ext4 NO_XDEV rejects crossing",
+      "status": "PASS"
+    },
+    {
+      "check": "single record ext4-same-object-stack",
+      "status": "PASS"
+    },
+    {
+      "check": "ext4 stacked same object changes mount instance",
+      "status": "PASS"
+    },
+    {
+      "check": "single record ext4-live-replacement",
+      "status": "PASS"
+    },
+    {
+      "check": "ext4 live replacement path vs retained FD",
+      "status": "PASS"
+    },
+    {
+      "check": "single record ext4-recycle",
+      "status": "PASS"
+    },
+    {
+      "check": "ext4 actual inode reuse changes opaque handle",
+      "status": "PASS"
+    },
+    {
+      "check": "single record ext4-flag-remount",
+      "status": "PASS"
+    },
+    {
+      "check": "ext4 flag remount preserves object and mount instance",
+      "status": "PASS"
+    },
+    {
+      "check": "ext4 actual ro/rw flags",
+      "status": "PASS"
+    },
+    {
+      "check": "single record ext4-clean-unmount-remount",
+      "status": "PASS"
+    },
+    {
+      "check": "ext4 clean unmount/remount preserves object/marker, new mount instance",
+      "status": "PASS"
+    },
+    {
+      "check": "single record ext4-loop-detached",
+      "status": "PASS"
+    },
+    {
+      "check": "single record ext4-cleanup",
+      "status": "PASS"
+    },
+    {
+      "check": "ext4 kernel unbound proof",
+      "status": "PASS"
+    },
+    {
+      "check": "ext4 complete recorded cleanup",
+      "status": "PASS"
+    },
+    {
+      "check": "single record xfs-fresh-image",
+      "status": "PASS"
+    },
+    {
+      "check": "single record xfs-mkfs",
+      "status": "PASS"
+    },
+    {
+      "check": "xfs image provenance and budget",
+      "status": "PASS"
+    },
+    {
+      "check": "xfs pinned-file mkfs",
+      "status": "PASS"
+    },
+    {
+      "check": "single record xfs-loop",
+      "status": "PASS"
+    },
+    {
+      "check": "xfs loop current backing",
+      "status": "PASS"
+    },
+    {
+      "check": "single record xfs-copy-replacement",
+      "status": "PASS"
+    },
+    {
+      "check": "xfs observation handle payloads",
+      "status": "PASS"
+    },
+    {
+      "check": "xfs copied marker does not equal object identity",
+      "status": "PASS"
+    },
+    {
+      "check": "single record xfs-new-process",
+      "status": "PASS"
+    },
+    {
+      "check": "xfs new process continuity",
+      "status": "PASS"
+    },
+    {
+      "check": "single record xfs-nested",
+      "status": "PASS"
+    },
+    {
+      "check": "xfs nested same object new mount instance",
+      "status": "PASS"
+    },
+    {
+      "check": "xfs NO_XDEV rejects crossing",
+      "status": "PASS"
+    },
+    {
+      "check": "single record xfs-same-object-stack",
+      "status": "PASS"
+    },
+    {
+      "check": "xfs stacked same object changes mount instance",
+      "status": "PASS"
+    },
+    {
+      "check": "single record xfs-live-replacement",
+      "status": "PASS"
+    },
+    {
+      "check": "xfs live replacement path vs retained FD",
+      "status": "PASS"
+    },
+    {
+      "check": "single record xfs-recycle",
+      "status": "PASS"
+    },
+    {
+      "check": "xfs actual inode reuse changes opaque handle",
+      "status": "PASS"
+    },
+    {
+      "check": "single record xfs-flag-remount",
+      "status": "PASS"
+    },
+    {
+      "check": "xfs flag remount preserves object and mount instance",
+      "status": "PASS"
+    },
+    {
+      "check": "xfs actual ro/rw flags",
+      "status": "PASS"
+    },
+    {
+      "check": "single record xfs-clean-unmount-remount",
+      "status": "PASS"
+    },
+    {
+      "check": "xfs clean unmount/remount preserves object/marker, new mount instance",
+      "status": "PASS"
+    },
+    {
+      "check": "single record xfs-loop-detached",
+      "status": "PASS"
+    },
+    {
+      "check": "single record xfs-cleanup",
+      "status": "PASS"
+    },
+    {
+      "check": "xfs kernel unbound proof",
+      "status": "PASS"
+    },
+    {
+      "check": "xfs complete recorded cleanup",
+      "status": "PASS"
+    },
+    {
+      "check": "new image FS stage sequential",
+      "status": "PASS"
+    },
+    {
+      "check": "post-run own loop no sysfs backing visible",
+      "status": "PASS"
+    },
+    {
+      "check": "exact child process lifetime ended",
+      "status": "PASS"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "status": "PASS",
+  "count": 7,
+  "checks": {
+    "containers": true,
+    "mountinfo": true,
+    "boot_id": true,
+    "mount_ns": true,
+    "user_ns": true,
+    "fixtures": true,
+    "own_containers_absent": true
+  },
+  "time_utc": "2026-10-11T21:50:06Z"
+}

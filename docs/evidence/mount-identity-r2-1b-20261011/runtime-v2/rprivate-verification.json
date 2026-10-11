@@ -1,0 +1,151 @@
+{
+  "status": "PASS",
+  "count": 36,
+  "scope": "native private-supplier vs daemon-host source selection/lifecycle/cleanup; no live daemon-host remount or secure attestation qualification",
+  "checks": [
+    {
+      "check": "frozen reviewed source executed",
+      "status": "PASS"
+    },
+    {
+      "check": "execution successful and gate blocked",
+      "status": "PASS"
+    },
+    {
+      "check": "cached native image without volumes",
+      "status": "PASS"
+    },
+    {
+      "check": "new supplier user/mount namespace",
+      "status": "PASS"
+    },
+    {
+      "check": "mapped userns root only host1000",
+      "status": "PASS"
+    },
+    {
+      "check": "private proof unchanged in final supplier result",
+      "status": "PASS"
+    },
+    {
+      "check": "all inherited supplier propagation private",
+      "status": "PASS"
+    },
+    {
+      "check": "separate host and supplier filesystem views",
+      "status": "PASS"
+    },
+    {
+      "check": "supplier A/B retained exact raw observations",
+      "status": "PASS"
+    },
+    {
+      "check": "three lifecycle observations, two unique containers",
+      "status": "PASS"
+    },
+    {
+      "check": "create/restart/recreate phases",
+      "status": "PASS"
+    },
+    {
+      "check": "create-under-private-A exact limited container configuration",
+      "status": "PASS"
+    },
+    {
+      "check": "create-under-private-A effective unprivileged filter profile",
+      "status": "PASS"
+    },
+    {
+      "check": "create-under-private-A expected daemon-host object",
+      "status": "PASS"
+    },
+    {
+      "check": "create-under-private-A readonly default rprivate bind",
+      "status": "PASS"
+    },
+    {
+      "check": "create-under-private-A observed ext4 readonly mount",
+      "status": "PASS"
+    },
+    {
+      "check": "restart-under-private-B exact limited container configuration",
+      "status": "PASS"
+    },
+    {
+      "check": "restart-under-private-B effective unprivileged filter profile",
+      "status": "PASS"
+    },
+    {
+      "check": "restart-under-private-B expected daemon-host object",
+      "status": "PASS"
+    },
+    {
+      "check": "restart-under-private-B readonly default rprivate bind",
+      "status": "PASS"
+    },
+    {
+      "check": "restart-under-private-B observed ext4 readonly mount",
+      "status": "PASS"
+    },
+    {
+      "check": "recreation-under-private-B exact limited container configuration",
+      "status": "PASS"
+    },
+    {
+      "check": "recreation-under-private-B effective unprivileged filter profile",
+      "status": "PASS"
+    },
+    {
+      "check": "recreation-under-private-B expected daemon-host object",
+      "status": "PASS"
+    },
+    {
+      "check": "recreation-under-private-B readonly default rprivate bind",
+      "status": "PASS"
+    },
+    {
+      "check": "recreation-under-private-B observed ext4 readonly mount",
+      "status": "PASS"
+    },
+    {
+      "check": "supplier normal cleanup complete",
+      "status": "PASS"
+    },
+    {
+      "check": "own cleanup complete",
+      "status": "PASS"
+    },
+    {
+      "check": "initial original26 and full host mountinfo",
+      "status": "PASS"
+    },
+    {
+      "check": "final original26 and full host mountinfo",
+      "status": "PASS"
+    },
+    {
+      "check": "followup original26 and full host mountinfo",
+      "status": "PASS"
+    },
+    {
+      "check": "all old17 fixtures intact",
+      "status": "PASS"
+    },
+    {
+      "check": "original boot and self namespaces",
+      "status": "PASS"
+    },
+    {
+      "check": "final exact own-label absence",
+      "status": "PASS"
+    },
+    {
+      "check": "durable own container plan 1",
+      "status": "PASS"
+    },
+    {
+      "check": "durable own container plan 2",
+      "status": "PASS"
+    }
+  ]
+}

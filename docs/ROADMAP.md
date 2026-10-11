@@ -919,3 +919,38 @@ Docker rprivate supplier mapping/attestation/reboot/physical uniqueness UNQUALIF
 не начаты, production code/config неизменны, suites/lint/build не запускались.
 Предыдущая запись о неисполненном helper — historical preflight, заменена follow-up:
 [Отказ, raw evidence, pending cleanup, v2 и reviews](evidence/mount-identity-r2-1b-20261011/failed-run/report.md).
+
+
+## MS-3B-R2.1B — изолированные ext4/XFS и источник Docker (2026-10-12)
+
+**R2.1B_GATE=BLOCKED; R2.1_GATE=BLOCKED.** Ручной v2 helper завершился rc0.
+Оставшийся собственный loop8 очищен; ошибка первого guard подтверждена: util-linux
+возвращал BACK-MAJ:MIN с пробелами. В отдельной private mount namespace проверены
+последовательно ext4 64MiB и XFS 384MiB. Подтверждены opaque handles из O_RDONLY FD
+через новый процесс, различение копии marker и замены каталога, фактический inode
+recycling (ext4: итерация1; XFS:120), nested/stacked bind и EXDEV, live replacement
+с сохранённым FD, rw→ro→rw и чистый unmount/re-mount. После re-mount handle прежний,
+unique mount instance новый. Обычные mount ID, namespace inode и st_dev повторяются.
+Эти результаты относятся к root-пробнику; профиль обычного приложения на FS не квалифицирован.
+
+Отдельный non-root пробник использовал новую user/mount namespace, tmpfs 4MiB и два
+последовательных обычных контейнера: cap-drop ALL, NNP, Seccomp2, read-only, UID1000,
+network none, memory96MiB, CPU0.1. Default rprivate consumer увидел исходный ext4 source
+из namespace daemon при private supplier bind replacement, restart и recreation.
+Docker client работал в initial host namespace; live mutation в namespace daemon не испытывалась.
+Оба пробных контейнера удалены, tmpfs и bind stacks сняты. Собственные loop associations
+освобождены с kernel ENXIO6; сохранены sparse images512MiB logical и source/evidence.
+95 FS/runtime evidence checks,36 mapping checks,5 offline guard checks PASS.
+Независимые scoped AI reviews принимают только BLOCKED и отключённую активацию.
+Исходные26 container records, полный host mountinfo, boot/self namespaces и17 прежних
+fixtures совпали с baseline, включая12октября07:50 Asia/Vladivostok. Собственных
+контейнеров с test label нет; ещё7 checkpoint checks PASS. Zero-impact не заявлен.
+
+Не квалифицированы XFS container continuity, live disposable remount в namespace
+Docker daemon, доверенная attestation с lifetime/freshness/replay/anti-rollback и
+reboot/clone/physical uniqueness. Numeric namespace inode+boot не доказывает lifetime;
+нужен удерживаемый namespace FD или trusted observer epoch. Следующий исследовательский
+checkpoint — эти blockers, с прежним запретом на physical host mount mutations и
+production привилегии. **secureOpen=false; additional workspaces disabled; production NO_GO.**
+R2.2/MS-4 не начаты. Production code/dependencies/config неизменны; suites/lint/build
+не запускались. [Матрица, изоляция, cleanup, raw evidence и reviews](evidence/mount-identity-r2-1b-20261011/runtime-v2/report.md).

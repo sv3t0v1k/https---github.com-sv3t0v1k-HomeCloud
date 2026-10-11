@@ -1,0 +1,13 @@
+{
+  "status": "PASS",
+  "source_sha256": "6e2ecc1edce6a2b14c0b802dd76e53f480e1d197f69cc7c8286986508bef7696",
+  "count": 5,
+  "checks": [
+    "Python syntax",
+    "complete atomic publication",
+    "existing proof refused and preserved",
+    "Node syntax",
+    "mocked consumer profile/mountinfo parsing"
+  ],
+  "scope": "offline syntax/atomic file publication/mocked JS parser; no namespace/Docker/device execution"
+}
