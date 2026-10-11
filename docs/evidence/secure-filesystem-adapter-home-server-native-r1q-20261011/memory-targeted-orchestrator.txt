@@ -1,0 +1,3 @@
+ Container homecloud-test-tests-run-94eb70175028 Creating
+ Container homecloud-test-tests-run-94eb70175028 Created
+{"service": "tests", "exit_code": 0, "oom_killed": false, "resource_stop": false, "duration_s": 17.92}

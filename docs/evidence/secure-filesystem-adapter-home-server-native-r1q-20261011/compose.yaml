@@ -1,0 +1,110 @@
+name: homecloud-test
+x-backend: &backend
+  image: homecloud-r1q-tests:37190a8-20261011
+  profiles: [qualification]
+  user: "1000:1000"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  mem_limit: 1g
+  memswap_limit: 1g
+  cpus: 1.0
+  pids_limit: 128
+  restart: "no"
+  environment:
+    NODE_OPTIONS: --max-old-space-size=768
+    HOMECLOUD_TEST_DATABASE_URL: postgresql://r1q@pg:5432/r1q
+  tmpfs:
+    - /tmp:uid=1000,gid=1000,mode=1777,size=134217728
+  volumes:
+    - ./probes:/probes:ro
+  entrypoint: [sh, -ec]
+  logging:
+    driver: json-file
+    options: {max-size: 1m, max-file: "1"}
+services:
+  pg:
+    image: homecloud-r1q-postgres:16-amd64-20261011
+    user: "70:70"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    memswap_limit: 512m
+    cpus: 0.5
+    pids_limit: 128
+    restart: "no"
+    environment:
+      POSTGRES_USER: r1q
+      POSTGRES_DB: r1q
+      POSTGRES_HOST_AUTH_METHOD: trust
+    command: [postgres, -c, shared_buffers=64MB, -c, max_connections=30]
+    volumes: [pg-data:/var/lib/postgresql/data]
+    networks: [qualification]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U r1q -d r1q]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    logging:
+      driver: json-file
+      options: {max-size: 1m, max-file: "1"}
+  tests:
+    <<: *backend
+    networks: [qualification]
+    volumes:
+      - ./probes:/probes:ro
+      - ./source/backend/bench/multipart-memory.spec.ts:/app/bench/multipart-memory.spec.ts:ro
+    command: ["npm test -- --runInBand"]
+  persistent:
+    <<: *backend
+    network_mode: none
+    volumes:
+      - ./probes:/probes:ro
+      - /mnt/1TB/homecloud-test/workspace/persistent:/qualified
+    command: ["TMPDIR=/qualified npm test -- --runInBand src/uploads/secure-filesystem.spec.ts"]
+  adversarial:
+    <<: *backend
+    network_mode: none
+    volumes:
+      - ./probes:/probes:ro
+      - /mnt/1TB/homecloud-test/workspace/adversarial:/qualified
+    tmpfs:
+      - /tmp:uid=1000,gid=1000,mode=1777,size=134217728
+      - /exdev:uid=1000,gid=1000,mode=0700,size=1048576
+      - /exdev/nested:uid=1000,gid=1000,mode=0700,size=1048576
+    command: ["node /probes/adversarial.cjs"]
+  recovery:
+    <<: *backend
+    networks: [qualification]
+    volumes:
+      - ./probes:/probes:ro
+      - /mnt/1TB/homecloud-test/workspace/recovery:/qualified
+    command: ["node /probes/recovery.cjs"]
+  http:
+    <<: *backend
+    networks: [qualification]
+    volumes:
+      - ./probes:/probes:ro
+      - /mnt/1TB/homecloud-test/workspace/http:/qualified
+    command: ["node /probes/http-lifecycle.cjs"]
+  production-probe:
+    <<: *backend
+    image: homecloud-r1q-production:37190a8-20261011
+    user: "1001:1001"
+    network_mode: none
+    tmpfs:
+      - /tmp:uid=1001,gid=1001,mode=1777,size=16777216
+      - /qualified:uid=1001,gid=1001,mode=0700,size=1048576
+    command: ["node /probes/artifact-probe.cjs"]
+  validation:
+    <<: *backend
+    network_mode: none
+    tmpfs:
+      - /tmp:uid=1000,gid=1000,mode=1777,size=134217728
+      - /app/dist:uid=1000,gid=1000,mode=0755,size=134217728
+    command: ["npm run lint && ./node_modules/.bin/tsc --noEmit && npm run build && node test/file-type-compiled-runtime.cjs"]
+networks:
+  qualification:
+    internal: true
+volumes:
+  pg-data: {}

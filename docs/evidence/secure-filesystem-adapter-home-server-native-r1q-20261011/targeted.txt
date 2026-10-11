@@ -1,0 +1,22 @@
+
+> homecloud-backend@1.0.0 test
+> jest --runInBand src/uploads/uploads.service.spec.ts src/uploads/uploads.service.postgres.spec.ts src/storage/storage-mount-registry.spec.ts src/uploads/upload-workspace.postgres.spec.ts src/uploads/upload-rate-limit.postgres.spec.ts src/uploads/upload-workspace.spec.ts src/uploads/uploads.scalability.spec.ts src/uploads/ingress-file-cleanup.interceptor.spec.ts src/uploads/secure-filesystem.spec.ts src/uploads/chunk-ingress.spec.ts
+
+[Nest] 17  - 10/11/2026, 12:23:25 AM    WARN [UploadsService] MIME metadata detection failed; storing as binary
+[Nest] 17  - 10/11/2026, 12:23:25 AM   ERROR [UploadsService] Orphaned temp dir cleanup failed
+PASS src/uploads/uploads.service.spec.ts (25.451 s)
+PASS src/uploads/uploads.service.postgres.spec.ts (11.727 s)
+PASS src/storage/storage-mount-registry.spec.ts
+PASS src/uploads/upload-workspace.postgres.spec.ts (9.408 s)
+PASS src/uploads/upload-rate-limit.postgres.spec.ts (6.239 s)
+PASS src/uploads/upload-workspace.spec.ts
+PASS src/uploads/uploads.scalability.spec.ts
+PASS src/uploads/ingress-file-cleanup.interceptor.spec.ts
+PASS src/uploads/secure-filesystem.spec.ts
+PASS src/uploads/chunk-ingress.spec.ts
+
+Test Suites: 10 passed, 10 total
+Tests:       194 passed, 194 total
+Snapshots:   0 total
+Time:        65.515 s
+Ran all test suites matching src/uploads/uploads.service.spec.ts|src/uploads/uploads.service.postgres.spec.ts|src/storage/storage-mount-registry.spec.ts|src/uploads/upload-workspace.postgres.spec.ts|src/uploads/upload-rate-limit.postgres.spec.ts|src/uploads/upload-workspace.spec.ts|src/uploads/uploads.scalability.spec.ts|src/uploads/ingress-file-cleanup.interceptor.spec.ts|src/uploads/secure-filesystem.spec.ts|src/uploads/chunk-ingress.spec.ts.

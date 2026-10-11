@@ -1,0 +1,57 @@
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 102B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/postgres:16-alpine
+#2 DONE 3.1s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [1/1] FROM docker.io/library/postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+#4 resolve docker.io/library/postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685 done
+#4 DONE 0.1s
+
+#5 exporting to image
+#5 exporting layers done
+#5 exporting manifest sha256:410c403231718ac67c22f4978542c1860c9b495592d0be0751c7775d65c3e19e done
+#5 exporting config sha256:7c35e1ccdcdb00a84f2b374a0ec98373c1ab493c35acf521bfb7bc2abe765b01 done
+#5 exporting attestation manifest sha256:c38c6372aca15fc347530aeda893123f9b5c0099aef0d8bbc37719b6af3d977e done
+#5 exporting manifest list sha256:f9e7c7d3a5e26d863b1805977c90c101873803b84592fff08f906f43909c2003 done
+#5 naming to docker.io/library/homecloud-r1q-postgres:16-amd64-20261011 done
+#5 ...
+
+#4 [1/1] FROM docker.io/library/postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+#4 sha256:6a47e1b9b2546e928c77b694492e3df726859a4219d8eca0f2e729a93a4fe5b8 969B / 969B 0.5s done
+#4 sha256:55afa1ecc21d2bb5e5045f32dafee56272ffd89860bac26f6c32123439af26a4 3.85MB / 3.85MB 2.2s done
+#4 sha256:5e81018bec01adc3e07f4b24c838cb749d9b69d003b3b695b15cb85112d278b2 172B / 172B 1.3s done
+#4 sha256:19a2a5ab27c1666d2cdce3d670d68426daddcdeb4499648b939523925ae54d47 900.25kB / 900.25kB 2.3s done
+#4 sha256:8225e2970a7f9bfb1668ae9f029656c885111f5f003d2430191edb21e645cd4e 9.67kB / 9.67kB 0.8s done
+#4 sha256:be6f407f5414062be7528b85a4487fdaae45c7a7fb65ea10dd9bb47d4d35d295 116B / 116B 0.5s done
+#4 sha256:48d0d8b0e1367d12c7dd8a158200fc75f027c2f9dbdb2ceb8c03c05be1fa320e 129B / 129B 0.5s done
+#4 sha256:27d0ba4f668a96dc27fea9613c004f65333ea801c9167a22608fe3cba3addc68 169B / 169B 0.4s done
+#4 sha256:7f5de3d007ea9f97ec15035895530645872a535f345506bb17ad38efc413400e 185B / 185B 0.4s done
+#4 sha256:f0e7204f9584400d487e3d45cb430afd4cfb2e83bb70acbd34af2753d34d1f7a 15.73MB / 111.29MB 3.5s
+#4 sha256:b053c4426c4a82490db4a3e528741c36e2bc8017df76768fa1a8da6c248f02e7 6.11kB / 6.11kB 0.5s done
+#4 sha256:f0e7204f9584400d487e3d45cb430afd4cfb2e83bb70acbd34af2753d34d1f7a 23.07MB / 111.29MB 4.2s
+#4 sha256:f0e7204f9584400d487e3d45cb430afd4cfb2e83bb70acbd34af2753d34d1f7a 29.36MB / 111.29MB 4.8s
+#4 sha256:f0e7204f9584400d487e3d45cb430afd4cfb2e83bb70acbd34af2753d34d1f7a 35.65MB / 111.29MB 5.6s
+#4 sha256:f0e7204f9584400d487e3d45cb430afd4cfb2e83bb70acbd34af2753d34d1f7a 41.94MB / 111.29MB 6.2s
+#4 sha256:f0e7204f9584400d487e3d45cb430afd4cfb2e83bb70acbd34af2753d34d1f7a 48.23MB / 111.29MB 6.9s
+#4 sha256:f0e7204f9584400d487e3d45cb430afd4cfb2e83bb70acbd34af2753d34d1f7a 57.67MB / 111.29MB 7.8s
+#4 sha256:f0e7204f9584400d487e3d45cb430afd4cfb2e83bb70acbd34af2753d34d1f7a 63.96MB / 111.29MB 8.6s
+#4 sha256:f0e7204f9584400d487e3d45cb430afd4cfb2e83bb70acbd34af2753d34d1f7a 70.25MB / 111.29MB 9.2s
+#4 sha256:f0e7204f9584400d487e3d45cb430afd4cfb2e83bb70acbd34af2753d34d1f7a 76.55MB / 111.29MB 9.9s
+#4 sha256:f0e7204f9584400d487e3d45cb430afd4cfb2e83bb70acbd34af2753d34d1f7a 82.84MB / 111.29MB 10.5s
+#4 sha256:f0e7204f9584400d487e3d45cb430afd4cfb2e83bb70acbd34af2753d34d1f7a 90.18MB / 111.29MB 12.0s
+#4 sha256:f0e7204f9584400d487e3d45cb430afd4cfb2e83bb70acbd34af2753d34d1f7a 97.52MB / 111.29MB 12.6s
+#4 sha256:f0e7204f9584400d487e3d45cb430afd4cfb2e83bb70acbd34af2753d34d1f7a 103.81MB / 111.29MB 13.5s
+#4 sha256:f0e7204f9584400d487e3d45cb430afd4cfb2e83bb70acbd34af2753d34d1f7a 110.10MB / 111.29MB 14.1s
+#4 sha256:f0e7204f9584400d487e3d45cb430afd4cfb2e83bb70acbd34af2753d34d1f7a 111.29MB / 111.29MB 14.2s done
+#4 DONE 16.5s
+
+#5 exporting to image
+#5 DONE 16.4s

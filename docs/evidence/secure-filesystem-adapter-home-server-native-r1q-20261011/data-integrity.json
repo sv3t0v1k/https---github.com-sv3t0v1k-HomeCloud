@@ -1,0 +1,23 @@
+{
+  "canonical_before_equals_after": true,
+  "canonical_containers_unchanged": true,
+  "bindings": {
+    "sessions": 21,
+    "bound": 21
+  },
+  "tables_compared": 11,
+  "physical_user_files": 5,
+  "physical_user_bytes": 37021,
+  "file_inventory_digest": "88f478162410e62c5006f8f6065e5670aa2d187d1ce70d0fdcd0925a3a3cab2f",
+  "directory_inventory_digest": "5ff60766d8e871755104b41a6e5972eebd0e099dd1b8cc19f001487f047ea640",
+  "disposable_schemas": 0,
+  "source_files_verified": 208,
+  "source_delta": [
+    "backend/bench/multipart-memory.spec.ts"
+  ],
+  "allowed_untracked_sha256": {
+    "docs/evidence/frontend-functional/closure-checkpoint.json": "1b579e8f3f25462c45bd3ac1fbfabd2987a4165e2a971cb65ca46af8130518ff",
+    "docs/evidence/frontend-functional/closure-controls.json": "26e0b0f92a23e0be631427752552c680d8372de726ec86a13c5c28582c33b9d4"
+  },
+  "forbidden_audit": "NOT_READ_NOT_HASHED_NOT_MODIFIED_NOT_STAGED"
+}

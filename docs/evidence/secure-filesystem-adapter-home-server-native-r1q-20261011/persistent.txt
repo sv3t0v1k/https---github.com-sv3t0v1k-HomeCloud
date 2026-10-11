@@ -1,0 +1,22 @@
+
+> homecloud-backend@1.0.0 test
+> jest --runInBand src/uploads/secure-filesystem.spec.ts
+
+PASS src/uploads/secure-filesystem.spec.ts (13.098 s)
+  Linux descriptor filesystem
+    ✓ creates, syncs, reads, publishes without overwriting, enumerates and removes (215 ms)
+    ✓ refuses uncanonical key ../escape (5 ms)
+    ✓ refuses uncanonical key a/../../escape (3 ms)
+    ✓ refuses uncanonical key a/../escape (5 ms)
+    ✓ refuses uncanonical key nul\0tail (4 ms)
+    ✓ refuses symlink ancestors and leaves, even when link points inside (102 ms)
+    ✓ recursive cleanup unlinks symlinks without following outside directories (87 ms)
+    ✓ refuses hardlinked regular files and non-regular leaves (23 ms)
+    ✓ refuses a substituted or symbolic root during acquisition (5 ms)
+    ✓ closes idempotently and fails closed on every later operation (2 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       10 passed, 10 total
+Snapshots:   0 total
+Time:        13.351 s
+Ran all test suites matching src/uploads/secure-filesystem.spec.ts.

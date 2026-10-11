@@ -1,0 +1,56 @@
+{
+  "service": "adversarial",
+  "container": "41f9efc99b5ca74a52dbd593a02a7452ddc01c7b98010d05abd25bc59a3b98e7",
+  "exit_code": 0,
+  "oom_killed": false,
+  "resource_stop": false,
+  "duration_s": 21.33,
+  "runtime": {
+    "user": "1000:1000",
+    "memory": 1073741824,
+    "memory_swap": 1073741824,
+    "nano_cpus": 1000000000,
+    "cap_drop": [
+      "ALL"
+    ],
+    "security_opt": [
+      "no-new-privileges:true"
+    ],
+    "privileged": false,
+    "network_mode": "none",
+    "readonly_rootfs": true,
+    "port_bindings": {}
+  },
+  "samples": [
+    {
+      "elapsed_s": 0.03,
+      "host_available_bytes": 5288472576,
+      "docker_stats": "80.04%|40.2MiB / 1GiB|12"
+    },
+    {
+      "elapsed_s": 3.57,
+      "host_available_bytes": 5223600128,
+      "docker_stats": "95.60%|40.3MiB / 1GiB|12"
+    },
+    {
+      "elapsed_s": 7.1,
+      "host_available_bytes": 5223186432,
+      "docker_stats": "94.49%|40.74MiB / 1GiB|12"
+    },
+    {
+      "elapsed_s": 10.64,
+      "host_available_bytes": 5237207040,
+      "docker_stats": "94.99%|30.52MiB / 1GiB|12"
+    },
+    {
+      "elapsed_s": 14.18,
+      "host_available_bytes": 5224775680,
+      "docker_stats": "96.07%|31.25MiB / 1GiB|12"
+    },
+    {
+      "elapsed_s": 17.72,
+      "host_available_bytes": 5229359104,
+      "docker_stats": "0.00%|0B / 0B|0"
+    }
+  ]
+}

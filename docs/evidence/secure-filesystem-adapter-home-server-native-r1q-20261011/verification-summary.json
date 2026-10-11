@@ -1,0 +1,432 @@
+{
+  "adversarial": {
+    "platform": "linux",
+    "architecture": "x64",
+    "kernel": "6.8.0-134-generic",
+    "uid": 1000,
+    "scope": "native Linux AMD64; disposable persistent ext4; actual compiled production modules; no canonical rollout",
+    "multer": {
+      "guard": "real production resolver; deterministic symlink swap immediately after guard",
+      "result": "FAIL_CLOSED",
+      "errorCode": "ELOOP",
+      "outsideWrittenBytes": 0
+    },
+    "exdev": {
+      "actualNestedMount": true,
+      "result": "EXDEV",
+      "sourceRetained": true,
+      "copyFallback": false
+    },
+    "concurrency": {
+      "attempts": 2000,
+      "successes": 621,
+      "explicitRefusals": 1379,
+      "ancestorSwaps": 516143,
+      "outsideWrittenBytes": 0
+    },
+    "cleanup": {
+      "symlinkOutsidePreserved": true
+    },
+    "crashRestart": {
+      "result": "PASS",
+      "scope": "SIGKILL after file+directory fsync; fresh capability reads retained bytes; not power-loss qualification"
+    },
+    "fdLifecycle": {
+      "cycles": 100,
+      "leaks": 0
+    },
+    "result": "LOCALLY_VERIFIED",
+    "secureOpen": false,
+    "production": "NOT_READY/NO_GO"
+  },
+  "recovery": {
+    "architecture": "x64",
+    "kernel": "6.8.0-134-generic",
+    "uid": 1000,
+    "scope": "actual compiled UploadsService; SIGKILL in child after chunk publication+directory fsync before PostgreSQL metadata commit; isolated schema/persistent ext4",
+    "crash": "SIGKILL",
+    "orphanBytesRetained": true,
+    "originalInodeRetained": true,
+    "metadataRolledBack": true,
+    "retryIdempotent": true,
+    "uploadedCount": 1,
+    "uploadedSize": 4,
+    "quotaCharged": 4,
+    "sha256": "3a6eb0790f39ac87c94f3856b2dd2c5d110e6811602261a9a923d3bb23adc8b7",
+    "multerFactoryLifecycle": "PASS/no FD leak",
+    "powerLoss": "UNQUALIFIED"
+  },
+  "http": {
+    "architecture": "x64",
+    "uid": 1000,
+    "transport": "actual multipart HTTP on container loopback; production Multer useClass factory/options unmodified",
+    "scope": "actual UploadsService ingress\u2192chunk\u2192finalizer; own PG schema and disposable ext4; authentication/controller pipeline not exercised",
+    "bytes": 5,
+    "successfulRequests": 3,
+    "retryIdempotent": true,
+    "ingressCleanup": true,
+    "exactFinalBytes": true,
+    "quotaCharged": 5,
+    "cancelCleanup": true,
+    "sha256": "f44e17001248ab2d345368dddf19df566246bda5c8822752d448a0c6be59ec43",
+    "result": "PASS"
+  },
+  "targeted_runtime": {
+    "user": "1000:1000",
+    "memory": 1073741824,
+    "memory_swap": 1073741824,
+    "nano_cpus": 1000000000,
+    "cap_drop": [
+      "ALL"
+    ],
+    "security_opt": [
+      "no-new-privileges:true"
+    ],
+    "privileged": false,
+    "network_mode": "homecloud-test_qualification",
+    "readonly_rootfs": true,
+    "port_bindings": {}
+  },
+  "persistent_runtime": {
+    "user": "1000:1000",
+    "memory": 1073741824,
+    "memory_swap": 1073741824,
+    "nano_cpus": 1000000000,
+    "cap_drop": [
+      "ALL"
+    ],
+    "security_opt": [
+      "no-new-privileges:true"
+    ],
+    "privileged": false,
+    "network_mode": "none",
+    "readonly_rootfs": true,
+    "port_bindings": {}
+  },
+  "adversarial_runtime": {
+    "user": "1000:1000",
+    "memory": 1073741824,
+    "memory_swap": 1073741824,
+    "nano_cpus": 1000000000,
+    "cap_drop": [
+      "ALL"
+    ],
+    "security_opt": [
+      "no-new-privileges:true"
+    ],
+    "privileged": false,
+    "network_mode": "none",
+    "readonly_rootfs": true,
+    "port_bindings": {}
+  },
+  "recovery_runtime": {
+    "user": "1000:1000",
+    "memory": 1073741824,
+    "memory_swap": 1073741824,
+    "nano_cpus": 1000000000,
+    "cap_drop": [
+      "ALL"
+    ],
+    "security_opt": [
+      "no-new-privileges:true"
+    ],
+    "privileged": false,
+    "network_mode": "homecloud-test_qualification",
+    "readonly_rootfs": true,
+    "port_bindings": {}
+  },
+  "http_runtime": {
+    "user": "1000:1000",
+    "memory": 1073741824,
+    "memory_swap": 1073741824,
+    "nano_cpus": 1000000000,
+    "cap_drop": [
+      "ALL"
+    ],
+    "security_opt": [
+      "no-new-privileges:true"
+    ],
+    "privileged": false,
+    "network_mode": "homecloud-test_qualification",
+    "readonly_rootfs": true,
+    "port_bindings": {}
+  },
+  "min_available_bytes_so_far": 4717961216,
+  "initial_head": "37190a8d3e77cc80314790df71d74e0ac121e143",
+  "native_openat2": true,
+  "native_rebuilt_addon_byte_identical": true,
+  "native_addon_sha256": "bdadb25e4dab704ce19235564baaf27deacb821c25f0ec166d76d68c9d82ff09",
+  "full_final": {
+    "suites": 69,
+    "tests": 932,
+    "skips": 0,
+    "postgres_suites": [
+      "PASS src/uploads/uploads.service.postgres.spec.ts (9.442 s)",
+      "PASS src/sharing/sharing.postgres.spec.ts",
+      "PASS src/files/native-downloads.postgres.spec.ts",
+      "PASS src/uploads/upload-workspace.postgres.spec.ts (8.762 s)",
+      "PASS src/files/files.service.postgres.spec.ts",
+      "PASS src/uploads/upload-rate-limit.postgres.spec.ts (5.558 s)",
+      "PASS src/files/security-ownership.postgres.spec.ts (11.129 s)",
+      "PASS src/storage/storage-placement.postgres.spec.ts (6.889 s)",
+      "PASS src/sharing/share-locked-until-timestamptz.postgres.spec.ts"
+    ]
+  },
+  "initial_full_failure": {
+    "suites_passed": 68,
+    "suites_total": 69,
+    "tests_passed": 930,
+    "tests_total": 931,
+    "defect": "test depends on absent cgroup limit; collector correctly reports cgroup-v2",
+    "correction": "test-only deterministic fs mocks + cgroup-v2 coverage"
+  },
+  "validation": {
+    "lint_errors": 0,
+    "lint_existing_warnings": 15,
+    "typecheck_src": true,
+    "backend_build": true,
+    "compiled_file_type_runtime": true
+  },
+  "resources": {
+    "targeted": {
+      "exit_code": 0,
+      "oom_killed": false,
+      "resource_stop": false,
+      "duration_s": 67.61,
+      "min_available_bytes": 4717961216,
+      "runtime": {
+        "user": "1000:1000",
+        "memory": 1073741824,
+        "memory_swap": 1073741824,
+        "nano_cpus": 1000000000,
+        "cap_drop": [
+          "ALL"
+        ],
+        "security_opt": [
+          "no-new-privileges:true"
+        ],
+        "privileged": false,
+        "network_mode": "homecloud-test_qualification",
+        "readonly_rootfs": true,
+        "port_bindings": {}
+      }
+    },
+    "persistent": {
+      "exit_code": 0,
+      "oom_killed": false,
+      "resource_stop": false,
+      "duration_s": 17.86,
+      "min_available_bytes": 4996530176,
+      "runtime": {
+        "user": "1000:1000",
+        "memory": 1073741824,
+        "memory_swap": 1073741824,
+        "nano_cpus": 1000000000,
+        "cap_drop": [
+          "ALL"
+        ],
+        "security_opt": [
+          "no-new-privileges:true"
+        ],
+        "privileged": false,
+        "network_mode": "none",
+        "readonly_rootfs": true,
+        "port_bindings": {}
+      }
+    },
+    "adversarial": {
+      "exit_code": 0,
+      "oom_killed": false,
+      "resource_stop": false,
+      "duration_s": 21.33,
+      "min_available_bytes": 5223186432,
+      "runtime": {
+        "user": "1000:1000",
+        "memory": 1073741824,
+        "memory_swap": 1073741824,
+        "nano_cpus": 1000000000,
+        "cap_drop": [
+          "ALL"
+        ],
+        "security_opt": [
+          "no-new-privileges:true"
+        ],
+        "privileged": false,
+        "network_mode": "none",
+        "readonly_rootfs": true,
+        "port_bindings": {}
+      }
+    },
+    "recovery": {
+      "exit_code": 0,
+      "oom_killed": false,
+      "resource_stop": false,
+      "duration_s": 3.6,
+      "min_available_bytes": 5242945536,
+      "runtime": {
+        "user": "1000:1000",
+        "memory": 1073741824,
+        "memory_swap": 1073741824,
+        "nano_cpus": 1000000000,
+        "cap_drop": [
+          "ALL"
+        ],
+        "security_opt": [
+          "no-new-privileges:true"
+        ],
+        "privileged": false,
+        "network_mode": "homecloud-test_qualification",
+        "readonly_rootfs": true,
+        "port_bindings": {}
+      }
+    },
+    "http": {
+      "exit_code": 0,
+      "oom_killed": false,
+      "resource_stop": false,
+      "duration_s": 3.61,
+      "min_available_bytes": 5196509184,
+      "runtime": {
+        "user": "1000:1000",
+        "memory": 1073741824,
+        "memory_swap": 1073741824,
+        "nano_cpus": 1000000000,
+        "cap_drop": [
+          "ALL"
+        ],
+        "security_opt": [
+          "no-new-privileges:true"
+        ],
+        "privileged": false,
+        "network_mode": "homecloud-test_qualification",
+        "readonly_rootfs": true,
+        "port_bindings": {}
+      }
+    },
+    "full": {
+      "exit_code": 1,
+      "oom_killed": false,
+      "resource_stop": false,
+      "duration_s": 259.37,
+      "min_available_bytes": 4465078272,
+      "runtime": {
+        "user": "1000:1000",
+        "memory": 1073741824,
+        "memory_swap": 1073741824,
+        "nano_cpus": 1000000000,
+        "cap_drop": [
+          "ALL"
+        ],
+        "security_opt": [
+          "no-new-privileges:true"
+        ],
+        "privileged": false,
+        "network_mode": "homecloud-test_qualification",
+        "readonly_rootfs": true,
+        "port_bindings": {}
+      }
+    },
+    "memory-targeted": {
+      "exit_code": 0,
+      "oom_killed": false,
+      "resource_stop": false,
+      "duration_s": 17.92,
+      "min_available_bytes": 5030727680,
+      "runtime": {
+        "user": "1000:1000",
+        "memory": 1073741824,
+        "memory_swap": 1073741824,
+        "nano_cpus": 1000000000,
+        "cap_drop": [
+          "ALL"
+        ],
+        "security_opt": [
+          "no-new-privileges:true"
+        ],
+        "privileged": false,
+        "network_mode": "homecloud-test_qualification",
+        "readonly_rootfs": true,
+        "port_bindings": {}
+      }
+    },
+    "full-final": {
+      "exit_code": 0,
+      "oom_killed": false,
+      "resource_stop": false,
+      "duration_s": 259.36,
+      "min_available_bytes": 4464054272,
+      "runtime": {
+        "user": "1000:1000",
+        "memory": 1073741824,
+        "memory_swap": 1073741824,
+        "nano_cpus": 1000000000,
+        "cap_drop": [
+          "ALL"
+        ],
+        "security_opt": [
+          "no-new-privileges:true"
+        ],
+        "privileged": false,
+        "network_mode": "homecloud-test_qualification",
+        "readonly_rootfs": true,
+        "port_bindings": {}
+      }
+    },
+    "validation": {
+      "exit_code": 0,
+      "oom_killed": false,
+      "resource_stop": false,
+      "duration_s": 96.17,
+      "min_available_bytes": 4734525440,
+      "runtime": {
+        "user": "1000:1000",
+        "memory": 1073741824,
+        "memory_swap": 1073741824,
+        "nano_cpus": 1000000000,
+        "cap_drop": [
+          "ALL"
+        ],
+        "security_opt": [
+          "no-new-privileges:true"
+        ],
+        "privileged": false,
+        "network_mode": "none",
+        "readonly_rootfs": true,
+        "port_bindings": {}
+      }
+    }
+  },
+  "min_available_bytes_all_stages": 4464054272,
+  "server_original_containers_unchanged": 26,
+  "test_pg_schemas_and_tables_remaining": 0,
+  "own_containers_networks_volumes_removed": true,
+  "data_integrity": {
+    "canonical_before_equals_after": true,
+    "canonical_containers_unchanged": true,
+    "bindings": {
+      "sessions": 21,
+      "bound": 21
+    },
+    "tables_compared": 11,
+    "physical_user_files": 5,
+    "physical_user_bytes": 37021,
+    "file_inventory_digest": "88f478162410e62c5006f8f6065e5670aa2d187d1ce70d0fdcd0925a3a3cab2f",
+    "directory_inventory_digest": "5ff60766d8e871755104b41a6e5972eebd0e099dd1b8cc19f001487f047ea640",
+    "disposable_schemas": 0,
+    "source_files_verified": 208,
+    "source_delta": [
+      "backend/bench/multipart-memory.spec.ts"
+    ],
+    "allowed_untracked_sha256": {
+      "docs/evidence/frontend-functional/closure-checkpoint.json": "1b579e8f3f25462c45bd3ac1fbfabd2987a4165e2a971cb65ca46af8130518ff",
+      "docs/evidence/frontend-functional/closure-controls.json": "26e0b0f92a23e0be631427752552c680d8372de726ec86a13c5c28582c33b9d4"
+    },
+    "forbidden_audit": "NOT_READ_NOT_HASHED_NOT_MODIFIED_NOT_STAGED"
+  },
+  "R1Q_GATE": "PASS",
+  "R1_GATE": "PASS",
+  "production": "NOT_READY/NO_GO",
+  "secureOpen": false,
+  "R2_MS4": "NOT_STARTED",
+  "R1_SCOPE": "Original descriptor-safe R1 threat model; production NO_GO; R2 not started"
+}

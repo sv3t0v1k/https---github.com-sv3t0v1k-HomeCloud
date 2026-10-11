@@ -1,0 +1,6 @@
+ Container homecloud-test-tests-run-8b3428558136 Creating
+ Container homecloud-test-tests-run-8b3428558136 Created
+{"service": "tests", "exit_code": 0, "oom_killed": false, "resource_stop": false, "duration_s": 259.36}
+ Container homecloud-test-validation-run-e5ffea6bb86e Creating
+ Container homecloud-test-validation-run-e5ffea6bb86e Created
+{"service": "validation", "exit_code": 0, "oom_killed": false, "resource_stop": false, "duration_s": 96.17}

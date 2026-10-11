@@ -1,0 +1,96 @@
+ Container homecloud-test-persistent-run-ec7e11795f2e Creating
+ Container homecloud-test-persistent-run-ec7e11795f2e Created
+compiled=x86_64 uname=Linux 6.8.0-134-generic x86_64 uid=1000 SYS_openat2=437 SYS_renameat2=316 how_size=24 offsets=0,8,16
+CapInh:	0000000000000000
+CapPrm:	0000000000000000
+CapEff:	0000000000000000
+CapBnd:	0000000000000000
+CapAmb:	0000000000000000
+NoNewPrivs:	1
+Seccomp:	2
+Seccomp_filters:	1
+self_exe=/qualified/container-probe
+libc valid-no-resolve result=4 errno=0 (No error information)
+raw valid-no-resolve result=4 errno=0 (No error information)
+libc full-resolve result=4 errno=0 (No error information)
+raw full-resolve result=4 errno=0 (No error information)
+libc zero-size result=-1 errno=22 (Invalid argument)
+raw zero-size result=-22 errno=22 (Invalid argument)
+libc bad-pointer result=-1 errno=14 (Bad address)
+raw bad-pointer result=-14 errno=14 (Bad address)
+renameat2 result=-1 errno=2
+bdadb25e4dab704ce19235564baaf27deacb821c25f0ec166d76d68c9d82ff09  /app/native/secure-fs.node
+bdadb25e4dab704ce19235564baaf27deacb821c25f0ec166d76d68c9d82ff09  /qualified/secure-fs.node
+NATIVE_REBUILT_ADDON_ROOT=PASS
+{
+  "arch": "x64",
+  "node": "v20.20.2",
+  "napi": "9",
+  "uid": 1000,
+  "uname": "Linux ec6122582a76 6.8.0-134-generic #134~22.04.1-Ubuntu SMP PREEMPT_DYNAMIC Tue Jun 30 14:05:04 UTC  x86_64 Linux",
+  "artifacts": [
+    {
+      "path": "/usr/local/bin/node",
+      "class": 2,
+      "endian": 1,
+      "machine": 62,
+      "sha256": "055aea7f9aa306e3c6860e916b023aa78674064d521d25c5f6bc9f65d838f38f"
+    },
+    {
+      "path": "/app/native/secure-fs.node",
+      "class": 2,
+      "endian": 1,
+      "machine": 62,
+      "sha256": "bdadb25e4dab704ce19235564baaf27deacb821c25f0ec166d76d68c9d82ff09"
+    }
+  ],
+  "status": [
+    "CapInh:\t0000000000000000",
+    "CapPrm:\t0000000000000000",
+    "CapEff:\t0000000000000000",
+    "CapBnd:\t0000000000000000",
+    "CapAmb:\t0000000000000000",
+    "NoNewPrivs:\t1",
+    "Seccomp:\t2",
+    "Seccomp_filters:\t1"
+  ],
+  "emulationMaps": []
+}
+ADDON_ROOT=PASS
+ Container homecloud-test-production-probe-run-393a39626aaa Creating
+ Container homecloud-test-production-probe-run-393a39626aaa Created
+{
+  "arch": "x64",
+  "node": "v20.20.2",
+  "napi": "9",
+  "uid": 1001,
+  "uname": "Linux cd406beaa221 6.8.0-134-generic #134~22.04.1-Ubuntu SMP PREEMPT_DYNAMIC Tue Jun 30 14:05:04 UTC  x86_64 Linux",
+  "artifacts": [
+    {
+      "path": "/usr/local/bin/node",
+      "class": 2,
+      "endian": 1,
+      "machine": 62,
+      "sha256": "055aea7f9aa306e3c6860e916b023aa78674064d521d25c5f6bc9f65d838f38f"
+    },
+    {
+      "path": "/app/native/secure-fs.node",
+      "class": 2,
+      "endian": 1,
+      "machine": 62,
+      "sha256": "bdadb25e4dab704ce19235564baaf27deacb821c25f0ec166d76d68c9d82ff09"
+    }
+  ],
+  "status": [
+    "CapInh:\t0000000000000000",
+    "CapPrm:\t0000000000000000",
+    "CapEff:\t0000000000000000",
+    "CapBnd:\t0000000000000000",
+    "CapAmb:\t0000000000000000",
+    "NoNewPrivs:\t1",
+    "Seccomp:\t2",
+    "Seccomp_filters:\t1"
+  ],
+  "emulationMaps": []
+}
+ADDON_ROOT=PASS

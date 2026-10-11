@@ -1045,3 +1045,24 @@ scoped review завершён с limitations. Canonical11tables/FS inventory и
 не изменились. secureOpen=false, дополнительные workspace выключены, production NO_GO;
 R2/MS-4 не начаты. Остановка после R1Q; требования следующего native host qualification
 и воспроизводимые probes — в [отчёте R1Q](evidence/secure-filesystem-adapter-native-amd64-r1q-20261011/report.md).
+
+
+## MS-3B-R1Q — native Linux AMD64 квалификация PASS (2026-10-11)
+
+**Текущий статус: R1Q_GATE=PASS; R1_GATE=PASS в утверждённом descriptor-safe R1 scope.**
+Прежние BLOCKED записи выше — история отдельных попыток. На Intel N100/Ubuntu22.04.5/
+kernel6.8 обычный Docker builtin seccomp пропускает openat2; native rebuilt addon byte-identical,
+production runner UID1001 PASS. Own ext4/PG: targeted10/194, persistent10/10,
+full69/932 с9PG suites, lint0errors/15existing warnings, src typecheck/build/runtime PASS.
+Symlink after-guard outside0;2000descriptor attempts с ancestor swaps outside0;actual EXDEV,
+cleanup,100FDcycles, SIGKILL UploadsService+PG recovery и production Multer success HTTP PASS.
+Единственный source delta — environment-independent cgroup unit test; production adapter
+и collector неизменны. Полная image build выполнялась на Mac под AMD64 эмуляцией из-за
+server DNS; addon rebuild и весь qualification runtime — native AMD64.
+Canonical11table/FS hashes,21/21bindings,4canonical services и26server containers сохранены.
+Own stand остановлен: контейнеры/сети/PGvolume удалены; source/config/logs/fixtures/imagecache оставлены.
+Observed available RAM>=4.157GiB, OOM0; shared swap вырос~197MiB, zero-impact claim отсутствует.
+Power loss, auth/controller adversarial HTTP и durable enrollment/R2 вне доказанного scope.
+**secureOpen=false; additional activation disabled; production NOT_READY/NO_GO.**
+R2/MS-4 не начаты; остановка после R1Q, продолжение только по отдельному решению владельца.
+[Native qualification report/evidence](evidence/secure-filesystem-adapter-home-server-native-r1q-20261011/report.md).

@@ -1,0 +1,13 @@
+ Network homecloud-test_qualification Creating
+ Network homecloud-test_qualification Created
+ Volume homecloud-test_pg-data Creating
+ Volume homecloud-test_pg-data Created
+ Container homecloud-test-pg-1 Creating
+ Container homecloud-test-pg-1 Created
+ Container homecloud-test-pg-1 Starting
+ Container homecloud-test-pg-1 Started
+ Container homecloud-test-pg-1 Waiting
+ Container homecloud-test-pg-1 Healthy
+ Container homecloud-test-tests-run-cd119c707673 Creating
+ Container homecloud-test-tests-run-cd119c707673 Created
+{"service": "tests", "exit_code": 0, "oom_killed": false, "resource_stop": false, "duration_s": 67.61}

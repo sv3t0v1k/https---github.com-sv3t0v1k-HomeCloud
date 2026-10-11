@@ -1,0 +1,10 @@
+ Container homecloud-test-pg-1 Stopping
+ Container homecloud-test-pg-1 Stopped
+ Container homecloud-test-pg-1 Removing
+ Container homecloud-test-pg-1 Removed
+ Volume homecloud-test_pg-data Removing
+ Network homecloud-test_qualification Removing
+ Volume homecloud-test_pg-data Removed
+ Network homecloud-test_qualification Removed
+homecloud-test_build
+OWN_CONTAINER_NETWORK_VOLUME_CLEANUP=PASS; images/config/source/logs/disposable fixture bytes retained; existing services not targeted

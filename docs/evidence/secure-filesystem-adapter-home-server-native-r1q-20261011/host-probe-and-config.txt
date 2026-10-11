@@ -1,0 +1,20 @@
+compiled=x86_64 uname=Linux 6.8.0-134-generic x86_64 uid=1000 SYS_openat2=437 SYS_renameat2=316 how_size=24 offsets=0,8,16
+CapInh:	0000000000000000
+CapPrm:	0000000000000000
+CapEff:	0000000000000000
+CapBnd:	000001ffffffffff
+CapAmb:	0000000000000000
+NoNewPrivs:	0
+Seccomp:	0
+Seccomp_filters:	0
+self_exe=/home/hs/homecloud-test/probes/host-probe
+libc valid-no-resolve result=4 errno=0 (Success)
+raw valid-no-resolve result=4 errno=0 (Success)
+libc full-resolve result=4 errno=0 (Success)
+raw full-resolve result=4 errno=0 (Success)
+libc zero-size result=-1 errno=22 (Invalid argument)
+raw zero-size result=-22 errno=22 (Invalid argument)
+libc bad-pointer result=-1 errno=14 (Bad address)
+raw bad-pointer result=-14 errno=14 (Bad address)
+renameat2 result=-1 errno=2
+101f7c8a9e43cb5718c3b3217412ccf061ab9d067e1bd48403215b330d54217d

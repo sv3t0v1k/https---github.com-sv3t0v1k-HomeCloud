@@ -1,0 +1,12 @@
+ Container homecloud-test-persistent-run-f6782e771561 Creating
+ Container homecloud-test-persistent-run-f6782e771561 Created
+{"service": "persistent", "exit_code": 0, "oom_killed": false, "resource_stop": false, "duration_s": 17.86}
+ Container homecloud-test-adversarial-run-0fb895d14568 Creating
+ Container homecloud-test-adversarial-run-0fb895d14568 Created
+{"service": "adversarial", "exit_code": 0, "oom_killed": false, "resource_stop": false, "duration_s": 21.33}
+ Container homecloud-test-recovery-run-399b991690cb Creating
+ Container homecloud-test-recovery-run-399b991690cb Created
+{"service": "recovery", "exit_code": 0, "oom_killed": false, "resource_stop": false, "duration_s": 3.6}
+ Container homecloud-test-http-run-58c68e4d316d Creating
+ Container homecloud-test-http-run-58c68e4d316d Created
+{"service": "http", "exit_code": 0, "oom_killed": false, "resource_stop": false, "duration_s": 3.61}

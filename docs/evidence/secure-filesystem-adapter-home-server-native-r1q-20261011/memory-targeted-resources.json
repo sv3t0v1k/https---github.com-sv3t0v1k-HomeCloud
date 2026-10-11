@@ -1,0 +1,51 @@
+{
+  "service": "tests",
+  "container": "03fc6a4b462970d90e6a10847325d023adcc8705e26e0aeb87aeaedb65aa5baa",
+  "exit_code": 0,
+  "oom_killed": false,
+  "resource_stop": false,
+  "duration_s": 17.92,
+  "runtime": {
+    "user": "1000:1000",
+    "memory": 1073741824,
+    "memory_swap": 1073741824,
+    "nano_cpus": 1000000000,
+    "cap_drop": [
+      "ALL"
+    ],
+    "security_opt": [
+      "no-new-privileges:true"
+    ],
+    "privileged": false,
+    "network_mode": "homecloud-test_qualification",
+    "readonly_rootfs": true,
+    "port_bindings": {}
+  },
+  "samples": [
+    {
+      "elapsed_s": 0.02,
+      "host_available_bytes": 5317046272,
+      "docker_stats": "101.94%|70.46MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 3.56,
+      "host_available_bytes": 5217976320,
+      "docker_stats": "99.48%|114.3MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 7.11,
+      "host_available_bytes": 5174394880,
+      "docker_stats": "103.37%|180.9MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 10.67,
+      "host_available_bytes": 5082034176,
+      "docker_stats": "100.52%|259.7MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 14.23,
+      "host_available_bytes": 5030727680,
+      "docker_stats": "0.00%|0B / 0B|0"
+    }
+  ]
+}

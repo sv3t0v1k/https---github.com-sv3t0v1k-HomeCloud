@@ -1,0 +1,391 @@
+{
+  "service": "tests",
+  "container": "bed459b8df06c6edfcd0d5ec239b1ab42d39b3d47f94e9f1852cb6cd09a97aa2",
+  "exit_code": 0,
+  "oom_killed": false,
+  "resource_stop": false,
+  "duration_s": 259.36,
+  "runtime": {
+    "user": "1000:1000",
+    "memory": 1073741824,
+    "memory_swap": 1073741824,
+    "nano_cpus": 1000000000,
+    "cap_drop": [
+      "ALL"
+    ],
+    "security_opt": [
+      "no-new-privileges:true"
+    ],
+    "privileged": false,
+    "network_mode": "homecloud-test_qualification",
+    "readonly_rootfs": true,
+    "port_bindings": {}
+  },
+  "samples": [
+    {
+      "elapsed_s": 0.02,
+      "host_available_bytes": 5314732032,
+      "docker_stats": "101.96%|69.02MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 3.57,
+      "host_available_bytes": 5239824384,
+      "docker_stats": "101.04%|111MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 7.12,
+      "host_available_bytes": 5185482752,
+      "docker_stats": "98.03%|179.5MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 10.69,
+      "host_available_bytes": 5080596480,
+      "docker_stats": "103.52%|264.2MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 14.27,
+      "host_available_bytes": 5048287232,
+      "docker_stats": "100.60%|301.1MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 17.81,
+      "host_available_bytes": 5014171648,
+      "docker_stats": "102.54%|332.3MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 21.37,
+      "host_available_bytes": 4971835392,
+      "docker_stats": "100.68%|369.4MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 24.91,
+      "host_available_bytes": 4906225664,
+      "docker_stats": "100.48%|406.9MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 28.48,
+      "host_available_bytes": 4901781504,
+      "docker_stats": "100.31%|406.8MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 32.05,
+      "host_available_bytes": 4881874944,
+      "docker_stats": "100.95%|464MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 35.64,
+      "host_available_bytes": 4848361472,
+      "docker_stats": "101.62%|483.3MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 39.2,
+      "host_available_bytes": 4841369600,
+      "docker_stats": "100.60%|487.5MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 42.74,
+      "host_available_bytes": 4821008384,
+      "docker_stats": "88.81%|508.4MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 46.29,
+      "host_available_bytes": 4807921664,
+      "docker_stats": "99.94%|498.5MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 49.85,
+      "host_available_bytes": 4812820480,
+      "docker_stats": "100.32%|506MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 53.39,
+      "host_available_bytes": 4796551168,
+      "docker_stats": "99.52%|560.7MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 56.96,
+      "host_available_bytes": 4745265152,
+      "docker_stats": "99.07%|570.5MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 60.5,
+      "host_available_bytes": 4750872576,
+      "docker_stats": "100.22%|567.9MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 64.06,
+      "host_available_bytes": 4745555968,
+      "docker_stats": "97.38%|568MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 67.6,
+      "host_available_bytes": 4747354112,
+      "docker_stats": "100.87%|569MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 71.14,
+      "host_available_bytes": 4719955968,
+      "docker_stats": "100.10%|605.6MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 74.67,
+      "host_available_bytes": 4683825152,
+      "docker_stats": "101.15%|646MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 78.21,
+      "host_available_bytes": 4645691392,
+      "docker_stats": "100.76%|661.8MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 81.75,
+      "host_available_bytes": 4652765184,
+      "docker_stats": "100.95%|662.9MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 85.28,
+      "host_available_bytes": 4647411712,
+      "docker_stats": "100.60%|664.8MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 88.82,
+      "host_available_bytes": 4612714496,
+      "docker_stats": "101.65%|678.4MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 92.37,
+      "host_available_bytes": 4603793408,
+      "docker_stats": "100.37%|691.9MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 95.95,
+      "host_available_bytes": 4602793984,
+      "docker_stats": "96.59%|709MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 99.5,
+      "host_available_bytes": 4573630464,
+      "docker_stats": "66.86%|721.2MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 103.06,
+      "host_available_bytes": 4588224512,
+      "docker_stats": "100.56%|701.2MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 106.6,
+      "host_available_bytes": 4608172032,
+      "docker_stats": "100.90%|708.4MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 110.14,
+      "host_available_bytes": 4575674368,
+      "docker_stats": "100.18%|719MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 113.69,
+      "host_available_bytes": 4573011968,
+      "docker_stats": "99.93%|707.2MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 117.24,
+      "host_available_bytes": 4599418880,
+      "docker_stats": "18.32%|706.9MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 120.79,
+      "host_available_bytes": 4591222784,
+      "docker_stats": "68.15%|708.6MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 124.35,
+      "host_available_bytes": 4581130240,
+      "docker_stats": "99.90%|726.8MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 127.9,
+      "host_available_bytes": 4570992640,
+      "docker_stats": "87.46%|708.5MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 131.46,
+      "host_available_bytes": 4577509376,
+      "docker_stats": "99.22%|727.8MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 135.01,
+      "host_available_bytes": 4527198208,
+      "docker_stats": "100.09%|749.8MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 138.56,
+      "host_available_bytes": 4530032640,
+      "docker_stats": "14.96%|750MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 142.12,
+      "host_available_bytes": 4525232128,
+      "docker_stats": "9.96%|750.1MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 145.66,
+      "host_available_bytes": 4526407680,
+      "docker_stats": "71.82%|762.9MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 149.21,
+      "host_available_bytes": 4528693248,
+      "docker_stats": "17.88%|763.2MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 152.75,
+      "host_available_bytes": 4484698112,
+      "docker_stats": "102.72%|786.2MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 156.3,
+      "host_available_bytes": 4586135552,
+      "docker_stats": "101.11%|683.4MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 159.85,
+      "host_available_bytes": 4585521152,
+      "docker_stats": "105.97%|689.2MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 163.39,
+      "host_available_bytes": 4542468096,
+      "docker_stats": "101.63%|736.9MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 166.94,
+      "host_available_bytes": 4521181184,
+      "docker_stats": "96.99%|728.4MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 170.51,
+      "host_available_bytes": 4511862784,
+      "docker_stats": "101.46%|758MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 174.07,
+      "host_available_bytes": 4492849152,
+      "docker_stats": "101.53%|776.9MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 177.63,
+      "host_available_bytes": 4578660352,
+      "docker_stats": "94.38%|671.6MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 181.19,
+      "host_available_bytes": 4550176768,
+      "docker_stats": "100.48%|696.8MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 184.74,
+      "host_available_bytes": 4528422912,
+      "docker_stats": "96.18%|722.4MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 188.31,
+      "host_available_bytes": 4480327680,
+      "docker_stats": "100.21%|746.8MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 191.85,
+      "host_available_bytes": 4496355328,
+      "docker_stats": "100.98%|764MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 195.39,
+      "host_available_bytes": 4495609856,
+      "docker_stats": "102.18%|746.2MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 198.94,
+      "host_available_bytes": 4510515200,
+      "docker_stats": "107.51%|760.2MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 202.49,
+      "host_available_bytes": 4502052864,
+      "docker_stats": "98.86%|760.1MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 206.06,
+      "host_available_bytes": 4482977792,
+      "docker_stats": "95.15%|760.9MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 209.6,
+      "host_available_bytes": 4478947328,
+      "docker_stats": "99.62%|784.9MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 213.15,
+      "host_available_bytes": 4477587456,
+      "docker_stats": "101.05%|777.6MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 216.7,
+      "host_available_bytes": 4464054272,
+      "docker_stats": "99.94%|682.4MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 220.25,
+      "host_available_bytes": 4550512640,
+      "docker_stats": "95.33%|707MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 223.8,
+      "host_available_bytes": 4535132160,
+      "docker_stats": "99.73%|744.9MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 227.35,
+      "host_available_bytes": 4514635776,
+      "docker_stats": "99.58%|741.6MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 230.9,
+      "host_available_bytes": 4508585984,
+      "docker_stats": "100.70%|768.5MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 234.46,
+      "host_available_bytes": 4513701888,
+      "docker_stats": "96.40%|770.7MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 238.02,
+      "host_available_bytes": 4472799232,
+      "docker_stats": "96.81%|725.8MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 241.58,
+      "host_available_bytes": 4498640896,
+      "docker_stats": "100.14%|759MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 245.12,
+      "host_available_bytes": 4490153984,
+      "docker_stats": "100.88%|806.8MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 248.66,
+      "host_available_bytes": 4555522048,
+      "docker_stats": "100.65%|696.7MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 252.21,
+      "host_available_bytes": 4481163264,
+      "docker_stats": "98.48%|707.4MiB / 1GiB|22"
+    },
+    {
+      "elapsed_s": 255.77,
+      "host_available_bytes": 4489670656,
+      "docker_stats": "96.75%|714.8MiB / 1GiB|22"
+    }
+  ]
+}

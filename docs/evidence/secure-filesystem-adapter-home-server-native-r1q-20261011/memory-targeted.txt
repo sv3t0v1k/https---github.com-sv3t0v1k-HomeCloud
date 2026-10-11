@@ -1,0 +1,26 @@
+
+> homecloud-backend@1.0.0 test
+> jest --runInBand bench/multipart-memory.spec.ts
+
+PASS bench/multipart-memory.spec.ts (14.049 s)
+  multipart memory harness
+    ✓ percentile детерминирован (11 ms)
+    ✓ неразрешённая цель fail closed (17 ms)
+    ✓ unsafe target получает NOT_RUN_SAFETY (2 ms)
+    ✓ низкий os.freemem не даёт ложный отказ при согласованных macOS сигналах (1 ms)
+    ✓ swap pressure закрывает gate (1 ms)
+    ✓ throttled pages закрывают gate (2 ms)
+    ✓ compressor остаётся телеметрией без двойного вычитания (1 ms)
+    ✓ malformed memory_pressure fail closed (3 ms)
+    ✓ malformed vm_stat fail closed (5 ms)
+    ✓ ошибка обязательной команды fail closed (2 ms)
+    ✓ container headroom ограничивает host (2 ms)
+    ✓ Linux host path сохраняет os.freemem без cgroup и macOS команд (45 ms)
+    ✓ Linux cgroup-v2 сохраняет реальный лимит и headroom без macOS команд (5 ms)
+    ✓ sampler считает peaks и delta (2 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       14 passed, 14 total
+Snapshots:   0 total
+Time:        14.307 s
+Ran all test suites matching bench/multipart-memory.spec.ts.

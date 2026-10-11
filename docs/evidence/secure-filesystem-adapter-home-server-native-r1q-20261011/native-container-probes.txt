@@ -1,0 +1,7 @@
+[homecloud-r1q-tests:37190a8-20261011]|amd64|sha256:c3ff13b395fdf1f251c33ff475318e1c2b8a683e268dcb25142e47d20efba90f
+[homecloud-r1q-production:37190a8-20261011]|amd64|sha256:8694a91c8306b7f43e6d5d93f693973ddb5d302010dee477d0e6fc7f83cb4e52
+[homecloud-r1q-postgres:16-amd64-20261011]|amd64|sha256:7c35e1ccdcdb00a84f2b374a0ec98373c1ab493c35acf521bfb7bc2abe765b01
+SOURCE_SNAPSHOT_MATCH 208
+ Container homecloud-test-persistent-run-94f8b4cfd67f Creating
+ Container homecloud-test-persistent-run-94f8b4cfd67f Created
+sh: /tmp/container-probe: Permission denied

@@ -1,5 +1,7 @@
 # MS-3B-R1 — Secure Filesystem Adapter: IMPLEMENTED / LOCALLY_VERIFIED / BLOCKED
 
+> Продолжение 2026-10-11: **текущий R1Q_GATE=PASS / R1_GATE=PASS в исходном R1 scope**. Native Linux AMD64 квалификация завершена на домашнем сервере; [актуальный отчёт](../secure-filesystem-adapter-home-server-native-r1q-20261011/report.md). Нижеследующий BLOCKED статус относится к исторической попытке. Production NO_GO, secureOpen=false; R2/MS-4 не начаты.
+
 2026-10-11, Asia/Vladivostok. **R1_GATE=BLOCKED. Production NOT_READY / NO_GO.**
 Владелец разрешил начать реализацию на macOS/Docker Desktop, целевой image Linux `amd64`;
 ARM64 не обязательная целевая платформа, ARMv7/32-bit исключены. После фактического

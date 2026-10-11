@@ -1,5 +1,7 @@
 # MS-3B-R1Q — Native AMD64 Qualification / ENOSYS diagnosis
 
+> Продолжение 2026-10-11: **текущий R1Q_GATE=PASS / R1_GATE=PASS в исходном R1 scope**. Native Linux AMD64 квалификация завершена на домашнем сервере; [актуальный отчёт](../secure-filesystem-adapter-home-server-native-r1q-20261011/report.md). Нижеследующий BLOCKED статус относится к исторической попытке. Production NO_GO, secureOpen=false; R2/MS-4 не начаты.
+
 2026-10-11, Asia/Vladivostok. **R1Q_GATE=BLOCKED / BLOCKED_ENVIRONMENT. R1_GATE=BLOCKED.**
 Локальный ENOSYS локализован в пути трансляции Rosetta, до host `openat2`.
 Настоящий native Linux x86_64 Docker runtime в проверенных доступных средах отсутствует.

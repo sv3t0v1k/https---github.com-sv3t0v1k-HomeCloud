@@ -1,0 +1,15 @@
+{"Command":"\"docker-entrypoint.s…\"","CreatedAt":"2026-10-11 10:22:53 +1000 +10","ExitCode":0,"Health":"healthy","ID":"0b119d3176ec","Image":"homecloud-r1q-postgres:16-amd64-20261011","Labels":"com.docker.compose.config-hash=afea2b8e35e7697b725c900d99143e753f4ce9f671245e02c9eebaeafe483284,com.docker.compose.container-number=1,com.docker.compose.image=sha256:7c35e1ccdcdb00a84f2b374a0ec98373c1ab493c35acf521bfb7bc2abe765b01,com.docker.compose.oneoff=False,com.docker.compose.project.config_files=/home/hs/homecloud-test/compose.yaml,com.docker.compose.service=pg,com.docker.compose.depends_on=,com.docker.compose.project=homecloud-test,com.docker.compose.project.working_dir=/home/hs/homecloud-test,com.docker.compose.version=5.1.0,homecloud.r1q.checkpoint=37190a8","LocalVolumes":"1","Mounts":"homecloud-test…","Name":"homecloud-test-pg-1","Names":"homecloud-test-pg-1","Networks":"homecloud-test_qualification","Ports":"","Project":"homecloud-test","Publishers":[],"RunningFor":"14 minutes ago","Service":"pg","Size":"0B","State":"running","Status":"Up 14 minutes (healthy)"}
+               total        used        free      shared  buff/cache   available
+Mem:      8059514880  2516918272   749199360   198332416  4793397248  5017612288
+Swap:     4294963200  2277244928  2017718272
+procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----
+ r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st
+ 1  0 2223872 731640 124296 4556756    9   14    90   178   91  152  3  3 93  1  0
+ 0  0 2223872 719428 124296 4556896    0    0     0     2 6769 5963 25  5 70  0  0
+ 0  0 2223872 709600 124296 4556888    0    0     0     0 6254 4904 24  4 72  0  0
+
+Test Suites: 69 passed, 69 total
+Tests:       932 passed, 932 total
+Snapshots:   0 total
+Time:        256.526 s
+Ran all test suites.
