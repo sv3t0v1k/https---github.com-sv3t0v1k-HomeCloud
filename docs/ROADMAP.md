@@ -897,3 +897,25 @@ rprivate/attestation trust boundary design-only; fresh experiment evidence ещ�
 **secureOpen=false; additional workspaces disabled; production NO_GO.** R2.2/MS-4
 не начаты; production code/config неизменны, suites/lint/build не запускались.
 [Отчёт, raw evidence, helper и независимые reviews](evidence/mount-identity-r2-1b-20261011/report.md).
+
+
+## MS-3B-R2.1B — первый ручной отказ, recovery/v2 подготовлен (2026-10-11)
+
+**R2.1B_GATE=BLOCKED; R2.1_GATE=BLOCKED.** Владелец выполнил первый root launcher.
+Доказаны отдельная mount namespace и rprivate propagation до allocation. Создан
+только own fresh regular ext4 image64MiB, mkfs на pinned FD rc0; loop8 allocation
+осталась после guard отказа до первого FS mount. XFS и identity/remount/bind tests
+NOT_RUN. Вероятная причина — literal BACK-MAJ:MIN guard против padded util-linux
+output; actual root raw row первого RUN не сохранён. Cleanup ещё не завершён.
+Исправленный numeric guard/raw journaling, fixed own-loop8 recovery и fresh v2
+launcher прошли independent scoped review; source-only upload SHA совпал.
+Recovery принимает лишь verified old image/loop mapping, отсутствие users и kernel
+ENXIO после detach; mismatch/unknown→STOP. Owner manual root нужен повторно; агент
+не получает пароль и не выполняет root вход. Recovery/v2 NOT_RUN, loop8 pending.
+26 selected container records/full host mountinfo и old R2.1 fixtures равны; upload
+records/mountinfo SHA прежние. 41 offline consistency/mock checks PASS не gate PASS.
+Docker rprivate supplier mapping/attestation/reboot/physical uniqueness UNQUALIFIED.
+**secureOpen=false; additional workspaces disabled; production NO_GO.** R2.2/MS-4
+не начаты, production code/config неизменны, suites/lint/build не запускались.
+Предыдущая запись о неисполненном helper — historical preflight, заменена follow-up:
+[Отказ, raw evidence, pending cleanup, v2 и reviews](evidence/mount-identity-r2-1b-20261011/failed-run/report.md).

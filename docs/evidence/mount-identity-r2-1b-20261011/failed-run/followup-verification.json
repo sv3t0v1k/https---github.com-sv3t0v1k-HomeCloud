@@ -1,0 +1,171 @@
+{
+  "status": "PASS",
+  "count": 41,
+  "scope": "offline consistency/mocked guards; no runtime recovery or FS qualification",
+  "checks": [
+    {
+      "check": "original helper SHA",
+      "status": "PASS"
+    },
+    {
+      "check": "child failed",
+      "status": "PASS"
+    },
+    {
+      "check": "reported gates remain BLOCKED",
+      "status": "PASS"
+    },
+    {
+      "check": "parent all five invariants",
+      "status": "PASS"
+    },
+    {
+      "check": "initial 26 unique running",
+      "status": "PASS"
+    },
+    {
+      "check": "root snapshots exact records",
+      "status": "PASS"
+    },
+    {
+      "check": "root snapshots full mountinfo",
+      "status": "PASS"
+    },
+    {
+      "check": "post-failure exact container records",
+      "status": "PASS"
+    },
+    {
+      "check": "post-failure full mountinfo",
+      "status": "PASS"
+    },
+    {
+      "check": "post-failure boot and namespaces",
+      "status": "PASS"
+    },
+    {
+      "check": "historical preflight records and mountinfo",
+      "status": "PASS"
+    },
+    {
+      "check": "old R2.1 fixture inventory metadata/content",
+      "status": "PASS"
+    },
+    {
+      "check": "host mountinfo baseline SHA",
+      "status": "PASS"
+    },
+    {
+      "check": "journal matches records",
+      "status": "PASS"
+    },
+    {
+      "check": "distinct mount namespace, same user namespace",
+      "status": "PASS"
+    },
+    {
+      "check": "all child propagation private",
+      "status": "PASS"
+    },
+    {
+      "check": "recorded own regular fresh ext4 image",
+      "status": "PASS"
+    },
+    {
+      "check": "mkfs only inherited FD and succeeded",
+      "status": "PASS"
+    },
+    {
+      "check": "own loop8 proposed",
+      "status": "PASS"
+    },
+    {
+      "check": "mount tests absent and XFS not begun",
+      "status": "PASS"
+    },
+    {
+      "check": "cleanup failed with no recorded own mounts",
+      "status": "PASS"
+    },
+    {
+      "check": "upload invariant and root not executed",
+      "status": "PASS"
+    },
+    {
+      "check": "upload vs root original baseline",
+      "status": "PASS"
+    },
+    {
+      "check": "uploaded exact bytes recover-owned-loop.py",
+      "status": "PASS"
+    },
+    {
+      "check": "uploaded exact bytes isolated-helper-v2.py",
+      "status": "PASS"
+    },
+    {
+      "check": "uploaded exact bytes manual-launch-v2.sh",
+      "status": "PASS"
+    },
+    {
+      "check": "parser padded",
+      "status": "PASS"
+    },
+    {
+      "check": "parser compact",
+      "status": "PASS"
+    },
+    {
+      "check": "parser numeric-equivalent",
+      "status": "PASS"
+    },
+    {
+      "check": "parser wrong-device",
+      "status": "PASS"
+    },
+    {
+      "check": "parser wrong-inode",
+      "status": "PASS"
+    },
+    {
+      "check": "parser unavailable",
+      "status": "PASS"
+    },
+    {
+      "check": "parser malformed",
+      "status": "PASS"
+    },
+    {
+      "check": "parser negative",
+      "status": "PASS"
+    },
+    {
+      "check": "parser offset",
+      "status": "PASS"
+    },
+    {
+      "check": "parser sizelimit",
+      "status": "PASS"
+    },
+    {
+      "check": "kernel status ENXIO",
+      "status": "PASS"
+    },
+    {
+      "check": "kernel status EPERM",
+      "status": "PASS"
+    },
+    {
+      "check": "kernel status EIO",
+      "status": "PASS"
+    },
+    {
+      "check": "kernel status bound",
+      "status": "PASS"
+    },
+    {
+      "check": "source and launcher syntax",
+      "status": "PASS"
+    }
+  ]
+}

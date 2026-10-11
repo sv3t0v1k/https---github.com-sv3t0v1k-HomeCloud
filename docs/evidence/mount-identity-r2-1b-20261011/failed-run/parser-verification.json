@@ -1,0 +1,67 @@
+{
+  "status": "PASS",
+  "scope": "numeric backing identity and rejection tests; no loop/mount performed",
+  "count": 10,
+  "cases": [
+    {
+      "case": "padded",
+      "accepted": true,
+      "raw_logged_before_guard": true,
+      "status": "PASS"
+    },
+    {
+      "case": "compact",
+      "accepted": true,
+      "raw_logged_before_guard": true,
+      "status": "PASS"
+    },
+    {
+      "case": "numeric-equivalent",
+      "accepted": true,
+      "raw_logged_before_guard": true,
+      "status": "PASS"
+    },
+    {
+      "case": "wrong-device",
+      "accepted": false,
+      "raw_logged_before_guard": true,
+      "status": "PASS"
+    },
+    {
+      "case": "wrong-inode",
+      "accepted": false,
+      "raw_logged_before_guard": true,
+      "status": "PASS"
+    },
+    {
+      "case": "unavailable-device",
+      "accepted": false,
+      "raw_logged_before_guard": true,
+      "status": "PASS"
+    },
+    {
+      "case": "malformed",
+      "accepted": false,
+      "raw_logged_before_guard": true,
+      "status": "PASS"
+    },
+    {
+      "case": "negative",
+      "accepted": false,
+      "raw_logged_before_guard": true,
+      "status": "PASS"
+    },
+    {
+      "case": "wrong-offset",
+      "accepted": false,
+      "raw_logged_before_guard": true,
+      "status": "PASS"
+    },
+    {
+      "case": "wrong-sizelimit",
+      "accepted": false,
+      "raw_logged_before_guard": true,
+      "status": "PASS"
+    }
+  ]
+}

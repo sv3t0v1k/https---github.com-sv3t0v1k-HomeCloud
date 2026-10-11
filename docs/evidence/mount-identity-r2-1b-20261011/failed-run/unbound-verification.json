@@ -1,0 +1,31 @@
+{
+  "status": "PASS",
+  "count": 4,
+  "scope": "mock kernel state acceptance and denial; no device ioctl performed",
+  "checks": [
+    {
+      "case": "ENXIO",
+      "unbound_accepted": true,
+      "fd_closed": true,
+      "status": "PASS"
+    },
+    {
+      "case": "EPERM",
+      "unbound_accepted": false,
+      "fd_closed": true,
+      "status": "PASS"
+    },
+    {
+      "case": "EIO",
+      "unbound_accepted": false,
+      "fd_closed": true,
+      "status": "PASS"
+    },
+    {
+      "case": "bound",
+      "unbound_accepted": false,
+      "fd_closed": true,
+      "status": "PASS"
+    }
+  ]
+}
