@@ -5,6 +5,14 @@ import {
   summarizeMemory,
 } from "./multipart-memory";
 
+import * as fs from "fs";
+
+jest.mock("fs", () => ({
+  ...jest.requireActual("fs"),
+  existsSync: jest.fn(),
+  readFileSync: jest.fn(),
+}));
+
 const MIB = 1024 * 1024;
 const GIB = 1024 * MIB;
 const healthyPressure = `The system has 17179869184 (1048576 pages with a page size of 16384).\nSystem-wide memory free percentage: 70%\n`;
@@ -34,6 +42,10 @@ function darwin(outputs: Record<string, string>) {
 }
 
 describe("multipart memory harness", () => {
+  beforeEach(() => {
+    jest.mocked(fs.existsSync).mockReset().mockReturnValue(false);
+    jest.mocked(fs.readFileSync).mockReset();
+  });
   test("percentile детерминирован", () => {
     expect(percentile([9, 1, 5, 3], 0.5)).toBe(3);
     expect(percentile([], 0.99)).toBe(0);
@@ -157,7 +169,7 @@ describe("multipart memory harness", () => {
       "NOT_RUN_SAFETY",
     );
   });
-  test("Linux path сохраняет os.freemem и cgroup без macOS команд", () => {
+  test("Linux host path сохраняет os.freemem без cgroup и macOS команд", () => {
     const evidence = collectMemorySafetyEvidence(
       "linux",
       () => {
@@ -170,6 +182,32 @@ describe("multipart memory harness", () => {
     expect(evidence.hostReserveBytes).toBe(Math.floor(8 * GIB * 0.15));
     expect(evidence.derived).toEqual({ linuxOsFreePath: true });
     expect(evidence.containerLimitSource).toBe("not-applicable-host-process");
+  });
+  test("Linux cgroup-v2 сохраняет реальный лимит и headroom без macOS команд", () => {
+    const values: Record<string, string> = {
+      "/sys/fs/cgroup/memory.max": String(GIB),
+      "/sys/fs/cgroup/memory.current": String(256 * MIB),
+    };
+    jest.mocked(fs.existsSync).mockImplementation((file) => String(file) in values);
+    jest.mocked(fs.readFileSync).mockImplementation(
+      ((file: fs.PathOrFileDescriptor) => {
+        const value = values[String(file)];
+        if (value === undefined) throw new Error("unexpected filesystem read");
+        return value;
+      }) as typeof fs.readFileSync,
+    );
+    const evidence = collectMemorySafetyEvidence(
+      "linux",
+      () => { throw new Error("не должен вызываться"); },
+      8 * GIB,
+      3 * GIB,
+    );
+    expect(evidence.backendRuntime).toBe("cgroup-v2");
+    expect(evidence.containerLimitSource).toBe("cgroup-v2");
+    expect(evidence.containerLimitBytes).toBe(GIB);
+    expect(evidence.containerCurrentBytes).toBe(256 * MIB);
+    expect(evidence.containerHeadroomBytes).toBe(768 * MIB);
+    expect(evidence.hostAvailableBytes).toBe(3 * GIB);
   });
   test("sampler считает peaks и delta", () => {
     const base = {
