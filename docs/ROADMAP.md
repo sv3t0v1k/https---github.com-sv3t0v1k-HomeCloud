@@ -954,3 +954,37 @@ checkpoint — эти blockers, с прежним запретом на physical
 production привилегии. **secureOpen=false; additional workspaces disabled; production NO_GO.**
 R2.2/MS-4 не начаты. Production code/dependencies/config неизменны; suites/lint/build
 не запускались. [Матрица, изоляция, cleanup, raw evidence и reviews](evidence/mount-identity-r2-1b-20261011/runtime-v2/report.md).
+
+
+## MS-3B-R2.1C — Trusted Attestation Bridge, research-only (2026-10-12)
+
+**R2.1C_GATE=BLOCKED; R2.1_GATE=BLOCKED.** Standalone ephemeral Ed25519 host signer
+и обычный native AMD64 consumer подтверждают signed challenge/lease, fresh process
+nonce/epoch, previous-epoch refusal при restart/recreation, replay refusal, revoke и
+expiry с отказом следующего cooperative admission. Same-FD opaque identity ext4 own
+directory и read-only XFS root сохраняется через3lifetimes; writable disposable XFS
+workspace/remount не квалифицированы. Host directory substitution/ABA измеряет host
+pinned FD и показывает ограниченность samples, не live daemon-host mount mutation.
+
+32protocol model checks local/native,3native lifetimes rc0,126offline evidence checks
+PASS, включая4Ed25519 envelopes. Independent scoped AI review принимает только
+BLOCKED/disabled outcome. Signer authority-context overwrite устранён strict factory;
+failed compiler/stdin attempts и historical V3 sources/evidence сохранены отдельно.
+Trusted daemon/container namespace lifetime/topology/source→capability binding не доказан:
+daemon namespace read EACCES; signed workload field consumer не проверяет. Durable
+protected enrollment/revision/revocation/key distribution, TOCTOU serialization,
+in-flight I/O/publication fencing и suspend-inclusive freshness остаются blockers.
+Live daemon-host remount требует отдельного owner consent и не выполнялся.
+
+Исходные26service records/full host mountinfo/17fixtures/boot/user/mount namespaces
+равны precise baseline;9own CIDs удалены,4RUN labels пусты. Ручных mount/umount/loop
+операций0; Docker временно создавал own mounts, host mountinfo после cleanup byte-equal.
+Сохранены только own source/binaries/evidence и tiny fixtures (~4856KiB+80KiB allocated).
+Zero-impact/power-loss/physical uniqueness/privileged-host guarantees не заявляются.
+Production code/schema/dependencies/config не менялись; production suites/lint/build
+не запускались. **secureOpen=false; additional workspaces disabled; production NO_GO.**
+R1/R1Q historical PASS сохранён; R2.2/MS-4 не начаты, push/tag/release отсутствуют.
+Остановиться после R2.1C. Следующий предлагаемый отдельно разрешаемый checkpoint —
+disposable native AMD64 VM с собственным daemon для writable FS/live source mapping/
+trusted observer/fencing, без передачи реальных host roots.
+[Report, design, raw evidence, verification и review](evidence/trusted-attestation-r2-1c-20261012/report.md).

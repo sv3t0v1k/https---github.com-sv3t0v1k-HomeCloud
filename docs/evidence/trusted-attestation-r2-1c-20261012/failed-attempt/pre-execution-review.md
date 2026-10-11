@@ -1,0 +1,24 @@
+# Независимый scoped safety review перед native запуском
+
+2026-10-12. Reviewer: отдельный AI subagent /root/security_review, read-only;
+автор prototype: основной исполнитель. Это не внешний human audit.
+
+Verdict: **ACCEPT_SCOPED** только ограниченного research-run.
+Exact run-host.cjs SHA256:
+`458d7751dc4e353169c010bb9731b8928672f690529be41b7acce6e0d4daca08`.
+
+Reviewer прочитал bridge.cjs/consumer.cjs/protocol-tests.cjs/identity-probe.c/
+observe-fd.c/baseline-collector.py и design.md. Найдены и исправлены до запуска:
+- N-API чтение неинициализированного аргумента при отсутствии acquire argument;
+- диагностический errno0 при отказе dup в inherited FD mode;
+- запись result.json при коллизии заранее существующего test project. createdP
+  теперь выставляется только после успешного exclusive mkdir; чужой project не трогается.
+
+Только fresh approved P/D, own capped nonprivileged containers, /mnt/data RO metadata.
+Никаких mount/umount/loop/host network/docker socket для workload, изменений существующих
+CID. Low-load compiler и три последовательных consumer lifetimes допустимы.
+
+Review явно оставляет gaps: sampled mapping/namespace lifetime, workload поле consumer
+не проверяет, ABA, Linux monotonic suspend gap, durable revision/revocation/key delivery.
+Одобрение безопасного research run НЕ доказывает trusted bridge и НЕ PASS gates.
+После native raw evidence обязателен final review и exact payload hash verification.

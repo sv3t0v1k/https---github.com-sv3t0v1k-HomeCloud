@@ -1,0 +1,9 @@
+{
+  "baseline-collector.py": "4a4791e7828c5ab81bc68bd053fcd84d4c29fb5d491bff7f93c042660a7d52db",
+  "identity-probe.c": "30ea6c6d404b4054aee96c413fa7eb6dd021f72aa3d1f5f91d64132f4d920c09",
+  "observe-fd.c": "b092d0d4a0077235ce1bc54090442c9266ce76af552772fdc139dd25ef394639",
+  "bridge.cjs": "e546d9e51cb1f26cf290f5ae014e4654b6eb09506d7181323f406239d9dd2098",
+  "protocol-tests.cjs": "bd2c82f35ee1bac1b9c9a700856bf3ddc4f7ba05d041f6bf60abedb2e5006b80",
+  "consumer.cjs": "6c26ba025aa603571c050df0f2dfac2e8f6b2ffa6e986a6e64e96e3f5c3dc5d6",
+  "run-host.cjs": "9f2f4d607fc757086fe92aa237af92d20e1a214427c2d4c35d0afd2e4c982266"
+}

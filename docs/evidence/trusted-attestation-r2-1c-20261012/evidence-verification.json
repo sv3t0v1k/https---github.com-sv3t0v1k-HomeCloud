@@ -1,0 +1,512 @@
+{
+  "scope": "offline raw evidence consistency, not complete gate",
+  "count": 126,
+  "checks": [
+    {
+      "name": "native scoped run completed",
+      "status": "PASS"
+    },
+    {
+      "name": "gate remains blocked",
+      "status": "PASS"
+    },
+    {
+      "name": "no owned containers",
+      "status": "PASS"
+    },
+    {
+      "name": "no cleanup errors",
+      "status": "PASS"
+    },
+    {
+      "name": "all runtime invariants",
+      "status": "PASS"
+    },
+    {
+      "name": "original precise baseline to final containers",
+      "status": "PASS"
+    },
+    {
+      "name": "original precise baseline to native initial containers",
+      "status": "PASS"
+    },
+    {
+      "name": "native initial to native final containers",
+      "status": "PASS"
+    },
+    {
+      "name": "original precise baseline to final mountinfo",
+      "status": "PASS"
+    },
+    {
+      "name": "original precise baseline to native initial mountinfo",
+      "status": "PASS"
+    },
+    {
+      "name": "native initial to native final mountinfo",
+      "status": "PASS"
+    },
+    {
+      "name": "original precise baseline to final fixtures",
+      "status": "PASS"
+    },
+    {
+      "name": "original precise baseline to native initial fixtures",
+      "status": "PASS"
+    },
+    {
+      "name": "native initial to native final fixtures",
+      "status": "PASS"
+    },
+    {
+      "name": "original precise baseline to final boot_id",
+      "status": "PASS"
+    },
+    {
+      "name": "original precise baseline to native initial boot_id",
+      "status": "PASS"
+    },
+    {
+      "name": "native initial to native final boot_id",
+      "status": "PASS"
+    },
+    {
+      "name": "original precise baseline to final mount_ns",
+      "status": "PASS"
+    },
+    {
+      "name": "original precise baseline to native initial mount_ns",
+      "status": "PASS"
+    },
+    {
+      "name": "native initial to native final mount_ns",
+      "status": "PASS"
+    },
+    {
+      "name": "original precise baseline to final user_ns",
+      "status": "PASS"
+    },
+    {
+      "name": "original precise baseline to native initial user_ns",
+      "status": "PASS"
+    },
+    {
+      "name": "native initial to native final user_ns",
+      "status": "PASS"
+    },
+    {
+      "name": "26 original records",
+      "status": "PASS"
+    },
+    {
+      "name": "17 original fixtures",
+      "status": "PASS"
+    },
+    {
+      "name": "fixture nanoseconds exact decimal strings",
+      "status": "PASS"
+    },
+    {
+      "name": "followup empty exact label r2-1c-bridge-20261012-01a12cfd",
+      "status": "PASS"
+    },
+    {
+      "name": "followup empty exact label r2-1c-bridge-v2-20261012-01a12cfd",
+      "status": "PASS"
+    },
+    {
+      "name": "followup empty exact label r2-1c-bridge-v3-20261012-01a12cfd",
+      "status": "PASS"
+    },
+    {
+      "name": "followup empty exact label r2-1c-bridge-v4-20261012-01a12cfd",
+      "status": "PASS"
+    },
+    {
+      "name": "build exit0 no OOM",
+      "status": "PASS"
+    },
+    {
+      "name": "native protocol model32",
+      "status": "PASS"
+    },
+    {
+      "name": "local protocol model32",
+      "status": "PASS"
+    },
+    {
+      "name": "three lifetimes",
+      "status": "PASS"
+    },
+    {
+      "name": "create runtime exit0",
+      "status": "PASS"
+    },
+    {
+      "name": "create native x64",
+      "status": "PASS"
+    },
+    {
+      "name": "create effective cap0 NNP Seccomp2",
+      "status": "PASS"
+    },
+    {
+      "name": "create lease accepted",
+      "status": "PASS"
+    },
+    {
+      "name": "create marker only disposable A",
+      "status": "PASS"
+    },
+    {
+      "name": "create ext4 FD handle success",
+      "status": "PASS"
+    },
+    {
+      "name": "create ext4 unique statx support",
+      "status": "PASS"
+    },
+    {
+      "name": "create ext4 filesystem profile",
+      "status": "PASS"
+    },
+    {
+      "name": "create xfs FD handle success",
+      "status": "PASS"
+    },
+    {
+      "name": "create xfs unique statx support",
+      "status": "PASS"
+    },
+    {
+      "name": "create xfs filesystem profile",
+      "status": "PASS"
+    },
+    {
+      "name": "restart runtime exit0",
+      "status": "PASS"
+    },
+    {
+      "name": "restart native x64",
+      "status": "PASS"
+    },
+    {
+      "name": "restart effective cap0 NNP Seccomp2",
+      "status": "PASS"
+    },
+    {
+      "name": "restart lease accepted",
+      "status": "PASS"
+    },
+    {
+      "name": "restart marker only disposable A",
+      "status": "PASS"
+    },
+    {
+      "name": "restart ext4 FD handle success",
+      "status": "PASS"
+    },
+    {
+      "name": "restart ext4 unique statx support",
+      "status": "PASS"
+    },
+    {
+      "name": "restart ext4 filesystem profile",
+      "status": "PASS"
+    },
+    {
+      "name": "restart xfs FD handle success",
+      "status": "PASS"
+    },
+    {
+      "name": "restart xfs unique statx support",
+      "status": "PASS"
+    },
+    {
+      "name": "restart xfs filesystem profile",
+      "status": "PASS"
+    },
+    {
+      "name": "restart previous epoch denied",
+      "status": "PASS"
+    },
+    {
+      "name": "recreation runtime exit0",
+      "status": "PASS"
+    },
+    {
+      "name": "recreation native x64",
+      "status": "PASS"
+    },
+    {
+      "name": "recreation effective cap0 NNP Seccomp2",
+      "status": "PASS"
+    },
+    {
+      "name": "recreation lease accepted",
+      "status": "PASS"
+    },
+    {
+      "name": "recreation marker only disposable A",
+      "status": "PASS"
+    },
+    {
+      "name": "recreation ext4 FD handle success",
+      "status": "PASS"
+    },
+    {
+      "name": "recreation ext4 unique statx support",
+      "status": "PASS"
+    },
+    {
+      "name": "recreation ext4 filesystem profile",
+      "status": "PASS"
+    },
+    {
+      "name": "recreation xfs FD handle success",
+      "status": "PASS"
+    },
+    {
+      "name": "recreation xfs unique statx support",
+      "status": "PASS"
+    },
+    {
+      "name": "recreation xfs filesystem profile",
+      "status": "PASS"
+    },
+    {
+      "name": "recreation previous epoch denied",
+      "status": "PASS"
+    },
+    {
+      "name": "new process verifier epochs",
+      "status": "PASS"
+    },
+    {
+      "name": "ext4 scoped handles stable",
+      "status": "PASS"
+    },
+    {
+      "name": "read-only XFS scoped handles stable",
+      "status": "PASS"
+    },
+    {
+      "name": "signed revoke denied next admission",
+      "status": "PASS"
+    },
+    {
+      "name": "same lease replay denied",
+      "status": "PASS"
+    },
+    {
+      "name": "real timer expiry denied next admission",
+      "status": "PASS"
+    },
+    {
+      "name": "restart sameCID recreate differentCID",
+      "status": "PASS"
+    },
+    {
+      "name": "three host process lifetime records",
+      "status": "PASS"
+    },
+    {
+      "name": "create capdrop no additions",
+      "status": "PASS"
+    },
+    {
+      "name": "create unprivileged no host networking",
+      "status": "PASS"
+    },
+    {
+      "name": "create RO nonroot NNP",
+      "status": "PASS"
+    },
+    {
+      "name": "create limited resources",
+      "status": "PASS"
+    },
+    {
+      "name": "create only three RO rprivate binds",
+      "status": "PASS"
+    },
+    {
+      "name": "create no socket binds",
+      "status": "PASS"
+    },
+    {
+      "name": "restart capdrop no additions",
+      "status": "PASS"
+    },
+    {
+      "name": "restart unprivileged no host networking",
+      "status": "PASS"
+    },
+    {
+      "name": "restart RO nonroot NNP",
+      "status": "PASS"
+    },
+    {
+      "name": "restart limited resources",
+      "status": "PASS"
+    },
+    {
+      "name": "restart only three RO rprivate binds",
+      "status": "PASS"
+    },
+    {
+      "name": "restart no socket binds",
+      "status": "PASS"
+    },
+    {
+      "name": "recreation capdrop no additions",
+      "status": "PASS"
+    },
+    {
+      "name": "recreation unprivileged no host networking",
+      "status": "PASS"
+    },
+    {
+      "name": "recreation RO nonroot NNP",
+      "status": "PASS"
+    },
+    {
+      "name": "recreation limited resources",
+      "status": "PASS"
+    },
+    {
+      "name": "recreation only three RO rprivate binds",
+      "status": "PASS"
+    },
+    {
+      "name": "recreation no socket binds",
+      "status": "PASS"
+    },
+    {
+      "name": "directory replacement changes pathname object",
+      "status": "PASS"
+    },
+    {
+      "name": "pinned FD original object",
+      "status": "PASS"
+    },
+    {
+      "name": "ABA restores sampled identity",
+      "status": "PASS"
+    },
+    {
+      "name": "daemon namespace inaccessible retained blocker",
+      "status": "PASS"
+    },
+    {
+      "name": "exact executed source baseline-collector.py",
+      "status": "PASS"
+    },
+    {
+      "name": "exact executed source identity-probe.c",
+      "status": "PASS"
+    },
+    {
+      "name": "exact executed source observe-fd.c",
+      "status": "PASS"
+    },
+    {
+      "name": "exact executed source bridge.cjs",
+      "status": "PASS"
+    },
+    {
+      "name": "exact executed source protocol-tests.cjs",
+      "status": "PASS"
+    },
+    {
+      "name": "exact executed source consumer.cjs",
+      "status": "PASS"
+    },
+    {
+      "name": "exact executed source run-host.cjs",
+      "status": "PASS"
+    },
+    {
+      "name": "three lease and one revoke envelopes retained",
+      "status": "PASS"
+    },
+    {
+      "name": "offline signature signed-envelope create",
+      "status": "PASS"
+    },
+    {
+      "name": "offline signature signed-revoke-envelope create",
+      "status": "PASS"
+    },
+    {
+      "name": "offline signature signed-envelope restart",
+      "status": "PASS"
+    },
+    {
+      "name": "offline signature signed-envelope recreation",
+      "status": "PASS"
+    },
+    {
+      "name": "signed trusted context signed-envelope create",
+      "status": "PASS"
+    },
+    {
+      "name": "signed trusted context signed-revoke-envelope create",
+      "status": "PASS"
+    },
+    {
+      "name": "signed trusted context signed-envelope restart",
+      "status": "PASS"
+    },
+    {
+      "name": "signed trusted context signed-envelope recreation",
+      "status": "PASS"
+    },
+    {
+      "name": "preserved exact successful v3 baseline-collector.py",
+      "status": "PASS"
+    },
+    {
+      "name": "preserved exact successful v3 identity-probe.c",
+      "status": "PASS"
+    },
+    {
+      "name": "preserved exact successful v3 observe-fd.c",
+      "status": "PASS"
+    },
+    {
+      "name": "preserved exact successful v3 bridge.cjs",
+      "status": "PASS"
+    },
+    {
+      "name": "preserved exact successful v3 protocol-tests.cjs",
+      "status": "PASS"
+    },
+    {
+      "name": "preserved exact successful v3 consumer.cjs",
+      "status": "PASS"
+    },
+    {
+      "name": "preserved exact successful v3 run-host.cjs",
+      "status": "PASS"
+    },
+    {
+      "name": "failed-attempt honest execution failure",
+      "status": "PASS"
+    },
+    {
+      "name": "failed-attempt own cleanup",
+      "status": "PASS"
+    },
+    {
+      "name": "failed-attempt-v2 honest execution failure",
+      "status": "PASS"
+    },
+    {
+      "name": "failed-attempt-v2 own cleanup",
+      "status": "PASS"
+    }
+  ],
+  "R2_1C_GATE": "BLOCKED",
+  "R2_1_GATE": "BLOCKED"
+}

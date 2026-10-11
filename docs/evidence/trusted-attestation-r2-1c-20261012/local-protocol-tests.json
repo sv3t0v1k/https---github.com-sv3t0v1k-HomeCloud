@@ -1,0 +1,134 @@
+{
+  "scope": "deterministic protocol model; synthetic clock/context",
+  "checks": [
+    {
+      "name": "valid lease and admission",
+      "status": "PASS"
+    },
+    {
+      "name": "absent attestation denied",
+      "status": "PASS"
+    },
+    {
+      "name": "wrong boot denied",
+      "status": "PASS"
+    },
+    {
+      "name": "wrong observer denied",
+      "status": "PASS"
+    },
+    {
+      "name": "wrong revision denied",
+      "status": "PASS"
+    },
+    {
+      "name": "wrong enrollment denied",
+      "status": "PASS"
+    },
+    {
+      "name": "wrong deployment denied",
+      "status": "PASS"
+    },
+    {
+      "name": "wrong epoch denied",
+      "status": "PASS"
+    },
+    {
+      "name": "wrong nonce denied",
+      "status": "PASS"
+    },
+    {
+      "name": "wrong state denied",
+      "status": "PASS"
+    },
+    {
+      "name": "wrong ttlMs denied",
+      "status": "PASS"
+    },
+    {
+      "name": "wrong expected denied",
+      "status": "PASS"
+    },
+    {
+      "name": "wrong observation denied",
+      "status": "PASS"
+    },
+    {
+      "name": "wrong kind denied",
+      "status": "PASS"
+    },
+    {
+      "name": "wrong seq denied",
+      "status": "PASS"
+    },
+    {
+      "name": "wrong v denied",
+      "status": "PASS"
+    },
+    {
+      "name": "wrong signer denied",
+      "status": "PASS"
+    },
+    {
+      "name": "tampered signature denied",
+      "status": "PASS"
+    },
+    {
+      "name": "malformed absent response denied",
+      "status": "PASS"
+    },
+    {
+      "name": "same challenge replay denied and clears lease",
+      "status": "PASS"
+    },
+    {
+      "name": "new challenge rejects previous nonce",
+      "status": "PASS"
+    },
+    {
+      "name": "process recreation rejects previous epoch",
+      "status": "PASS"
+    },
+    {
+      "name": "response at deadline denied",
+      "status": "PASS"
+    },
+    {
+      "name": "lease expiry denies next I/O",
+      "status": "PASS"
+    },
+    {
+      "name": "delayed response cannot extend lease",
+      "status": "PASS"
+    },
+    {
+      "name": "renewal invalidates prior lease",
+      "status": "PASS"
+    },
+    {
+      "name": "signed revoke fences admitted session",
+      "status": "PASS"
+    },
+    {
+      "name": "channel failure fences",
+      "status": "PASS"
+    },
+    {
+      "name": "authority lease construction accepts exact challenge",
+      "status": "PASS"
+    },
+    {
+      "name": "consumer cannot overwrite authority fields",
+      "status": "PASS"
+    },
+    {
+      "name": "authority rejects wrong deployment",
+      "status": "PASS"
+    },
+    {
+      "name": "authority rejects malformed epoch and nonce",
+      "status": "PASS"
+    }
+  ],
+  "count": 32
+}
