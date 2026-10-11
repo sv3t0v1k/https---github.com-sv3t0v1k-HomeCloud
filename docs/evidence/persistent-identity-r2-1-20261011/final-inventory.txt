@@ -1,0 +1,34 @@
+2026-10-11T18:31:51+10:00
+Linux 6.8.0-134-generic x86_64 GNU/Linux
+28.2.2
+["name=apparmor","name=seccomp,profile=builtin","name=cgroupns"]
+NAME                      PKNAME TYPE FSTYPE      UUID                                   MOUNTPOINTS
+loop0                            loop squashfs                                           /snap/core20/2922
+loop1                            loop squashfs                                           /snap/core20/2866
+loop2                            loop squashfs                                           /snap/core22/2437
+loop3                            loop squashfs                                           /snap/core22/2955
+loop4                            loop squashfs                                           /snap/lxd/40575
+loop5                            loop squashfs                                           /snap/lxd/40911
+loop6                            loop squashfs                                           /snap/snapd/27738
+loop7                            loop squashfs                                           /snap/snapd/28254
+sda                              disk                                                    
+├─sda1                    sda    part vfat        59BC-33AF                              /boot/efi
+├─sda2                    sda    part ext4        2c770485-8f03-4a58-890d-2e53735cc03a   /boot
+└─sda3                    sda    part LVM2_member IUd6Bv-YdIM-48fA-9afD-YBgF-3yFn-99fMJp 
+  └─ubuntu--vg-ubuntu--lv sda3   lvm  ext4        f9ff3a92-1414-4285-bf3e-75e25c104d84   /
+sdb                              disk                                                    
+├─sdb1                    sdb    part vfat        67E3-17ED                              
+└─sdb2                    sdb    part xfs         ef9dde17-a742-45c4-9442-5203bade1ca1   /mnt/data
+sdc                              disk                                                    
+├─sdc1                    sdc    part ext4        88b84cf3-019b-4aa1-85a7-411a4807fba3   /mnt/1TB
+└─sdc2                    sdc    part ext4        ccf122c6-c7a7-4d8e-86bd-06059730ee35   /mnt/3TB
+/home/hs/homecloud-test hs:hs 700 directory
+/mnt/1TB/homecloud-test hs:hs 700 directory
+/mnt/data www-data:www-data 755 directory
+               total        used        free      shared  buff/cache   available
+Mem:            7686        2539         298         206        4848        4629
+Swap:           4095        1893        2202
+some avg10=0.00 avg60=0.00 avg300=0.00 total=41403650
+full avg10=0.00 avg60=0.00 avg300=0.00 total=36530759
+2152	/home/hs/homecloud-test/r2-identity-20261011-01a12a10
+40	/mnt/1TB/homecloud-test/r2-identity-20261011-01a12a10

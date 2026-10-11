@@ -848,3 +848,33 @@ Power loss, auth/controller adversarial HTTP и durable enrollment/R2 вне д�
 **secureOpen=false; additional activation disabled; production NOT_READY/NO_GO.**
 R2/MS-4 не начаты; остановка после R1Q, продолжение только по отдельному решению владельца.
 [Native qualification report/evidence](evidence/secure-filesystem-adapter-home-server-native-r1q-20261011/report.md).
+
+
+## MS-3B-R2.1 — Persistent Identity Qualification, только исследование (2026-10-11)
+
+**R2.1_GATE=BLOCKED.** Утверждённое владельцем исследование выполнено на домашнем
+native Linux сервере. R1/R1Q PASS сохраняется в descriptor-safe scope. name_to_handle_at
+из O_PATH и O_RDONLY FD работает на ext4 и read-only XFS root под штатным Docker
+seccomp без capabilities. На ext4 подтверждены сохранение handle при process/container
+restart/recreation, различение копии marker и replacement directory, фактический reuse
+inode с изменившимся handle. Nested bind того же объекта сохраняет handle; NO_XDEV
+возвращает EXDEV при crossing. Обычный mount ID повторён, unique ID изменился при restart.
+Overlayfs root возвращает EOPNOTSUPP95; fallback не вводился. UID1001 проверен только
+на raw capability; production ownership/enrollment не проверен. XFS writable workspace,
+FS remount/reboot, physical replacement, stacked/live mutation и доверенная host→container
+attestation остаются UNQUALIFIED. Full FS clone/same-UID/root adversary не закрыты;
+process restart не доказывает power-loss durability.
+
+Оба native research runner завершились rc0, 35 offline evidence checks PASS. Независимый
+узкий review ACCEPT только BLOCKED/disabled outcome. Сведения о 26 исходных контейнерах
+и полный host mountinfo совпали до/после, включая финальный follow-up; 10 собственных
+probe-контейнеров удалены. В новых approved subdirs оставлены только собственные
+project artifacts около 2.1 MiB и ext4 fixtures 40 KiB. Записей на XFS не было. Реальные
+mounts/services/config/data не изменялись; resource snapshots не доказывают zero-impact.
+Production code/schema/runtime/bindings неизменны.
+**secureOpen=false; additional activation disabled; production NOT_READY/NO_GO.**
+R2.2/MS-4 не начаты; integration/release/tag/push не выполнялись. Следующий предлагаемый
+checkpoint — отдельно разрешённое продолжение R2.1: disposable ext4/XFS remount и
+host attestation qualification. Privileged namespace tests требуют отдельного прямого
+разрешения; реальные диски не размонтировать.
+[Матрица, evidence, scope, ограничения и review](evidence/persistent-identity-r2-1-20261011/report.md).

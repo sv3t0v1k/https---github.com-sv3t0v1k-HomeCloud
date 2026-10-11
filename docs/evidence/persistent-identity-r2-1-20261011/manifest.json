@@ -1,0 +1,66 @@
+{
+  "initial_head": "5a1ad420e421533a0d7c842d1c4d80226a0c9865",
+  "R2.1_GATE": "BLOCKED",
+  "files": {
+    "identity-probe.c": {
+      "sha256": "8dbe5dd27deb28f20d00812280d48adbafe5f98a3dab1e2064d768830940cabd",
+      "bytes": 3155
+    },
+    "run-research.py": {
+      "sha256": "1bc8b10cdc6210ba2783d28974f1a388bd37620ea953bfd21a4461d888cf19d1",
+      "bytes": 9216
+    },
+    "run-readonly-fd.py": {
+      "sha256": "1940d14f54ee5b95051be7315d77eaf8be27123f9b70e134b0757e123f1ae469",
+      "bytes": 2826
+    },
+    "verify-evidence.py": {
+      "sha256": "7ec9314eca31e36bc8066248f18843ccf547ab0c91462d7617e96e767024b3fb",
+      "bytes": 4213
+    },
+    "research.ndjson": {
+      "sha256": "298989fcc219dab91467c9890af0bd7c88362b4e4fbcea211105f77a6c6f0a22",
+      "bytes": 92286
+    },
+    "research.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "readonly-fd.ndjson": {
+      "sha256": "7da16ed5ac9fdee1f8d5f2dc900aae1af94cd310eeaeefc2dbb806371ae74b32",
+      "bytes": 2988
+    },
+    "readonly-fd.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "evidence-verification.json": {
+      "sha256": "f5aeee64ac93af123c4226235d0b687cfef369990046adc79b813845741f1b03",
+      "bytes": 1239
+    },
+    "final-inventory.txt": {
+      "sha256": "ddbb6171f9f6ee1066c72a6924f0fe784bab9679c22f9726e43ad90532ef10e5",
+      "bytes": 2715
+    },
+    "final-integrity.json": {
+      "sha256": "2e699a785aea60415c0effb2da4e9f1539827ae0be39a70c357797f619e0649d",
+      "bytes": 152
+    },
+    "preflight-error.txt": {
+      "sha256": "c0394c9d6612b12d824f6f70727804718af4ba87e4d83bf92fb91be27b809485",
+      "bytes": 3809
+    },
+    "report.md": {
+      "sha256": "d43eeb88d53df6adee02962bdbaf21d0a7d0c41d272918b85aec99bce53014e0",
+      "bytes": 23503
+    },
+    "independent-review.md": {
+      "sha256": "b0cd97c6637349ae1426939d8e7fde6594b59691aaf560b764b55bb755d59ac0",
+      "bytes": 4713
+    },
+    "reproduce.md": {
+      "sha256": "4c4b48a01fedcd530535b638175d8a76f785bf5224eb0987eafd26519a076604",
+      "bytes": 2870
+    }
+  }
+}
