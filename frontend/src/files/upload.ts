@@ -1,6 +1,7 @@
-import { ApiError } from '../api/errors'
+import { ApiError, isUploadCapacityError, isUploadBusyError } from '../api/errors'
 import { apiRequest } from '../api/client'
 import type { FileItem } from '../types/files'
+import { hashFileSha256 } from './wholeSha256'
 
 export const UPLOAD_CHUNK_SIZE = 10 * 1024 * 1024
 const MAX_CHUNK_ATTEMPTS = 3
@@ -18,6 +19,8 @@ export interface RetryBudget {
 }
 
 export interface UploadLimits {
+  storageMode?: 'legacy' | 'ssd'
+  wholeSha256Required?: boolean
   maxFileBytes: number | null
   maxActiveBytes: number | null
   maxChunkBytes: number
@@ -28,7 +31,7 @@ export interface UploadLimits {
 }
 
 export function getUploadLimits(signal?: AbortSignal): Promise<UploadLimits> {
-  return apiRequest<UploadLimits>({ method: 'GET', url: '/uploads/limits', signal })
+  return apiRequest<UploadLimits>({ method: 'GET', url: '/uploads/limits', signal, timeout: 120_000 })
 }
 
 interface UploadSession {
@@ -36,7 +39,7 @@ interface UploadSession {
   totalChunks: number
 }
 
-export type UploadStage = 'preparing' | 'uploading' | 'completing' | 'success'
+export type UploadStage = 'preparing' | 'hashing' | 'uploading' | 'completing' | 'success'
 
 export interface UploadProgress {
   stage: UploadStage
@@ -79,6 +82,7 @@ export async function uploadFile({
   if (totalChunks > limits.maxChunks) throw new RangeError('Размер файла превышает число допустимых частей.')
   emit(onProgress, 'preparing', 0, file.size, null, totalChunks)
 
+  const retryBudget: RetryBudget = { remainingWaitMs: UPLOAD_RETRY_WAIT_BUDGET_MS }
   const payload: Record<string, string | number> = {
     filename: file.name,
     totalSize: file.size,
@@ -86,15 +90,21 @@ export async function uploadFile({
   }
   if (parentId !== undefined) payload.parentId = parentId
 
-  const session = await apiRequest<UploadSession>({
+  if (limits.wholeSha256Required || limits.storageMode === 'ssd') {
+    payload.expectedSha256 = await hashFileSha256(file, { signal, onProgress: (bytes) =>
+      emit(onProgress, 'hashing', bytes, file.size, null, totalChunks) })
+  }
+  throwIfAborted(signal)
+  // Retry only a definite pre-admission rejection; ambiguous create responses are not replayed.
+  const session = await withAdmissionRetry(() => apiRequest<UploadSession>({
     method: 'POST',
     url: '/uploads/session',
     data: payload,
-    signal,
-  })
+    signal, timeout: 120_000,
+  }), signal, retryDelayMs, retryBudget)
 
+  let finalizing = false
   try {
-    const retryBudget: RetryBudget = { remainingWaitMs: UPLOAD_RETRY_WAIT_BUDGET_MS }
     let completedBytes = 0
     for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex += 1) {
       throwIfAborted(signal)
@@ -110,7 +120,7 @@ export async function uploadFile({
             method: 'POST',
             url: `/uploads/session/${encodeURIComponent(session.uploadId)}/chunk`,
             data: form,
-            signal,
+            signal, timeout: 120_000,
           })
         },
         signal,
@@ -122,23 +132,20 @@ export async function uploadFile({
     }
 
     emit(onProgress, 'completing', file.size, file.size, null, totalChunks)
-    const completed = await apiRequest<FileItem>({
-      method: 'POST',
-      url: `/uploads/session/${encodeURIComponent(session.uploadId)}/complete`,
-      signal,
-    })
+    finalizing = true
+    const completed = await withChunkRetry(() => completeUploadSession(session.uploadId, signal), signal, retryDelayMs, retryBudget)
     emit(onProgress, 'success', file.size, file.size, null, totalChunks)
     return completed
   } catch (error) {
-    // Every terminal failure must release the server-side quota reservation.
-    // Preserve the original error: cleanup is intentionally best effort.
-    await abortSession(session.uploadId)
+    // Before finalization, cleanup is bounded and best effort. Once publication
+    // may have started, retain the session for explicit reconciliation/retry.
+    if (!finalizing) await abortSession(session.uploadId)
     throw error
   }
 }
 
-export async function withChunkRetry(
-  send: () => Promise<unknown>,
+export async function withChunkRetry<T>(
+  send: () => Promise<T>,
   signal: AbortSignal | undefined,
   retryDelayMs: number,
   budget: RetryBudget,
@@ -156,16 +163,18 @@ export async function withChunkRetry(
       throw new ApiError('Upload cleanup retry budget exhausted', 'network')
     }
     try {
-      await send()
+      const result = await send()
       budget.notBefore = undefined
-      return
+      return result
     } catch (error) {
       if (!isRetryable(error)) throw error
       const fallbackMs = Math.max(
         error.kind === 'rate-limit' ? DEFAULT_RETRY_DELAY_MS : 0,
         Number.isFinite(retryDelayMs) ? retryDelayMs : DEFAULT_RETRY_DELAY_MS,
       ) * 2 ** (attempt - 1)
-      const delayMs = Math.max(fallbackMs, retryAfterDelay(error.retryAfter) ?? 0)
+      // Positive jitter for 503 prevents synchronized clients; never retry before Retry-After.
+      const jitteredMs = error.status === 503 ? Math.max(DEFAULT_RETRY_DELAY_MS, fallbackMs) * (1 + Math.random() * 0.25) : fallbackMs
+      const delayMs = Math.max(jitteredMs, retryAfterDelay(error.retryAfter) ?? 0)
       budget.notBefore = Math.max(budget.notBefore ?? 0, Date.now() + delayMs)
       // Pause can arrive while the request is in flight. Retain the response's
       // Retry-After before interrupting scheduling, even when already paused.
@@ -182,11 +191,13 @@ export async function withChunkRetry(
       await abortableDelay(delayMs, signal)
     }
   }
+  throw new Error('Retry attempts exhausted')
 }
 
 function isRetryable(error: unknown): error is ApiError {
   return error instanceof ApiError &&
-    (error.kind === 'network' || error.kind === 'server' || error.kind === 'rate-limit')
+    !isUploadCapacityError(error) &&
+    (error.kind === 'network' || error.kind === 'server' || error.kind === 'busy' || error.kind === 'rate-limit')
 }
 
 function retryFailure(error: ApiError) {
@@ -283,5 +294,34 @@ function emit(
     chunkIndex,
     totalChunks,
     percent: stage === 'success' ? 100 : Math.min(rawPercent, 99),
+  })
+}
+
+/** A complete response can be lost after publication; reconcile before replaying it. */
+export async function completeUploadSession(uploadId: string, signal?: AbortSignal): Promise<FileItem> {
+  try {
+    return await apiRequest<FileItem>({ method: 'POST', url: `/uploads/session/${encodeURIComponent(uploadId)}/complete`, signal, timeout: 30 * 60_000 })
+  } catch (error) {
+    if (error instanceof ApiError && ['network', 'server', 'busy'].includes(error.kind)) {
+      try {
+        const receipt = await apiRequest<{ status: string; file?: FileItem }>({
+          method: 'GET', url: `/uploads/session/${encodeURIComponent(uploadId)}`, signal, timeout: 120_000 })
+        if (receipt.status === 'completed' && receipt.file) return receipt.file
+      } catch { /* Keep original failure and use the same bounded replay budget. */ }
+    }
+    throw error
+  }
+}
+
+/** No network/500 replay: the server does not expose an admission idempotency key. */
+export async function withAdmissionRetry<T>(send: () => Promise<T>, signal: AbortSignal | undefined, delay: number, budget: RetryBudget, onRetry?: () => void): Promise<T> {
+  return withChunkRetry(async () => {
+    try { return { result: await send() } } catch (error) {
+      if (isUploadBusyError(error) || (error instanceof ApiError && error.kind === 'rate-limit')) throw error
+      return { error }
+    }
+  }, signal, delay, budget, onRetry).then((outcome) => {
+    if ('error' in outcome) throw outcome.error
+    return outcome.result
   })
 }

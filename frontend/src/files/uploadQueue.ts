@@ -1,9 +1,11 @@
 import { apiRequest } from '../api/client'
-import { ApiError } from '../api/errors'
+import { ApiError, isUploadCapacityError, isUploadBusyError } from '../api/errors'
 import type { FileItem } from '../types/files'
-import { getUploadLimits, UPLOAD_CHUNK_SIZE, withChunkRetry, type RetryBudget } from './upload'
+import { getUploadLimits, UPLOAD_CHUNK_SIZE, withChunkRetry, withAdmissionRetry, completeUploadSession, type RetryBudget } from './upload'
 
-export type UploadQueueState = 'selected' | 'queued' | 'preparing' | 'uploading' | 'pausing' | 'paused' |
+import { hashFileSha256 } from './wholeSha256'
+
+export type UploadQueueState = 'selected' | 'queued' | 'preparing' | 'hashing' | 'uploading' | 'pausing' | 'paused' |
   'retrying' | 'completing' | 'completed' | 'error' | 'cancelling' | 'cancelled' | 'needs-file'
 
 export interface UploadQueueItem {
@@ -13,6 +15,8 @@ export interface UploadQueueItem {
   parentId?: number
   state: UploadQueueState
   committedBytes: number
+  hashedBytes?: number
+  hashPercent?: number
   percent: number
   needsFile: boolean
   error?: string
@@ -41,6 +45,7 @@ interface SavedUpload {
   parentId?: number
   uploadId: string
   committedBytes: number
+  expectedSha256?: string
   fingerprint?: string
   lastModified?: number
   notBefore?: number
@@ -51,6 +56,7 @@ interface Job {
   view: UploadQueueItem
   file?: File
   session?: Session
+  expectedSha256?: string
   fingerprint?: string
   lastModified?: number
   budget: RetryBudget
@@ -61,11 +67,13 @@ interface Job {
   verifyCommitted: boolean
   busy: boolean
   creationUncertain?: boolean
+  hashVerifiedFile?: File
 }
 
 const CONCURRENT_FILES = 2
 const WAIT_BUDGET_MS = 300_000
 const STORAGE_VERSION = 1
+const REQUEST_TIMEOUT_MS = 120_000
 const SAMPLE_SIZE = 64 * 1024
 
 /** Two files, one bounded chunk per file. Pause settles in-flight requests; Cancel deletes the session. */
@@ -262,7 +270,7 @@ export class UploadQueue {
         job.fingerprint = await sampleFingerprint(file)
         job.lastModified = file.lastModified
         if (this.stopped(job)) return
-        const limits = await getUploadLimits()
+        const limits = await withChunkRetry(() => getUploadLimits(), job.control?.signal, 250, job.budget)
         if (this.stopped(job)) return
         if (!Number.isSafeInteger(limits.effectiveMaxFileBytes) || file.size > limits.effectiveMaxFileBytes) {
           throw new Error('Размер файла превышает доступную квоту или предел загрузки.')
@@ -271,13 +279,28 @@ export class UploadQueue {
           !Number.isSafeInteger(limits.maxChunks) || limits.maxChunks <= 0) throw new Error('Некорректные ограничения загрузки.')
         const chunkSize = Math.min(limits.maxChunkBytes, Math.max(UPLOAD_CHUNK_SIZE, Math.ceil(file.size / limits.maxChunks)))
         if (Math.ceil(file.size / chunkSize) > limits.maxChunks) throw new Error('Файл превышает предел числа частей.')
-        job.creationUncertain = true
-        const session = await apiRequest<Session>({ method: 'POST', url: '/uploads/session',
-          data: { filename: file.name, totalSize: file.size, chunkSize,
-            ...(job.view.parentId === undefined ? {} : { parentId: job.view.parentId }) } })
+        if (limits.wholeSha256Required || limits.storageMode === 'ssd') {
+          await this.hashWholeFile(job)
+          if (this.stopped(job)) return
+        }
+        const session = await withAdmissionRetry(async () => {
+          job.creationUncertain = true
+          try {
+            return await apiRequest<Session>({ method: 'POST', url: '/uploads/session',
+              data: { filename: file.name, totalSize: file.size, chunkSize,
+                ...(job.expectedSha256 ? { expectedSha256: job.expectedSha256 } : {}),
+                ...(job.view.parentId === undefined ? {} : { parentId: job.view.parentId }) }, timeout: REQUEST_TIMEOUT_MS })
+          } catch (error) {
+            // A rejected attempt did not reserve a session. Interrupting its
+            // subsequent backoff must not be mistaken for a lost create ACK.
+            if (error instanceof ApiError && (isUploadBusyError(error) || isUploadCapacityError(error) ||
+              !['network', 'server'].includes(error.kind))) job.creationUncertain = false
+            throw error
+          }
+        }, job.control?.signal, 250, job.budget, () => { job.view.state = 'retrying'; this.publish() })
         job.creationUncertain = false
         job.view.uploadId = session.uploadId
-        // Creation itself is non-retriable: a lost response is recovered by server discovery.
+        // Ambiguous creation responses are recovered by discovery, never replayed.
         job.session = { ...session, filename: file.name, totalSize: file.size, chunkSize,
           totalChunks: Math.ceil(file.size / chunkSize), uploadedSize: 0, chunks: [], parentId: job.view.parentId }
         this.publish()
@@ -287,6 +310,10 @@ export class UploadQueue {
       if (job.verifyCommitted || !session?.chunks) {
         session = await this.reconcile(job)
         if (terminal(job) || this.stopped(job)) return
+        if (job.expectedSha256 && job.hashVerifiedFile !== file) {
+          await this.hashWholeFile(job)
+          if (this.stopped(job)) return
+        }
         if (job.verifyCommitted) {
           for (const chunk of session.chunks ?? []) {
             if (this.stopped(job)) return
@@ -316,7 +343,7 @@ export class UploadQueue {
           const form = new FormData()
           form.append('chunkIndex', String(index))
           form.append('chunk', chunk, file.name)
-          await apiRequest({ method: 'POST', url: sessionUrl(session.uploadId, '/chunk'), data: form })
+          await apiRequest({ method: 'POST', url: sessionUrl(session.uploadId, '/chunk'), data: form, timeout: REQUEST_TIMEOUT_MS })
         }, job.control?.signal, 250, job.budget, () => {
           job.view.state = 'retrying'
           this.publish()
@@ -329,7 +356,9 @@ export class UploadQueue {
       if (this.stopped(job)) return
       job.view.state = 'completing'
       this.publish()
-      const completed = await apiRequest<FileItem>({ method: 'POST', url: sessionUrl(session.uploadId, '/complete') })
+      const completed = await withChunkRetry(
+        () => completeUploadSession(session.uploadId), undefined, 250, job.budget,
+        () => { job.view.state = 'completing'; this.publish() })
       // A late Pause/Cancel cannot pretend that a successfully finalized file is still an upload.
       job.cancellationPending = false
       job.view.state = 'completed'
@@ -340,7 +369,8 @@ export class UploadQueue {
       this.publish()
     } catch (error) {
       job.verifyCommitted = Boolean(job.view.uploadId)
-      if (job.creationUncertain && error instanceof ApiError && !['network', 'server'].includes(error.kind)) {
+      if (job.creationUncertain && error instanceof ApiError &&
+        (isUploadBusyError(error) || isUploadCapacityError(error) || !['network', 'server'].includes(error.kind))) {
         job.creationUncertain = false
       }
       if (job.creationUncertain && !this.disposed) {
@@ -357,8 +387,33 @@ export class UploadQueue {
     }
   }
 
+  private async hashWholeFile(job: Job) {
+    const file = job.file!
+    job.view.state = 'hashing'
+    job.view.hashedBytes = 0
+    this.publish()
+    let lastPublishedAt = 0
+    let lastPercent = -1
+    const hash = await hashFileSha256(file, { signal: job.control?.signal, onProgress: (bytes) => {
+      job.view.hashedBytes = bytes
+      const percent = Math.floor(bytes / file.size * 100)
+      if (percent !== lastPercent || Date.now() - lastPublishedAt >= 250) {
+        lastPercent = percent
+        lastPublishedAt = Date.now()
+        this.publish()
+      }
+    } })
+    if (job.expectedSha256 && hash !== job.expectedSha256) {
+      job.file = undefined
+      job.view.needsFile = true
+      throw new Error('Контрольная сумма выбранного файла отличается от исходной. Выберите исходный файл.')
+    }
+    job.expectedSha256 = hash
+    job.hashVerifiedFile = file
+  }
+
   private async reconcile(job: Job, timeout?: number): Promise<Session> {
-    const session = await apiRequest<Session>({ method: 'GET', url: sessionUrl(job.view.uploadId!), timeout })
+    const session = await apiRequest<Session>({ method: 'GET', url: sessionUrl(job.view.uploadId!), timeout: timeout ?? REQUEST_TIMEOUT_MS })
     if (!validSession(session) || session.filename !== job.view.name || session.totalSize !== job.view.size ||
       (session.parentId ?? undefined) !== job.view.parentId) throw new Error('Параметры серверной сессии не совпадают с файлом.')
     if (session.status === 'completed' && session.file) {
@@ -447,12 +502,13 @@ export class UploadQueue {
 
   private publish() {
     this.snapshot = [...this.jobs.values()].map((job) => {
+      job.view.hashPercent = Math.min(100, Math.floor((job.view.hashedBytes ?? 0) / job.view.size * 100) || 0)
       job.view.percent = job.view.state === 'completed' ? 100 : Math.min(99, Math.floor(job.view.committedBytes / job.view.size * 100) || 0)
       return { ...job.view }
     })
     const saved: SavedUpload[] = [...this.jobs.values()].filter((job) => job.view.uploadId && !terminal(job))
       .map((job) => ({ id: job.view.id, name: job.view.name, size: job.view.size, parentId: job.view.parentId,
-        uploadId: job.view.uploadId!, committedBytes: job.view.committedBytes, fingerprint: job.fingerprint,
+        uploadId: job.view.uploadId!, committedBytes: job.view.committedBytes, fingerprint: job.fingerprint, expectedSha256: job.expectedSha256,
         lastModified: job.lastModified, notBefore: job.budget.notBefore, cancellationPending: job.cancellationPending }))
     try {
       if (saved.length) this.storage?.setItem(this.storageKey, JSON.stringify(saved))
@@ -480,7 +536,7 @@ export class UploadQueue {
       uploadId: saved.uploadId, committedBytes: saved.committedBytes, percent: 0, needsFile: true,
       state: saved.cancellationPending ? 'error' : 'needs-file',
       error: saved.cancellationPending ? 'Отмена не подтверждена сервером. Нажмите «Отменить» повторно.' : undefined },
-      fingerprint: saved.fingerprint, lastModified: saved.lastModified,
+      fingerprint: saved.fingerprint, expectedSha256: saved.expectedSha256, lastModified: saved.lastModified,
       budget: { remainingWaitMs: WAIT_BUDGET_MS, notBefore: saved.notBefore }, pauseRequested: true,
       cancellationPending: Boolean(saved.cancellationPending), cancelling: false, verifyCommitted: true, busy: false }
   }
@@ -498,6 +554,8 @@ function errorMessage(error: unknown) {
     if (/file size|file.*too large|размер.*превыш|exceed.*maximum|exceed.*limit/i.test(error.message)) return 'Размер файла превышает допустимый предел загрузки.'
     if (/quota|storage.*exceeded|недостаточно.*мест|квот/i.test(error.message)) return 'Недостаточно места в хранилище.'
     if (error.kind === 'network') return 'Нет связи с сервером.'
+    if (isUploadCapacityError(error)) return 'Недостаточно свободного места на SSD или HDD. Освободите место и продолжите загрузку.'
+    if (isUploadBusyError(error)) return 'Хранилище занято или временно недоступно. Подождите и продолжите загрузку.'
     if (error.kind === 'server') return 'Временная ошибка сервера.'
     if (error.kind === 'authentication') return 'Авторизация истекла. Войдите снова.'
     if (error.kind === 'authorization') return 'Нет доступа к этой загрузке.'
@@ -523,6 +581,7 @@ function validSaved(value: unknown): value is SavedUpload {
     Number.isSafeInteger(item.size) && item.size > 0 && Number.isSafeInteger(item.committedBytes) &&
     item.committedBytes >= 0 && item.committedBytes <= item.size &&
     (item.parentId === undefined || (Number.isSafeInteger(item.parentId) && item.parentId > 0)) &&
+    (item.expectedSha256 === undefined || /^[a-f\d]{64}$/.test(item.expectedSha256)) &&
     (item.fingerprint === undefined || /^[a-f\d]{64}$/i.test(item.fingerprint)) &&
     (item.notBefore === undefined || Number.isFinite(item.notBefore))
 }

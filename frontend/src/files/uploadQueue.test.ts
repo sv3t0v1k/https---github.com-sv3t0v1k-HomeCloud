@@ -21,6 +21,7 @@ function fixture() {
   let onDelete: (() => Promise<void>) | undefined
   let onCreate: (() => Promise<void>) | undefined
   let onComplete: (() => Promise<void>) | undefined
+  let onDetail: (() => Promise<void>) | undefined
   let onDiscovery: (() => Promise<void>) | undefined
   let sequence = 0
   async function handler(config: AxiosRequestConfig): Promise<unknown> {
@@ -39,7 +40,7 @@ function fixture() {
     if (!match) throw new Error(`Unexpected request: ${config.url}`)
     const session = sessions.get(match[1])!
     if (config.method === 'DELETE') { await onDelete?.(); sessions.delete(match[1]); return {} }
-    if (!match[2]) return { ...session, chunks: [...session.chunks], ...(session.status === 'completed' ? { file: { id: 7, name: session.filename, size: session.totalSize, mimeType: 'application/octet-stream', isDeleted: false, isStarred: false, parentId: session.parentId ?? null, updatedAt: '2026-01-01T00:00:00Z' } } : {}) }
+    if (!match[2]) { await onDetail?.(); return { ...session, chunks: [...session.chunks], ...(session.status === 'completed' ? { file: { id: 7, name: session.filename, size: session.totalSize, mimeType: 'application/octet-stream', isDeleted: false, isStarred: false, parentId: session.parentId ?? null, updatedAt: '2026-01-01T00:00:00Z' } } : {}) } }
     if (match[2] === '/complete') {
       session.status = 'completed'
       await onComplete?.()
@@ -65,6 +66,7 @@ function fixture() {
     set onDelete(value: typeof onDelete) { onDelete = value },
     set onCreate(value: typeof onCreate) { onCreate = value },
     set onComplete(value: typeof onComplete) { onComplete = value },
+    set onDetail(value: typeof onDetail) { onDetail = value },
     set onDiscovery(value: typeof onDiscovery) { onDiscovery = value },
     chunkIndexes: () => calls.filter((call) => call.url?.endsWith('/chunk')).map((call) => Number((call.data as FormData).get('chunkIndex'))),
     creates: () => calls.filter((call) => call.url === '/uploads/session').length }
@@ -282,15 +284,17 @@ describe('UploadQueue', () => {
   it('lost completion response never claims success early; Resume discovers finalized file without recreating it', async () => {
     const server = fixture()
     server.onComplete = async () => { throw new ApiError('lost ACK', 'network') }
+    server.onDetail = async () => { throw new ApiError('receipt unavailable', 'network') }
     const q = queue()
     const [id] = q.enqueue([file()])
     await vi.waitFor(() => expect(state(q, id).state).toBe('error'))
     expect(state(q, id)).toMatchObject({ committedBytes: 10, percent: 99 })
+    server.onDetail = undefined
     q.resume(id)
     await vi.waitFor(() => expect(state(q, id).state).toBe('completed'))
     expect(state(q, id)).toMatchObject({ percent: 100, completedFile: { id: 7 } })
     expect(server.creates()).toBe(1)
-    expect(server.calls.filter((call) => call.url?.endsWith('/complete'))).toHaveLength(1)
+    expect(server.calls.filter((call) => call.url?.endsWith('/complete'))).toHaveLength(3)
   })
 
   it('stuck DELETE is bounded and remains unconfirmed instead of falsely cancelled', async () => {
@@ -341,10 +345,12 @@ describe('UploadQueue', () => {
   it('Cancel after a lost completion ACK reconciles the stored file instead of retaining impossible cancellation', async () => {
     const server = fixture()
     server.onComplete = async () => { throw new ApiError('lost completion', 'network') }
+    server.onDetail = async () => { throw new ApiError('receipt unavailable', 'network') }
     server.onDelete = async () => { throw new ApiError('already completed', 'validation', 400) }
     const q = queue()
     const [id] = q.enqueue([file()])
     await vi.waitFor(() => expect(state(q, id).state).toBe('error'))
+    server.onDetail = undefined
     q.cancel(id)
     await vi.waitFor(() => expect(state(q, id).state).toBe('completed'))
     expect(state(q, id)).toMatchObject({ committedBytes: 10, percent: 100, completedFile: { id: 7 } })

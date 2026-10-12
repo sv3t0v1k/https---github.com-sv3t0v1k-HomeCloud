@@ -467,22 +467,23 @@ function UploadControl({ enabled, parentId, onUploaded, queue }: { enabled: bool
 }
 
 const uploadStateLabels: Record<UploadQueueItem['state'], string> = {
-  selected: 'Ожидает запуска', queued: 'В очереди', preparing: 'Подготовка загрузки…', uploading: 'Загрузка…',
+  selected: 'Ожидает запуска', queued: 'В очереди', preparing: 'Подготовка загрузки…', hashing: 'Вычисление SHA-256…', uploading: 'Загрузка…',
   pausing: 'Приостанавливаем после текущей части…', paused: 'Приостановлено', retrying: 'Ожидание повторной попытки…',
-  completing: 'Завершение загрузки…', completed: 'Файл загружен', error: 'Требуется действие', cancelling: 'Отменяем загрузку…',
+  completing: 'Финализация файла на HDD…', completed: 'Файл загружен', error: 'Требуется действие', cancelling: 'Отменяем загрузку…',
   cancelled: 'Загрузка отменена.', 'needs-file': 'Для докачки выберите исходный файл',
 }
 
 function UploadRow({ item, queue }: { item: UploadQueueItem; queue: UploadQueue }) {
-  const canPause = ['queued', 'preparing', 'uploading', 'retrying'].includes(item.state)
+  const canPause = ['queued', 'preparing', 'hashing', 'uploading', 'retrying'].includes(item.state)
   const canResume = ['paused', 'error'].includes(item.state) && !item.needsFile
   const canCancel = !['completed', 'cancelled', 'cancelling', 'completing'].includes(item.state)
   const [reselectionError, setReselectionError] = useState<string | null>(null)
   return <li className="upload-queue-item" aria-label={`Загрузка: ${item.name}`}>
     <div className="upload-queue-title"><strong>{item.name}</strong><span className="muted">{item.parentId === undefined ? 'Мои файлы' : `Папка №${item.parentId}`}</span></div>
     <p className="upload-details" role="status">{item.state === 'completed' ? `${item.name} — файл загружен.` : uploadStateLabels[item.state]}</p>
-    <progress aria-label={`Прогресс: ${item.name}`} className="upload-progress-bar" max={100} value={item.percent}>{item.percent}%</progress>
-    <p className="upload-details muted">{item.percent}% · {formatBytes(item.committedBytes)} из {formatBytes(item.size)} принято сервером</p>
+    <progress aria-label={`Прогресс: ${item.name}`} className="upload-progress-bar" max={100} value={item.state === 'hashing' ? item.hashPercent : item.percent}>{item.state === 'hashing' ? item.hashPercent : item.percent}%</progress>
+    {item.state === 'hashing' ? <p className="upload-details muted">{item.hashPercent}% · {formatBytes(item.hashedBytes ?? 0)} из {formatBytes(item.size)} проверено</p> :
+    <p className="upload-details muted">{item.percent}% · {formatBytes(item.committedBytes)} из {formatBytes(item.size)} принято сервером</p>}
     {item.error ? <p className="inline-alert" role="alert">{item.error}</p> : null}
     {reselectionError ? <p className="inline-alert" role="alert">{reselectionError}</p> : null}
     <div className="state-actions">

@@ -36,6 +36,16 @@ describe('normalizeApiError', () => {
     })
   })
 
+  it.each([
+    ['SSD finalization is busy', 'busy'],
+    ['SSD workspace unavailable or busy', 'busy'],
+    ['Insufficient SSD or HDD capacity', 'storage-capacity'],
+    ['Finalization outcome unavailable', 'server'],
+  ])('classifies 503 %s and retains Retry-After', (message, kind) => {
+    expect(normalizeApiError(axiosError(503, { statusCode: 503, message }, '2')))
+      .toMatchObject({ kind, status: 503, retryAfter: '2' })
+  })
+
   it('classifies requests without a response as network failures', () => {
     expect(normalizeApiError(new AxiosError('offline'))).toEqual(
       expect.objectContaining({ kind: 'network' }),
