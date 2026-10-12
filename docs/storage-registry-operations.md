@@ -111,3 +111,26 @@ N-location/physical identity DR qualification. Исторический 50 GiB P
 [openat2](https://man7.org/linux/man-pages/man2/openat2.2.html),
 [mountinfo](https://man7.org/linux/man-pages/man5/proc_pid_mountinfo.5.html),
 [Docker bind mounts/Desktop](https://docs.docker.com/engine/storage/bind-mounts/).
+
+
+## Два назначения на доверенном сервере, подготовка этапа 1
+
+`STORAGE_PATH` и `legacy-storage` сохраняют единственное постоянное размещение
+File и источник скачивания. Опциональный `trusted-upload` binding предназначен
+только для временного SSD workspace; его UUID запрещён File resolver и прежним
+DB placement guard. Generic дополнительные хранилища с profile `blocked`
+продолжают отказывать. `secureOpen=false` в Registry diagnostic не изменён:
+descriptor upload boundary принадлежит отдельному `SecureFilesystem`.
+
+SSD mount mapping задаётся оператором, immutable в экземпляре Registry и
+проверяется при каждом SSD admission; source/fsroot/fs type проверяются также
+при первом обращении после restart. Marker/root/mount pin и отсутствие nested
+mount защищают от наблюдаемой смены. HDD доступность и legacy startup контракт
+сохранены; недоступный опциональный SSD не переключает API на fallback directory.
+Подробности конфигурации и границы проверок:
+[Upload Workspace operations](upload-workspace-operations.md#подготовка-ssd-workspace-этап-1-2026-10-12).
+
+Подключение реальных дисков, запись marker, изменение deployment и перенос
+старого `STORAGE_PATH` на физический HDD в этом этапе не выполняются. Если legacy
+storage ещё находится на другом носителе, код не может превратить его в HDD:
+нужна отдельно согласованная операторская миграция.

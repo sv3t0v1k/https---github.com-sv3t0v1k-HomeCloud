@@ -1,0 +1,47 @@
+{
+  "baseHead": "4ba373275baf98344596176658c5ae54a3ca4b0b",
+  "platform": "macOS / arm64",
+  "targeted": {
+    "suitesPassed": 5,
+    "testsPassed": 55
+  },
+  "fullCandidate": {
+    "numPassedTests": 879,
+    "numFailedTests": 71,
+    "numPassedTestSuites": 66,
+    "numFailedTestSuites": 6
+  },
+  "fullBaseline": {
+    "numPassedTests": 861,
+    "numFailedTests": 71,
+    "numPassedTestSuites": 63,
+    "numFailedTestSuites": 6
+  },
+  "changedExistingTestResults": [],
+  "failedSuites": [
+    "src/uploads/upload-workspace.spec.ts",
+    "src/uploads/uploads.service.postgres.spec.ts",
+    "src/uploads/upload-rate-limit.spec.ts",
+    "src/uploads/upload-rate-limit.postgres.spec.ts",
+    "src/uploads/ingress-file-cleanup.interceptor.spec.ts",
+    "src/uploads/secure-filesystem.spec.ts"
+  ],
+  "limitations": [
+    "Linux-only secure filesystem not qualified on macOS",
+    "mountinfo and prepared SSD native boundary contract tests use mocks",
+    "No physical SSD/HDD or 50+ GiB RSS test",
+    "No finalizer, recovery, data move or live deployment"
+  ],
+  "lint": {
+    "errors": 0,
+    "existingWarnings": 15
+  },
+  "build": "PASS",
+  "typecheck": "PASS",
+  "independentReview": "No remaining blockers after migration rollback fix",
+  "implementationCommits": [
+    "320cf1372dbd24b7a3073aa4800c40c359dddfb9",
+    "538e9f37e665348a014fb76c967be938a719c853"
+  ],
+  "disposablePostgresStopped": true
+}

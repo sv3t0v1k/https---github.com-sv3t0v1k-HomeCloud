@@ -118,3 +118,72 @@ production recovery. Runtime policy не изменена; test-only private nam
 отображался на host UID1001. Ограничения legacy recovery MS-3B сохраняются.
 Новые roots/workspaces/DB admissions не разрешены; finalizer/MS-4 не изменены.
 [Исследование, реальные probes, reviews и blockers](evidence/secure-filesystem-boundary-20261011/report.md).
+
+
+## Подготовка SSD workspace, этап 1 (2026-10-12)
+
+Владелец выбрал режим подготовки: новые обычные загрузки, ingress, chunks,
+complete, abort и существующая очистка продолжают работать через legacy `.tmp`.
+SSD-сессии не принимаются: неизменённый DB guard допускает только legacy binding.
+Это предохраняет обычный API от включения незавершённого SSD→HDD протокола.
+Финализатор, recovery и перенос данных требуют отдельного согласования этапа 2.
+
+Миграция `1746825170000-PrepareSsdUploadWorkspace` добавляет только reserved identity:
+`99ca4521-b94d-4d54-94a8-7c207af52202`, `ssd-upload-workspace`, `ssd-upload-storage`.
+В `storage_locations` SSD не добавляется; File размещение и download resolver
+допускают прежний permanent storage. Старые sessions, paths, chunks, quota и shares
+не перепривязываются. `down` удаляет только точную неиспользуемую SSD identity;
+FK RESTRICT препятствует удалению identity с привязанными sessions. Обе стороны
+миграции требуют транзакцию. Конфликт UUID/ключей вызывает отказ и rollback,
+а не перезапись чужой строки. Deployment должен применять миграции с fenced writer;
+в этой работе production миграции не запускались.
+
+Опциональная подготовка SSD требует одновременно четырёх операторских значений:
+
+| Параметр | Контракт |
+|---|---|
+| `UPLOAD_SSD_PATH` | Абсолютный canonical root точного mount в namespace backend, отдельно от `STORAGE_PATH`. |
+| `UPLOAD_SSD_MOUNT_SOURCE` | Точное декодированное поле source из mountinfo, например `/dev/...`, а не API/DB путь. |
+| `UPLOAD_SSD_MOUNT_ROOT` | Точный filesystem root из mountinfo, включая subdirectory для bind mount. |
+| `UPLOAD_SSD_FS_TYPE` | `ext4` либо `xfs`. Остальные платформы этим профилем не квалифицированы. |
+
+Без всех четырёх параметров SSD не зарегистрирован; частичная или некорректная
+конфигурация вызывает startup отказ. Валидная конфигурация регистрирует SSD binding,
+но startup не требует доступности SSD и не включает на него обычные загрузки.
+`preparedSsdDiagnostic()` возвращает registry diagnostic без write probe;
+`getPreparedSsdRoot()` дополнительно требует отдельный `st_dev` от permanent root.
+Он используется для явной подготовки, а не выбора destination существующего API.
+Для подготовки нужен provisioned mount и marker; приложение никогда не создаёт SSD
+root и не зачисляет в него bytes при исчезнувшем mount.
+
+Marker `.homecloud-storage-identity` должен быть заранее создан оператором на
+правильном томе, иметь одного владельца service UID, mode 0600 и одну hard link.
+Его точное содержимое для этой identity (с завершающим newline):
+
+```json
+{"version":1,"storageLocationId":"99ca4521-b94d-4d54-94a8-7c207af52202","machineKey":"ssd-upload-workspace","mountKey":"ssd-upload-storage"}
+```
+
+Поле `storageLocationId` здесь является совместимым форматом mount marker;
+оно не создаёт SSD File storage location. Marker не копируют на другой том.
+Сопоставление host FS UUID, устройства и container bind source проверяется
+оператором перед deployment/restart. Source/marker не являются криптографическим
+доказательством физического диска. Доверенный root, существующий HDD mount и его
+legacy identity остаются предусловиями; защита от злонамеренного root не входит
+в модель. Существующие experimental attestation gates не активируются.
+
+`PreparedSsdWorkspace` допускает только reserved identity и точные session labels,
+проверяет mount/source/filesystem root/type, marker, ownership, root FD identity,
+symlink и nested mounts. Ingress label и session label выводятся из одного SSD
+mount root; отсутствующие дочерние каталоги не создаются. При отказе проверки `root()`
+capability закрывается и отказывает до нового экземпляра.
+Linux `SecureFilesystem` сохраняет действующую descriptor boundary. Нативная
+проверка реального SSD/HDD и Linux openat2 на macOS не выполнена.
+
+Этот этап не читает целые пользовательские файлы, не создаёт очередь/worker,
+не меняет stream highWaterMark, chunk limits, backpressure или rate admission.
+Новые операции читают только ограниченный marker (1025 bytes) и mount metadata;
+якорей/registry entries фиксированное число. Для 8 ГБ RAM не заявляется измеренный
+RSS или подтверждённая загрузка 50+ ГБ: такой тест относится к будущему finalizer.
+Этап 2 должен отдельно ограничить параллельность переноса и сохранить bounded
+streaming/backpressure на каждой файловой границе.

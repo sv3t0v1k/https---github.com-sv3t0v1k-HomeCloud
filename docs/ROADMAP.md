@@ -988,3 +988,34 @@ R1/R1Q historical PASS сохранён; R2.2/MS-4 не начаты, push/tag/r
 disposable native AMD64 VM с собственным daemon для writable FS/live source mapping/
 trusted observer/fencing, без передачи реальных host roots.
 [Report, design, raw evidence, verification и review](evidence/trusted-attestation-r2-1c-20261012/report.md).
+
+
+## SSD→HDD — подготовка Storage Registry и Upload Workspace, этап 1 (2026-10-12)
+
+Отдельно разрешённая владельцем подготовка в рамках существующего multi-storage
+workstream; новая Phase не создана. База: `4ba373275baf98344596176658c5ae54a3ca4b0b`.
+Владелец подтвердил: обычные новые загрузки остаются legacy до согласования этапа 2.
+
+Добавлены reserved SSD workspace identity и транзакционная additive migration
+`1746825170000`, опциональный operator mount mapping и `trusted-upload` admission,
+отдельная prepared SSD descriptor capability. Постоянные File placement/download
+сохраняют только legacy storage (целевой HDD); старые sessions, chunks, paths,
+quota и shares не перепривязаны. DB session guard остаётся legacy-only.
+
+Никаких новых full-file RAM buffers, фоновых переносов или неограниченной
+параллельности. Streaming/backpressure существующего upload пути не изменены.
+RAM/RSS для 50+ ГБ и физический SSD→HDD цикл не квалифицированы.
+
+Проверки: targeted 55/55 PASS; full backend 879 PASS / 71 FAIL. На исходном HEAD
+861 PASS / те же 71 FAIL, статусы всех 932 старых тестов совпали. Lint 0 errors /
+15 прежних warnings; build/typecheck PASS. Independent review: blockers отсутствуют
+после исправления и PostgreSQL-проверки rollback migration.
+[Отчёт и границы доказательств](evidence/ssd-hdd-stage1-20261012/report.md).
+**Этап не помечается COMPLETE; production NOT_READY / NO_GO сохраняется.**
+На macOS нельзя подтвердить Linux descriptor boundary и реальные mount.
+Live сервер, Docker/VM, реальные диски, persistent volumes и данные не изменялись.
+Операторский контракт: [Workspace](upload-workspace-operations.md#подготовка-ssd-workspace-этап-1-2026-10-12),
+[Registry](storage-registry-operations.md#два-назначения-на-доверенном-сервере-подготовка-этапа-1).
+
+После отчёта остановиться. Cross-FS finalizer, recovery, перенос данных и реальные
+50 GiB испытания требуют отдельного разрешения владельца; автоматически не начинать.
