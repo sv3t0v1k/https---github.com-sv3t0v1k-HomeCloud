@@ -39,6 +39,7 @@ function makeUploadSession(
     workspaceId: LEGACY_UPLOAD_WORKSPACE.id,
     workspace: LEGACY_UPLOAD_WORKSPACE as UploadWorkspaceEntity,
     filename: "test.bin",
+    expectedSha256: null,
     totalSize: 100,
     uploadedSize: 0,
     uploadedCount: 0,

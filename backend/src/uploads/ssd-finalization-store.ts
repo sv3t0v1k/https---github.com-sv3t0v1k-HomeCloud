@@ -24,14 +24,40 @@ interface JournalRow extends Omit<FinalizationOperation, "totalSize"> {
   targetArtifactDevice: string | null;
   targetArtifactInode: string | null;
   cleanupState: "pending" | "cleaned";
+  mimeType?: string;
+  mimeTypeCheckpointed?: boolean;
 }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const hash = /^[0-9a-f]{64}$/;
 const sessionColumns = `id,"userId","uploadId",filename,"parentId","totalSize","chunkSize","totalChunks","uploadedCount","uploadedSize","accountingInitialized","workspaceId",status,"expiresAt"`;
 
-/** Isolated caller only. No injectable provider or route. Payload I/O never enters a transaction. */
+/** Payload I/O never enters a transaction. Production mode accepts only durable SSD sessions. */
 export class PostgresSsdFinalizationStore implements RecoveryStore {
-  constructor(private readonly db: DataSource) {}
+  constructor(
+    private readonly db: DataSource,
+    private readonly mode: "isolated" | "ssd" = "isolated",
+  ) {}
+
+  private get selectedSessionColumns(): string {
+    return (
+      sessionColumns +
+      (this.mode === "ssd" ? ',"expectedSha256","tempPath"' : "")
+    );
+  }
+
+  private matchesSessionBinding(
+    session: any,
+    expectedSha256: string,
+    binding: FinalizationBinding,
+  ): boolean {
+    if (this.mode === "isolated")
+      return session.workspaceId === LEGACY_UPLOAD_WORKSPACE_ID;
+    return (
+      session.workspaceId === SSD_UPLOAD_WORKSPACE_ID &&
+      session.expectedSha256 === expectedSha256 &&
+      session.tempPath === binding.sourcePath
+    );
+  }
 
   private validateBinding(binding: FinalizationBinding): void {
     if (
@@ -107,6 +133,12 @@ export class PostgresSsdFinalizationStore implements RecoveryStore {
       totalChunks: row.totalChunks,
       expectedSha256: row.expectedSha256,
       binding: row.binding,
+      ...(row.mimeType === undefined
+        ? {}
+        : {
+            mimeType: row.mimeType,
+            mimeTypeCheckpointed: row.mimeTypeCheckpointed,
+          }),
     };
   }
 
@@ -165,7 +197,7 @@ export class PostgresSsdFinalizationStore implements RecoveryStore {
       };
     }
     const sessions = await manager.query(
-      `SELECT ${sessionColumns} FROM upload_sessions WHERE id=$1 FOR SHARE`,
+      `SELECT ${this.selectedSessionColumns} FROM upload_sessions WHERE id=$1 FOR SHARE`,
       [row.sessionId],
     );
     const session = sessions[0];
@@ -181,7 +213,7 @@ export class PostgresSsdFinalizationStore implements RecoveryStore {
       session.uploadedCount !== row.totalChunks ||
       String(session.uploadedSize) !== String(row.totalSize) ||
       !session.accountingInitialized ||
-      session.workspaceId !== LEGACY_UPLOAD_WORKSPACE_ID ||
+      !this.matchesSessionBinding(session, row.expectedSha256, row.binding) ||
       (row.state === "committed"
         ? session.status !== "completed"
         : !["pending", "uploading"].includes(session.status))
@@ -205,7 +237,8 @@ export class PostgresSsdFinalizationStore implements RecoveryStore {
       file.isDeleted ||
       file.storageLocationId !== row.binding.targetStorageId ||
       file.relativeObjectKey !== row.binding.relativeObjectKey ||
-      file.storagePath !== row.binding.storagePath
+      file.storagePath !== row.binding.storagePath ||
+      (row.mimeType !== undefined && file.mimeType !== row.mimeType)
     )
       throw new Error("Ambiguous committed File outcome");
     return {
@@ -270,6 +303,36 @@ export class PostgresSsdFinalizationStore implements RecoveryStore {
     });
   }
 
+  async recordMimeType(id: string, mimeType: string): Promise<void> {
+    if (
+      !uuid.test(id) ||
+      typeof mimeType !== "string" ||
+      mimeType.length > 255 ||
+      mimeType.trim() !== mimeType ||
+      !/^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/.test(mimeType)
+    )
+      throw new Error("Invalid MIME checkpoint");
+    await this.db.transaction(async (manager) => {
+      await this.requireDurability(manager);
+      const [row]: JournalRow[] = await manager.query(
+        `SELECT * FROM ssd_finalization_operations WHERE id=$1 FOR UPDATE`,
+        [id],
+      );
+      if (!row || row.state !== "verified")
+        throw new Error("MIME checkpoint requires verified operation");
+      await this.outcome(manager, row);
+      if (row.mimeTypeCheckpointed) {
+        if (row.mimeType !== mimeType)
+          throw new Error("Finalization MIME checkpoint is immutable");
+        return;
+      }
+      await manager.query(
+        `UPDATE ssd_finalization_operations SET "mimeType"=$2,"mimeTypeCheckpointed"=true,"updatedAt"=now() WHERE id=$1`,
+        [id, mimeType],
+      );
+    });
+  }
+
   async finishCleanup(id: string): Promise<void> {
     if (!uuid.test(id)) throw new Error("Invalid operation identity");
     // Caller holds the filesystem fence and has synced the verified HDD object and owned chunk removals.
@@ -324,6 +387,7 @@ export class PostgresSsdFinalizationStore implements RecoveryStore {
       !uuid.test(input.uploadId) ||
       !Number.isSafeInteger(input.userId) ||
       input.userId <= 0 ||
+      input.expectedSha256.length !== 64 ||
       !hash.test(input.expectedSha256)
     )
       throw new Error("Invalid finalization request");
@@ -344,7 +408,7 @@ export class PostgresSsdFinalizationStore implements RecoveryStore {
     return this.db.transaction(async (manager) => {
       await this.requireDurability(manager);
       const sessions = await manager.query(
-        `SELECT ${sessionColumns} FROM upload_sessions WHERE "userId"=$1 AND "uploadId"=$2 FOR UPDATE`,
+        `SELECT ${this.selectedSessionColumns} FROM upload_sessions WHERE "userId"=$1 AND "uploadId"=$2 FOR UPDATE`,
         [input.userId, input.uploadId],
       );
       if (sessions.length !== 1)
@@ -352,7 +416,11 @@ export class PostgresSsdFinalizationStore implements RecoveryStore {
       const session = sessions[0];
       const totalSize = Number(session.totalSize);
       if (
-        session.workspaceId !== LEGACY_UPLOAD_WORKSPACE_ID ||
+        !this.matchesSessionBinding(
+          session,
+          input.expectedSha256,
+          input.binding,
+        ) ||
         !["pending", "uploading"].includes(session.status) ||
         !session.accountingInitialized ||
         !Number.isSafeInteger(totalSize) ||
@@ -503,9 +571,11 @@ export class PostgresSsdFinalizationStore implements RecoveryStore {
       }
       if (!row || row.state !== "published")
         throw new Error("Finalization requires published operation");
+      if (this.mode === "ssd" && !row.mimeTypeCheckpointed)
+        throw new Error("SSD commit requires durable MIME checkpoint");
       await this.outcome(manager, row);
       const [session] = await manager.query(
-        `SELECT ${sessionColumns} FROM upload_sessions WHERE id=$1 FOR UPDATE`,
+        `SELECT ${this.selectedSessionColumns} FROM upload_sessions WHERE id=$1 FOR UPDATE`,
         [row.sessionId],
       );
       const operation = this.operation(row);
@@ -523,7 +593,7 @@ export class PostgresSsdFinalizationStore implements RecoveryStore {
         session.uploadedCount !== row.totalChunks ||
         String(session.uploadedSize) !== String(row.totalSize) ||
         !session.accountingInitialized ||
-        session.workspaceId !== LEGACY_UPLOAD_WORKSPACE_ID
+        !this.matchesSessionBinding(session, row.expectedSha256, row.binding)
       )
         throw new Error("Finalization session changed");
       const owner = await this.validateOwnerAndParent(
@@ -555,7 +625,7 @@ export class PostgresSsdFinalizationStore implements RecoveryStore {
       const [file] = await manager.query(
         `INSERT INTO files
         (id,name,"storagePath","storageLocationId","relativeObjectKey",size,"mimeType",checksum,"parentId","userId","uploadId")
-        VALUES ($1,$2,$3,$4,$5,$6,'application/octet-stream',$7,$8,$9,$10) RETURNING *`,
+        VALUES ($1,$2,$3,$4,$5,$6,$11,$7,$8,$9,$10) RETURNING *`,
         [
           id,
           row.filename,
@@ -567,6 +637,7 @@ export class PostgresSsdFinalizationStore implements RecoveryStore {
           row.parentId,
           row.userId,
           row.uploadId,
+          row.mimeType ?? "application/octet-stream",
         ],
       );
       await manager.query(

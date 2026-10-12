@@ -29,6 +29,8 @@ export interface FinalizationOperation {
   chunkSize: number;
   totalChunks: number;
   expectedSha256: string;
+  mimeType?: string;
+  mimeTypeCheckpointed?: boolean;
   binding: FinalizationBinding;
 }
 export interface FinalizationChunk {
@@ -48,6 +50,7 @@ export interface FinalizationStore {
     operationId: string,
     identity: { device: string; inode: string },
   ): Promise<void>;
+  recordMimeType?(operationId: string, mimeType: string): Promise<void>;
   chunks(operationId: string): AsyncIterable<FinalizationChunk>;
   transition(
     operationId: string,
@@ -65,6 +68,7 @@ export interface FinalizationFilesystem {
   assertBinding(binding: FinalizationBinding): void;
   openChunk(binding: FinalizationBinding, index: number): number;
   createTemporary(binding: FinalizationBinding): number;
+  openMetadata?(binding: FinalizationBinding): number;
   publish(binding: FinalizationBinding): void;
   close(): void;
 }

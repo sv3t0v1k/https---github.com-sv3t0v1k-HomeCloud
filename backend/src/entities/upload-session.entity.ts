@@ -35,6 +35,14 @@ export class UploadSessionEntity {
   filename!: string;
 
   @Column({
+    type: "varchar",
+    length: 64,
+    nullable: true,
+    name: "expectedSha256",
+  })
+  expectedSha256!: string | null;
+
+  @Column({
     type: "bigint",
     name: "totalSize",
     transformer: safeBigintNumberTransformer,
