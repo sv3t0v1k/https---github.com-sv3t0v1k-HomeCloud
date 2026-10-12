@@ -1,0 +1,201 @@
+{
+  "baseHead": "70c6887777e8a41b253373de42b846b336add828",
+  "implementationHead": "8612f0da682e50bb66c7a242f227f3a6fbaf6ddd",
+  "commits": [
+    {
+      "message": "Добавить безопасное открытие и очистку объектов восстановления SSD",
+      "head": "a14bebfd3757b0fb3fea13cf15638a8edd371fd9",
+      "paths": [
+        "backend/src/uploads/ssd-recovery-contract.ts",
+        "backend/native/secure-fs.c",
+        "backend/src/uploads/secure-filesystem.ts",
+        "backend/src/uploads/ssd-finalization-filesystem.ts",
+        "backend/src/uploads/ssd-finalization-filesystem.spec.ts"
+      ]
+    },
+    {
+      "message": "Добавить журнал восстановления и освобождение резервирования после очистки",
+      "head": "f13d99523101deb38c49ea215e1065ff27cc15b4",
+      "paths": [
+        "backend/src/migrations/1746825190000-SsdFinalizationRecovery.ts",
+        "backend/src/uploads/ssd-finalization-store.ts"
+      ]
+    },
+    {
+      "message": "Реализовать потоковое восстановление и проверить повторную очистку SSD",
+      "head": "8612f0da682e50bb66c7a242f227f3a6fbaf6ddd",
+      "paths": [
+        "backend/src/uploads/ssd-finalization-contract.ts",
+        "backend/src/uploads/ssd-finalization-stream.ts",
+        "backend/src/uploads/ssd-cross-fs-finalizer.ts",
+        "backend/src/uploads/ssd-cross-fs-finalizer.spec.ts",
+        "backend/src/uploads/ssd-finalization-recovery.ts",
+        "backend/src/uploads/ssd-finalization-recovery.spec.ts",
+        "backend/src/uploads/ssd-finalization-store.postgres.spec.ts"
+      ]
+    }
+  ],
+  "targeted": {
+    "numPassedTests": 186,
+    "numFailedTests": 0,
+    "numPassedTestSuites": 9,
+    "numFailedTestSuites": 0,
+    "numPendingTests": 0
+  },
+  "targetedSuites": [
+    {
+      "suite": "uploads/upload-workspace.postgres.spec.ts",
+      "passed": 11,
+      "failed": 0
+    },
+    {
+      "suite": "storage/storage-placement.postgres.spec.ts",
+      "passed": 10,
+      "failed": 0
+    },
+    {
+      "suite": "uploads/prepare-ssd-workspace.postgres.spec.ts",
+      "passed": 5,
+      "failed": 0
+    },
+    {
+      "suite": "storage/ssd-upload-binding.spec.ts",
+      "passed": 10,
+      "failed": 0
+    },
+    {
+      "suite": "uploads/prepared-ssd-workspace.spec.ts",
+      "passed": 3,
+      "failed": 0
+    },
+    {
+      "suite": "uploads/ssd-finalization-store.postgres.spec.ts",
+      "passed": 42,
+      "failed": 0
+    },
+    {
+      "suite": "uploads/ssd-finalization-recovery.spec.ts",
+      "passed": 48,
+      "failed": 0
+    },
+    {
+      "suite": "uploads/ssd-cross-fs-finalizer.spec.ts",
+      "passed": 22,
+      "failed": 0
+    },
+    {
+      "suite": "uploads/ssd-finalization-filesystem.spec.ts",
+      "passed": 35,
+      "failed": 0
+    }
+  ],
+  "finalFull": {
+    "baseline": {
+      "numPassedTests": 947,
+      "numFailedTests": 71,
+      "numPassedTestSuites": 69,
+      "numFailedTestSuites": 6,
+      "numPendingTests": 0
+    },
+    "candidate": {
+      "numPassedTests": 1026,
+      "numFailedTests": 71,
+      "numPassedTestSuites": 70,
+      "numFailedTestSuites": 6,
+      "numPendingTests": 0
+    },
+    "existingCompared": 1018,
+    "changedExistingTests": [],
+    "newTests": 79,
+    "newFailures": [],
+    "failedSuites": [
+      "uploads/upload-rate-limit.spec.ts",
+      "uploads/uploads.service.postgres.spec.ts",
+      "uploads/upload-rate-limit.postgres.spec.ts",
+      "uploads/upload-workspace.spec.ts",
+      "uploads/ingress-file-cleanup.interceptor.spec.ts",
+      "uploads/secure-filesystem.spec.ts"
+    ]
+  },
+  "firstFull": {
+    "baseline": {
+      "numPassedTests": 947,
+      "numFailedTests": 71,
+      "numPassedTestSuites": 69,
+      "numFailedTestSuites": 6,
+      "numPendingTests": 0
+    },
+    "candidate": {
+      "numPassedTests": 1025,
+      "numFailedTests": 72,
+      "numPassedTestSuites": 69,
+      "numFailedTestSuites": 7,
+      "numPendingTests": 0
+    },
+    "existingCompared": 1018,
+    "changedExistingTests": [
+      {
+        "suite": "uploads/uploads.service.spec.ts",
+        "test": "UploadsService - Post-Review Fixes Remediation A — final file integrity should reject when actual size does not match declared totalSize",
+        "occurrence": 1,
+        "base": "passed",
+        "candidate": "failed"
+      }
+    ],
+    "newTests": 79,
+    "newFailures": [],
+    "failedSuites": [
+      "uploads/uploads.service.spec.ts",
+      "uploads/uploads.service.postgres.spec.ts",
+      "uploads/upload-rate-limit.spec.ts",
+      "uploads/upload-rate-limit.postgres.spec.ts",
+      "uploads/upload-workspace.spec.ts",
+      "uploads/ingress-file-cleanup.interceptor.spec.ts",
+      "uploads/secure-filesystem.spec.ts"
+    ]
+  },
+  "legacyDiagnostic": {
+    "baselineTargeted": "85/85PASS",
+    "candidateTargeted": "85/85PASS",
+    "delayedBaselineOpen": "1FAIL/84skipped",
+    "description": "Unchanged legacy createWriteStream asynchronous open/cleanup race; diagnostic-only baseline copy, not tracked",
+    "raw": "legacy-open-diagnostic-delayed-check.json"
+  },
+  "lint": {
+    "errors": 0,
+    "existingWarnings": 15
+  },
+  "typecheck": "PASS",
+  "build": "PASS",
+  "review": "No unresolved MUST_FIX in isolated2.3; independent portable83/83PASS",
+  "disposablePostgresStopped": true,
+  "platform": "macOS/arm64",
+  "rawEvidence": "/private/tmp/homecloud-stage23-20261012",
+  "testedSourceSha256": {
+    "backend/native/secure-fs.c": "86606e1e5b9bf5dca5ddd9fb9afb5e79b141b117fb698543284d5530d28d6d76",
+    "backend/src/uploads/secure-filesystem.ts": "c2585c0f6ffbe150afb681cec7a64ee0a66ee9b392dec46ffb967549565a0892",
+    "backend/src/uploads/ssd-finalization-filesystem.ts": "e886296822e8a437aac27a9f18da3063b93ae2245e6626784f3b7f1e6612c51b",
+    "backend/src/uploads/ssd-finalization-filesystem.spec.ts": "93fef99463bb8c201618deb232630bdad6b28717370ae2d10cebc46f0a19d139",
+    "backend/src/uploads/ssd-finalization-store.ts": "6fa77e758ff288b0e00ef38b21eac6aefe6ee33eed863bcd9d1a83c46ef00f6a",
+    "backend/src/uploads/ssd-finalization-store.postgres.spec.ts": "3155dccb1e9bf46f42afa11c0f691341f71358a445a73c9fe668181bfb2922ff",
+    "backend/src/migrations/1746825190000-SsdFinalizationRecovery.ts": "5adb35ed454869663018418e5e5f7f931e27b05bebafb1bea9922e4a98b9f541",
+    "backend/src/uploads/ssd-finalization-contract.ts": "6e4dcbe8947f89fc0ec8f36e4afe842d60a9ed8377606f5b956c3d3080622c94",
+    "backend/src/uploads/ssd-cross-fs-finalizer.ts": "5ca5dcd5ea16d78ea54624294d78cf43fce60c5114d762607091d974636cc883",
+    "backend/src/uploads/ssd-cross-fs-finalizer.spec.ts": "62895f0617dc7285c9148e05fdc6b693d12ddc36d4936a2a61e9dafa256502a4",
+    "backend/src/uploads/ssd-recovery-contract.ts": "92ce55d251a6e4dd7ba6f3f96f457b18a68d355e668d82c33cd583a458ec9190",
+    "backend/src/uploads/ssd-finalization-stream.ts": "2b2f998fa0a5594f45116b24112fa73716bf4a3c48b5d68a698b0bcabd78300e",
+    "backend/src/uploads/ssd-finalization-recovery.ts": "c3447cdc36d13ac8f5efb6a8226de79a1f8fb2b36a1bc5ff3cea0bc2a6207e88",
+    "backend/src/uploads/ssd-finalization-recovery.spec.ts": "2bfe92801ac68f522559ecb60bbe33bb28bc90fdb3d7004a5236bfb317ac787d"
+  },
+  "scope": {
+    "ordinaryUploads": "legacy",
+    "ssdIngressRouting": false,
+    "runtimeBootstrapWiring": false,
+    "liveEnvironmentChanged": false,
+    "physicalDisksQualified": false,
+    "linuxNativeQualified": false,
+    "rss50GiB8GiBQualified": false,
+    "completeSet": false,
+    "nextStageStarted": false
+  }
+}

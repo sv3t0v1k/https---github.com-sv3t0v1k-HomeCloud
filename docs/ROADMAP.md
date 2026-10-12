@@ -1051,3 +1051,29 @@ Implementation/test checkpoint `daf4c94`; финальный documentation HEAD/
 **COMPLETE не установлен; production NOT_READY / NO_GO сохраняется.**
 Этап2.3 recovery/cleanup, SSD admission/routing и реальные испытания не начаты;
 продолжение только после отдельного согласования. После2.1–2.2 работа остановлена.
+
+
+## SSD→HDD — Recovery + Cleanup, только этап 2.3 (2026-10-12)
+
+Отдельно разрешённый checkpoint на базе `70c6887`; implementation/test HEAD `8612f0d`.
+Добавлены internal unwired replay persisted journal, authoritative primary DB outcome,
+immutable HDD inode checkpoint, exact size/whole SHA-256 и повторная approved mount/source/
+marker проверка, cooperative nonblocking kernel worker fence. Повторяемая очистка удаляет
+только проверенные manifest-owned SSD chunks после committed DB receipt и HDD fsync;
+затем атомарно освобождает reserved chunk rows/lifecycle guards/pending singleton.
+Unknown artifacts и ambiguous outcomes сохраняют копии/barriers. Journal/manifest retained.
+
+Targeted186/186PASS (actual PostgreSQL42/42); exact base full947PASS/71FAIL.
+Первый candidate1025PASS/72FAIL: дополнительная timing race неизменённого legacy cleanup
+воспроизведена на base диагностическим delayed-open test и не скрыта. Один повтор
+неизменённого final candidate1026PASS/71FAIL; все1018 старых instances совпали сbase,
+79новыхPASS. Lint0errors/15прежних warnings;typecheck/buildPASS. Независимый critical
+review после исправлений: unresolved MUST_FIX нет. [Отчёт и crash windows](evidence/ssd-hdd-stage23-20261012/report.md).
+
+Обычные API/session admission legacy, SSD ingress/routing выключен; runtime/startup/
+scheduler wiring не добавлен. LiveDocker/VM/сервер, реальные диски/данные/volumes не менялись.
+Linux native/reboot/power loss/50+ГБ RSS на8ГБ host не квалифицированы. Старые journal
+без recorded inode fail-closed; несколько retained committed требуют reconciliation до
+новой migration. API lifecycle fencing, admission/routing и реальные испытания отдельно.
+**COMPLETE не установлен; production NOT_READY / NO_GO сохраняется.**
+Работа остановлена после2.3; следующий этап не начат. Ждать согласования владельца.
