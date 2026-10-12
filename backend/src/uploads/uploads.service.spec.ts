@@ -1095,6 +1095,7 @@ describe("UploadsService - Post-Review Fixes", () => {
       stream.destroyed = false;
       stream.destroy = jest.fn(() => {
         stream.destroyed = true;
+        queueMicrotask(() => stream.emit("close"));
       });
       const originalCreateWriteStream = mutableFs.createWriteStream;
       mutableFs.createWriteStream = jest.fn(
@@ -1166,6 +1167,83 @@ describe("UploadsService - Post-Review Fixes", () => {
 
       return session;
     }
+
+    it("waits for delayed destination open and close before failed assembly cleanup", async () => {
+      const tempDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), "test-complete-delayed-open-"),
+      );
+      const finalPath = `${tempDir}-final.png`;
+      prepareSession(tempDir, finalPath, [Buffer.alloc(64, 1)]);
+      // The missing source fails the generator while the destination is opening.
+      fs.unlinkSync(path.join(tempDir, "0"));
+      const originalCreateWriteStream = mutableFs.createWriteStream;
+      let releaseOpen: (() => void) | undefined;
+      let signalDestroy!: () => void;
+      const destroyed = new Promise<void>((resolve) => { signalDestroy = resolve; });
+      let signalOpen!: () => void;
+      const opened = new Promise<void>((resolve) => { signalOpen = resolve; });
+      let destinationClosed!: Promise<void>;
+      mutableFs.createWriteStream = jest.fn((filePath: fs.PathLike, options: any) => {
+        const destination = originalCreateWriteStream(filePath, {
+          ...options,
+          fs: {
+            open: (target: fs.PathLike, flags: string, mode: number, callback: any) => {
+              releaseOpen = () => mutableFs.open(target, flags, mode, callback);
+              signalOpen();
+            },
+            write: mutableFs.write,
+            close: mutableFs.close,
+          },
+        });
+        destinationClosed = new Promise<void>((resolve) => destination.once("close", resolve));
+        const originalDestroy = destination.destroy.bind(destination);
+        jest.spyOn(destination, "destroy").mockImplementation((error?: Error) => {
+          signalDestroy();
+          return originalDestroy(error);
+        });
+        return destination;
+      }) as typeof fs.createWriteStream;
+
+      let completion: Promise<unknown> | undefined;
+      let settledBeforeOpen = false;
+      const originalUnlink = fs.promises.unlink;
+      const unlink = jest.spyOn(fs.promises, "unlink").mockImplementation(async (target) => {
+        // Keep cleanup-before-open deterministic without depending on libuv's
+        // unlink completion order. The target cannot exist before native open.
+        if (target === finalPath && releaseOpen) {
+          throw Object.assign(new Error("destination has not opened"), { code: "ENOENT" });
+        }
+        return originalUnlink(target);
+      });
+      try {
+        completion = service.completeUpload(1, "many-chunks").catch((error) => {
+          settledBeforeOpen = releaseOpen !== undefined;
+          return error;
+        });
+        await Promise.all([destroyed, opened]);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(releaseOpen).toBeDefined();
+        releaseOpen!();
+        releaseOpen = undefined;
+        const error = await completion;
+        await destinationClosed;
+
+        expect(error).toMatchObject({ code: "ENOENT" });
+        expect(mockQueryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
+        expect(mockUsersService.updateStorageUsed).not.toHaveBeenCalled();
+        expect(fs.existsSync(finalPath)).toBe(false);
+        expect(fs.existsSync(tempDir)).toBe(true);
+        expect(settledBeforeOpen).toBe(false);
+      } finally {
+        releaseOpen?.();
+        await completion;
+        await destinationClosed;
+        unlink.mockRestore();
+        mutableFs.createWriteStream = originalCreateWriteStream;
+        fs.rmSync(tempDir, { recursive: true, force: true });
+        fs.rmSync(finalPath, { force: true });
+      }
+    });
 
     it("keeps destination listeners bounded while assembling 600 ordered chunks", async () => {
       const tempDir = fs.mkdtempSync(

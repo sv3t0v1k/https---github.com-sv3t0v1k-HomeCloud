@@ -785,6 +785,15 @@ export class UploadsService {
         this.assertUploadPath(finalPath);
         const filesystem = this.workspaceResolver.filesystem();
         const writeStream = fs.createWriteStream(finalPath, { flags: "wx" });
+        // pipeline can reject before an asynchronous fs.open finishes. A destroy
+        // request is not a close: retain the session fence until pending open/I/O
+        // and fd close have settled, then remove the unpublished destination.
+        let resolveDestinationClosed!: () => void;
+        const destinationClosed = new Promise<void>((resolve) => {
+          resolveDestinationClosed = resolve;
+          writeStream.once("close", resolve);
+        });
+
 
         try {
           async function* chunkSequence() {
@@ -834,12 +843,15 @@ export class UploadsService {
           if (!writeStream.destroyed) {
             writeStream.destroy();
           }
+          await destinationClosed;
           this.assertUploadPath(finalPath);
           this.assertUploadPath(finalPath);
           if (fs.existsSync(finalPath)) {
             fs.unlinkSync(finalPath);
           }
           throw err;
+        } finally {
+          writeStream.removeListener("close", resolveDestinationClosed);
         }
 
         // Verify actual assembled size matches declared totalSize.
