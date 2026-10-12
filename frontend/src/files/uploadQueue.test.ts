@@ -290,11 +290,12 @@ describe('UploadQueue', () => {
     await vi.waitFor(() => expect(state(q, id).state).toBe('error'))
     expect(state(q, id)).toMatchObject({ committedBytes: 10, percent: 99 })
     server.onDetail = undefined
+    server.onComplete = undefined
     q.resume(id)
-    await vi.waitFor(() => expect(state(q, id).state).toBe('completed'))
+    await vi.waitFor(() => expect(state(q, id).state).toBe('completed'), { timeout: 2000 })
     expect(state(q, id)).toMatchObject({ percent: 100, completedFile: { id: 7 } })
     expect(server.creates()).toBe(1)
-    expect(server.calls.filter((call) => call.url?.endsWith('/complete'))).toHaveLength(3)
+    expect(server.calls.filter((call) => call.url?.endsWith('/complete'))).toHaveLength(4)
   })
 
   it('stuck DELETE is bounded and remains unconfirmed instead of falsely cancelled', async () => {
@@ -351,8 +352,9 @@ describe('UploadQueue', () => {
     const [id] = q.enqueue([file()])
     await vi.waitFor(() => expect(state(q, id).state).toBe('error'))
     server.onDetail = undefined
+    server.onComplete = undefined
     q.cancel(id)
-    await vi.waitFor(() => expect(state(q, id).state).toBe('completed'))
+    await vi.waitFor(() => expect(state(q, id).state).toBe('completed'), { timeout: 2000 })
     expect(state(q, id)).toMatchObject({ committedBytes: 10, percent: 100, completedFile: { id: 7 } })
     expect(server.sessions.get(state(q, id).uploadId!)?.status).toBe('completed')
   })

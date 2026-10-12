@@ -357,7 +357,10 @@ export class UploadQueue {
       job.view.state = 'completing'
       this.publish()
       const completed = await withChunkRetry(
-        () => completeUploadSession(session.uploadId), undefined, 250, job.budget,
+        () => completeUploadSession(session.uploadId, undefined, (receipt) => {
+          job.view.completedFile = receipt
+          this.publish()
+        }), undefined, 250, job.budget,
         () => { job.view.state = 'completing'; this.publish() })
       // A late Pause/Cancel cannot pretend that a successfully finalized file is still an upload.
       job.cancellationPending = false
@@ -381,7 +384,7 @@ export class UploadQueue {
         job.view.state = job.file ? 'paused' : 'needs-file'
       } else {
         job.view.state = job.file ? 'error' : 'needs-file'
-        job.view.error = `${errorMessage(error)}${job.view.uploadId && !(error instanceof ApiError && /session.*expired|сесси.*истек/i.test(error.message)) ? ' Прогресс сохранён. Нажмите «Продолжить» или отмените загрузку.' : ''}`
+        job.view.error = `${job.view.completedFile ? 'Файл сохранён на HDD, но сервер не подтвердил завершение финализации. ' : ''}${errorMessage(error)}${job.view.uploadId && !(error instanceof ApiError && /session.*expired|сесси.*истек/i.test(error.message)) ? ' Прогресс сохранён. Нажмите «Продолжить» или отмените загрузку.' : ''}`
       }
       this.publish()
     }
@@ -413,38 +416,53 @@ export class UploadQueue {
   }
 
   private async reconcile(job: Job, timeout?: number): Promise<Session> {
-    const session = await apiRequest<Session>({ method: 'GET', url: sessionUrl(job.view.uploadId!), timeout: timeout ?? REQUEST_TIMEOUT_MS })
-    if (!validSession(session) || session.filename !== job.view.name || session.totalSize !== job.view.size ||
-      (session.parentId ?? undefined) !== job.view.parentId) throw new Error('Параметры серверной сессии не совпадают с файлом.')
-    if (session.status === 'completed' && session.file) {
-      job.view.state = 'completed'
-      job.view.completedFile = session.file
-      job.view.committedBytes = job.view.size
-      job.file = undefined
-      job.cancellationPending = false
-      job.view.needsFile = false
+    const deadline = timeout === undefined ? undefined : Date.now() + timeout
+    const control = timeout === undefined ? undefined : new AbortController()
+    const timer = timeout === undefined ? undefined : window.setTimeout(() => control?.abort(), timeout)
+    try {
+      const session = await apiRequest<Session>({ method: 'GET', url: sessionUrl(job.view.uploadId!), timeout: timeout ?? REQUEST_TIMEOUT_MS, signal: control?.signal })
+      if (!validSession(session) || session.filename !== job.view.name || session.totalSize !== job.view.size ||
+        (session.parentId ?? undefined) !== job.view.parentId) throw new Error('Параметры серверной сессии не совпадают с файлом.')
+      if (session.status === 'completed' && session.file) {
+        // A GET receipt can coexist with a pending global cleanup barrier.
+        // Resume/cancel reconciliation must drive the idempotent server replay.
+        job.view.completedFile = session.file
+        job.view.state = 'completing'
+        this.publish()
+        const replayBudget = deadline === undefined ? job.budget : { remainingWaitMs: timeout!,
+          deadline, notBefore: job.budget.notBefore }
+        const completed = await withChunkRetry(() => completeUploadSession(session.uploadId, control?.signal, undefined,
+          deadline === undefined ? undefined : Math.max(1, deadline - Date.now())),
+          control?.signal, 250, replayBudget)
+        job.view.state = 'completed'
+        job.view.completedFile = completed
+        job.view.committedBytes = job.view.size
+        job.file = undefined
+        job.cancellationPending = false
+        job.view.needsFile = false
+        this.publish()
+        return session
+      }
+      if (!['pending', 'uploading'].includes(session.status)) throw new Error('Сессия больше не доступна для продолжения.')
+      const chunks = session.chunks
+      if (!Array.isArray(chunks)) throw new Error('Сервер не вернул сохранённые части загрузки.')
+      const indexes = new Set<number>()
+      let committed = 0
+      for (const chunk of chunks) {
+        const expectedSize = Math.min(session.chunkSize, session.totalSize - chunk.chunkIndex * session.chunkSize)
+        if (!Number.isSafeInteger(chunk.chunkIndex) || chunk.chunkIndex < 0 || chunk.chunkIndex >= session.totalChunks ||
+          indexes.has(chunk.chunkIndex) || chunk.byteSize !== expectedSize || !/^[a-f\d]{64}$/i.test(chunk.sha256)) {
+          throw new Error('Сервер вернул некорректные данные сохранённых частей.')
+        }
+        indexes.add(chunk.chunkIndex)
+        committed += chunk.byteSize
+      }
+      if (committed !== session.uploadedSize) throw new Error('Серверный прогресс загрузки не согласован.')
+      job.session = session
+      job.view.committedBytes = committed
       this.publish()
       return session
-    }
-    if (!['pending', 'uploading'].includes(session.status)) throw new Error('Сессия больше не доступна для продолжения.')
-    const chunks = session.chunks
-    if (!Array.isArray(chunks)) throw new Error('Сервер не вернул сохранённые части загрузки.')
-    const indexes = new Set<number>()
-    let committed = 0
-    for (const chunk of chunks) {
-      const expectedSize = Math.min(session.chunkSize, session.totalSize - chunk.chunkIndex * session.chunkSize)
-      if (!Number.isSafeInteger(chunk.chunkIndex) || chunk.chunkIndex < 0 || chunk.chunkIndex >= session.totalChunks ||
-        indexes.has(chunk.chunkIndex) || chunk.byteSize !== expectedSize || !/^[a-f\d]{64}$/i.test(chunk.sha256)) {
-        throw new Error('Сервер вернул некорректные данные сохранённых частей.')
-      }
-      indexes.add(chunk.chunkIndex)
-      committed += chunk.byteSize
-    }
-    if (committed !== session.uploadedSize) throw new Error('Серверный прогресс загрузки не согласован.')
-    job.session = session
-    job.view.committedBytes = committed
-    this.publish()
-    return session
+    } finally { window.clearTimeout(timer); control?.abort() }
   }
 
   private stopped(job: Job): boolean {

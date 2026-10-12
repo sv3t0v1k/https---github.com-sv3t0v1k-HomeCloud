@@ -297,16 +297,19 @@ function emit(
   })
 }
 
-/** A complete response can be lost after publication; reconcile before replaying it. */
-export async function completeUploadSession(uploadId: string, signal?: AbortSignal): Promise<FileItem> {
+/** Read a lost publication receipt, then replay complete to release server cleanup barriers. */
+export async function completeUploadSession(uploadId: string, signal?: AbortSignal, onReceipt?: (file: FileItem) => void, timeoutMs = 30 * 60_000): Promise<FileItem> {
   try {
-    return await apiRequest<FileItem>({ method: 'POST', url: `/uploads/session/${encodeURIComponent(uploadId)}/complete`, signal, timeout: 30 * 60_000 })
+    return await apiRequest<FileItem>({ method: 'POST', url: `/uploads/session/${encodeURIComponent(uploadId)}/complete`, signal, timeout: timeoutMs })
   } catch (error) {
     if (error instanceof ApiError && ['network', 'server', 'busy'].includes(error.kind)) {
       try {
         const receipt = await apiRequest<{ status: string; file?: FileItem }>({
-          method: 'GET', url: `/uploads/session/${encodeURIComponent(uploadId)}`, signal, timeout: 120_000 })
-        if (receipt.status === 'completed' && receipt.file) return receipt.file
+          method: 'GET', url: `/uploads/session/${encodeURIComponent(uploadId)}`, signal, timeout: Math.min(120_000, timeoutMs) })
+        if (receipt.status === 'completed' && receipt.file) onReceipt?.(receipt.file)
+        // GET proves publication, but does not run SSD cleanup. Rethrow the
+        // original failure so bounded retry preserves its Retry-After and
+        // replays the idempotent complete endpoint before claiming completion.
       } catch { /* Keep original failure and use the same bounded replay budget. */ }
     }
     throw error

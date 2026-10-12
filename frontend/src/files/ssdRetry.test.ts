@@ -4,6 +4,7 @@ import { apiRequest } from '../api/client'
 import { ApiError } from '../api/errors'
 import type { FileItem } from '../types/files'
 import { completeUploadSession, withChunkRetry } from './upload'
+import { UploadQueue } from './uploadQueue'
 
 vi.mock('../api/client', () => ({ apiRequest: vi.fn() }))
 const request = vi.mocked(apiRequest)
@@ -82,5 +83,46 @@ describe('SSD finalization retry invariants', () => {
     expect(send).toHaveBeenCalledTimes(1)
     expect(budget.remainingWaitMs).toBe(750)
     expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('bounds cancellation receipt replay to five seconds when the complete request stalls', async () => {
+    const stored = { id: 10, name: 'stored.bin', size: 123 } as FileItem
+    const saved = JSON.stringify([{ id: 'restored', name: 'stored.bin', size: 123,
+      uploadId: 'committed', committedBytes: 123 }])
+    const metadata = { uploadId: 'committed', filename: 'stored.bin', totalSize: 123,
+      chunkSize: 123, totalChunks: 1, uploadedSize: 123, status: 'completed',
+      expiresAt: new Date(60000).toISOString(), chunks: [], file: stored }
+    const storage = { getItem: () => saved, setItem: vi.fn(), removeItem: vi.fn() } as unknown as Storage
+    let stalledSignal: { readonly aborted: boolean } | undefined
+    let replayTimeout: number | undefined
+    request.mockImplementation(async (config) => {
+      if (config.signal?.aborted) throw new ApiError('Request cancelled', 'network')
+      if (config.method === 'DELETE') throw new ApiError('Cannot abort a completed upload', 'validation', 400)
+      if (config.method === 'GET') return metadata
+      if (config.method === 'POST' && config.url?.endsWith('/complete')) {
+        stalledSignal = config.signal
+        replayTimeout = config.timeout
+        return await new Promise<never>((_resolve, reject) => {
+          config.signal?.addEventListener?.('abort', () => reject(new ApiError('Request cancelled', 'network')), { once: true })
+        })
+      }
+      throw new Error('Unexpected request')
+    })
+    const queue = new UploadQueue(42, storage)
+    try {
+      queue.cancel('restored')
+      await vi.advanceTimersByTimeAsync(0)
+      expect(queue.getSnapshot()[0]).toMatchObject({ state: 'completing', completedFile: stored })
+      expect(replayTimeout).toBe(5000)
+      await vi.advanceTimersByTimeAsync(4999)
+      expect(queue.getSnapshot()[0].state).toBe('completing')
+      expect(stalledSignal?.aborted).toBe(false)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(stalledSignal?.aborted).toBe(true)
+      expect(queue.getSnapshot()[0]).toMatchObject({ state: 'error', completedFile: stored })
+      expect(queue.getSnapshot()[0].error).toContain('Не удалось подтвердить отмену')
+      expect(request.mock.calls.filter(([config]) => config.method === 'POST')).toHaveLength(1)
+      expect(vi.getTimerCount()).toBe(0)
+    } finally { queue.dispose() }
   })
 })

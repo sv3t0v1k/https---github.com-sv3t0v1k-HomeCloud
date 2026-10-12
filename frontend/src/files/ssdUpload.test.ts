@@ -53,6 +53,12 @@ function server(ssd = true) {
   let usedBytes = 0
   let publications = 0
   let beforeChunk: (() => Promise<void>) | undefined
+  let beforeCleanup: (() => Promise<void>) | undefined
+  let cleanupFailures = 0
+  // Manual API model of the backend's global SSD cleanup barrier. A publication
+  // receipt does not clear this set; only successful idempotent complete does.
+  // This is a regression fixture, not browser/Docker cleanup qualification.
+  const pendingCleanup = new Set<string>()
   const receipt = (session: Session) => {
     return { uploadId: session.uploadId, filename: session.filename, totalSize: session.totalSize,
       chunkSize: session.chunkSize, totalChunks: session.totalChunks, uploadedSize: session.uploadedSize,
@@ -94,6 +100,10 @@ function server(ssd = true) {
       return {}
     }
     if (session.status !== 'completed') {
+      // Actual backend behavior: a prior global cleanup barrier permits
+      // admission/chunks but prevents a new finalization from beginning (500).
+      // A completed session's idempotent replay can still clear its barrier.
+      if (ssd && pendingCleanup.size > 0) throw new ApiError('SSD cleanup barrier prevents new finalization', 'server', 500)
       const whole = new Uint8Array(session.totalSize)
       for (const [index, part] of session.parts) whole.set(part, index * session.chunkSize)
       if (ssd && sha256(whole) !== session.expectedSha256) throw new ApiError('Whole digest mismatch', 'validation', 400)
@@ -103,17 +113,36 @@ function server(ssd = true) {
       reservedBytes -= session.totalSize
       usedBytes += session.totalSize
       publications++
+      if (ssd) pendingCleanup.add(session.uploadId)
     }
     if (loseCompleteResponse) { loseCompleteResponse = false; throw new ApiError('Response lost after publication', 'network') }
+    await beforeCleanup?.()
+    if (cleanupFailures > 0) { cleanupFailures--; throw rejected503('Upload buffer cleanup is busy') }
+    pendingCleanup.delete(session.uploadId)
     return session.file
   }
   request.mockImplementation(<T>(config: AxiosRequestConfig) => handle(config) as Promise<T>)
   return { calls, sessions, get reservedBytes() { return reservedBytes }, get usedBytes() { return usedBytes }, get publications() { return publications },
+    get pendingCleanupCount() { return pendingCleanup.size },
     admissionCalls: () => calls.filter((call) => call.url === '/uploads/session'),
     chunkCalls: () => calls.filter((call) => call.url?.endsWith('/chunk')),
     failAdmissions: (count: number, error: ApiError) => { admissionFailures = count; admissionFailure = error },
+    failCleanup: (count: number) => { cleanupFailures = count },
+    seedPublished: (bytes: Uint8Array, name = 'fixture.bin') => {
+      const uploadId = `session-${sessions.size + 1}`
+      const file: FileItem = { id: 71, name, size: bytes.length, mimeType: 'application/octet-stream',
+        isDeleted: false, isStarred: false, parentId: null, updatedAt: '2026-10-13T00:00:00Z' }
+      sessions.set(uploadId, { uploadId, filename: name, totalSize: bytes.length, chunkSize: 10 * 1024 ** 2, totalChunks: 1,
+        uploadedSize: bytes.length, status: 'completed', expiresAt: '2030-01-01T00:00:00Z', expectedSha256: sha256(bytes),
+        chunks: [{ chunkIndex: 0, byteSize: bytes.length, sha256: sha256(bytes) }], parts: new Map([[0, bytes]]), file })
+      usedBytes += bytes.length
+      publications++
+      pendingCleanup.add(uploadId)
+      return uploadId
+    },
     loseCompletionResponse: () => { loseCompleteResponse = true },
-    set beforeChunk(value: typeof beforeChunk) { beforeChunk = value } }
+    set beforeChunk(value: typeof beforeChunk) { beforeChunk = value },
+    set beforeCleanup(value: typeof beforeCleanup) { beforeCleanup = value } }
 }
 
 beforeEach(() => {
@@ -251,7 +280,7 @@ describe('SSD upload queue regression gates', () => {
     expect(backend.sessions.size).toBe(0)
   })
 
-  it('reconciles completed after response loss without a duplicate complete POST, quota charge or UI completion', async () => {
+  it('reconciles completed after response loss with bounded complete replay but without duplicate quota charge or UI completion', async () => {
     const backend = server()
     backend.loseCompletionResponse()
     const q = queue()
@@ -259,7 +288,7 @@ describe('SSD upload queue regression gates', () => {
     const bytes = bytesFor(100)
     const [id] = q.enqueue([makeFile(bytes)])
     await vi.waitFor(() => expect(item(q, id).state).toBe('completed'))
-    expect(backend.calls.filter((call) => call.method === 'POST' && call.url?.endsWith('/complete'))).toHaveLength(1)
+    expect(backend.calls.filter((call) => call.method === 'POST' && call.url?.endsWith('/complete'))).toHaveLength(2)
     expect(backend.calls.filter((call) => call.method === 'GET' && call.url === '/uploads/session/session-1')).toHaveLength(1)
     expect(backend.calls.some((call) => call.method === 'DELETE')).toBe(false)
     expect(backend.publications).toBe(1)
@@ -269,6 +298,79 @@ describe('SSD upload queue regression gates', () => {
     expect(completionTransitions).toHaveLength(1)
     q.resume(id)
     expect(backend.admissionCalls()).toHaveLength(1)
+    expect(backend.pendingCleanupCount).toBe(0)
+    // Ordinary next-file finalization would fail500 if GET had been mistaken
+    // for cleanup confirmation. The successful replay must release the barrier.
+    const [nextId] = q.enqueue([makeFile(bytes, 'next.bin')])
+    await vi.waitFor(() => expect(item(q, nextId).state).toBe('completed'))
+    expect(backend.admissionCalls()).toHaveLength(2)
+    expect(backend.publications).toBe(2)
+    expect(backend.usedBytes).toBe(bytes.length * 2)
+    expect(backend.reservedBytes).toBe(0)
+    expect(backend.pendingCleanupCount).toBe(0)
+  })
+
+  it('drives pending cleanup for a restored completed receipt before reporting UI100', async () => {
+    const backend = server()
+    const bytes = bytesFor(100)
+    const uploadId = backend.seedPublished(bytes)
+    const saved = storage()
+    saved.setItem('homecloud.uploads.v1.owner.42', JSON.stringify([
+      { id: 'restored', uploadId, name: 'fixture.bin', size: bytes.length, committedBytes: bytes.length, expectedSha256: sha256(bytes) },
+    ]))
+    let release: () => void = () => {}
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    backend.beforeCleanup = () => gate
+    const q = queue(saved)
+    const history = snapshots(q)
+    await q.reselect('restored', makeFile(bytes))
+    await vi.waitFor(() => expect(backend.calls.filter((call) => call.url?.endsWith('/complete'))).toHaveLength(1))
+    expect(backend.pendingCleanupCount).toBe(1)
+    expect(history.some((entry) => entry.state === 'completed' || entry.percent === 100)).toBe(false)
+    expect(item(q, 'restored').percent).toBe(99)
+    release()
+    await vi.waitFor(() => expect(item(q, 'restored').state).toBe('completed'))
+    expect(item(q, 'restored').percent).toBe(100)
+    expect(backend.pendingCleanupCount).toBe(0)
+    expect(backend.publications).toBe(1)
+    expect(backend.usedBytes).toBe(bytes.length)
+    expect(backend.admissionCalls()).toHaveLength(0)
+    expect(backend.chunkCalls()).toHaveLength(0)
+    expect(backend.calls.some((call) => call.method === 'DELETE')).toBe(false)
+  })
+
+  it('stops three failed cleanup replays at actionable99 for an already published restored file', async () => {
+    const backend = server()
+    const bytes = bytesFor(100)
+    const uploadId = backend.seedPublished(bytes)
+    backend.failCleanup(3)
+    vi.spyOn(Math, 'random').mockReturnValue(0)
+    const saved = storage()
+    saved.setItem('homecloud.uploads.v1.owner.42', JSON.stringify([
+      { id: 'restored', uploadId, name: 'fixture.bin', size: bytes.length, committedBytes: bytes.length, expectedSha256: sha256(bytes) },
+    ]))
+    const q = queue(saved)
+    const history = snapshots(q)
+    await q.reselect('restored', makeFile(bytes))
+    await vi.waitFor(() => expect(item(q, 'restored').state).toBe('error'), { timeout: 2500 })
+    expect(item(q, 'restored')).toMatchObject({ percent: 99, committedBytes: bytes.length })
+    expect(item(q, 'restored').error).toContain('Продолжить')
+    expect(history.some((entry) => entry.state === 'completed' || entry.percent === 100)).toBe(false)
+    expect(backend.calls.filter((call) => call.method === 'POST' && call.url?.endsWith('/complete'))).toHaveLength(3)
+    expect(backend.pendingCleanupCount).toBe(1)
+    expect(backend.publications).toBe(1)
+    expect(backend.usedBytes).toBe(bytes.length)
+    expect(backend.reservedBytes).toBe(0)
+    expect(saved.getItem('homecloud.uploads.v1.owner.42')).not.toBeNull()
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    expect(backend.calls.filter((call) => call.url?.endsWith('/complete'))).toHaveLength(3)
+    expect(backend.calls.some((call) => call.method === 'DELETE')).toBe(false)
+    // Only the explicit user action opens another bounded retry window.
+    q.resume('restored')
+    await vi.waitFor(() => expect(item(q, 'restored').state).toBe('completed'), { timeout: 2500 })
+    expect(backend.pendingCleanupCount).toBe(0)
+    expect(backend.publications).toBe(1)
+    expect(backend.usedBytes).toBe(bytes.length)
   })
 
   it('rejects reselected file after reload when sampled identity matches but unsent whole bytes changed', async () => {
