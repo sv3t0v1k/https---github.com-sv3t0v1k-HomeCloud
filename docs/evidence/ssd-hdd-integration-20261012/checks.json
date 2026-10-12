@@ -1,0 +1,60 @@
+{
+  "baseHead": "dcd6986bdd8a519243d5edbf4d5b9e4fa9cbf66d",
+  "implementationHead": "71cdc886f33952226ca79d003ca1bb78820ac1ba",
+  "legacyCommit": "baaf67b",
+  "contractCommit": "26ca22e",
+  "runtimeCommit": "71cdc88",
+  "nativeBaseline": {
+    "passed": 1097,
+    "failed": 0,
+    "skipped": 0,
+    "suites": 76
+  },
+  "nativeCandidate": {
+    "passed": 1148,
+    "failed": 0,
+    "skipped": 0,
+    "suites": 79
+  },
+  "originalInstancesStatusChanges": 0,
+  "newPassedInstances": 51,
+  "apiCheckpoints": 15,
+  "apiStatus": "PASS",
+  "executedHarnessEqualsDelivered": true,
+  "firstCandidateFull": {
+    "passedAssertions": 1130,
+    "failedAssertions": 0,
+    "failedSuites": 1,
+    "reason": "benchmark fixture TS2322 missing nullable expectedSha256; fixed and targeted17PASS"
+  },
+  "emulatedBaselineDiagnostic": {
+    "passed": 997,
+    "failed": 100,
+    "reason": "amd64 emulation openat2 ENOSYS, root UID profile failures, two bcrypt timeouts; not acceptance baseline"
+  },
+  "priorMacBaseline": {
+    "passed": 1026,
+    "failed": 71,
+    "source": "stage23 report; Mac full not rerun in this stage"
+  },
+  "lint": {
+    "errors": 0,
+    "preexistingWarnings": 15
+  },
+  "typecheck": "PASS",
+  "build": "PASS",
+  "independentReview": "ACCEPT; unresolved MUST_FIX=0",
+  "activation": "OFF_BY_DEFAULT",
+  "completeSet": false,
+  "rawEvidenceAbsolutePath": "/Users/aleksejkozemakin/.codex/.chatgpt-projects/g-p-6aaa72ceff208191895b0fd466f3e892/stage24-integration/evidence",
+  "fixture": {
+    "architecture": "native linux/arm64",
+    "user": 1001,
+    "ssd": "owned ext4 named volume",
+    "hdd": "owned disposable container overlay",
+    "db": "own PostgreSQL16 tmpfs, random schemas",
+    "network": "homecloud-stage24"
+  },
+  "rawBaseline": "baseline-native-full.json",
+  "rawCandidate": "candidate-native-full.json"
+}

@@ -1077,3 +1077,29 @@ Linux native/reboot/power loss/50+ГБ RSS на8ГБ host не квалифиц�
 новой migration. API lifecycle fencing, admission/routing и реальные испытания отдельно.
 **COMPLETE не установлен; production NOT_READY / NO_GO сохраняется.**
 Работа остановлена после2.3; следующий этап не начат. Ждать согласования владельца.
+
+## SSD→HDD — ограниченная API Integration и legacy race (2026-10-12)
+
+Отдельно разрешённый checkpoint на базе `dcd6986b`; implementation HEAD `71cdc88`.
+Legacy async-open cleanup race исправлена отдельно (`baaf67b`); durable hash/MIME contract
+(`26ca22e`) и Nest DI/API runtime (`71cdc88`) подключены. New SSD sessions только при
+явном flag ON с immutable expected whole SHA256; flag OFF по умолчанию, старые sessions legacy.
+Bounded payload I/O вне DB transactions; shared kernel fence complete/chunk/cancel/expiry,
+one-attempt replay и управляемый startup recovery, capacity/quota и MIME/preview metadata.
+
+Native ARM64 Docker exact baseline1097/1097 и candidate1148/1148 PASS,0 skipped;
+все1097 исходных statuses совпали,51 новых PASS. Full lint0errors/15 прежних warnings,
+typecheck/build PASS. Real compiled JWT/Multer API15/15 checkpoints PASS: ext4 SSD fixture
+→ disposable overlay HDD, response loss, startup recovery, exact download/Range, PNG/text preview,
+оба capacity branches, реальный disconnect с удержанием fence, wrong-hash preservation.
+Первый full compile failure benchmark fixture и amd64 ENOSYS diagnostic сохранены.
+Independent review ACCEPT, unresolved MUST_FIX0. [Отчёт и ограничения](evidence/ssd-hdd-integration-20261012/report.md).
+
+Mac baseline71 FAIL из2.3 здесь не объявляется исправленным; свежий native Linux полный
+набор зелёный. Persistent config/preview DB/volumes не менялись, ON только внутри disposable
+fixture process; mini-PC/physical disks/deployment не использованы. Activation отдельно:
+client whole SHA256, historical journal reconciliation, target Linux/writer fencing/native rebuild,
+реальные SSD/HDD/mount outages/SIGKILL/power loss/50+ГиБ/RSS на8ГБ остаются gates.
+Global SSD writer serialization и one-process Nest restart оговорены в evidence.
+**COMPLETE не установлен; SSD activation OFF / production NO_GO. Работа остановлена;
+следующий шаг только после согласования владельца.**

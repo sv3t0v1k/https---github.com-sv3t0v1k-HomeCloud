@@ -1,0 +1,109 @@
+{
+  "schema": "ssd_api_81ed9146b07c4eac9962e8ea1c60ad4b",
+  "fixture": "disposable-docker",
+  "checks": [
+    {
+      "name": "fresh-schema-migrations",
+      "pass": true
+    },
+    {
+      "name": "fixture-owned-account-quota-provisioned",
+      "pass": true,
+      "storageQuota": 1073741824
+    },
+    {
+      "name": "flag-off-legacy-session-partial-upload",
+      "pass": true,
+      "userId": 1
+    },
+    {
+      "name": "legacy-session-completes-and-downloads-after-flag-on",
+      "pass": true,
+      "fileId": 1
+    },
+    {
+      "name": "ssd-admission-missing-invalid-hash-400",
+      "pass": true
+    },
+    {
+      "name": "ssd-text-multipart-duplicate-complete-repeat-quota-download-range-preview",
+      "pass": true,
+      "fileId": 2
+    },
+    {
+      "name": "actual-png-file-type-preview-thumbnail",
+      "pass": true,
+      "fileId": 3
+    },
+    {
+      "name": "cancel-idempotent-owned-chunk-cleanup-unknown-preserved",
+      "pass": true
+    },
+    {
+      "name": "expiry-service-uses-owned-cleanup-unknown-preserved",
+      "pass": true,
+      "trigger": "real service cleanup entrypoint"
+    },
+    {
+      "name": "ssd-capacity-backpressure-503",
+      "pass": true,
+      "fault": "bounded statfs available-blocks injection",
+      "scarceRoot": "/ssd",
+      "otherRoot": "real available capacity unchanged",
+      "newSessions": 0,
+      "pressureBranchEvaluated": true
+    },
+    {
+      "name": "hdd-capacity-backpressure-503",
+      "pass": true,
+      "fault": "bounded statfs available-blocks injection",
+      "scarceRoot": "/storage",
+      "otherRoot": "real available capacity unchanged",
+      "newSessions": 0,
+      "pressureBranchEvaluated": true
+    },
+    {
+      "name": "commit-response-loss-500-repeat-200-one-file-one-quota",
+      "pass": true,
+      "fileId": 4
+    },
+    {
+      "name": "startup-recovery-once-assembling-cancel-fenced-one-file-one-quota",
+      "pass": true,
+      "fileId": 5
+    },
+    {
+      "name": "ingress-disconnect-keeps-fence-until-handler-settles",
+      "pass": true,
+      "beforeDisconnectCancel": 503,
+      "afterDisconnectCancel": 503,
+      "settledCancel": 200,
+      "addedQuota": 0,
+      "serverObservedDisconnect": true
+    },
+    {
+      "name": "whole-hash-mismatch-retains-ssd-hdd-artifacts-and-barrier",
+      "pass": true,
+      "operationId": "e4c451e5-0367-412a-b638-92d6d32bf72c"
+    }
+  ],
+  "success": true,
+  "limitations": [
+    "Linux Docker VM filesystems, not physical SSD/HDD qualification",
+    "Small payloads; 50+ GiB and power loss not qualified"
+  ],
+  "devices": {
+    "hdd": "74",
+    "ssd": "65025"
+  },
+  "retained": {
+    "pendingOperationId": "e4c451e5-0367-412a-b638-92d6d32bf72c",
+    "sourcePath": "/ssd/b7fcca8a-7460-44a0-8ab1-7eeb156ca415",
+    "temporaryPath": "/storage/1/.e4c451e5-0367-412a-b638-92d6d32bf72c.assembling"
+  },
+  "summary": {
+    "files": 5,
+    "sessions": 9,
+    "pending": 1
+  }
+}

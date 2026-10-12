@@ -1,0 +1,10 @@
+{
+  "baseInstances": 1097,
+  "candidateInstances": 1148,
+  "originalStatusChanges": [],
+  "newInstances": 51,
+  "newStatuses": {
+    "passed": 51
+  },
+  "key": "suite + fullName + occurrence ordinal (retains duplicated parameterized names)"
+}
