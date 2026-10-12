@@ -3,7 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { DataSource, MigrationInterface } from "typeorm";
-import { IsolatedSsdFinalizationJournal1746825180000 } from "../migrations/1746825180000-IsolatedSsdFinalizationJournal";
+import { SsdFinalizationRecovery1746825190000 } from "../migrations/1746825190000-SsdFinalizationRecovery";
 import {
   LEGACY_UPLOAD_WORKSPACE_ID,
   SSD_UPLOAD_WORKSPACE_ID,
@@ -15,6 +15,8 @@ import {
   FinalizationFilesystem,
 } from "./ssd-finalization-contract";
 import { PostgresSsdFinalizationStore } from "./ssd-finalization-store";
+import { SsdFinalizationRecovery } from "./ssd-finalization-recovery";
+import { ArtifactIdentity, RecoveryFilesystem } from "./ssd-recovery-contract";
 
 const url = process.env.HOMECLOUD_TEST_DATABASE_URL;
 const postgres = url ? describe : describe.skip;
@@ -40,7 +42,7 @@ postgres(
         .filter(
           (name) =>
             /^\d{13}-.*\.ts$/.test(name) &&
-            Number(name.slice(0, 13)) <= 1746825180000,
+            Number(name.slice(0, 13)) <= 1746825190000,
         )
         .sort();
       const migrations = await Promise.all(
@@ -113,14 +115,20 @@ postgres(
       if (oldRoot === undefined) delete process.env.STORAGE_PATH;
       else process.env.STORAGE_PATH = oldRoot;
     });
-    const begin = () =>
-      store.begin({
+    const begin = async () => {
+      const operation = await store.begin({
         id: operationId,
         userId: 1,
         uploadId,
         expectedSha256: digest,
         binding,
       });
+      await store.recordTarget(operationId, {
+        device: binding.targetDevice,
+        inode: "42",
+      });
+      return operation;
+    };
     const published = async () => {
       await begin();
       await store.transition(operationId, "assembling", "verified");
@@ -187,7 +195,7 @@ postgres(
           )
         )[0].count,
       ).toBe(2);
-      await expect(store.commit(operationId)).rejects.toThrow("published");
+      expect((await store.commit(operationId)).id).toBe(file.id);
       expect(
         (await db.query(`SELECT "storageUsed" FROM users WHERE id=1`))[0]
           .storageUsed,
@@ -432,7 +440,7 @@ postgres(
       expect(await state()).toEqual({ state: "published", fileId: null });
     });
     it("refuses rollback with retained operations and rolls back empty journal migration safely", async () => {
-      const migration = new IsolatedSsdFinalizationJournal1746825180000();
+      const migration = new SsdFinalizationRecovery1746825190000();
       const runner = db.createQueryRunner();
       await runner.connect();
       try {
@@ -448,25 +456,25 @@ postgres(
     });
     it("empty rollback leaves all legacy rows unchanged", async () => {
       const before = await snapshot();
+      const guards = await db.query(
+        `SELECT proname,prosrc FROM pg_proc WHERE pronamespace=$1::regnamespace AND proname LIKE 'guard_%' ORDER BY proname`,
+        [schema],
+      );
       const runner = db.createQueryRunner();
       await runner.connect();
       try {
         await runner.startTransaction();
-        await new IsolatedSsdFinalizationJournal1746825180000().down(runner);
+        await new SsdFinalizationRecovery1746825190000().down(runner);
         await runner.commitTransaction();
       } finally {
         await runner.release();
       }
       expect(await snapshot()).toEqual(before);
-      const guards = await db.query(
-        `SELECT proname,prosrc FROM pg_proc WHERE pronamespace=$1::regnamespace AND proname LIKE 'guard_%' ORDER BY proname`,
-        [schema],
-      );
       const upRunner = db.createQueryRunner();
       await upRunner.connect();
       try {
         await upRunner.startTransaction();
-        await new IsolatedSsdFinalizationJournal1746825180000().up(upRunner);
+        await new SsdFinalizationRecovery1746825190000().up(upRunner);
         await upRunner.commitTransaction();
       } finally {
         await upRunner.release();
@@ -533,6 +541,11 @@ postgres(
         }
         if (quotaFailure)
           await db.query(`UPDATE users SET "storageQuota"=12 WHERE id=1`);
+        binding = {
+          ...binding,
+          targetDevice: String(fs.statSync(root).dev),
+          targetDirectoryDevice: String(fs.statSync(root).dev),
+        };
         const filesystem: FinalizationFilesystem = {
           prepare: (_user, _upload, id) => {
             operationId = id;
@@ -671,6 +684,10 @@ postgres(
           expectedSha256: digest,
           binding,
         });
+        await durable.recordTarget(operationId, {
+          device: binding.targetDevice,
+          inode: "42",
+        });
         await durable.transition(operationId, "assembling", "verified");
         await durable.transition(operationId, "verified", "publishing");
         await durable.transition(operationId, "publishing", "published");
@@ -686,6 +703,552 @@ postgres(
       } finally {
         await caller.destroy();
       }
+    });
+    function portableRecoveryFilesystem(): RecoveryFilesystem {
+      // Real bytes, descriptors, inode checks and fsync. Physical cross-FS/mount/kernel qualification is separate.
+      const observed = (fd: number): ArtifactIdentity => {
+        const stat = fs.fstatSync(fd, { bigint: true });
+        return { device: String(stat.dev), inode: String(stat.ino) };
+      };
+      const assert = (value: FinalizationBinding) => {
+        if (
+          Object.keys(value).length !== Object.keys(binding).length ||
+          Object.entries(binding).some(
+            ([key, expected]) =>
+              value[key as keyof FinalizationBinding] !== expected,
+          )
+        )
+          throw new Error("Unapproved portable fixture binding");
+      };
+      const sync = (target: string) => {
+        const fd = fs.openSync(
+          target,
+          fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
+        );
+        try {
+          fs.fsyncSync(fd);
+        } finally {
+          fs.closeSync(fd);
+        }
+      };
+      return {
+        reopen: (operation) => assert(operation.binding),
+        assertBinding: assert,
+        inspectTarget: (value, final) => {
+          assert(value);
+          try {
+            const fd = fs.openSync(
+              final ? value.storagePath : value.temporaryPath,
+              fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
+            );
+            return { fd, identity: observed(fd) };
+          } catch (error) {
+            if ((error as { code?: string }).code === "ENOENT") return null;
+            throw error;
+          }
+        },
+        createTemporary: (value) => {
+          assert(value);
+          return fs.openSync(value.temporaryPath, "wx", 0o600);
+        },
+        resetTemporary: (value, identity) => {
+          assert(value);
+          const fd = fs.openSync(
+            value.temporaryPath,
+            fs.constants.O_RDWR | fs.constants.O_NOFOLLOW,
+          );
+          if (JSON.stringify(observed(fd)) !== JSON.stringify(identity)) {
+            fs.closeSync(fd);
+            throw new Error("Portable temporary identity changed");
+          }
+          fs.ftruncateSync(fd, 0);
+          return fd;
+        },
+        openChunk: (value, index) => {
+          assert(value);
+          return fs.openSync(
+            path.join(value.sourcePath, String(index)),
+            fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
+          );
+        },
+        publish: (value) => {
+          assert(value);
+          if (fs.existsSync(value.storagePath))
+            throw new Error("Portable publication collision");
+          fs.renameSync(value.temporaryPath, value.storagePath);
+        },
+        syncTarget: (value, final) => {
+          assert(value);
+          sync(final ? value.storagePath : value.temporaryPath);
+          sync(path.dirname(value.storagePath));
+        },
+        removeChunk: (value, part, identity) => {
+          assert(value);
+          const target = path.join(value.sourcePath, String(part.chunkIndex));
+          let fd: number;
+          try {
+            fd = fs.openSync(
+              target,
+              fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
+            );
+          } catch (error) {
+            if ((error as { code?: string }).code === "ENOENT") return;
+            throw error;
+          }
+          try {
+            if (JSON.stringify(observed(fd)) !== JSON.stringify(identity))
+              throw new Error("Portable chunk identity changed");
+            fs.unlinkSync(target);
+          } finally {
+            fs.closeSync(fd);
+          }
+        },
+        syncSource: (value) => {
+          assert(value);
+          sync(value.sourcePath);
+        },
+        close: () => undefined,
+      };
+    }
+    const recoveryCrashStates = [
+      "assembling-missing",
+      "assembling-partial",
+      "assembling-full",
+      "verified-temporary",
+      "publishing-temporary",
+      "publishing-final-rename-response-loss",
+      "published",
+      "committed",
+      "commit-response-loss",
+    ] as const;
+    async function seedRecoveryCrash(
+      crash: (typeof recoveryCrashStates)[number],
+    ): Promise<void> {
+      const parts = [Buffer.from("abcd"), Buffer.from("ef")];
+      const whole = createHash("sha256")
+        .update(Buffer.concat(parts))
+        .digest("hex");
+      fs.mkdirSync(binding.sourcePath, { recursive: true });
+      fs.mkdirSync(path.dirname(binding.storagePath), { recursive: true });
+      binding = {
+        ...binding,
+        targetDevice: String(fs.statSync(root).dev),
+        targetDirectoryDevice: String(fs.statSync(root).dev),
+        targetDirectoryInode: String(
+          fs.statSync(path.dirname(binding.storagePath)).ino,
+        ),
+      };
+      // Portable fixture declares two approved devices; it does not claim physical disk or mount validation.
+      binding = {
+        ...binding,
+        sourceDevice: String(BigInt(binding.targetDevice) + 1n),
+        sourceDirectoryDevice: String(BigInt(binding.targetDevice) + 1n),
+      };
+      for (let i = 0; i < parts.length; i++) {
+        fs.writeFileSync(path.join(binding.sourcePath, String(i)), parts[i], {
+          mode: 0o600,
+        });
+        await db.query(
+          `UPDATE upload_chunks SET sha256=$3 WHERE "sessionId"=$1 AND "chunkIndex"=$2`,
+          [sessionId, i, createHash("sha256").update(parts[i]).digest("hex")],
+        );
+      }
+      fs.writeFileSync(
+        path.join(binding.sourcePath, "unknown-user-artifact"),
+        "preserve-source",
+      );
+      fs.writeFileSync(
+        path.join(path.dirname(binding.storagePath), "unknown-user-artifact"),
+        "preserve-target",
+      );
+      await store.begin({
+        id: operationId,
+        userId: 1,
+        uploadId,
+        expectedSha256: whole,
+        binding,
+      });
+      if (crash === "assembling-missing") return;
+      const writer = fs.openSync(binding.temporaryPath, "wx", 0o600);
+      try {
+        const stat = fs.fstatSync(writer, { bigint: true });
+        await store.recordTarget(operationId, {
+          device: String(stat.dev),
+          inode: String(stat.ino),
+        });
+        fs.writeSync(
+          writer,
+          crash === "assembling-partial"
+            ? Buffer.from("ab")
+            : Buffer.concat(parts),
+        );
+        fs.fsyncSync(writer);
+      } finally {
+        fs.closeSync(writer);
+      }
+      if (crash.startsWith("assembling")) return;
+      await store.transition(operationId, "assembling", "verified");
+      if (crash === "verified-temporary") return;
+      await store.transition(operationId, "verified", "publishing");
+      if (crash === "publishing-temporary") return;
+      // Persisted publishing intent + successful rename models a process exit before its response/fsync/state update.
+      fs.renameSync(binding.temporaryPath, binding.storagePath);
+      if (crash === "publishing-final-rename-response-loss") return;
+      await store.transition(operationId, "publishing", "published");
+      if (crash === "published") return;
+      if (crash === "committed") {
+        await store.commit(operationId);
+        return;
+      }
+      const original = db.transaction.bind(db);
+      const lost = jest
+        .spyOn(db, "transaction")
+        .mockImplementationOnce(async (...args: any[]) => {
+          await (original as any)(...args);
+          throw new Error("injected commit response loss");
+        });
+      try {
+        await expect(store.commit(operationId)).rejects.toThrow(
+          "commit response loss",
+        );
+      } finally {
+        lost.mockRestore();
+      }
+    }
+    it.each(recoveryCrashStates)(
+      "fresh PostgreSQL recovery replays persisted %s and cleans owned chunks exactly once",
+      async (crash) => {
+        await seedRecoveryCrash(crash);
+        const restarted = new PostgresSsdFinalizationStore(db);
+        const file = await new SsdFinalizationRecovery(
+          restarted,
+          portableRecoveryFilesystem(),
+        ).recover(operationId);
+        expect(file).toMatchObject({
+          userId: 1,
+          uploadId,
+          size: 6,
+          storagePath: binding.storagePath,
+        });
+        expect(fs.readFileSync(binding.storagePath, "utf8")).toBe("abcdef");
+        expect(fs.existsSync(binding.temporaryPath)).toBe(false);
+        expect(fs.readdirSync(binding.sourcePath)).toEqual([
+          "unknown-user-artifact",
+        ]);
+        expect(
+          fs.readFileSync(
+            path.join(binding.sourcePath, "unknown-user-artifact"),
+            "utf8",
+          ),
+        ).toBe("preserve-source");
+        expect(
+          fs.readFileSync(
+            path.join(
+              path.dirname(binding.storagePath),
+              "unknown-user-artifact",
+            ),
+            "utf8",
+          ),
+        ).toBe("preserve-target");
+        expect((await restarted.lookup(operationId)).operation).toMatchObject({
+          state: "committed",
+          cleanupState: "cleaned",
+        });
+        expect(
+          await db.query(`SELECT * FROM upload_chunks WHERE "sessionId"=$1`, [
+            sessionId,
+          ]),
+        ).toEqual([]);
+        expect(
+          await db.query(
+            `SELECT * FROM ssd_finalization_chunks WHERE "operationId"=$1`,
+            [operationId],
+          ),
+        ).toHaveLength(2);
+        expect(
+          await db.query(`SELECT id FROM files WHERE "uploadId"=$1`, [
+            uploadId,
+          ]),
+        ).toHaveLength(1);
+        expect(
+          (await db.query(`SELECT "storageUsed" FROM users WHERE id=1`))[0]
+            .storageUsed,
+        ).toBe("16");
+        await db.query(`DELETE FROM upload_sessions WHERE id=$1`, [sessionId]);
+        const repeated = await new SsdFinalizationRecovery(
+          new PostgresSsdFinalizationStore(db),
+          portableRecoveryFilesystem(),
+        ).recover(operationId);
+        expect(repeated!.id).toBe(file!.id);
+        expect(
+          (await db.query(`SELECT "storageUsed" FROM users WHERE id=1`))[0]
+            .storageUsed,
+        ).toBe("16");
+      },
+    );
+    it("fresh PostgreSQL recovery survives a cleanup response loss with released rows and preserved unknown artifacts", async () => {
+      await seedRecoveryCrash("published");
+      const restarted = new PostgresSsdFinalizationStore(db);
+      const finish = restarted.finishCleanup.bind(restarted);
+      jest
+        .spyOn(restarted, "finishCleanup")
+        .mockImplementationOnce(async (id) => {
+          await finish(id);
+          throw new Error("injected cleanup response loss");
+        });
+      await expect(
+        new SsdFinalizationRecovery(
+          restarted,
+          portableRecoveryFilesystem(),
+        ).recover(operationId),
+      ).rejects.toThrow("cleanup response loss");
+      expect((await store.lookup(operationId)).operation.cleanupState).toBe(
+        "cleaned",
+      );
+      await new SsdFinalizationRecovery(
+        new PostgresSsdFinalizationStore(db),
+        portableRecoveryFilesystem(),
+      ).recover(operationId);
+      expect(fs.readdirSync(binding.sourcePath)).toEqual([
+        "unknown-user-artifact",
+      ]);
+      expect(
+        (await db.query(`SELECT "storageUsed" FROM users WHERE id=1`))[0]
+          .storageUsed,
+      ).toBe("16");
+    });
+    it("authoritative lookup resolves a lost commit response and repeated replay charges quota exactly once", async () => {
+      await published();
+      const transaction = db.transaction.bind(db);
+      const responseLoss = jest
+        .spyOn(db, "transaction")
+        .mockImplementationOnce(async (...args: any[]) => {
+          await (transaction as any)(...args);
+          throw new Error("injected commit response loss");
+        });
+      await expect(store.commit(operationId)).rejects.toThrow(
+        "commit response loss",
+      );
+      responseLoss.mockRestore();
+      const outcome = await new PostgresSsdFinalizationStore(db).lookup(
+        operationId,
+      );
+      expect(outcome.operation).toMatchObject({
+        state: "committed",
+        cleanupState: "pending",
+        targetIdentity: { device: "4", inode: "42" },
+      });
+      const ids = await Promise.all([
+        store.commit(operationId),
+        store.commit(operationId),
+      ]);
+      expect(ids.map((file) => file.id)).toEqual([
+        outcome.file!.id,
+        outcome.file!.id,
+      ]);
+      expect(
+        (await db.query(`SELECT "storageUsed" FROM users WHERE id=1`))[0]
+          .storageUsed,
+      ).toBe("16");
+      expect(
+        await db.query(`SELECT id FROM files WHERE "uploadId"=$1`, [uploadId]),
+      ).toHaveLength(1);
+    });
+    it("records a write-once inode checkpoint before allowing verification", async () => {
+      await store.begin({
+        id: operationId,
+        userId: 1,
+        uploadId,
+        expectedSha256: digest,
+        binding,
+      });
+      expect(
+        (await store.lookup(operationId)).operation.targetIdentity,
+      ).toBeNull();
+      await expect(
+        store.transition(operationId, "assembling", "verified"),
+      ).rejects.toThrow("checkpoint");
+      await expect(
+        store.recordTarget(operationId, { device: "99", inode: "42" }),
+      ).rejects.toThrow("assembling");
+      await store.recordTarget(operationId, { device: "4", inode: "42" });
+      await store.recordTarget(operationId, { device: "4", inode: "42" });
+      await expect(
+        store.recordTarget(operationId, { device: "4", inode: "43" }),
+      ).rejects.toThrow("immutable");
+      await store.transition(operationId, "assembling", "verified");
+      await expect(
+        store.recordTarget(operationId, { device: "4", inode: "42" }),
+      ).rejects.toThrow("assembling");
+    });
+    it("blocks committed File mutation, deletion and identity evasion until repeatable cleanup releases lifecycle", async () => {
+      await published();
+      const file = await store.commit(operationId);
+      for (const sql of [
+        `UPDATE files SET "storagePath"='/different' WHERE id=$1`,
+        `UPDATE files SET "isDeleted"=true WHERE id=$1`,
+        `UPDATE files SET "uploadId"=NULL,"userId"=2 WHERE id=$1`,
+        `DELETE FROM files WHERE id=$1`,
+      ])
+        await expect(db.query(sql, [file.id])).rejects.toThrow(
+          /reserved|placement/,
+        );
+      await expect(
+        db.query(`DELETE FROM upload_sessions WHERE id=$1`, [sessionId]),
+      ).rejects.toThrow("reserved");
+      await store.finishCleanup(operationId);
+      await store.finishCleanup(operationId);
+      expect((await store.lookup(operationId)).operation.cleanupState).toBe(
+        "cleaned",
+      );
+      expect(
+        await db.query(`SELECT * FROM upload_chunks WHERE "sessionId"=$1`, [
+          sessionId,
+        ]),
+      ).toEqual([]);
+      expect(
+        await db.query(
+          `SELECT * FROM ssd_finalization_chunks WHERE "operationId"=$1`,
+          [operationId],
+        ),
+      ).toHaveLength(2);
+      await db.query(`DELETE FROM upload_sessions WHERE id=$1`, [sessionId]);
+      await db.query(`DELETE FROM files WHERE id=$1`, [file.id]);
+      await store.finishCleanup(operationId);
+      expect((await store.lookup(operationId)).file).toBeNull();
+      expect(
+        (await db.query(`SELECT "storageUsed" FROM users WHERE id=1`))[0]
+          .storageUsed,
+      ).toBe("16");
+    });
+    it("lookup fails closed for corrupt committed metadata and legacy journal without recorded inode", async () => {
+      await published();
+      const file = await store.commit(operationId);
+      await db.query(
+        `ALTER TABLE files DISABLE TRIGGER "TR_ssd_reserved_file"`,
+      );
+      await db.query(`UPDATE files SET checksum=repeat('b',64) WHERE id=$1`, [
+        file.id,
+      ]);
+      await db.query(`ALTER TABLE files ENABLE TRIGGER "TR_ssd_reserved_file"`);
+      await expect(store.lookup(operationId)).rejects.toThrow(
+        "Ambiguous committed File",
+      );
+      await expect(store.finishCleanup(operationId)).rejects.toThrow(
+        "Ambiguous committed File",
+      );
+      expect(
+        (
+          await db.query(
+            `SELECT "cleanupState" FROM ssd_finalization_operations WHERE id=$1`,
+            [operationId],
+          )
+        )[0].cleanupState,
+      ).toBe("pending");
+      await db.query(
+        `ALTER TABLE ssd_finalization_operations DISABLE TRIGGER USER`,
+      );
+      await db.query(
+        `UPDATE ssd_finalization_operations SET "targetArtifactDevice"=NULL,"targetArtifactInode"=NULL WHERE id=$1`,
+        [operationId],
+      );
+      await db.query(
+        `ALTER TABLE ssd_finalization_operations ENABLE TRIGGER USER`,
+      );
+      await expect(store.lookup(operationId)).rejects.toThrow(
+        "Ambiguous finalization target identity",
+      );
+    });
+    it("failed cleanup transaction retains reserved rows and barrier for retry", async () => {
+      await published();
+      await store.commit(operationId);
+      await db.query(
+        `CREATE FUNCTION fail_test_chunk_cleanup() RETURNS trigger LANGUAGE plpgsql AS $body$ BEGIN RAISE EXCEPTION 'injected cleanup failure'; END $body$`,
+      );
+      await db.query(
+        `CREATE TRIGGER fail_test_chunk_cleanup BEFORE DELETE ON upload_chunks FOR EACH ROW EXECUTE FUNCTION fail_test_chunk_cleanup()`,
+      );
+      await expect(store.finishCleanup(operationId)).rejects.toThrow(
+        "injected cleanup failure",
+      );
+      expect((await store.lookup(operationId)).operation.cleanupState).toBe(
+        "pending",
+      );
+      expect(
+        await db.query(`SELECT * FROM upload_chunks WHERE "sessionId"=$1`, [
+          sessionId,
+        ]),
+      ).toHaveLength(2);
+      await db.query(`DROP TRIGGER fail_test_chunk_cleanup ON upload_chunks`);
+      await store.finishCleanup(operationId);
+      expect((await store.lookup(operationId)).operation.cleanupState).toBe(
+        "cleaned",
+      );
+    });
+    it("guards both old and new identity when moving an unrelated File into a reserved upload", async () => {
+      const [{ id }] = await db.query(
+        `INSERT INTO files(name,"storagePath",size,"userId","uploadId","storageLocationId","relativeObjectKey") VALUES ('other',$1,1,1,$2,$3,'1/other.bin') RETURNING id`,
+        [path.join(root, "1", "other.bin"), randomUUID(), LEGACY_STORAGE_ID],
+      );
+      await begin();
+      await expect(
+        db.query(`UPDATE files SET "uploadId"=$1 WHERE id=$2`, [uploadId, id]),
+      ).rejects.toThrow("reserved");
+      await expect(
+        db.query(`UPDATE upload_sessions SET status='cancelled' WHERE id=$1`, [
+          sessionId,
+        ]),
+      ).rejects.toThrow("reserved");
+      await expect(
+        db.query(
+          `UPDATE upload_sessions SET "expiresAt"='2020-01-01' WHERE id=$1`,
+          [sessionId],
+        ),
+      ).rejects.toThrow("reserved");
+    });
+    it("cleanup refuses precommit and the global barrier stays reserved until cleaned", async () => {
+      await begin();
+      await expect(store.finishCleanup(operationId)).rejects.toThrow(
+        "committed",
+      );
+      const pending: string[] = [];
+      for await (const id of store.pending()) pending.push(id);
+      expect(pending).toEqual([operationId]);
+      await store.transition(operationId, "assembling", "verified");
+      await store.transition(operationId, "verified", "publishing");
+      await store.transition(operationId, "publishing", "published");
+      await store.commit(operationId);
+      const second = randomUUID();
+      const [{ id: secondSession }] = await db.query(
+        `INSERT INTO upload_sessions ("uploadId",filename,"totalSize","uploadedSize","chunkSize","totalChunks","uploadedCount","accountingInitialized","tempPath","workspaceId",status,"userId") VALUES ($1,'x',4,4,4,1,1,true,$2,$3,'uploading',1) RETURNING id`,
+        [second, path.join(root, ".tmp", second), LEGACY_UPLOAD_WORKSPACE_ID],
+      );
+      await db.query(
+        `INSERT INTO upload_chunks ("sessionId","chunkIndex","byteSize",sha256) VALUES ($1,0,4,$2)`,
+        [secondSession, digest],
+      );
+      const next = randomUUID();
+      const request = {
+        id: next,
+        userId: 1,
+        uploadId: second,
+        expectedSha256: digest,
+        binding: {
+          ...binding,
+          sourcePath: path.join(binding.sourceRoot, second),
+          temporaryPath: path.join(root, "1", `.${next}.assembling`),
+          storagePath: path.join(root, "1", `${next}.ssd-finalized`),
+          relativeObjectKey: `1/${next}.ssd-finalized`,
+        },
+      };
+      await expect(store.begin(request)).rejects.toMatchObject({
+        code: "23505",
+      });
+      await store.finishCleanup(operationId);
+      await store.begin(request);
+      const after: string[] = [];
+      for await (const id of store.pending()) after.push(id);
+      expect(after).toEqual([next]);
     });
   },
 );

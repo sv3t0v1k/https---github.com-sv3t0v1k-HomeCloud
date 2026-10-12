@@ -44,6 +44,10 @@ export interface FinalizationStore {
     expectedSha256: string;
     binding: FinalizationBinding;
   }): Promise<FinalizationOperation>;
+  recordTarget(
+    operationId: string,
+    identity: { device: string; inode: string },
+  ): Promise<void>;
   chunks(operationId: string): AsyncIterable<FinalizationChunk>;
   transition(
     operationId: string,

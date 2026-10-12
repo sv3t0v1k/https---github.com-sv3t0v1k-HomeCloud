@@ -56,6 +56,7 @@ describe("isolated cross-FS finalizer portable orchestration contract", () => {
         if (fault === "begin") throw new Error("begin failure");
         return operation;
       }),
+      recordTarget: jest.fn(async () => undefined),
       chunks: async function* () {
         for (const part of parts) yield part;
       },
