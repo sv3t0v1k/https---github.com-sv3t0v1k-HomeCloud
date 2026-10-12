@@ -8,7 +8,13 @@ import { SecureFilesystem } from "./secure-filesystem";
 import {
   FinalizationBinding,
   FinalizationFilesystem,
+  FinalizationChunk,
 } from "./ssd-finalization-contract";
+import {
+  ArtifactIdentity,
+  RecoveryFilesystem,
+  RecoveryOperation,
+} from "./ssd-recovery-contract";
 
 interface Pin {
   path: string;
@@ -19,11 +25,13 @@ interface Pin {
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-/** One explicit, isolated operation. No providers/routes, cleanup or recovery.
+/** One explicit, isolated operation. No providers/routes.
  * SecureFilesystem requires Linux openat2/RENAME_NOREPLACE; there is no fallback.
  * Directory descriptors retain identities until close, including after rename.
  */
-export class IsolatedSsdFinalizationFilesystem implements FinalizationFilesystem {
+export class IsolatedSsdFinalizationFilesystem
+  implements FinalizationFilesystem, RecoveryFilesystem
+{
   private readonly record: UploadWorkspaceIdentity;
   private readonly pins: Pin[] = [];
   private source: SecureFilesystem | undefined;
@@ -32,6 +40,7 @@ export class IsolatedSsdFinalizationFilesystem implements FinalizationFilesystem
   private temporaryPin: Pin | undefined;
   private closed = false;
   private published = false;
+  private recoveryIdentity: ArtifactIdentity | null | undefined;
 
   constructor(
     private readonly storage: StorageService,
@@ -45,6 +54,53 @@ export class IsolatedSsdFinalizationFilesystem implements FinalizationFilesystem
     userId: number,
     uploadId: string,
     operationId: string,
+  ): FinalizationBinding {
+    return this.acquire(userId, uploadId, operationId);
+  }
+
+  reopen(operation: RecoveryOperation): void {
+    try {
+      this.recoveryIdentity = operation.targetIdentity;
+      this.acquire(
+        operation.userId,
+        operation.uploadId,
+        operation.id,
+        operation.binding,
+      );
+      const temporary = this.inspectTarget(operation.binding, false);
+      let final: { fd: number; identity: ArtifactIdentity } | null = null;
+      try {
+        final = this.inspectTarget(operation.binding, true);
+        if (temporary && final)
+          throw new Error("Ambiguous recovery target artifacts");
+        const artifact = final ?? temporary;
+        if (artifact) {
+          this.temporaryPin = {
+            path: final
+              ? operation.binding.storagePath
+              : operation.binding.temporaryPath,
+            fd: artifact.fd,
+            device: artifact.identity.device,
+            inode: artifact.identity.inode,
+          };
+          this.published = !!final;
+        }
+      } catch (error) {
+        if (temporary) fs.closeSync(temporary.fd);
+        if (final) fs.closeSync(final.fd);
+        throw error;
+      }
+    } catch (error) {
+      this.close();
+      throw error;
+    }
+  }
+
+  private acquire(
+    userId: number,
+    uploadId: string,
+    operationId: string,
+    expected?: FinalizationBinding,
   ): FinalizationBinding {
     if (this.closed || this.binding)
       throw new Error("Finalization filesystem already used or closed");
@@ -67,6 +123,9 @@ export class IsolatedSsdFinalizationFilesystem implements FinalizationFilesystem
         this.record,
       );
       const sourceRootPin = this.pinDirectory(sourceRoot, this.source);
+      // Independent FD/open description: a live old worker retains its flock
+      // even after DB connectivity is lost. Never wait for or steal that lock.
+      this.source.lock(sourceRootPin.fd);
       const sourceDirectoryPin = this.pinDirectory(sourcePath, this.source);
       const targetRoot = this.storage.getStoragePath();
       const targetRootFd = fs.openSync(
@@ -90,15 +149,17 @@ export class IsolatedSsdFinalizationFilesystem implements FinalizationFilesystem
         );
       const targetDirectory = path.join(targetRoot, String(userId));
       this.storage.assertTrustedPath(targetDirectory, true, true);
-      this.target.mkdir(targetDirectory);
+      if (!expected) this.target.mkdir(targetDirectory);
       const targetDirectoryPin = this.pinDirectory(
         targetDirectory,
         this.target,
       );
       // Persist the directory entry and its own metadata before the journal can
       // refer to the operation. mkdir also syncs its descriptor-relative parent.
-      this.target.sync(targetDirectory, true);
-      this.target.sync(targetRoot, true);
+      if (!expected) {
+        this.target.sync(targetDirectory, true);
+        this.target.sync(targetRoot, true);
+      }
       const temporaryPath = path.join(
         targetDirectory,
         `.${operationId}.assembling`,
@@ -133,6 +194,13 @@ export class IsolatedSsdFinalizationFilesystem implements FinalizationFilesystem
         storagePath,
         relativeObjectKey: placement.relativeObjectKey,
       });
+      if (expected) {
+        for (const key of Object.keys(
+          this.binding,
+        ) as (keyof FinalizationBinding)[])
+          if (expected[key] !== this.binding[key])
+            throw new Error("Recovery journal binding changed");
+      }
       this.assertBinding(this.binding);
       return { ...this.binding };
     } catch (error) {
@@ -216,8 +284,16 @@ export class IsolatedSsdFinalizationFilesystem implements FinalizationFilesystem
         device: actual.dev.toString(),
         inode: actual.ino.toString(),
       };
-      // The journal already records this exclusive name. Retain partial bytes
-      // on any later error; recovery/cleanup is a separately approved stage.
+      if (this.recoveryIdentity === null) {
+        // This capability exclusively created and pinned the inode. The caller
+        // still must durably record it before transitions or publication.
+        this.recoveryIdentity = {
+          device: actual.dev.toString(),
+          inode: actual.ino.toString(),
+        };
+      }
+      // Retain partial bytes on any later error. Recovery may adopt this inode
+      // only after recordTarget has durably persisted its exact identity.
       this.target!.sync(path.dirname(binding.temporaryPath), true);
       return fd;
     } catch (error) {
@@ -226,6 +302,121 @@ export class IsolatedSsdFinalizationFilesystem implements FinalizationFilesystem
       fs.closeSync(fd);
       throw error;
     }
+  }
+
+  inspectTarget(
+    binding: FinalizationBinding,
+    final: boolean,
+  ): { fd: number; identity: ArtifactIdentity } | null {
+    this.assertBinding(binding);
+    let fd: number;
+    try {
+      fd = this.target!.open(
+        final ? binding.storagePath : binding.temporaryPath,
+      );
+    } catch (error) {
+      if ((error as { code?: string }).code === "ENOENT") return null;
+      throw error;
+    }
+    try {
+      const stat = fs.fstatSync(fd, { bigint: true });
+      this.assertRegularFile(stat);
+      const identity = {
+        device: stat.dev.toString(),
+        inode: stat.ino.toString(),
+      };
+      if (
+        this.recoveryIdentity !== undefined &&
+        (!this.recoveryIdentity ||
+          identity.device !== this.recoveryIdentity.device ||
+          identity.inode !== this.recoveryIdentity.inode)
+      )
+        throw new Error("Unowned recovery target artifact");
+      return { fd, identity };
+    } catch (error) {
+      fs.closeSync(fd);
+      throw error;
+    }
+  }
+
+  resetTemporary(
+    binding: FinalizationBinding,
+    identity: ArtifactIdentity,
+  ): number {
+    this.assertBinding(binding);
+    if (
+      this.published ||
+      !this.temporaryPin ||
+      !this.recoveryIdentity ||
+      identity.device !== this.recoveryIdentity.device ||
+      identity.inode !== this.recoveryIdentity.inode
+    )
+      throw new Error("Recovery temporary identity unavailable");
+    const fd = this.target!.open(binding.temporaryPath, "rw");
+    try {
+      const stat = fs.fstatSync(fd, { bigint: true });
+      this.assertRegularFile(stat);
+      if (
+        stat.dev.toString() !== identity.device ||
+        stat.ino.toString() !== identity.inode
+      )
+        throw new Error("Recovery temporary identity changed");
+      fs.ftruncateSync(fd, 0);
+      return fd;
+    } catch (error) {
+      fs.closeSync(fd);
+      throw error;
+    }
+  }
+
+  syncTarget(binding: FinalizationBinding, final: boolean): void {
+    this.assertBinding(binding);
+    if (!this.temporaryPin || final !== this.published)
+      throw new Error("Recovery target durability identity unavailable");
+    fs.fsyncSync(this.temporaryPin.fd);
+    this.target!.sync(path.dirname(binding.storagePath), true);
+    this.assertBinding(binding);
+  }
+
+  removeChunk(
+    binding: FinalizationBinding,
+    part: FinalizationChunk,
+    identity: ArtifactIdentity,
+  ): void {
+    this.assertBinding(binding);
+    if (!Number.isSafeInteger(part.chunkIndex) || part.chunkIndex < 0)
+      throw new Error("Invalid cleanup chunk index");
+    let fd: number;
+    try {
+      fd = this.openChunk(binding, part.chunkIndex);
+    } catch (error) {
+      if ((error as { code?: string }).code === "ENOENT") return;
+      throw error;
+    }
+    try {
+      const stat = fs.fstatSync(fd, { bigint: true });
+      this.assertRegularFile(stat);
+      if (
+        stat.dev.toString() !== identity.device ||
+        stat.ino.toString() !== identity.inode ||
+        stat.size !== BigInt(part.byteSize)
+      )
+        throw new Error("Cleanup owned chunk identity changed");
+      this.source!.removeOwned(
+        path.join(binding.sourcePath, String(part.chunkIndex)),
+        fd,
+      );
+    } finally {
+      fs.closeSync(fd);
+    }
+    this.assertBinding(binding);
+  }
+
+  syncSource(binding: FinalizationBinding): void {
+    this.assertBinding(binding);
+    this.source!.sync(binding.sourcePath, true);
+    this.source!.sync(binding.sourceRoot, true);
+    this.assertBinding(binding);
   }
 
   publish(binding: FinalizationBinding): void {

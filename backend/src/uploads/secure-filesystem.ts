@@ -10,6 +10,8 @@ interface NativeBoundary {
   rename(root: object, source: string, destination: string): void;
   remove(root: object, key: string, recursive: boolean): void;
   list(root: object, key: string): string[];
+  lock(root: object, fd: number): void;
+  removeOwned(root: object, key: string, fd: number): void;
   close(root: object): void;
 }
 const loadNative = createRequire(__filename);
@@ -61,6 +63,15 @@ export class SecureFilesystem {
   }
   open(absolute: string, mode: "r" | "rw" | "wx" = "r"): number {
     return native().open(this.capability, this.key(absolute), mode);
+  }
+  /** Nonblocking kernel fencing on an independently pinned root descriptor. */
+  lock(fd: number): void {
+    if (this.closed) throw new Error("Secure upload filesystem closed");
+    native().lock(this.capability, fd);
+  }
+  /** Delete one name only while it still identifies the caller's owned FD. */
+  removeOwned(absolute: string, fd: number): void {
+    native().removeOwned(this.capability, this.key(absolute), fd);
   }
   stat(absolute: string, directory = false): fs.Stats {
     const fd = directory

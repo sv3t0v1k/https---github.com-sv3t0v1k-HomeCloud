@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <sys/syscall.h>
 #include <sys/stat.h>
+#include <sys/file.h>
 #include <linux/openat2.h>
 #include <dirent.h>
 #include <errno.h>
@@ -14,7 +15,7 @@
 typedef struct { int fd; } root_cap;
 static napi_value fail(napi_env e) {
   int err=errno; napi_value msg,code,obj;
-  const char *name=err==ENOENT?"ENOENT":err==ENOTDIR?"ENOTDIR":err==EXDEV?"EXDEV":err==EEXIST?"EEXIST":err==ELOOP?"ELOOP":err==ENOSYS?"ENOSYS":err==EPERM?"EPERM":"ESECUREFS";
+  const char *name=err==ENOENT?"ENOENT":err==ENOTDIR?"ENOTDIR":err==EXDEV?"EXDEV":err==EEXIST?"EEXIST":err==ELOOP?"ELOOP":err==ENOSYS?"ENOSYS":err==EPERM?"EPERM":err==EWOULDBLOCK?"EWOULDBLOCK":"ESECUREFS";
   napi_create_string_utf8(e,strerror(err),NAPI_AUTO_LENGTH,&msg);
   napi_create_string_utf8(e,name,NAPI_AUTO_LENGTH,&code);
   napi_create_error(e,code,msg,&obj); napi_throw(e,obj); return NULL;
@@ -113,9 +114,29 @@ static napi_value list(napi_env e,napi_callback_info info) {
  int err=errno;closedir(d);errno=err;return err?fail(e):result;
 }
 static napi_value close_root(napi_env e,napi_callback_info info) {napi_value v[1];root_cap *c=args(e,info,v,1);if(!c)return fail(e);close(c->fd);c->fd=-1;return nothing(e);}
+static napi_value lock_root(napi_env e,napi_callback_info info) {
+ napi_value v[2];root_cap *c=args(e,info,v,2);int fd;struct stat a,b;if(!c)return fail(e);
+ if(napi_get_value_int32(e,v[1],&fd)!=napi_ok){errno=EINVAL;return fail(e);}
+ if(owned(fd,1)<0 || fstat(fd,&a)<0 || fstat(c->fd,&b)<0)return fail(e);
+ if(a.st_dev!=b.st_dev || a.st_ino!=b.st_ino || (a.st_mode&0022)){errno=EPERM;return fail(e);}
+ return flock(fd,LOCK_EX|LOCK_NB)<0?fail(e):nothing(e);
+}
+static napi_value remove_owned(napi_env e,napi_callback_info info) {
+ napi_value v[3];root_cap *c=args(e,info,v,3);char s[4096],*leaf;int anchor;struct stat a,b;if(!c)return fail(e);
+ if(text_arg(e,v[1],s,sizeof(s))<0 || !key_ok(s) || napi_get_value_int32(e,v[2],&anchor)!=napi_ok){errno=EINVAL;return fail(e);}
+ if(owned(anchor,0)<0 || fstat(anchor,&a)<0)return fail(e);
+ if(a.st_mode&0077){errno=EPERM;return fail(e);}
+ int p=parent(c->fd,s,&leaf);if(p<0)return fail(e);
+ int current=safe_open(p,leaf,O_RDONLY);if(current<0){int err=errno;close(p);errno=err;return fail(e);}
+ int rc=owned(current,0);if(rc==0)rc=fstat(current,&b);
+ if(rc==0 && (a.st_dev!=b.st_dev || a.st_ino!=b.st_ino || (b.st_mode&0077))){errno=EPERM;rc=-1;}
+ /* All stage-2 workers retain the root flock; external hostile mutation is out of scope. */
+ if(rc==0)rc=unlinkat(p,leaf,0);int err=errno;close(current);
+ if(rc==0){rc=fsync(p);err=errno;}close(p);errno=err;return rc<0?fail(e):nothing(e);
+}
 static napi_value init(napi_env e,napi_value exports) {
  napi_property_descriptor props[]={
- {"root",0,root,0,0,0,napi_default,0},{"open",0,open_file,0,0,0,napi_default,0},{"directory",0,dir,0,0,0,napi_default,0},{"mkdir",0,mkdir_key,0,0,0,napi_default,0},{"rename",0,rename_key,0,0,0,napi_default,0},{"remove",0,remove_key,0,0,0,napi_default,0},{"list",0,list,0,0,0,napi_default,0},{"close",0,close_root,0,0,0,napi_default,0}};
+ {"root",0,root,0,0,0,napi_default,0},{"open",0,open_file,0,0,0,napi_default,0},{"directory",0,dir,0,0,0,napi_default,0},{"mkdir",0,mkdir_key,0,0,0,napi_default,0},{"rename",0,rename_key,0,0,0,napi_default,0},{"remove",0,remove_key,0,0,0,napi_default,0},{"list",0,list,0,0,0,napi_default,0},{"lock",0,lock_root,0,0,0,napi_default,0},{"removeOwned",0,remove_owned,0,0,0,napi_default,0},{"close",0,close_root,0,0,0,napi_default,0}};
  napi_define_properties(e,exports,sizeof(props)/sizeof(props[0]),props);return exports;
 }
 NAPI_MODULE(NODE_GYP_MODULE_NAME,init)

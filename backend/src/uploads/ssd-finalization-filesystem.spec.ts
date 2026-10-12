@@ -6,12 +6,14 @@ import { LEGACY_STORAGE_ID } from "../storage/storage-placement";
 import { SSD_UPLOAD_WORKSPACE } from "../entities/upload-workspace.entity";
 import { PreparedSsdWorkspace } from "./prepared-ssd-workspace";
 import { IsolatedSsdFinalizationFilesystem } from "./ssd-finalization-filesystem";
+import { RecoveryOperation } from "./ssd-recovery-contract";
 
 // Portable contract only. Synthetic distinct st_dev and a confined mock are
 // explicit: these tests do NOT qualify native Linux syscalls or real disks.
 jest.mock("node:fs", () => {
   const actual = jest.requireActual<typeof fs>("node:fs");
   const sources = new Set<number>();
+  const locks = new Map<string, number>();
   let separate = true;
   const isSource = (target: unknown) =>
     typeof target === "string" &&
@@ -33,6 +35,8 @@ jest.mock("node:fs", () => {
       return fd;
     },
     closeSync: (fd: number) => {
+      for (const [identity, lockedFd] of locks)
+        if (lockedFd === fd) locks.delete(identity);
       sources.delete(fd);
       actual.closeSync(fd);
     },
@@ -42,6 +46,15 @@ jest.mock("node:fs", () => {
       device(actual.lstatSync(target, options)!, isSource(target)),
     setSeparateForTest: (value: boolean) => {
       separate = value;
+    },
+    lockRootForTest: (fd: number) => {
+      const stat = actual.fstatSync(fd);
+      const identity = `${stat.dev}/${stat.ino}`;
+      if (locks.has(identity))
+        throw Object.assign(new Error("Live worker lock busy"), {
+          code: "EWOULDBLOCK",
+        });
+      locks.set(identity, fd);
     },
   };
 });
@@ -76,6 +89,24 @@ jest.mock("./secure-filesystem", () => ({
     stat(target: string) {
       this.safe(target);
       return fs.lstatSync(target);
+    }
+    lock(fd: number) {
+      (fs as unknown as { lockRootForTest(fd: number): void }).lockRootForTest(
+        fd,
+      );
+    }
+    removeOwned(target: string, fd: number) {
+      this.safe(target);
+      const expected = fs.fstatSync(fd),
+        actual = fs.lstatSync(target);
+      if (
+        actual.dev !== expected.dev ||
+        actual.ino !== expected.ino ||
+        !actual.isFile() ||
+        actual.nlink !== 1
+      )
+        throw new Error("Mock removal identity changed");
+      fs.unlinkSync(target);
     }
     open(target: string, mode: "r" | "rw" | "wx" = "r") {
       this.safe(target);
@@ -321,5 +352,217 @@ describe("isolated SSD finalization filesystem portable contract", () => {
     expect(() => adapter.assertBinding(binding)).toThrow("unavailable");
     expect(fs.readFileSync(binding.temporaryPath, "utf8")).toBe("partial");
     expect(fs.existsSync(binding.storagePath)).toBe(false);
+  });
+  const identityOf = (file: string) => {
+    const stat = fs.lstatSync(file, { bigint: true });
+    return { device: stat.dev.toString(), inode: stat.ino.toString() };
+  };
+  const restart = (operation: RecoveryOperation) => {
+    adapter.close();
+    workspace.close();
+    workspace = new PreparedSsdWorkspace(storage);
+    adapter = new IsolatedSsdFinalizationFilesystem(
+      storage,
+      workspace,
+      SSD_UPLOAD_WORKSPACE,
+    );
+    adapter.reopen(operation);
+  };
+  const journal = (
+    binding: RecoveryOperation["binding"],
+    targetIdentity: RecoveryOperation["targetIdentity"],
+  ): RecoveryOperation => ({
+    id: operationId,
+    sessionId: 1,
+    userId: 7,
+    uploadId,
+    filename: "file",
+    parentId: null,
+    totalSize: 15,
+    chunkSize: 15,
+    totalChunks: 1,
+    expectedSha256: "a".repeat(64),
+    binding,
+    targetIdentity,
+    state: "assembling",
+    cleanupState: "pending",
+  });
+  it("reopens a journal-owned partial inode and resets it without changing identity", () => {
+    const binding = adapter.prepare(7, uploadId, operationId);
+    const writer = adapter.createTemporary(binding);
+    fs.writeSync(writer, "partial");
+    fs.closeSync(writer);
+    const identity = identityOf(binding.temporaryPath);
+    restart(journal(binding, identity));
+    const reset = adapter.resetTemporary(binding, identity);
+    fs.writeSync(reset, "recovered");
+    fs.fsyncSync(reset);
+    fs.closeSync(reset);
+    expect(identityOf(binding.temporaryPath)).toEqual(identity);
+    adapter.syncTarget(binding, false);
+    adapter.publish(binding);
+    adapter.syncTarget(binding, true);
+    expect(fs.readFileSync(binding.storagePath, "utf8")).toBe("recovered");
+  });
+  it("reopens the published inode after a rename response loss", () => {
+    const binding = adapter.prepare(7, uploadId, operationId);
+    fs.closeSync(adapter.createTemporary(binding));
+    const identity = identityOf(binding.temporaryPath);
+    adapter.publish(binding);
+    restart(journal(binding, identity));
+    const found = adapter.inspectTarget(binding, true)!;
+    expect(found.identity).toEqual(identity);
+    fs.closeSync(found.fd);
+    expect(adapter.inspectTarget(binding, false)).toBeNull();
+    adapter.syncTarget(binding, true);
+    expect(() => adapter.resetTemporary(binding, identity)).toThrow(
+      "identity unavailable",
+    );
+  });
+  it("creates and inspects a newly checkpointed target in the same reopened capability", () => {
+    const binding = adapter.prepare(7, uploadId, operationId);
+    restart(journal(binding, null));
+    const fd = adapter.createTemporary(binding);
+    fs.writeSync(fd, "recovered");
+    fs.fsyncSync(fd);
+    fs.closeSync(fd);
+    const observed = adapter.inspectTarget(binding, false)!;
+    expect(observed.identity).toEqual(identityOf(binding.temporaryPath));
+    fs.closeSync(observed.fd);
+    adapter.syncTarget(binding, false);
+    adapter.publish(binding);
+    adapter.syncTarget(binding, true);
+    expect(fs.readFileSync(binding.storagePath, "utf8")).toBe("recovered");
+  });
+  it("keeps an exclusive-create crash artifact when its inode was never recorded", () => {
+    const binding = adapter.prepare(7, uploadId, operationId);
+    fs.closeSync(adapter.createTemporary(binding));
+    expect(() => restart(journal(binding, null))).toThrow(
+      "Unowned recovery target",
+    );
+    expect(fs.existsSync(binding.temporaryPath)).toBe(true);
+  });
+  it("keeps a replaced journal-owned target without truncating it", () => {
+    const binding = adapter.prepare(7, uploadId, operationId);
+    fs.closeSync(adapter.createTemporary(binding));
+    const identity = identityOf(binding.temporaryPath);
+    adapter.close();
+    fs.renameSync(binding.temporaryPath, binding.temporaryPath + ".original");
+    fs.writeFileSync(binding.temporaryPath, "unknown", { mode: 0o600 });
+    expect(() => restart(journal(binding, identity))).toThrow(
+      "Unowned recovery target",
+    );
+    expect(fs.readFileSync(binding.temporaryPath, "utf8")).toBe("unknown");
+    expect(fs.existsSync(binding.temporaryPath + ".original")).toBe(true);
+  });
+  it("does not recreate a missing target directory on recovery", () => {
+    const binding = adapter.prepare(7, uploadId, operationId);
+    adapter.close();
+    fs.rmdirSync(path.dirname(binding.storagePath));
+    expect(() => restart(journal(binding, null))).toThrow();
+    expect(fs.existsSync(path.dirname(binding.storagePath))).toBe(false);
+  });
+  it("rejects a changed persisted directory identity on restart", () => {
+    const binding = adapter.prepare(7, uploadId, operationId);
+    expect(() =>
+      restart(journal({ ...binding, sourceDirectoryInode: "0" }, null)),
+    ).toThrow("binding changed");
+    expect(fs.readdirSync(path.dirname(binding.storagePath))).toEqual([]);
+  });
+  it("revalidates approved mount/source and marker mappings even with unchanged inode", () => {
+    const binding = adapter.prepare(7, uploadId, operationId);
+    storage.assertPreparedSsdPath = () => {
+      throw new Error("Approved marker unavailable");
+    };
+    expect(() => restart(journal(binding, null))).toThrow();
+    expect(fs.readFileSync(path.join(source, uploadId, "0"), "utf8")).toBe(
+      "preserve source",
+    );
+  });
+  it("never steals a live stale worker lock even when its journal permits replay", () => {
+    const binding = adapter.prepare(7, uploadId, operationId);
+    const otherWorkspace = new PreparedSsdWorkspace(storage);
+    const other = new IsolatedSsdFinalizationFilesystem(
+      storage,
+      otherWorkspace,
+      SSD_UPLOAD_WORKSPACE,
+    );
+    try {
+      expect(() => other.reopen(journal(binding, null))).toThrow("lock busy");
+    } finally {
+      other.close();
+      otherWorkspace.close();
+    }
+    adapter.assertBinding(binding);
+    expect(fs.readdirSync(path.dirname(binding.storagePath))).toEqual([]);
+    restart(journal(binding, null)); // dead worker's FD releases the model lock
+    adapter.assertBinding(binding);
+  });
+  it("removes only the exact owned chunk, repeats missing cleanup and preserves unknown names", () => {
+    const binding = adapter.prepare(7, uploadId, operationId);
+    const chunk = path.join(source, uploadId, "0");
+    const identity = identityOf(chunk);
+    const part = { chunkIndex: 0, byteSize: 15, sha256: "a".repeat(64) };
+    fs.writeFileSync(path.join(source, uploadId, "unknown"), "untouched", {
+      mode: 0o600,
+    });
+    adapter.removeChunk(binding, part, identity);
+    adapter.removeChunk(binding, part, identity);
+    adapter.syncSource(binding);
+    expect(fs.readdirSync(path.join(source, uploadId))).toEqual(["unknown"]);
+  });
+  it("refuses replacement, wrong size, hardlinked and non-owned-mode chunks during cleanup", () => {
+    const binding = adapter.prepare(7, uploadId, operationId);
+    const chunk = path.join(source, uploadId, "0");
+    const identity = identityOf(chunk);
+    const part = { chunkIndex: 0, byteSize: 15, sha256: "a".repeat(64) };
+    expect(() =>
+      adapter.removeChunk(binding, { ...part, byteSize: 14 }, identity),
+    ).toThrow("identity changed");
+    expect(() =>
+      adapter.removeChunk(binding, part, { ...identity, inode: "0" }),
+    ).toThrow("identity changed");
+    fs.linkSync(chunk, chunk + ".other");
+    expect(() => adapter.removeChunk(binding, part, identity)).toThrow();
+    fs.unlinkSync(chunk + ".other");
+    fs.chmodSync(chunk, 0o644);
+    expect(() => adapter.removeChunk(binding, part, identity)).toThrow(
+      "Untrusted",
+    );
+    expect(fs.readFileSync(chunk, "utf8")).toBe("preserve source");
+  });
+  it("preserves both copies when an extra final object makes recovery ambiguous", () => {
+    const binding = adapter.prepare(7, uploadId, operationId);
+    fs.closeSync(adapter.createTemporary(binding));
+    const identity = identityOf(binding.temporaryPath);
+    fs.writeFileSync(binding.storagePath, "unknown final", { mode: 0o600 });
+    expect(() => restart(journal(binding, identity))).toThrow(
+      "Unowned recovery target",
+    );
+    expect(fs.existsSync(binding.temporaryPath)).toBe(true);
+    expect(fs.readFileSync(binding.storagePath, "utf8")).toBe("unknown final");
+  });
+  it("rejects an unavailable approved HDD even when the journal's inode still exists", () => {
+    const binding = adapter.prepare(7, uploadId, operationId);
+    storage.getStoragePath = () => {
+      throw new Error("Approved HDD source unavailable");
+    };
+    expect(() => restart(journal(binding, null))).toThrow(
+      "HDD source unavailable",
+    );
+    expect(fs.existsSync(path.join(source, uploadId, "0"))).toBe(true);
+  });
+  it("native boundary declares nonblocking flock and exact descriptor deletion with directory durability", () => {
+    // Source-shape evidence only; Linux execution is a separate activation gate.
+    const code = fs.readFileSync(
+      path.join(__dirname, "../../native/secure-fs.c"),
+      "utf8",
+    );
+    expect(code).toContain("flock(fd,LOCK_EX|LOCK_NB)");
+    expect(code).toContain("a.st_dev!=b.st_dev || a.st_ino!=b.st_ino");
+    expect(code).toContain("unlinkat(p,leaf,0)");
+    expect(code).toContain("fsync(p)");
+    expect(code).toContain('{"lock",0,lock_root');
+    expect(code).toContain('{"removeOwned",0,remove_owned');
   });
 });
