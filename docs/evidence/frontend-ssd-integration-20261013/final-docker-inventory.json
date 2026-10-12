@@ -1,0 +1,63 @@
+{
+  "fixture": "hc-frontend-ssd-ad48b22e51",
+  "ownedResourcesRemaining": {
+    "containers": "",
+    "networks": "",
+    "volumes": ""
+  },
+  "preview": [
+    {
+      "name": "/homecloud-preview-backend-1",
+      "id": "19f2e2ab27f1c8f04dcf50366e4fc7f278a434fd0ae12801cc9263d4fcc7a66a",
+      "image": "homecloud-preview-backend:workspace-checkpoint",
+      "ports": {
+        "3000/tcp": null
+      },
+      "status": "running"
+    },
+    {
+      "name": "/homecloud-preview-ingress-1",
+      "id": "d961c9b18a98eff882ec4966668bbcf54d7f2c7ed62584343abf0faedfcb8882",
+      "image": "nginx:alpine",
+      "ports": {
+        "443/tcp": [
+          {
+            "HostIp": "127.0.0.1",
+            "HostPort": "443"
+          }
+        ],
+        "80/tcp": [
+          {
+            "HostIp": "127.0.0.1",
+            "HostPort": "80"
+          }
+        ]
+      },
+      "status": "running"
+    },
+    {
+      "name": "/homecloud-preview-frontend-1",
+      "id": "aab3644f93e90df24acdc7067e34d434948a0a714fbe782e183217e4958de75d",
+      "image": "homecloud-preview-frontend:local-baseline",
+      "ports": {
+        "80/tcp": [
+          {
+            "HostIp": "127.0.0.1",
+            "HostPort": "8080"
+          }
+        ]
+      },
+      "status": "running"
+    },
+    {
+      "name": "/homecloud-preview-db-1",
+      "id": "4495424397ac02a38195dc3d105d6bc6b3c979fcc28cbfa39d398fac7018907d",
+      "image": "postgres:16-alpine",
+      "ports": {
+        "5432/tcp": null
+      },
+      "status": "running"
+    }
+  ],
+  "olderAnonymousVolumes": "Ambiguous IDs from earlier failed startup attempts were not removed; no blanket prune"
+}

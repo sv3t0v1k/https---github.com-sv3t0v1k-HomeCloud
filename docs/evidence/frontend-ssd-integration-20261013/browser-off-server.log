@@ -1,0 +1,118 @@
+
+> homecloud-backend@1.0.0 build
+> nest build
+
+{"timestamp":"2026-10-12T22:59:53.674Z","level":"info","service":"homecloud-backend","message":"Starting Nest application...","context":"NestFactory"}
+{"timestamp":"2026-10-12T22:59:53.690Z","level":"info","service":"homecloud-backend","message":"TypeOrmModule dependencies initialized","context":"InstanceLoader"}
+{"timestamp":"2026-10-12T22:59:53.690Z","level":"info","service":"homecloud-backend","message":"PassportModule dependencies initialized","context":"InstanceLoader"}
+{"timestamp":"2026-10-12T22:59:53.691Z","level":"info","service":"homecloud-backend","message":"ConfigHostModule dependencies initialized","context":"InstanceLoader"}
+{"timestamp":"2026-10-12T22:59:53.691Z","level":"info","service":"homecloud-backend","message":"ConfigModule dependencies initialized","context":"InstanceLoader"}
+{"timestamp":"2026-10-12T22:59:53.691Z","level":"info","service":"homecloud-backend","message":"ConfigModule dependencies initialized","context":"InstanceLoader"}
+{"timestamp":"2026-10-12T22:59:53.694Z","level":"info","service":"homecloud-backend","message":"StorageModule dependencies initialized","context":"InstanceLoader"}
+{"timestamp":"2026-10-12T22:59:53.694Z","level":"info","service":"homecloud-backend","message":"CommonModule dependencies initialized","context":"InstanceLoader"}
+{"timestamp":"2026-10-12T22:59:53.694Z","level":"info","service":"homecloud-backend","message":"JwtModule dependencies initialized","context":"InstanceLoader"}
+{"timestamp":"2026-10-12T22:59:53.697Z","level":"info","service":"homecloud-backend","message":"MulterModule dependencies initialized","context":"InstanceLoader"}
+{"timestamp":"2026-10-12T22:59:53.715Z","level":"info","service":"homecloud-backend","message":"TypeOrmCoreModule dependencies initialized","context":"InstanceLoader"}
+{"timestamp":"2026-10-12T22:59:53.715Z","level":"info","service":"homecloud-backend","message":"AppModule dependencies initialized","context":"InstanceLoader"}
+{"timestamp":"2026-10-12T22:59:53.715Z","level":"info","service":"homecloud-backend","message":"TypeOrmModule dependencies initialized","context":"InstanceLoader"}
+{"timestamp":"2026-10-12T22:59:53.715Z","level":"info","service":"homecloud-backend","message":"TypeOrmModule dependencies initialized","context":"InstanceLoader"}
+{"timestamp":"2026-10-12T22:59:53.715Z","level":"info","service":"homecloud-backend","message":"TypeOrmModule dependencies initialized","context":"InstanceLoader"}
+{"timestamp":"2026-10-12T22:59:53.715Z","level":"info","service":"homecloud-backend","message":"TypeOrmModule dependencies initialized","context":"InstanceLoader"}
+{"timestamp":"2026-10-12T22:59:53.715Z","level":"info","service":"homecloud-backend","message":"TypeOrmModule dependencies initialized","context":"InstanceLoader"}
+{"timestamp":"2026-10-12T22:59:53.715Z","level":"info","service":"homecloud-backend","message":"TypeOrmModule dependencies initialized","context":"InstanceLoader"}
+{"timestamp":"2026-10-12T22:59:53.716Z","level":"info","service":"homecloud-backend","message":"SsdUploadsModule dependencies initialized","context":"InstanceLoader"}
+{"timestamp":"2026-10-12T22:59:53.718Z","level":"info","service":"homecloud-backend","message":"UsersModule dependencies initialized","context":"InstanceLoader"}
+{"timestamp":"2026-10-12T22:59:53.718Z","level":"info","service":"homecloud-backend","message":"PreviewsModule dependencies initialized","context":"InstanceLoader"}
+{"timestamp":"2026-10-12T22:59:53.718Z","level":"info","service":"homecloud-backend","message":"SharingModule dependencies initialized","context":"InstanceLoader"}
+{"timestamp":"2026-10-12T22:59:53.718Z","level":"info","service":"homecloud-backend","message":"AuthModule dependencies initialized","context":"InstanceLoader"}
+{"timestamp":"2026-10-12T22:59:53.718Z","level":"info","service":"homecloud-backend","message":"FilesModule dependencies initialized","context":"InstanceLoader"}
+{"timestamp":"2026-10-12T22:59:53.718Z","level":"info","service":"homecloud-backend","message":"UploadsModule dependencies initialized","context":"InstanceLoader"}
+{"timestamp":"2026-10-12T22:59:53.720Z","level":"info","service":"homecloud-backend","message":"Database and Redis credentials validation passed.","context":"StartupValidationService"}
+{"timestamp":"2026-10-12T22:59:53.720Z","level":"info","service":"homecloud-backend","message":"JWT secrets validation passed.","context":"StartupValidationService"}
+{"timestamp":"2026-10-12T22:59:53.727Z","level":"info","service":"homecloud-backend","message":"HealthController {/api/v1/health}:","context":"RoutesResolver"}
+{"timestamp":"2026-10-12T22:59:53.728Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/health, GET} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.728Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/health/live, GET} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.728Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/health/ready, GET} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.728Z","level":"info","service":"homecloud-backend","message":"MetricsController {/api/v1/metrics}:","context":"RoutesResolver"}
+{"timestamp":"2026-10-12T22:59:53.728Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/metrics, GET} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.728Z","level":"info","service":"homecloud-backend","message":"AuthController {/api/v1/auth}:","context":"RoutesResolver"}
+{"timestamp":"2026-10-12T22:59:53.729Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/auth/register, POST} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.729Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/auth/login, POST} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.729Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/auth/refresh, POST} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.729Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/auth/change-password, POST} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.730Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/auth/logout, POST} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.730Z","level":"info","service":"homecloud-backend","message":"UsersController {/api/v1/users}:","context":"RoutesResolver"}
+{"timestamp":"2026-10-12T22:59:53.730Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/users/me, GET} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.730Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/users/me, PATCH} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.730Z","level":"info","service":"homecloud-backend","message":"FilesController {/api/v1/files}:","context":"RoutesResolver"}
+{"timestamp":"2026-10-12T22:59:53.730Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/files, GET} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.730Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/files/folders, GET} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.730Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/files/folders/:id, GET} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.730Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/files/folders/:id, PATCH} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.730Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/files/folders/:id, DELETE} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.730Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/files/folders/:id/restore, POST} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.730Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/files/folders/:id/permanent, DELETE} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.731Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/files/trash, GET} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.731Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/files/empty-trash, POST} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.731Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/files/search, GET} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.731Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/files/storage-info, GET} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.731Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/files/folders, POST} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.731Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/files/:id/download, GET} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.731Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/files/:id, GET} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.731Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/files/:id, PATCH} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.731Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/files/:id, DELETE} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.731Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/files/:id/restore, POST} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.731Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/files/:id/permanent, DELETE} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.731Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/files/:id/copy, POST} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.731Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/files/:id/move, POST} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.731Z","level":"info","service":"homecloud-backend","message":"NativeDownloadsController {/api/v1/native-downloads}:","context":"RoutesResolver"}
+{"timestamp":"2026-10-12T22:59:53.731Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/native-downloads/:id/prepare, POST} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.732Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/native-downloads/:id, GET} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.732Z","level":"info","service":"homecloud-backend","message":"UploadsController {/api/v1/uploads}:","context":"RoutesResolver"}
+{"timestamp":"2026-10-12T22:59:53.732Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/uploads/limits, GET} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.732Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/uploads/session, POST} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.732Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/uploads/session/:uploadId/chunk, POST} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.732Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/uploads/session/:uploadId/complete, POST} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.732Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/uploads/session/:uploadId, DELETE} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.732Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/uploads/session/:uploadId, GET} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.732Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/uploads/sessions, GET} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.732Z","level":"info","service":"homecloud-backend","message":"SharingController {/api/v1/sharing}:","context":"RoutesResolver"}
+{"timestamp":"2026-10-12T22:59:53.732Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/sharing, POST} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.732Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/sharing, GET} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.732Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/sharing/:id, DELETE} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.732Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/sharing/public/:token, GET} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.733Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/sharing/public/:token/verify, POST} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.733Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/sharing/public/:token/download, POST} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.733Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/sharing/public/:token/children, GET} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.733Z","level":"info","service":"homecloud-backend","message":"PreviewsController {/api/v1/previews}:","context":"RoutesResolver"}
+{"timestamp":"2026-10-12T22:59:53.733Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/previews/:id/thumbnail, GET} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.733Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/previews/:id, GET} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:59:53.753Z","level":"info","service":"homecloud-backend","message":"Nest application successfully started","context":"NestApplication"}
+{"timestamp":"2026-10-12T23:00:09.246Z","level":"info","service":"homecloud-backend","message":"http_request_completed","requestId":"3dc42fa3-d91b-4400-867a-e4da7a5841b2","context":"HTTP","method":"POST","route":"/api/v1/auth/register","statusCode":201,"durationMs":424.539}
+{"timestamp":"2026-10-12T23:00:09.251Z","level":"info","service":"homecloud-backend","message":"http_request_completed","requestId":"c009879e-19ca-4bcf-b7f5-fec8f514c046","context":"HTTP","method":"POST","route":"unmatched","statusCode":200,"durationMs":2.111}
+{"timestamp":"2026-10-12T23:00:09.259Z","level":"info","service":"homecloud-backend","message":"http_request_completed","requestId":"48aeaed4-3a87-4b3c-8ee9-ca0664650c98","context":"HTTP","method":"GET","route":"unmatched","statusCode":200,"durationMs":4.15}
+{"timestamp":"2026-10-12T23:00:09.299Z","level":"info","service":"homecloud-backend","message":"http_request_completed","requestId":"ecd8dd0e-1f8f-4d79-9f26-6202468b09dc","context":"HTTP","method":"GET","route":"unmatched","statusCode":200,"durationMs":1.775}
+{"timestamp":"2026-10-12T23:00:09.300Z","level":"info","service":"homecloud-backend","message":"http_request_completed","requestId":"ae0fb2c4-38e5-4559-a4c7-2fc90dbeef52","context":"HTTP","method":"GET","route":"unmatched","statusCode":200,"durationMs":4.193}
+{"timestamp":"2026-10-12T23:00:09.327Z","level":"info","service":"homecloud-backend","message":"http_request_completed","requestId":"da3e10a6-031a-4e55-ae81-e50f7ed29a94","context":"HTTP","method":"GET","route":"unmatched","statusCode":200,"durationMs":1.389}
+{"timestamp":"2026-10-12T23:00:09.328Z","level":"info","service":"homecloud-backend","message":"http_request_completed","requestId":"5eadb07f-9a78-4455-ba78-98207615df75","context":"HTTP","method":"GET","route":"unmatched","statusCode":200,"durationMs":2.145}
+{"timestamp":"2026-10-12T23:00:09.786Z","level":"info","service":"homecloud-backend","message":"http_request_completed","requestId":"9faf02de-ab01-4899-bb98-d17649dd8a7c","context":"HTTP","method":"POST","route":"/api/v1/auth/login","statusCode":200,"durationMs":394.933}
+{"timestamp":"2026-10-12T23:00:09.795Z","level":"info","service":"homecloud-backend","message":"http_request_completed","requestId":"59e3af75-5353-4f7a-9633-2a2afe682a7a","context":"HTTP","method":"GET","route":"/api/v1/users/me","statusCode":200,"durationMs":3.798}
+{"timestamp":"2026-10-12T23:00:09.822Z","level":"info","service":"homecloud-backend","message":"http_request_completed","requestId":"f72127be-f6da-4b87-bb90-687db1667f3b","context":"HTTP","method":"GET","route":"/api/v1/files/folders","statusCode":200,"durationMs":4.938}
+{"timestamp":"2026-10-12T23:00:09.826Z","level":"info","service":"homecloud-backend","message":"http_request_completed","requestId":"c73eaaff-44a5-4f98-9dde-49a14dc07c0e","context":"HTTP","method":"GET","route":"/api/v1/files","statusCode":200,"durationMs":8.28}
+{"timestamp":"2026-10-12T23:00:09.827Z","level":"info","service":"homecloud-backend","message":"http_request_completed","requestId":"441368fa-3bb6-4bc2-b8d1-2ef84f7e0b61","context":"HTTP","method":"GET","route":"/api/v1/uploads/sessions","statusCode":200,"durationMs":4.188}
+{"timestamp":"2026-10-12T23:00:10.211Z","level":"info","service":"homecloud-backend","message":"http_request_completed","requestId":"7a00b558-37c7-42c0-882c-eb9a0965b56f","context":"HTTP","method":"GET","route":"/api/v1/uploads/limits","statusCode":200,"durationMs":10.365}
+{"timestamp":"2026-10-12T23:00:10.234Z","level":"info","service":"homecloud-backend","message":"http_request_completed","requestId":"5563e780-0dfd-4440-94de-20d14e1b428c","context":"HTTP","method":"GET","route":"/api/v1/uploads/limits","statusCode":304,"durationMs":4.819}
+{"timestamp":"2026-10-12T23:00:10.252Z","level":"info","service":"homecloud-backend","message":"http_request_completed","requestId":"cf575877-cd9e-48fd-8000-cbf281c1f61b","context":"HTTP","method":"POST","route":"/api/v1/uploads/session","statusCode":201,"durationMs":15.173}
+{"timestamp":"2026-10-12T23:00:10.278Z","level":"info","service":"homecloud-backend","message":"http_request_completed","requestId":"f1ada848-e1aa-407f-a627-998006cccb3d","context":"HTTP","method":"POST","route":"/api/v1/uploads/session/:uploadId/chunk","statusCode":200,"durationMs":22.97}
+{"timestamp":"2026-10-12T23:00:10.318Z","level":"info","service":"homecloud-backend","message":"http_request_completed","requestId":"d56dedbd-646e-47e8-b812-98f62f361f91","context":"HTTP","method":"POST","route":"/api/v1/uploads/session/:uploadId/complete","statusCode":200,"durationMs":36.726}
+{"timestamp":"2026-10-12T23:00:10.324Z","level":"info","service":"homecloud-backend","message":"http_request_completed","requestId":"9b09267d-4957-4f10-a44e-6206c2355af3","context":"HTTP","method":"GET","route":"/api/v1/files/folders","statusCode":304,"durationMs":3.216}
+{"timestamp":"2026-10-12T23:00:10.325Z","level":"info","service":"homecloud-backend","message":"http_request_completed","requestId":"83186233-d7f5-4801-a333-c973ad427e83","context":"HTTP","method":"GET","route":"/api/v1/files","statusCode":200,"durationMs":3.609}
+{"timestamp":"2026-10-12T23:00:10.334Z","level":"info","service":"homecloud-backend","message":"http_request_completed","requestId":"40837dd7-14e8-402f-ac9c-5037aa0213bb","context":"HTTP","method":"GET","route":"unmatched","statusCode":200,"durationMs":1.298}
+{"timestamp":"2026-10-12T23:00:10.335Z","level":"info","service":"homecloud-backend","message":"http_request_completed","requestId":"ebc4421a-967f-4d22-a904-5eadd3148b45","context":"HTTP","method":"GET","route":"unmatched","statusCode":200,"durationMs":1.43}
+{"timestamp":"2026-10-12T23:00:10.407Z","level":"info","service":"homecloud-backend","message":"http_request_completed","requestId":"4a454a14-f4a3-4bf8-8470-7983b8aa989c","context":"HTTP","method":"GET","route":"unmatched","statusCode":200,"durationMs":2.576}
+{"timestamp":"2026-10-12T23:00:10.439Z","level":"info","service":"homecloud-backend","message":"http_request_completed","requestId":"6bd56444-4693-49c3-9a3c-b2bdd932bf70","context":"HTTP","method":"POST","route":"/api/v1/native-downloads/:id/prepare","statusCode":200,"durationMs":6.529}
+{"timestamp":"2026-10-12T23:00:10.448Z","level":"info","service":"homecloud-backend","message":"http_request_completed","requestId":"52e693e7-bbc5-4716-9186-cb9eb674c85a","context":"HTTP","method":"GET","route":"/api/v1/native-downloads/:id","statusCode":200,"durationMs":4.42}
+{"timestamp":"2026-10-12T23:00:10.459Z","level":"info","service":"homecloud-backend","message":"http_request_completed","requestId":"cf45a7bb-be36-46fb-8f62-71e4ade26ddb","context":"HTTP","method":"GET","route":"/api/v1/files/:id/download","statusCode":206,"durationMs":3.002}
+{"timestamp":"2026-10-12T23:00:12.066Z","level":"info","service":"homecloud-backend","message":"http_request_completed","requestId":"b0eca6ff-fffb-4a09-922b-1eed08cab824","context":"HTTP","method":"GET","route":"unmatched","statusCode":200,"durationMs":2.04}
+
+Captured stderr:

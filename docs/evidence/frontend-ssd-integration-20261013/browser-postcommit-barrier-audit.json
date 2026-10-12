@@ -1,0 +1,39 @@
+{
+  "fixture": "hc-frontend-ssd-c9b4b16400",
+  "case": "additional actual SSD UI upload after postcommit HTTP500",
+  "identifiedBlocker": false,
+  "completeStatuses": [
+    500,
+    500,
+    500
+  ],
+  "pendingBefore": [
+    {
+      "uploadId": "88aacc2d-09a1-4166-b873-99e109177658",
+      "state": "committed",
+      "cleanupState": "pending"
+    }
+  ],
+  "ui": "actual-ssd-after-postcommit500.bin\nМои файлы\n\nТребуется действие\n\n99% · 512 Б из 512 Б принято сервером\n\nВременная ошибка сервера. Прогресс сохранён. Нажмите «Продолжить» или отмените загрузку.\n\nПродолжить\nОтменить загрузку",
+  "session": {
+    "uploadId": "caa42c4d-e055-4d1a-8ba5-080f7c1a1dd7",
+    "filename": "actual-ssd-after-postcommit500.bin",
+    "expectedSha256": "ddeaf858c9d13f0b467646ca7a1a4ece1b12010d7900781f699a8866dbc77c97",
+    "workspaceId": "99ca4521-b94d-4d54-94a8-7c207af52202",
+    "status": "uploading",
+    "uploadedCount": 1,
+    "totalChunks": 1
+  },
+  "additionalFiles": 0,
+  "pendingAfter": [
+    {
+      "uploadId": "88aacc2d-09a1-4166-b873-99e109177658",
+      "state": "committed",
+      "cleanupState": "pending"
+    }
+  ],
+  "failure": {
+    "name": "AssertionError",
+    "message": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n+   500,\n+   500,\n+   500\n-   503,\n-   503,\n-   503\n  ]"
+  }
+}

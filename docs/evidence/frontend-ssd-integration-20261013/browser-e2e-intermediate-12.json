@@ -1,0 +1,1025 @@
+{
+  "fixture": "hc-frontend-ssd-c9b4b16400",
+  "browser": "Chromium actual browser",
+  "checks": [
+    {
+      "name": "on-ui-upload-hdd-download-range",
+      "pass": true,
+      "filename": "ssd-browser-main.bin",
+      "size": 4194441,
+      "sha256": "c2d2f385652249ff36b6220aea3216d6f5d5383e19f35c5c7d069aea00c443c6",
+      "fileId": 1
+    },
+    {
+      "name": "browser-ui-hash-send-hdd-finalization-stages",
+      "pass": true,
+      "phases": [
+        "Вычисление SHA-256…",
+        "Загрузка…",
+        "Финализация файла на HDD…"
+      ]
+    },
+    {
+      "name": "on-ui-upload-hdd-download-range",
+      "pass": true,
+      "filename": "ssd-browser-resume.bin",
+      "size": 4194441,
+      "sha256": "c2d2f385652249ff36b6220aea3216d6f5d5383e19f35c5c7d069aea00c443c6",
+      "fileId": 2
+    },
+    {
+      "name": "browser-reload-reselect-resume-same-session",
+      "pass": true,
+      "uploadId": "236461fb-79a9-416d-be33-9aad481e0b47",
+      "committedBeforeReload": 2
+    },
+    {
+      "name": "browser-cancel-server-aborted-no-file",
+      "pass": true
+    },
+    {
+      "name": "browser-busy503-bounded-retry-after",
+      "pass": true,
+      "attempts": 3,
+      "delaysMs": [
+        1012,
+        1022
+      ]
+    },
+    {
+      "name": "browser-postcommit-response-loss-reconciles-one-file",
+      "pass": true,
+      "uploadId": "88aacc2d-09a1-4166-b873-99e109177658",
+      "completePosts": 1,
+      "deleteRequests": 0,
+      "addedQuota": 1024
+    },
+    {
+      "name": "browser-busy503-retry-budget-exhausted",
+      "pass": true,
+      "attempts": 3
+    },
+    {
+      "name": "browser-capacity503-actionable-no-auto-retry",
+      "pass": true
+    },
+    {
+      "name": "off-ui-upload-hdd-download-range",
+      "pass": true,
+      "filename": "legacy-browser-off.bin",
+      "size": 2048,
+      "sha256": "e6b0a0fcc3a3588a29cfcf2f9e230f33ec0862c8c190557f17ef91bd613f238e",
+      "fileId": 1
+    },
+    {
+      "name": "legacy-off-admission-omits-whole-hash",
+      "pass": true
+    },
+    {
+      "name": "baseline-unmodified-ui-ssd-on-admission400-missing-whole",
+      "pass": true,
+      "status": 400,
+      "expectedSha256Omitted": true,
+      "newSessions": 0,
+      "newFiles": 0
+    }
+  ],
+  "success": true,
+  "limitations": [
+    "Small 4 MiB payloads; no 50+ GiB or RSS qualification",
+    "Docker VM filesystems are distinct devices; no physical SSD/HDD qualification",
+    "Busy/capacity503 are explicitly injected middleware responses inside the disposable backend process"
+  ],
+  "network": [
+    {
+      "time": 1791845443116,
+      "method": "GET",
+      "path": "/api/v1/uploads/sessions"
+    },
+    {
+      "time": 1791845443800,
+      "method": "GET",
+      "path": "/api/v1/uploads/limits"
+    },
+    {
+      "time": 1791845443823,
+      "method": "GET",
+      "path": "/api/v1/uploads/limits"
+    },
+    {
+      "time": 1791845443859,
+      "method": "POST",
+      "path": "/api/v1/uploads/session",
+      "filename": "ssd-browser-main.bin",
+      "expectedSha256": "c2d2f385652249ff36b6220aea3216d6f5d5383e19f35c5c7d069aea00c443c6"
+    },
+    {
+      "time": 1791845443884,
+      "method": "POST",
+      "path": "/api/v1/uploads/session/ea317389-14af-4468-b095-b6b2cb04ba5e/chunk"
+    },
+    {
+      "time": 1791845444095,
+      "method": "POST",
+      "path": "/api/v1/uploads/session/ea317389-14af-4468-b095-b6b2cb04ba5e/chunk"
+    },
+    {
+      "time": 1791845444295,
+      "method": "POST",
+      "path": "/api/v1/uploads/session/ea317389-14af-4468-b095-b6b2cb04ba5e/chunk"
+    },
+    {
+      "time": 1791845444491,
+      "method": "POST",
+      "path": "/api/v1/uploads/session/ea317389-14af-4468-b095-b6b2cb04ba5e/chunk"
+    },
+    {
+      "time": 1791845444685,
+      "method": "POST",
+      "path": "/api/v1/uploads/session/ea317389-14af-4468-b095-b6b2cb04ba5e/chunk"
+    },
+    {
+      "time": 1791845444874,
+      "method": "POST",
+      "path": "/api/v1/uploads/session/ea317389-14af-4468-b095-b6b2cb04ba5e/complete"
+    },
+    {
+      "time": 1791845445547,
+      "method": "GET",
+      "path": "/api/v1/uploads/limits"
+    },
+    {
+      "time": 1791845445573,
+      "method": "GET",
+      "path": "/api/v1/uploads/limits"
+    },
+    {
+      "time": 1791845445603,
+      "method": "POST",
+      "path": "/api/v1/uploads/session",
+      "filename": "ssd-browser-resume.bin",
+      "expectedSha256": "c2d2f385652249ff36b6220aea3216d6f5d5383e19f35c5c7d069aea00c443c6"
+    },
+    {
+      "time": 1791845445621,
+      "method": "POST",
+      "path": "/api/v1/uploads/session/236461fb-79a9-416d-be33-9aad481e0b47/chunk"
+    },
+    {
+      "time": 1791845446054,
+      "method": "POST",
+      "path": "/api/v1/uploads/session/236461fb-79a9-416d-be33-9aad481e0b47/chunk"
+    },
+    {
+      "time": 1791845447269,
+      "method": "GET",
+      "path": "/api/v1/uploads/sessions"
+    },
+    {
+      "time": 1791845447548,
+      "method": "GET",
+      "path": "/api/v1/uploads/session/236461fb-79a9-416d-be33-9aad481e0b47"
+    },
+    {
+      "time": 1791845447586,
+      "method": "POST",
+      "path": "/api/v1/uploads/session/236461fb-79a9-416d-be33-9aad481e0b47/chunk"
+    },
+    {
+      "time": 1791845448025,
+      "method": "POST",
+      "path": "/api/v1/uploads/session/236461fb-79a9-416d-be33-9aad481e0b47/chunk"
+    },
+    {
+      "time": 1791845448464,
+      "method": "POST",
+      "path": "/api/v1/uploads/session/236461fb-79a9-416d-be33-9aad481e0b47/chunk"
+    },
+    {
+      "time": 1791845448908,
+      "method": "POST",
+      "path": "/api/v1/uploads/session/236461fb-79a9-416d-be33-9aad481e0b47/complete"
+    },
+    {
+      "time": 1791845449723,
+      "method": "GET",
+      "path": "/api/v1/uploads/limits"
+    },
+    {
+      "time": 1791845449748,
+      "method": "GET",
+      "path": "/api/v1/uploads/limits"
+    },
+    {
+      "time": 1791845449780,
+      "method": "POST",
+      "path": "/api/v1/uploads/session",
+      "filename": "ssd-browser-cancel.bin",
+      "expectedSha256": "c2d2f385652249ff36b6220aea3216d6f5d5383e19f35c5c7d069aea00c443c6"
+    },
+    {
+      "time": 1791845449798,
+      "method": "POST",
+      "path": "/api/v1/uploads/session/67c5c7db-9073-4127-976f-d387e7528cf6/chunk"
+    },
+    {
+      "time": 1791845450246,
+      "method": "POST",
+      "path": "/api/v1/uploads/session/67c5c7db-9073-4127-976f-d387e7528cf6/chunk"
+    },
+    {
+      "time": 1791845450684,
+      "method": "DELETE",
+      "path": "/api/v1/uploads/session/67c5c7db-9073-4127-976f-d387e7528cf6"
+    },
+    {
+      "time": 1791845451121,
+      "method": "GET",
+      "path": "/api/v1/uploads/limits"
+    },
+    {
+      "time": 1791845451148,
+      "method": "GET",
+      "path": "/api/v1/uploads/limits"
+    },
+    {
+      "time": 1791845451156,
+      "method": "POST",
+      "path": "/api/v1/uploads/session",
+      "filename": "ssd-browser-busy.bin",
+      "expectedSha256": "a371f38865a1d784831cfe2fb76afa86d60fed65b02dbf199c562d213565776d"
+    },
+    {
+      "time": 1791845451170,
+      "method": "POST",
+      "path": "/api/v1/uploads/session/071f8fc8-0bd3-4717-9901-e0d641cd2f9e/chunk"
+    },
+    {
+      "time": 1791845451188,
+      "method": "POST",
+      "path": "/api/v1/uploads/session/071f8fc8-0bd3-4717-9901-e0d641cd2f9e/complete"
+    },
+    {
+      "time": 1791845451191,
+      "method": "GET",
+      "path": "/api/v1/uploads/session/071f8fc8-0bd3-4717-9901-e0d641cd2f9e"
+    },
+    {
+      "time": 1791845452200,
+      "method": "POST",
+      "path": "/api/v1/uploads/session/071f8fc8-0bd3-4717-9901-e0d641cd2f9e/complete"
+    },
+    {
+      "time": 1791845452208,
+      "method": "GET",
+      "path": "/api/v1/uploads/session/071f8fc8-0bd3-4717-9901-e0d641cd2f9e"
+    },
+    {
+      "time": 1791845453222,
+      "method": "POST",
+      "path": "/api/v1/uploads/session/071f8fc8-0bd3-4717-9901-e0d641cd2f9e/complete"
+    },
+    {
+      "time": 1791845453469,
+      "method": "GET",
+      "path": "/api/v1/uploads/limits"
+    },
+    {
+      "time": 1791845453498,
+      "method": "GET",
+      "path": "/api/v1/uploads/limits"
+    },
+    {
+      "time": 1791845453507,
+      "method": "POST",
+      "path": "/api/v1/uploads/session",
+      "filename": "ssd-browser-postcommit-loss.bin",
+      "expectedSha256": "3ca01a07726925da6a607c835c46191def481b76b842f707ffffce98d5fcbaf3"
+    },
+    {
+      "time": 1791845453519,
+      "method": "POST",
+      "path": "/api/v1/uploads/session/88aacc2d-09a1-4166-b873-99e109177658/chunk"
+    },
+    {
+      "time": 1791845453538,
+      "method": "POST",
+      "path": "/api/v1/uploads/session/88aacc2d-09a1-4166-b873-99e109177658/complete"
+    },
+    {
+      "time": 1791845453563,
+      "method": "GET",
+      "path": "/api/v1/uploads/session/88aacc2d-09a1-4166-b873-99e109177658"
+    },
+    {
+      "time": 1791845453697,
+      "method": "GET",
+      "path": "/api/v1/uploads/limits"
+    },
+    {
+      "time": 1791845453724,
+      "method": "GET",
+      "path": "/api/v1/uploads/limits"
+    },
+    {
+      "time": 1791845453731,
+      "method": "POST",
+      "path": "/api/v1/uploads/session",
+      "filename": "ssd-browser-exhausted.bin",
+      "expectedSha256": "a371f38865a1d784831cfe2fb76afa86d60fed65b02dbf199c562d213565776d"
+    },
+    {
+      "time": 1791845454736,
+      "method": "POST",
+      "path": "/api/v1/uploads/session",
+      "filename": "ssd-browser-exhausted.bin",
+      "expectedSha256": "a371f38865a1d784831cfe2fb76afa86d60fed65b02dbf199c562d213565776d"
+    },
+    {
+      "time": 1791845455748,
+      "method": "POST",
+      "path": "/api/v1/uploads/session",
+      "filename": "ssd-browser-exhausted.bin",
+      "expectedSha256": "a371f38865a1d784831cfe2fb76afa86d60fed65b02dbf199c562d213565776d"
+    },
+    {
+      "time": 1791845456034,
+      "method": "GET",
+      "path": "/api/v1/uploads/limits"
+    },
+    {
+      "time": 1791845456056,
+      "method": "GET",
+      "path": "/api/v1/uploads/limits"
+    },
+    {
+      "time": 1791845456063,
+      "method": "POST",
+      "path": "/api/v1/uploads/session",
+      "filename": "ssd-browser-capacity.bin",
+      "expectedSha256": "a371f38865a1d784831cfe2fb76afa86d60fed65b02dbf199c562d213565776d"
+    },
+    {
+      "time": 1791845457146,
+      "method": "GET",
+      "path": "/api/v1/uploads/sessions"
+    },
+    {
+      "time": 1791845457534,
+      "method": "GET",
+      "path": "/api/v1/uploads/limits"
+    },
+    {
+      "time": 1791845457556,
+      "method": "GET",
+      "path": "/api/v1/uploads/limits"
+    },
+    {
+      "time": 1791845457562,
+      "method": "POST",
+      "path": "/api/v1/uploads/session",
+      "filename": "legacy-browser-off.bin"
+    },
+    {
+      "time": 1791845457578,
+      "method": "POST",
+      "path": "/api/v1/uploads/session/c3ef3ef1-50f8-438a-ad0a-cd1ca10ec6b2/chunk"
+    },
+    {
+      "time": 1791845457607,
+      "method": "POST",
+      "path": "/api/v1/uploads/session/c3ef3ef1-50f8-438a-ad0a-cd1ca10ec6b2/complete"
+    }
+  ],
+  "serverState": {
+    "on": {
+      "schema": "browser_60f91db8c63348838bb22b344ad96fea",
+      "mode": true,
+      "controls": {
+        "busy": 0,
+        "busyStage": "admission",
+        "capacity": 0,
+        "delayChunkMs": 0,
+        "loseCompleteResponse": 0
+      },
+      "events": [
+        {
+          "name": "boot",
+          "time": 1791845431080,
+          "mode": true
+        },
+        {
+          "name": "request",
+          "time": 1791845443119,
+          "method": "GET",
+          "path": "/api/v1/uploads/sessions"
+        },
+        {
+          "name": "request",
+          "time": 1791845443802,
+          "method": "GET",
+          "path": "/api/v1/uploads/limits"
+        },
+        {
+          "name": "request",
+          "time": 1791845443824,
+          "method": "GET",
+          "path": "/api/v1/uploads/limits"
+        },
+        {
+          "name": "request",
+          "time": 1791845443861,
+          "method": "POST",
+          "path": "/api/v1/uploads/session"
+        },
+        {
+          "name": "admission",
+          "time": 1791845443861,
+          "filename": "ssd-browser-main.bin",
+          "totalSize": 4194441,
+          "expectedSha256": "c2d2f385652249ff36b6220aea3216d6f5d5383e19f35c5c7d069aea00c443c6"
+        },
+        {
+          "name": "request",
+          "time": 1791845443885,
+          "method": "POST",
+          "path": "/api/v1/uploads/session/ea317389-14af-4468-b095-b6b2cb04ba5e/chunk"
+        },
+        {
+          "name": "request",
+          "time": 1791845444094,
+          "method": "POST",
+          "path": "/api/v1/uploads/session/ea317389-14af-4468-b095-b6b2cb04ba5e/chunk"
+        },
+        {
+          "name": "request",
+          "time": 1791845444294,
+          "method": "POST",
+          "path": "/api/v1/uploads/session/ea317389-14af-4468-b095-b6b2cb04ba5e/chunk"
+        },
+        {
+          "name": "request",
+          "time": 1791845444491,
+          "method": "POST",
+          "path": "/api/v1/uploads/session/ea317389-14af-4468-b095-b6b2cb04ba5e/chunk"
+        },
+        {
+          "name": "request",
+          "time": 1791845444685,
+          "method": "POST",
+          "path": "/api/v1/uploads/session/ea317389-14af-4468-b095-b6b2cb04ba5e/chunk"
+        },
+        {
+          "name": "request",
+          "time": 1791845444875,
+          "method": "POST",
+          "path": "/api/v1/uploads/session/ea317389-14af-4468-b095-b6b2cb04ba5e/complete"
+        },
+        {
+          "name": "request",
+          "time": 1791845445548,
+          "method": "GET",
+          "path": "/api/v1/uploads/limits"
+        },
+        {
+          "name": "request",
+          "time": 1791845445573,
+          "method": "GET",
+          "path": "/api/v1/uploads/limits"
+        },
+        {
+          "name": "request",
+          "time": 1791845445605,
+          "method": "POST",
+          "path": "/api/v1/uploads/session"
+        },
+        {
+          "name": "admission",
+          "time": 1791845445605,
+          "filename": "ssd-browser-resume.bin",
+          "totalSize": 4194441,
+          "expectedSha256": "c2d2f385652249ff36b6220aea3216d6f5d5383e19f35c5c7d069aea00c443c6"
+        },
+        {
+          "name": "request",
+          "time": 1791845445622,
+          "method": "POST",
+          "path": "/api/v1/uploads/session/236461fb-79a9-416d-be33-9aad481e0b47/chunk"
+        },
+        {
+          "name": "request",
+          "time": 1791845446056,
+          "method": "POST",
+          "path": "/api/v1/uploads/session/236461fb-79a9-416d-be33-9aad481e0b47/chunk"
+        },
+        {
+          "name": "request",
+          "time": 1791845447270,
+          "method": "GET",
+          "path": "/api/v1/uploads/sessions"
+        },
+        {
+          "name": "request",
+          "time": 1791845447549,
+          "method": "GET",
+          "path": "/api/v1/uploads/session/236461fb-79a9-416d-be33-9aad481e0b47"
+        },
+        {
+          "name": "request",
+          "time": 1791845447588,
+          "method": "POST",
+          "path": "/api/v1/uploads/session/236461fb-79a9-416d-be33-9aad481e0b47/chunk"
+        },
+        {
+          "name": "request",
+          "time": 1791845448025,
+          "method": "POST",
+          "path": "/api/v1/uploads/session/236461fb-79a9-416d-be33-9aad481e0b47/chunk"
+        },
+        {
+          "name": "request",
+          "time": 1791845448465,
+          "method": "POST",
+          "path": "/api/v1/uploads/session/236461fb-79a9-416d-be33-9aad481e0b47/chunk"
+        },
+        {
+          "name": "request",
+          "time": 1791845448908,
+          "method": "POST",
+          "path": "/api/v1/uploads/session/236461fb-79a9-416d-be33-9aad481e0b47/complete"
+        },
+        {
+          "name": "request",
+          "time": 1791845449724,
+          "method": "GET",
+          "path": "/api/v1/uploads/limits"
+        },
+        {
+          "name": "request",
+          "time": 1791845449748,
+          "method": "GET",
+          "path": "/api/v1/uploads/limits"
+        },
+        {
+          "name": "request",
+          "time": 1791845449782,
+          "method": "POST",
+          "path": "/api/v1/uploads/session"
+        },
+        {
+          "name": "admission",
+          "time": 1791845449782,
+          "filename": "ssd-browser-cancel.bin",
+          "totalSize": 4194441,
+          "expectedSha256": "c2d2f385652249ff36b6220aea3216d6f5d5383e19f35c5c7d069aea00c443c6"
+        },
+        {
+          "name": "request",
+          "time": 1791845449799,
+          "method": "POST",
+          "path": "/api/v1/uploads/session/67c5c7db-9073-4127-976f-d387e7528cf6/chunk"
+        },
+        {
+          "name": "request",
+          "time": 1791845450243,
+          "method": "POST",
+          "path": "/api/v1/uploads/session/67c5c7db-9073-4127-976f-d387e7528cf6/chunk"
+        },
+        {
+          "name": "request",
+          "time": 1791845450684,
+          "method": "DELETE",
+          "path": "/api/v1/uploads/session/67c5c7db-9073-4127-976f-d387e7528cf6"
+        },
+        {
+          "name": "request",
+          "time": 1791845451122,
+          "method": "GET",
+          "path": "/api/v1/uploads/limits"
+        },
+        {
+          "name": "request",
+          "time": 1791845451149,
+          "method": "GET",
+          "path": "/api/v1/uploads/limits"
+        },
+        {
+          "name": "request",
+          "time": 1791845451157,
+          "method": "POST",
+          "path": "/api/v1/uploads/session"
+        },
+        {
+          "name": "admission",
+          "time": 1791845451157,
+          "filename": "ssd-browser-busy.bin",
+          "totalSize": 512,
+          "expectedSha256": "a371f38865a1d784831cfe2fb76afa86d60fed65b02dbf199c562d213565776d"
+        },
+        {
+          "name": "request",
+          "time": 1791845451171,
+          "method": "POST",
+          "path": "/api/v1/uploads/session/071f8fc8-0bd3-4717-9901-e0d641cd2f9e/chunk"
+        },
+        {
+          "name": "request",
+          "time": 1791845451188,
+          "method": "POST",
+          "path": "/api/v1/uploads/session/071f8fc8-0bd3-4717-9901-e0d641cd2f9e/complete"
+        },
+        {
+          "name": "injected-busy503",
+          "time": 1791845451188
+        },
+        {
+          "name": "request",
+          "time": 1791845451191,
+          "method": "GET",
+          "path": "/api/v1/uploads/session/071f8fc8-0bd3-4717-9901-e0d641cd2f9e"
+        },
+        {
+          "name": "request",
+          "time": 1791845452202,
+          "method": "POST",
+          "path": "/api/v1/uploads/session/071f8fc8-0bd3-4717-9901-e0d641cd2f9e/complete"
+        },
+        {
+          "name": "injected-busy503",
+          "time": 1791845452202
+        },
+        {
+          "name": "request",
+          "time": 1791845452209,
+          "method": "GET",
+          "path": "/api/v1/uploads/session/071f8fc8-0bd3-4717-9901-e0d641cd2f9e"
+        },
+        {
+          "name": "request",
+          "time": 1791845453224,
+          "method": "POST",
+          "path": "/api/v1/uploads/session/071f8fc8-0bd3-4717-9901-e0d641cd2f9e/complete"
+        },
+        {
+          "name": "request",
+          "time": 1791845453470,
+          "method": "GET",
+          "path": "/api/v1/uploads/limits"
+        },
+        {
+          "name": "request",
+          "time": 1791845453499,
+          "method": "GET",
+          "path": "/api/v1/uploads/limits"
+        },
+        {
+          "name": "request",
+          "time": 1791845453508,
+          "method": "POST",
+          "path": "/api/v1/uploads/session"
+        },
+        {
+          "name": "admission",
+          "time": 1791845453508,
+          "filename": "ssd-browser-postcommit-loss.bin",
+          "totalSize": 1024,
+          "expectedSha256": "3ca01a07726925da6a607c835c46191def481b76b842f707ffffce98d5fcbaf3"
+        },
+        {
+          "name": "request",
+          "time": 1791845453519,
+          "method": "POST",
+          "path": "/api/v1/uploads/session/88aacc2d-09a1-4166-b873-99e109177658/chunk"
+        },
+        {
+          "name": "request",
+          "time": 1791845453538,
+          "method": "POST",
+          "path": "/api/v1/uploads/session/88aacc2d-09a1-4166-b873-99e109177658/complete"
+        },
+        {
+          "name": "injected-postcommit-response-loss",
+          "time": 1791845453561
+        },
+        {
+          "name": "request",
+          "time": 1791845453564,
+          "method": "GET",
+          "path": "/api/v1/uploads/session/88aacc2d-09a1-4166-b873-99e109177658"
+        },
+        {
+          "name": "request",
+          "time": 1791845453698,
+          "method": "GET",
+          "path": "/api/v1/uploads/limits"
+        },
+        {
+          "name": "request",
+          "time": 1791845453724,
+          "method": "GET",
+          "path": "/api/v1/uploads/limits"
+        },
+        {
+          "name": "request",
+          "time": 1791845453731,
+          "method": "POST",
+          "path": "/api/v1/uploads/session"
+        },
+        {
+          "name": "admission",
+          "time": 1791845453731,
+          "filename": "ssd-browser-exhausted.bin",
+          "totalSize": 512,
+          "expectedSha256": "a371f38865a1d784831cfe2fb76afa86d60fed65b02dbf199c562d213565776d"
+        },
+        {
+          "name": "injected-busy503",
+          "time": 1791845453731
+        },
+        {
+          "name": "request",
+          "time": 1791845454740,
+          "method": "POST",
+          "path": "/api/v1/uploads/session"
+        },
+        {
+          "name": "admission",
+          "time": 1791845454740,
+          "filename": "ssd-browser-exhausted.bin",
+          "totalSize": 512,
+          "expectedSha256": "a371f38865a1d784831cfe2fb76afa86d60fed65b02dbf199c562d213565776d"
+        },
+        {
+          "name": "injected-busy503",
+          "time": 1791845454740
+        },
+        {
+          "name": "request",
+          "time": 1791845455750,
+          "method": "POST",
+          "path": "/api/v1/uploads/session"
+        },
+        {
+          "name": "admission",
+          "time": 1791845455750,
+          "filename": "ssd-browser-exhausted.bin",
+          "totalSize": 512,
+          "expectedSha256": "a371f38865a1d784831cfe2fb76afa86d60fed65b02dbf199c562d213565776d"
+        },
+        {
+          "name": "injected-busy503",
+          "time": 1791845455750
+        },
+        {
+          "name": "request",
+          "time": 1791845456034,
+          "method": "GET",
+          "path": "/api/v1/uploads/limits"
+        },
+        {
+          "name": "request",
+          "time": 1791845456057,
+          "method": "GET",
+          "path": "/api/v1/uploads/limits"
+        },
+        {
+          "name": "request",
+          "time": 1791845456064,
+          "method": "POST",
+          "path": "/api/v1/uploads/session"
+        },
+        {
+          "name": "admission",
+          "time": 1791845456064,
+          "filename": "ssd-browser-capacity.bin",
+          "totalSize": 512,
+          "expectedSha256": "a371f38865a1d784831cfe2fb76afa86d60fed65b02dbf199c562d213565776d"
+        },
+        {
+          "name": "injected-capacity503",
+          "time": 1791845456064
+        },
+        {
+          "name": "request",
+          "time": 1791845458851,
+          "method": "GET",
+          "path": "/api/v1/uploads/sessions"
+        },
+        {
+          "name": "request",
+          "time": 1791845459251,
+          "method": "GET",
+          "path": "/api/v1/uploads/limits"
+        },
+        {
+          "name": "request",
+          "time": 1791845459283,
+          "method": "GET",
+          "path": "/api/v1/uploads/limits"
+        },
+        {
+          "name": "request",
+          "time": 1791845459291,
+          "method": "POST",
+          "path": "/api/v1/uploads/session"
+        },
+        {
+          "name": "admission",
+          "time": 1791845459291,
+          "filename": "baseline-ssd-missing-whole.bin",
+          "totalSize": 512
+        }
+      ],
+      "sessions": [
+        {
+          "uploadId": "ea317389-14af-4468-b095-b6b2cb04ba5e",
+          "filename": "ssd-browser-main.bin",
+          "expectedSha256": "c2d2f385652249ff36b6220aea3216d6f5d5383e19f35c5c7d069aea00c443c6",
+          "workspaceId": "99ca4521-b94d-4d54-94a8-7c207af52202",
+          "status": "completed",
+          "uploadedCount": 5,
+          "totalChunks": 5
+        },
+        {
+          "uploadId": "236461fb-79a9-416d-be33-9aad481e0b47",
+          "filename": "ssd-browser-resume.bin",
+          "expectedSha256": "c2d2f385652249ff36b6220aea3216d6f5d5383e19f35c5c7d069aea00c443c6",
+          "workspaceId": "99ca4521-b94d-4d54-94a8-7c207af52202",
+          "status": "completed",
+          "uploadedCount": 5,
+          "totalChunks": 5
+        },
+        {
+          "uploadId": "67c5c7db-9073-4127-976f-d387e7528cf6",
+          "filename": "ssd-browser-cancel.bin",
+          "expectedSha256": "c2d2f385652249ff36b6220aea3216d6f5d5383e19f35c5c7d069aea00c443c6",
+          "workspaceId": "99ca4521-b94d-4d54-94a8-7c207af52202",
+          "status": "aborted",
+          "uploadedCount": 2,
+          "totalChunks": 5
+        },
+        {
+          "uploadId": "071f8fc8-0bd3-4717-9901-e0d641cd2f9e",
+          "filename": "ssd-browser-busy.bin",
+          "expectedSha256": "a371f38865a1d784831cfe2fb76afa86d60fed65b02dbf199c562d213565776d",
+          "workspaceId": "99ca4521-b94d-4d54-94a8-7c207af52202",
+          "status": "completed",
+          "uploadedCount": 1,
+          "totalChunks": 1
+        },
+        {
+          "uploadId": "88aacc2d-09a1-4166-b873-99e109177658",
+          "filename": "ssd-browser-postcommit-loss.bin",
+          "expectedSha256": "3ca01a07726925da6a607c835c46191def481b76b842f707ffffce98d5fcbaf3",
+          "workspaceId": "99ca4521-b94d-4d54-94a8-7c207af52202",
+          "status": "completed",
+          "uploadedCount": 1,
+          "totalChunks": 1
+        }
+      ],
+      "files": [
+        {
+          "id": 1,
+          "name": "ssd-browser-main.bin",
+          "size": "4194441",
+          "path": "/storage/1/b7334368-6425-43fd-abe8-9f542f155a7a.ssd-finalized",
+          "relativeObjectKey": "1/b7334368-6425-43fd-abe8-9f542f155a7a.ssd-finalized",
+          "storageLocationId": "f2f5c4b0-8d57-4c49-9f8c-0d095b344601",
+          "uploadId": "ea317389-14af-4468-b095-b6b2cb04ba5e"
+        },
+        {
+          "id": 2,
+          "name": "ssd-browser-resume.bin",
+          "size": "4194441",
+          "path": "/storage/1/0bf14f66-ef81-44f1-bd5a-220863159752.ssd-finalized",
+          "relativeObjectKey": "1/0bf14f66-ef81-44f1-bd5a-220863159752.ssd-finalized",
+          "storageLocationId": "f2f5c4b0-8d57-4c49-9f8c-0d095b344601",
+          "uploadId": "236461fb-79a9-416d-be33-9aad481e0b47"
+        },
+        {
+          "id": 3,
+          "name": "ssd-browser-busy.bin",
+          "size": "512",
+          "path": "/storage/1/6b98338d-ff99-4058-ae46-6c5bca97bb65.ssd-finalized",
+          "relativeObjectKey": "1/6b98338d-ff99-4058-ae46-6c5bca97bb65.ssd-finalized",
+          "storageLocationId": "f2f5c4b0-8d57-4c49-9f8c-0d095b344601",
+          "uploadId": "071f8fc8-0bd3-4717-9901-e0d641cd2f9e"
+        },
+        {
+          "id": 4,
+          "name": "ssd-browser-postcommit-loss.bin",
+          "size": "1024",
+          "path": "/storage/1/e1a89429-f8ac-42f5-9bc5-1e8c4bcd36d6.ssd-finalized",
+          "relativeObjectKey": "1/e1a89429-f8ac-42f5-9bc5-1e8c4bcd36d6.ssd-finalized",
+          "storageLocationId": "f2f5c4b0-8d57-4c49-9f8c-0d095b344601",
+          "uploadId": "88aacc2d-09a1-4166-b873-99e109177658"
+        }
+      ],
+      "receipts": [
+        {
+          "uploadId": "236461fb-79a9-416d-be33-9aad481e0b47",
+          "state": "committed",
+          "cleanupState": "cleaned"
+        },
+        {
+          "uploadId": "ea317389-14af-4468-b095-b6b2cb04ba5e",
+          "state": "committed",
+          "cleanupState": "cleaned"
+        },
+        {
+          "uploadId": "88aacc2d-09a1-4166-b873-99e109177658",
+          "state": "committed",
+          "cleanupState": "pending"
+        },
+        {
+          "uploadId": "071f8fc8-0bd3-4717-9901-e0d641cd2f9e",
+          "state": "committed",
+          "cleanupState": "cleaned"
+        }
+      ]
+    },
+    "off": {
+      "schema": "browser_dd0b0886de1349c5b7e8e371f3612ab3",
+      "mode": false,
+      "controls": {
+        "busy": 0,
+        "busyStage": "complete",
+        "capacity": 0,
+        "delayChunkMs": 0,
+        "loseCompleteResponse": 0
+      },
+      "events": [
+        {
+          "name": "boot",
+          "time": 1791845432172,
+          "mode": false
+        },
+        {
+          "name": "request",
+          "time": 1791845457152,
+          "method": "GET",
+          "path": "/api/v1/uploads/sessions"
+        },
+        {
+          "name": "request",
+          "time": 1791845457536,
+          "method": "GET",
+          "path": "/api/v1/uploads/limits"
+        },
+        {
+          "name": "request",
+          "time": 1791845457557,
+          "method": "GET",
+          "path": "/api/v1/uploads/limits"
+        },
+        {
+          "name": "request",
+          "time": 1791845457563,
+          "method": "POST",
+          "path": "/api/v1/uploads/session"
+        },
+        {
+          "name": "admission",
+          "time": 1791845457563,
+          "filename": "legacy-browser-off.bin",
+          "totalSize": 2048
+        },
+        {
+          "name": "request",
+          "time": 1791845457580,
+          "method": "POST",
+          "path": "/api/v1/uploads/session/c3ef3ef1-50f8-438a-ad0a-cd1ca10ec6b2/chunk"
+        },
+        {
+          "name": "request",
+          "time": 1791845457607,
+          "method": "POST",
+          "path": "/api/v1/uploads/session/c3ef3ef1-50f8-438a-ad0a-cd1ca10ec6b2/complete"
+        }
+      ],
+      "sessions": [
+        {
+          "uploadId": "c3ef3ef1-50f8-438a-ad0a-cd1ca10ec6b2",
+          "filename": "legacy-browser-off.bin",
+          "expectedSha256": null,
+          "workspaceId": "87798389-88af-4ea5-a3e7-8e69a3c7bb01",
+          "status": "completed",
+          "uploadedCount": 1,
+          "totalChunks": 1
+        }
+      ],
+      "files": [
+        {
+          "id": 1,
+          "name": "legacy-browser-off.bin",
+          "size": "2048",
+          "path": "/storage/1/legacy-browser-off_c3ef3ef1-50f8-438a-ad0a-cd1ca10ec6b2.bin",
+          "relativeObjectKey": "1/legacy-browser-off_c3ef3ef1-50f8-438a-ad0a-cd1ca10ec6b2.bin",
+          "storageLocationId": "f2f5c4b0-8d57-4c49-9f8c-0d095b344601",
+          "uploadId": "c3ef3ef1-50f8-438a-ad0a-cd1ca10ec6b2"
+        }
+      ],
+      "receipts": []
+    }
+  }
+}

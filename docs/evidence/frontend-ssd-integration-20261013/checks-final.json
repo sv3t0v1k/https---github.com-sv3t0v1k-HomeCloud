@@ -1,0 +1,45 @@
+{
+  "baselineHead": "cbeca1d04ab543def8273bd7749d3458f3e5a362",
+  "implementationHead": "e755646",
+  "clientDate": "2026-10-13",
+  "checks": [
+    {
+      "name": "targeted frontend",
+      "command": "npm test -- --run src/files/wholeSha256.test.ts src/files/upload.test.ts src/files/uploadQueue.test.ts src/files/ssdUpload.test.ts src/files/ssdRetry.test.ts src/api/errors.test.ts",
+      "exitCode": 0,
+      "evidence": "targeted-final.json",
+      "passed": 114,
+      "failed": 0
+    },
+    {
+      "name": "full baseline frontend",
+      "command": "npm test -- --reporter=json",
+      "exitCode": 0,
+      "evidence": "baseline-frontend.json",
+      "passed": 218,
+      "failed": 0
+    },
+    {
+      "name": "full final candidate frontend",
+      "command": "npm test -- --reporter=json",
+      "exitCode": 0,
+      "evidence": "candidate-frontend-final.json",
+      "passed": 278,
+      "failed": 0
+    },
+    {
+      "name": "full frontend lint",
+      "command": "npm run lint",
+      "exitCode": 0,
+      "warnings": 0
+    },
+    {
+      "name": "TypeScript and Vite production build",
+      "command": "npm run build",
+      "exitCode": 0
+    }
+  ],
+  "comparison": "baseline-comparison-final.json",
+  "backendScope": "Production backend source/config/migrations unchanged; no new full-backend-suite claim",
+  "largeFileQualification": "UNQUALIFIED; 50+GiB only synthetic length trailer/legacy metadata tests, not a real payload/RSS qualification"
+}

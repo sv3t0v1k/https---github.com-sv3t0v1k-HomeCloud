@@ -1,0 +1,22 @@
+{
+  "id": "hc-frontend-ssd-c9b4b16400",
+  "removed": {
+    "containers": [
+      "hc-frontend-ssd-c9b4b16400-db",
+      "hc-frontend-ssd-c9b4b16400-on",
+      "hc-frontend-ssd-c9b4b16400-off"
+    ],
+    "volumes": [
+      "hc-frontend-ssd-c9b4b16400-on-ssd",
+      "hc-frontend-ssd-c9b4b16400-off-ssd"
+    ],
+    "networks": [
+      "hc-frontend-ssd-c9b4b16400-net"
+    ]
+  },
+  "alreadyAbsent": {
+    "containers": [],
+    "volumes": [],
+    "networks": []
+  }
+}

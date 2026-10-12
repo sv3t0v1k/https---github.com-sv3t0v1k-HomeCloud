@@ -1103,3 +1103,29 @@ client whole SHA256, historical journal reconciliation, target Linux/writer fenc
 Global SSD writer serialization и one-process Nest restart оговорены в evidence.
 **COMPLETE не установлен; SSD activation OFF / production NO_GO. Работа остановлена;
 следующий шаг только после согласования владельца.**
+
+
+## Frontend SSD Integration — ограниченный браузерный checkpoint (2026-10-13)
+
+Отдельно разрешённый этап на exact `cbeca1d04ab543def8273bd7749d3458f3e5a362`.
+Инкрементальный browser whole SHA256 с read cap2MiB, BigInt length/task yields/abort;
+GET limits и lowercase64 expectedSha256 до SSD admission, legacy OFF без whole hash.
+UI hash/upload/HDD finalization/completed, durable progress, pause/cancel/reselect/resume;
+bounded503 jitter/Retry-After и capacity distinction, без ambiguous admission replay.
+GET completed receipt не завершает финализацию сам: bounded idempotent complete POST
+освобождает pending cleanup barrier, включая resume после lost response; отмена ограничена.
+
+Final frontend targeted114/114, full278/278 PASS; exact baseline218/218, все218
+старых statuses совпали,60 новыхPASS. Lint0, TypeScript/Vite buildPASS. Real Chromium
+in isolated ARM64 Docker14/14: whole hash→SSD→HDD→exact UI download/Range, reload/resume,
+cancel, bounded busy503/capacity, OFF legacy, baselineON400; postcommitHTTP500→2POST/
+oneFile/onequota/cleaned receipt→следующая обычная SSD-загрузка PASS. Промежуточный
+12-check gate и failed barrier audit сохранены; независимый review unresolved MUST_FIX0.
+[Отчёт и точные ограничения](evidence/frontend-ssd-integration-20261013/report.md).
+
+Backend production/config/migrations и постоянный preview stack не менялись. ON только
+в disposable fixture process; mini-PC не использовался. Небольшие файлы не квалифицируют
+50+ГиБ/RSS/физические диски/power loss; startup recovery и target enrollment отдельно.
+Неаттестированные ранние anonymous volumes сохранены; blanket prune не выполнялся.
+**COMPLETE не установлен; SSD activation OFF / production NO_GO. Работа остановлена
+после этого checkpoint; следующий gate только по отдельному согласованию.**

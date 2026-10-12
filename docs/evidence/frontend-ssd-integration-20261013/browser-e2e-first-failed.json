@@ -1,0 +1,15 @@
+{
+  "fixture": "hc-frontend-ssd-c9b4b16400",
+  "browser": "Chromium actual browser",
+  "checks": [],
+  "success": false,
+  "limitations": [
+    "Small 4 MiB payloads; no 50+ GiB or RSS qualification",
+    "Docker VM filesystems are distinct devices; no physical SSD/HDD qualification",
+    "Busy/capacity503 are explicitly injected middleware responses inside the disposable backend process"
+  ],
+  "failure": {
+    "name": "TimeoutError",
+    "message": "locator.fill: Timeout 10000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByLabel('Электронная почта')\u001b[22m\n"
+  }
+}

@@ -1,0 +1,12 @@
+Captured preparation failure excerpts, chronological. These are fixture startup failures, not passing browser test runs.
+1. Owned fixture hc-frontend-ssd-627f497079; backend compilation succeeded, launch failed:
+sh: su-exec: not found
+Resolution: use image-installed su with /bin/sh override and existing uid1001 account. Owned containers, volumes and network removed.
+2. Owned fixture hc-frontend-ssd-9ba60241ca; launch failed module resolution from /fixture path:
+code: 'MODULE_NOT_FOUND'
+requireStack: [ '/fixture/server.cjs' ]
+Resolution: copy harness to /app/test for existing backend node_modules resolution. Owned containers, volumes and network removed.
+3. Owned fixture hc-frontend-ssd-c9b4b16400; first start failed migration prerequisite:
+Migration "UploadWorkspaceBinding1746825160000" failed, error: ENOENT: no such file or directory, lstat '/storage/.tmp'
+Fixture failure: ENOENT: no such file or directory, lstat '/storage/.tmp'
+Resolution: initialize /storage/.tmp within disposable root before migrations and restart only these owned containers. New run uses a fresh generated schema.

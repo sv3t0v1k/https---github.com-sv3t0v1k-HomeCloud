@@ -1,0 +1,22 @@
+{
+  "id": "hc-frontend-ssd-ad48b22e51",
+  "removed": {
+    "containers": [
+      "hc-frontend-ssd-ad48b22e51-db",
+      "hc-frontend-ssd-ad48b22e51-on",
+      "hc-frontend-ssd-ad48b22e51-off"
+    ],
+    "volumes": [
+      "hc-frontend-ssd-ad48b22e51-on-ssd",
+      "hc-frontend-ssd-ad48b22e51-off-ssd"
+    ],
+    "networks": [
+      "hc-frontend-ssd-ad48b22e51-net"
+    ]
+  },
+  "alreadyAbsent": {
+    "containers": [],
+    "volumes": [],
+    "networks": []
+  }
+}

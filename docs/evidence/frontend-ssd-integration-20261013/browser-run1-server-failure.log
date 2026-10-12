@@ -1,0 +1,6 @@
+{"timestamp":"2026-10-12T22:47:56.826Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/previews/:id/thumbnail, GET} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:47:56.826Z","level":"info","service":"homecloud-backend","message":"Mapped {/api/v1/previews/:id, GET} route","context":"RouterExplorer"}
+{"timestamp":"2026-10-12T22:47:56.847Z","level":"info","service":"homecloud-backend","message":"Nest application successfully started","context":"NestApplication"}
+{"timestamp":"2026-10-12T22:49:48.032Z","level":"info","service":"homecloud-backend","message":"http_request_completed","requestId":"09de7000-e4df-4988-b0e9-09cb220a8714","context":"HTTP","method":"POST","route":"/api/v1/auth/register","statusCode":201,"durationMs":440.459}
+{"timestamp":"2026-10-12T22:49:48.049Z","level":"info","service":"homecloud-backend","message":"http_request_completed","requestId":"dc117bde-c409-4a77-a5cc-53716ff3cf57","context":"HTTP","method":"POST","route":"unmatched","statusCode":200,"durationMs":2.565}
+{"timestamp":"2026-10-12T22:49:48.059Z","level":"error","service":"homecloud-backend","message":"http_request_completed","requestId":"50f995e9-c24f-4471-806f-af49b027d480","context":"HTTP","method":"GET","route":"unmatched","statusCode":500,"durationMs":3.516,"errorClass":"Error"}
