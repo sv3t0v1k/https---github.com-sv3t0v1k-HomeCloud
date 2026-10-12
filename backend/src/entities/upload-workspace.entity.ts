@@ -34,3 +34,14 @@ export const LEGACY_UPLOAD_WORKSPACE = {
   mountKey: LEGACY_UPLOAD_WORKSPACE_MOUNT_KEY,
   type: "local_filesystem",
 };
+
+/** Reserved temporary SSD identity; never a File storage location. */
+export const SSD_UPLOAD_WORKSPACE_ID = "99ca4521-b94d-4d54-94a8-7c207af52202";
+export const SSD_UPLOAD_WORKSPACE_KEY = "ssd-upload-workspace";
+export const SSD_UPLOAD_WORKSPACE_MOUNT_KEY = "ssd-upload-storage";
+export const SSD_UPLOAD_WORKSPACE = {
+  id: SSD_UPLOAD_WORKSPACE_ID,
+  machineKey: SSD_UPLOAD_WORKSPACE_KEY,
+  mountKey: SSD_UPLOAD_WORKSPACE_MOUNT_KEY,
+  type: "local_filesystem",
+};
