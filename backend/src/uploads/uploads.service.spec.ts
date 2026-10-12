@@ -310,6 +310,33 @@ describe("UploadsService - Post-Review Fixes", () => {
     });
   });
 
+  it("keeps historical legacy journal payload fenced when runtime SSD admission is OFF", async () => {
+    const temp = fs.mkdtempSync(path.join(os.tmpdir(), "hc-legacy-journal-guard-"));
+    const payload = path.join(temp, "0");
+    fs.writeFileSync(payload, "keep");
+    const session = { id: 1, userId: 1, uploadId: "reserved-legacy", filename: "legacy.bin",
+      workspaceId: LEGACY_UPLOAD_WORKSPACE.id, tempPath: temp, totalSize: 4, chunkSize: 4,
+      totalChunks: 1, status: "uploading", expiresAt: new Date(Date.now() - 1000) };
+    (service as any).ssdUploads = { enabled: false };
+    mockQueryRunner.manager.query = jest.fn().mockResolvedValue([{ id: "pending-operation" }]);
+    mockUploadSessionRepository.manager.query = mockQueryRunner.manager.query;
+    mockQueryRunner.manager.findOne.mockResolvedValue(session);
+    mockUploadSessionRepository.findOne.mockResolvedValue({ ...session, expiresAt: null });
+    mockUploadSessionRepository.find.mockResolvedValue([session]);
+    const cleanup = jest.spyOn(service as any, "deleteTempFiles");
+    try {
+      await expect(service.getUploadSession(1, session.uploadId)).rejects.toThrow("operator inspection");
+      await expect(service.uploadChunk(1, session.uploadId, 0, Buffer.from("keep"))).rejects.toThrow("operator inspection");
+      await expect(service.completeUpload(1, session.uploadId)).rejects.toThrow("operator inspection");
+      await expect(service.abortUpload(1, session.uploadId)).rejects.toThrow("operator inspection");
+      await expect(service.cleanupExpiredSessions()).rejects.toThrow("operator inspection");
+      expect(cleanup).not.toHaveBeenCalled();
+      expect(fs.readFileSync(payload, "utf8")).toBe("keep");
+      expect(mockUsersService.updateStorageUsed).not.toHaveBeenCalled();
+      expect(mockQueryRunner.manager.save).not.toHaveBeenCalled();
+    } finally { fs.rmSync(temp, { recursive: true, force: true }); }
+  });
+
   describe("createUploadSession - quota pre-check", () => {
     it("should reject when MAX_FILE_SIZE is 0 but quota exceeded", async () => {
       mockConfigService.get.mockImplementation((key: string) => {

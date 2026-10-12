@@ -1,3 +1,5 @@
+import { SsdUploadsService } from "./ssd-uploads.service";
+import { SSD_UPLOAD_WORKSPACE_ID } from "../entities/upload-workspace.entity";
 import { UploadWorkspaceEntity } from "../entities/upload-workspace.entity";
 import {
   UploadWorkspaceResolver,
@@ -7,6 +9,7 @@ import {
 import { parseDatabaseSize } from "../common/database-size";
 import {
   Injectable,
+  Optional,
   NotFoundException,
   ForbiddenException,
   BadRequestException,
@@ -62,6 +65,7 @@ export class UploadsService {
     private storageService: StorageService,
     private usersService: UsersService,
     private configService: ConfigService,
+    @Optional() private readonly ssdUploads?: SsdUploadsService,
   ) {
     this.workspaceResolver = new UploadWorkspaceResolver(storageService);
     const rawMaxFileSize = configService.get("MAX_FILE_SIZE");
@@ -193,7 +197,12 @@ export class UploadsService {
     totalSize: number,
     chunkSize: number,
     parentId?: number,
+    expectedSha256?: string,
   ): Promise<UploadSessionEntity> {
+    if (this.ssdUploads?.enabled)
+      return this.ssdUploads.createUploadSession(userId, filename, totalSize, chunkSize, parentId, expectedSha256);
+    if (expectedSha256 !== undefined && !/^[0-9a-f]{64}$/.test(expectedSha256))
+      throw new BadRequestException("Invalid whole SHA256");
     this.validateFilename(filename);
     if (
       parentId !== undefined &&
@@ -304,6 +313,7 @@ export class UploadsService {
         accountingInitialized: true,
         uploadedSize: 0,
         workspaceId: LEGACY_UPLOAD_WORKSPACE_ID,
+        expectedSha256: expectedSha256 ?? null,
         tempPath: sessionTempDir,
         parentId,
         status: "pending",
@@ -330,10 +340,17 @@ export class UploadsService {
     return savedSession!;
   }
 
+  private async isSsdSession(userId: number, uploadId: string): Promise<boolean> {
+    if (!this.ssdUploads?.enabled) return false;
+    const session = await this.uploadSessionRepository.findOne({ where: { userId, uploadId } });
+    return session?.workspaceId === SSD_UPLOAD_WORKSPACE_ID;
+  }
+
   async getUploadSession(
     userId: number,
     uploadId: string,
   ): Promise<UploadSessionEntity> {
+    if (await this.isSsdSession(userId, uploadId)) return this.ssdUploads!.getUploadSession(userId, uploadId);
     const session = await this.uploadSessionRepository.findOne({
       where: { uploadId, userId },
     });
@@ -346,6 +363,7 @@ export class UploadsService {
       throw new BadRequestException("Upload session expired");
     }
 
+    await this.assertLegacyUnreserved(this.uploadSessionRepository.manager, session.id);
     await this.resolveSessionWorkspace(session);
     return session;
   }
@@ -355,7 +373,10 @@ export class UploadsService {
     uploadId: string,
     chunkIndex: number,
     chunkData: Buffer | IngressChunkFile,
+    capability?: import("./ssd-uploads.service").SsdIngressCapability,
   ): Promise<UploadSessionEntity> {
+    if (await this.isSsdSession(userId, uploadId))
+      return this.ssdUploads!.uploadChunk(userId, uploadId, chunkIndex, chunkData, capability);
     // Validate chunkIndex as a finite safe nonnegative integer.
     if (
       typeof chunkIndex !== "number" ||
@@ -391,6 +412,7 @@ export class UploadsService {
           throw new NotFoundException("Upload session not found");
         }
 
+        await this.assertLegacyUnreserved(manager, session.id);
         await this.resolveSessionWorkspace(session, manager);
         bindingValidated = true;
         if (session.expiresAt && new Date() > session.expiresAt) {
@@ -534,10 +556,22 @@ export class UploadsService {
     }
   }
 
+  private async assertLegacyUnreserved(manager: EntityManager, sessionId: number): Promise<void> {
+    // Runtime DI is always present, even with SSD admission disabled. Historical
+    // isolated journals remain barriers; legacy FS effects must precede no guard.
+    if (!this.ssdUploads) return;
+    const pending = await manager.query(
+      `SELECT id FROM ssd_finalization_operations WHERE "sessionId"=$1 AND "cleanupState"='pending' LIMIT 1`,
+      [sessionId],
+    );
+    if (pending.length) throw new ServiceUnavailableException("Upload recovery requires operator inspection");
+  }
+
   private async cleanupUnpublishedAssembly(
     manager: EntityManager,
     session: UploadSessionEntity,
   ): Promise<void> {
+    await this.assertLegacyUnreserved(manager, session.id);
     if (!session.filename) return;
     const committed = await manager.findOne(FileEntity, {
       where: { uploadId: session.uploadId, userId: session.userId },
@@ -669,6 +703,7 @@ export class UploadsService {
         : null;
     const maxFileBytes = this.maxFileSize > 0 ? this.maxFileSize : null;
     return {
+      ...(this.ssdUploads?.enabled ? { storageMode: "ssd", wholeSha256Required: true } : {}),
       maxFileBytes,
       maxActiveBytes: this.maxTotalSize || null,
       maxChunkBytes: this.maxChunkSize,
@@ -710,6 +745,7 @@ export class UploadsService {
   }
 
   async completeUpload(userId: number, uploadId: string): Promise<FileEntity> {
+    if (await this.isSsdSession(userId, uploadId)) return this.ssdUploads!.completeUpload(userId, uploadId);
     let sessionTempPath: string | null = null;
     let finalPathForCleanup: string | null = null;
 
@@ -723,6 +759,7 @@ export class UploadsService {
         throw new NotFoundException("Upload session not found");
       }
 
+      await this.assertLegacyUnreserved(manager, session.id);
       sessionTempPath = await this.resolveSessionWorkspace(session, manager);
       try {
         if (session.expiresAt && new Date() > session.expiresAt) {
@@ -777,6 +814,7 @@ export class UploadsService {
         }
 
         let actualSize = 0;
+        const wholeHash = createHash("sha256");
         const assertUploadPath = this.assertUploadPath.bind(this);
         const completedSession = session;
         const totalChunks = session.totalChunks;
@@ -793,7 +831,6 @@ export class UploadsService {
           resolveDestinationClosed = resolve;
           writeStream.once("close", resolve);
         });
-
 
         try {
           async function* chunkSequence() {
@@ -824,6 +861,7 @@ export class UploadsService {
               const hash = createHash("sha256");
               for await (const bytes of chunkStream) {
                 hash.update(bytes);
+                wholeHash.update(bytes);
                 actualSize += (bytes as Buffer).length;
                 yield bytes;
               }
@@ -866,6 +904,10 @@ export class UploadsService {
           );
         }
 
+        const wholeDigest = wholeHash.digest("hex");
+        if (session.expectedSha256 && session.expectedSha256 !== wholeDigest)
+          throw new BadRequestException("Whole-file integrity mismatch");
+
         // MIME detection from header only (memory-safe for large files).
         const HEADER_SIZE = 4100;
         this.assertUploadPath(finalPath, false);
@@ -895,6 +937,7 @@ export class UploadsService {
           ...this.storageService.placementForPath(finalPath),
           size: actualSize,
           mimeType,
+          checksum: session.expectedSha256 ? wholeDigest : undefined,
           isFolder: false,
           parentId: session.parentId || undefined,
           userId,
@@ -951,6 +994,7 @@ export class UploadsService {
   }
 
   async abortUpload(userId: number, uploadId: string): Promise<void> {
+    if (await this.isSsdSession(userId, uploadId)) { await this.ssdUploads!.abortUpload(userId, uploadId); return; }
     await this.withTransaction(async (manager) => {
       const session = await manager.findOne(UploadSessionEntity, {
         where: { uploadId, userId },
@@ -1012,6 +1056,7 @@ export class UploadsService {
   }
 
   async reconcileUploadSession(userId: number, uploadId: string) {
+    if (await this.isSsdSession(userId, uploadId)) return this.ssdUploads!.reconcileUploadSession(userId, uploadId);
     return this.withTransaction(async (manager) => {
       // Serializes with chunk commit, finalization, abort, and expiry cleanup.
       const session = await manager.findOne(UploadSessionEntity, {
@@ -1086,8 +1131,12 @@ export class UploadsService {
       order: { createdAt: "DESC" },
       take: 200,
     });
-    for (const session of sessions) await this.resolveSessionWorkspace(session);
-    return sessions.map((session) => this.toSessionMetadata(session));
+    const visible = sessions.filter(session => session.workspaceId !== SSD_UPLOAD_WORKSPACE_ID || this.ssdUploads?.enabled);
+    for (const session of visible) {
+      if (session.workspaceId === SSD_UPLOAD_WORKSPACE_ID) await this.ssdUploads?.getUploadSession(userId, session.uploadId);
+      else await this.resolveSessionWorkspace(session);
+    }
+    return visible.map((session) => this.toSessionMetadata(session));
   }
 
   async cleanupExpiredSessions(): Promise<number> {
@@ -1096,6 +1145,7 @@ export class UploadsService {
     });
     let cleaned = 0;
     for (const candidate of sessions) {
+      if (candidate.workspaceId === SSD_UPLOAD_WORKSPACE_ID) continue;
       cleaned += await this.withTransaction(async (manager) => {
         const session = await manager.findOne(UploadSessionEntity, {
           where: { id: candidate.id },
@@ -1116,7 +1166,7 @@ export class UploadsService {
         return terminal ? 0 : 1;
       });
     }
-    return cleaned;
+    return cleaned + (this.ssdUploads?.enabled ? await this.ssdUploads.cleanupExpiredSessions() : 0);
   }
 
   /**
@@ -1144,14 +1194,20 @@ export class UploadsService {
           "session.status AS status",
         ])
         .getRawMany<UploadSessionEntity>();
-      const resolved = rows.map((row) => ({
+      const barriers = this.ssdUploads
+        ? await this.uploadSessionRepository.manager.query(
+          `SELECT s."tempPath" FROM upload_sessions s JOIN ssd_finalization_operations op ON op."sessionId"=s.id WHERE op."cleanupState"='pending' AND s."workspaceId"=$1`,
+          [LEGACY_UPLOAD_WORKSPACE_ID],
+        ) : [];
+      const reservedPaths = new Set(barriers.map((row: { tempPath: string }) => row.tempPath));
+      const resolved = rows.filter(row => row.workspaceId !== SSD_UPLOAD_WORKSPACE_ID).map((row) => ({
         row,
         path: this.workspaceResolver.resolve(row, workspace),
       }));
       referenced = new Set(
         resolved
           .filter(
-            ({ row }) => row.status === "pending" || row.status === "uploading",
+            ({ row, path }) => row.status === "pending" || row.status === "uploading" || reservedPaths.has(path),
           )
           .map(({ path }) => path),
       );

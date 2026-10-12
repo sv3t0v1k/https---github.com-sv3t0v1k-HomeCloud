@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import { FileEntity } from "../entities/file.entity";
-import { FinalizationChunk } from "./ssd-finalization-contract";
+import { FinalizationChunk, FinalizationOperation } from "./ssd-finalization-contract";
 import {
   ArtifactIdentity,
   RecoveryFilesystem,
@@ -19,7 +19,7 @@ import {
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Explicit restart entry point, unwired from API/bootstrap/schedulers.
+/** One recovery attempt, used by API replay and an explicitly configured startup sweep.
  * Each invocation makes one bounded replay attempt. Journal truth is always
  * fetched from the primary DB; errors never compensate or delete target bytes.
  */
@@ -27,6 +27,7 @@ export class SsdFinalizationRecovery {
   constructor(
     private readonly store: RecoveryStore,
     private readonly filesystem: RecoveryFilesystem,
+    private readonly checkpointMetadata?: (fd: number, operation: FinalizationOperation) => Promise<void>,
   ) {}
 
   async recover(operationId: string): Promise<FileEntity | null> {
@@ -119,6 +120,8 @@ export class SsdFinalizationRecovery {
             operation.expectedSha256,
           );
           this.filesystem.syncTarget(operation.binding, !!final);
+          if (operation.state === "verified" && !operation.mimeTypeCheckpointed)
+            await this.checkpointMetadata?.(artifact.fd, operation);
         } finally {
           if (temporary) await close(temporary.fd);
           if (final) await close(final.fd);

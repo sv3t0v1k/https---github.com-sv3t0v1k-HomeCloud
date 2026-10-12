@@ -1,3 +1,6 @@
+import { StorageEngine } from "multer";
+import { SsdUploadsModule } from "./ssd-uploads.module";
+import { SsdIngressCapability } from "./ssd-uploads.service";
 import {
   UploadWorkspaceResolver,
   LEGACY_UPLOAD_WORKSPACE,
@@ -50,9 +53,30 @@ class SecureUploadMulterOptions implements MulterOptionsFactory {
     guard(ingressPath);
     resolver.filesystem().mkdir(ingressPath);
     return {
-      storage: abortableDiskStorage(ingressPath, guard, () =>
-        resolver.filesystem(),
-      ),
+      storage: {
+        _handleFile(request, file, callback) {
+          const state = request as typeof request & {
+            ssdIngress?: SsdIngressCapability;
+            ingressFinalizePending?: boolean;
+            closeIngress?: () => void;
+          };
+          const cap = state.ssdIngress;
+          const engine = cap
+            ? abortableDiskStorage(cap.destination, cap.guard, () => cap.filesystem)
+            : abortableDiskStorage(ingressPath, guard, () => resolver.filesystem());
+          engine._handleFile(request, file, (error, result) => {
+            callback(error, result);
+            if (state.ingressFinalizePending) state.closeIngress?.();
+          });
+        },
+        _removeFile(request, file, callback) {
+          const cap = (request as typeof request & { ssdIngress?: SsdIngressCapability }).ssdIngress;
+          const engine = cap
+            ? abortableDiskStorage(cap.destination, cap.guard, () => cap.filesystem)
+            : abortableDiskStorage(ingressPath, guard, () => resolver.filesystem());
+          engine._removeFile(request, file, callback);
+        },
+      } satisfies StorageEngine,
       limits: {
         fileSize: getMulterFileSizeLimit(
           this.configService.get("MAX_CHUNK_SIZE"),
@@ -77,6 +101,7 @@ class SecureUploadMulterOptions implements MulterOptionsFactory {
       FolderEntity,
     ]),
     StorageModule,
+    SsdUploadsModule,
     FilesModule,
     UsersModule,
     AuthModule,

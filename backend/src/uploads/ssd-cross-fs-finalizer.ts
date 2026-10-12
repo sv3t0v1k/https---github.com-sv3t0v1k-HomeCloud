@@ -3,6 +3,7 @@ import { FileEntity } from "../entities/file.entity";
 import {
   FinalizationFilesystem,
   FinalizationStore,
+  FinalizationOperation,
 } from "./ssd-finalization-contract";
 
 import {
@@ -16,14 +17,15 @@ export { FINALIZER_BUFFER_BYTES } from "./ssd-finalization-stream";
 const sha256 = /^[a-f0-9]{64}$/;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Isolated, explicitly invoked component: deliberately absent from Nest providers,
- * controllers, startup recovery and schedulers. No retries or destructive compensation.
+/** One operation, constructed by the SSD runtime factory or explicit isolated tests.
+ * No retries or destructive compensation.
  * A durable global journal reservation additionally fences other processes/restarts.
  */
 export class SsdCrossFsFinalizer {
   constructor(
     private readonly store: FinalizationStore,
     private readonly filesystem: FinalizationFilesystem,
+    private readonly checkpointMetadata?: (fd: number, operation: FinalizationOperation) => Promise<void>,
   ) {}
 
   async finalize(input: {
@@ -61,10 +63,16 @@ export class SsdCrossFsFinalizer {
       fd = this.filesystem.createTemporary(binding);
       await this.store.recordTarget(id, identity(fd));
       await assemble(operation, this.store, this.filesystem, fd);
+      await this.store.transition(id, "assembling", "verified");
+      if (this.checkpointMetadata) {
+        if (!this.filesystem.openMetadata) throw new Error("Readable verified target capability required");
+        const metadataFd = this.filesystem.openMetadata(binding);
+        try { await this.checkpointMetadata(metadataFd, operation); }
+        finally { await close(metadataFd); }
+      }
       const completedFd = fd;
       fd = undefined;
       await close(completedFd);
-      await this.store.transition(id, "assembling", "verified");
       this.filesystem.assertBinding(binding);
       // Intent precedes rename: a crash/error can leave either name. Recovery
       // must inspect identity+bytes; never infer absence from the journal alone.

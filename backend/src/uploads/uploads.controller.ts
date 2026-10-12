@@ -54,6 +54,7 @@ export class UploadsController {
       dto.totalSize,
       dto.chunkSize,
       dto.parentId,
+      dto.expectedSha256,
     );
     return this.uploadsService.toSessionMetadata(session);
   }
@@ -86,6 +87,7 @@ export class UploadsController {
         path: chunk.path,
         size: chunk.size,
       } satisfies IngressChunkFile,
+      (req as ExpressRequest & { ssdIngress?: import("./ssd-uploads.service").SsdIngressCapability }).ssdIngress,
     );
     return this.uploadsService.toSessionMetadata(session);
   }

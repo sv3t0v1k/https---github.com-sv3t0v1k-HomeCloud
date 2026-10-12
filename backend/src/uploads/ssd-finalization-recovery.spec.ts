@@ -259,6 +259,17 @@ describe("isolated SSD recovery restart and cleanup orchestration (portable)", (
     fs.rmSync(root, { recursive: true, force: true });
   });
 
+  it("replays durable MIME checkpoint without rerunning a failing detector", async () => {
+    seed("verified", "temporary");
+    operation.mimeType = "image/png";
+    operation.mimeTypeCheckpointed = true;
+    const metadata = jest.fn(async () => { throw new Error("Detector unavailable"); });
+    await expect(new SsdFinalizationRecovery(store, filesystem(), metadata).recover(id)).resolves.toMatchObject({ size: bytes.length });
+    expect(metadata).not.toHaveBeenCalled();
+    expect(operation.cleanupState).toBe("cleaned");
+    expect(quota).toBe(bytes.length);
+  });
+
   it.each([
     ["assembling", "none"],
     ["assembling", "partial"],

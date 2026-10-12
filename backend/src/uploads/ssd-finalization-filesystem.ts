@@ -25,7 +25,7 @@ interface Pin {
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-/** One explicit, isolated operation. No providers/routes.
+/** Descriptor capability for one operation; runtime factories never share its fence.
  * SecureFilesystem requires Linux openat2/RENAME_NOREPLACE; there is no fallback.
  * Directory descriptors retain identities until close, including after rename.
  */
@@ -302,6 +302,19 @@ export class IsolatedSsdFinalizationFilesystem
       fs.closeSync(fd);
       throw error;
     }
+  }
+
+  openMetadata(binding: FinalizationBinding): number {
+    this.assertBinding(binding);
+    if (!this.temporaryPin || this.published) throw new Error("Verified temporary unavailable");
+    const fd = this.target!.open(binding.temporaryPath);
+    try {
+      const stat = fs.fstatSync(fd, { bigint: true });
+      this.assertRegularFile(stat);
+      if (stat.dev.toString() !== this.temporaryPin.device || stat.ino.toString() !== this.temporaryPin.inode)
+        throw new Error("Metadata target identity changed");
+      return fd;
+    } catch (error) { fs.closeSync(fd); throw error; }
   }
 
   inspectTarget(
