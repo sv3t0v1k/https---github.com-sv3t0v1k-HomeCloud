@@ -1,0 +1,72 @@
+{
+  "baseHead": "84c6974bf8dfae1884de557f4b73b6cc99b49a14",
+  "baseline": {
+    "numPassedTests": 879,
+    "numFailedTests": 71,
+    "numPendingTests": 0,
+    "numPassedTestSuites": 66,
+    "numFailedTestSuites": 6
+  },
+  "candidate": {
+    "numPassedTests": 947,
+    "numFailedTests": 71,
+    "numPendingTests": 0,
+    "numPassedTestSuites": 69,
+    "numFailedTestSuites": 6
+  },
+  "existingTestsCompared": 950,
+  "changedExistingTests": [],
+  "newTests": 68,
+  "newFailures": [],
+  "failedSuites": [
+    "src/uploads/uploads.service.postgres.spec.ts",
+    "src/uploads/upload-rate-limit.spec.ts",
+    "src/uploads/upload-rate-limit.postgres.spec.ts",
+    "src/uploads/upload-workspace.spec.ts",
+    "src/uploads/ingress-file-cleanup.interceptor.spec.ts",
+    "src/uploads/secure-filesystem.spec.ts"
+  ],
+  "platform": "macOS/arm64",
+  "implementationHead": "daf4c94cfbe5a2d3d938c517f04b26c3f3086437",
+  "targeted": {
+    "numPassedTests": 107,
+    "numFailedTests": 0,
+    "numPendingTests": 0,
+    "numPassedTestSuites": 8,
+    "numFailedTestSuites": 0
+  },
+  "lint": {
+    "errors": 0,
+    "baselineWarnings": 15
+  },
+  "typecheck": "PASS",
+  "build": "PASS",
+  "review": "No remaining MUST_FIX for isolated 2.1–2.2; independent read-only source review",
+  "disposablePostgresStopped": true,
+  "scope": {
+    "legacyIngress": "unchanged",
+    "ssdIngress": "disabled",
+    "runtimeWiring": false,
+    "recoveryCleanup": false,
+    "physicalDisksQualification": false,
+    "linuxNativeQualification": false,
+    "rss50GiBQualification": false,
+    "completeSet": false
+  },
+  "rawEvidence": "/private/tmp/homecloud-stage2-20261012",
+  "implementationCommits": [
+    "56a7e9e",
+    "ecc6b85",
+    "daf4c94"
+  ],
+  "testedSourceSha256": {
+    "backend/src/migrations/1746825180000-IsolatedSsdFinalizationJournal.ts": "7730dbd54d8d800268e67bb199e1f98e85d55cf1ba418d52d0ec36edb24df197",
+    "backend/src/uploads/ssd-finalization-contract.ts": "7b6ea2a5d37cee9ce80f620619f04e256384ae93e98660291b3e6b1bc2baf263",
+    "backend/src/uploads/ssd-finalization-store.ts": "f876d92cc68ae33a1457d2c4fb20f3a0d59ae7b564301aab902eebf9f410ed8a",
+    "backend/src/uploads/ssd-finalization-store.postgres.spec.ts": "0d9ce92e1b8b0a606a88e1ae7ca4650b92e523a2f6dafbdc97a9f562b563afe2",
+    "backend/src/uploads/ssd-finalization-filesystem.ts": "f0ce39f11ebb6ec92d59a0a6e2722b08f77dbbd36eede7f13f0a1dbb63144426",
+    "backend/src/uploads/ssd-finalization-filesystem.spec.ts": "a267a1143113aad0cc3b721d65081a1ccc373d77f924a58a0da17863513001d6",
+    "backend/src/uploads/ssd-cross-fs-finalizer.ts": "ac8c1e348302d78bb44ebc65e52641f5e1a9e6410747d36f3473da15681906a5",
+    "backend/src/uploads/ssd-cross-fs-finalizer.spec.ts": "8b0ec58dc5651dd54a958d74e4dfdc59cdb8a040b36d14792145d784d6040a06"
+  }
+}

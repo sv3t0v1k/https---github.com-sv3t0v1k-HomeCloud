@@ -1019,3 +1019,35 @@ Live сервер, Docker/VM, реальные диски, persistent volumes и
 
 После отчёта остановиться. Cross-FS finalizer, recovery, перенос данных и реальные
 50 GiB испытания требуют отдельного разрешения владельца; автоматически не начинать.
+
+
+## SSD→HDD — изолированный finalizer, только этапы 2.1–2.2 (2026-10-12)
+
+Отдельно разрешённая реализация после этапа 1, база `84c6974`.
+Добавлены internal unwired finalizer, bounded64KiB последовательная SSD chunk
+assembly во temporary HDD file, manifest/chunk/whole SHA-256/size verification,
+fsync и native no-overwrite HDD publication. Короткая PostgreSQL transaction
+атомарно фиксирует File/quota/session; immutable durable operation journal и
+sealed paginated manifest сохраняют intent/bindings для будущего recovery.
+Все source chunks удерживаются; незавершённая операция блокирует новые finalizations.
+
+Обычные uploads/API/session admission остаются legacy; SSD ingress не включён.
+Новый runtime не зарегистрирован в providers/controllers/schedulers. Existing
+legacy guards/rows сохранены; новая additive migration `1746825180000` проверена
+up/down на populated isolated PostgreSQL schema. Live сервер, Docker/VM,
+реальные диски/данные/volumes не затрагивались.
+
+Targeted107/107, actual PostgreSQL25/25 PASS. Full947PASS/71FAIL; exact base
+879PASS/те же71FAIL. Статусы всех950исходных test instances совпадают, новых
+падений нет. Lint0errors/15прежних warnings, typecheck/build PASS.
+Independent review: unresolved MUST_FIX в изолированном scope отсутствуют.
+[Отчёт, crash windows, checks и review](evidence/ssd-hdd-stage2-20261012/report.md).
+
+Crash около rename/fsync и ambiguous commit требуют дальнейшего recovery;
+DB guards не заменяют API filesystem fencing. Portable doubles не квалифицируют
+Linux native boundary/physical cross-FS/power loss/RSS на8GiB host/50+GiB.
+Implementation/test checkpoint `daf4c94`; финальный documentation HEAD/status
+записан в отдельном closure-state, ссылка в отчёте.
+**COMPLETE не установлен; production NOT_READY / NO_GO сохраняется.**
+Этап2.3 recovery/cleanup, SSD admission/routing и реальные испытания не начаты;
+продолжение только после отдельного согласования. После2.1–2.2 работа остановлена.
