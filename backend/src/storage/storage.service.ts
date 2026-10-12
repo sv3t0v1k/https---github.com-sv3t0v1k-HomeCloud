@@ -4,6 +4,9 @@ import * as fs from "fs";
 import * as path from "path";
 import * as crypto from "crypto";
 import { Readable } from "stream";
+import { ssdUploadBinding } from "./ssd-upload-binding";
+import { SSD_UPLOAD_WORKSPACE } from "../entities/upload-workspace.entity";
+import { ApprovedRoot, legacyBinding } from "./storage-mount-registry";
 import { LEGACY_STORAGE_ID } from "./storage-mount-registry";
 import { FilePlacement, StorageRegistry } from "./storage-placement";
 
@@ -13,14 +16,17 @@ export class StorageService implements OnModuleDestroy {
   private readonly storagePath: string;
   private readonly tempPath: string;
   private readonly registry: StorageRegistry;
+  private readonly ssdBinding: ApprovedRoot | undefined;
 
   constructor(private configService: ConfigService) {
     this.storagePath = configService.get("STORAGE_PATH") || "/storage";
     this.tempPath = path.join(this.storagePath, ".tmp");
-    this.registry = new StorageRegistry(
-      this.storagePath,
-      configService.get("NODE_ENV") === "production",
-    );
+    const production = configService.get("NODE_ENV") === "production";
+    this.ssdBinding = ssdUploadBinding(configService, this.storagePath);
+    this.registry = new StorageRegistry(this.storagePath, production, [
+      legacyBinding(this.storagePath, production),
+      ...(this.ssdBinding ? [this.ssdBinding] : []),
+    ]);
     try {
       this.ensureDirectories();
     } catch (error) {
@@ -74,6 +80,63 @@ export class StorageService implements OnModuleDestroy {
   getTempPath(): string {
     this.registry.assertTemporaryPath(this.tempPath);
     return this.tempPath;
+  }
+
+  /** Stage 1 preparation only. Never used for File placement or normal upload admission. */
+  getPreparedSsdRoot(): string {
+    if (!this.ssdBinding) throw new Error("Temporary SSD is not configured");
+    this.registry.mounts.assertAccess(SSD_UPLOAD_WORKSPACE.id, true);
+    // A second directory/bind of the permanent filesystem is not a second volume.
+    if (
+      fs.lstatSync(this.ssdBinding.root).dev ===
+      fs.lstatSync(this.storagePath).dev
+    )
+      throw new Error("Temporary SSD must use a separate filesystem");
+    return this.ssdBinding.root;
+  }
+
+  assertPreparedSsdPath(absolute: string): string {
+    const root = this.getPreparedSsdRoot();
+    if (
+      typeof absolute !== "string" ||
+      absolute !== path.resolve(absolute) ||
+      absolute.includes("\\") ||
+      absolute.includes("\0") ||
+      !(absolute === root || absolute.startsWith(root + path.sep))
+    )
+      throw new Error("Unsafe temporary SSD path");
+    const rootStat = fs.lstatSync(root);
+    const realRoot = fs.realpathSync(root);
+    let current = root;
+    for (const component of path
+      .relative(root, absolute)
+      .split(path.sep)
+      .filter(Boolean)) {
+      current = path.join(current, component);
+      let stat: fs.Stats;
+      try {
+        stat = fs.lstatSync(current);
+      } catch (error) {
+        if ((error as { code?: string }).code === "ENOENT") return absolute;
+        throw error;
+      }
+      if (
+        stat.isSymbolicLink() ||
+        stat.dev !== rootStat.dev ||
+        fs.realpathSync(current) !==
+          path.join(realRoot, path.relative(root, current)) ||
+        (stat.isDirectory() &&
+          ((stat.mode & 0o022) !== 0 || stat.uid !== process.getuid?.()))
+      )
+        throw new Error("Unsafe temporary SSD object");
+    }
+    return absolute;
+  }
+
+  preparedSsdDiagnostic() {
+    return this.ssdBinding
+      ? this.registry.mounts.inspect(SSD_UPLOAD_WORKSPACE.id)
+      : undefined;
   }
 
   generateSafeFilename(originalName: string): string {

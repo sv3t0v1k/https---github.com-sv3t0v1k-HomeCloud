@@ -1,3 +1,4 @@
+import { SSD_UPLOAD_WORKSPACE } from "../entities/upload-workspace.entity";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -13,9 +14,15 @@ export interface ApprovedRoot {
   readonly mountKey: string;
   readonly root: string;
   readonly writable: boolean;
-  readonly profile: "trusted-legacy" | "blocked";
+  readonly profile: "trusted-legacy" | "trusted-upload" | "blocked";
+  readonly expectedMount?: ExpectedMount;
   readonly requireMount: boolean;
   readonly requireMarker: boolean;
+}
+export interface ExpectedMount {
+  readonly source: string;
+  readonly filesystemRoot: string;
+  readonly filesystemType: string;
 }
 export interface MountIdentity {
   fingerprint: string;
@@ -54,6 +61,7 @@ export function validateRoot(root: string): void {
 export function linuxMountIdentity(
   root: string,
   mountinfo: string,
+  expected?: ExpectedMount,
 ): MountIdentity | undefined {
   const decode = (value: string) =>
     value.replace(/\\(040|011|012|134)/g, (_, octal: string) =>
@@ -74,6 +82,13 @@ export function linuxMountIdentity(
   const matches = entries.filter(({ fields }) => decode(fields[4]) === root);
   if (matches.length !== 1) return undefined;
   const { fields: f, separator: s } = matches[0];
+  if (
+    expected &&
+    (decode(f[s + 2]) !== expected.source ||
+      decode(f[3]) !== expected.filesystemRoot ||
+      f[s + 1] !== expected.filesystemType)
+  )
+    return undefined;
   return {
     fingerprint: JSON.stringify([
       f[0],
@@ -219,7 +234,9 @@ export class StorageMountRegistry {
         machineKeys.has(input.machineKey) ||
         mountKeys.has(input.mountKey) ||
         roots.has(input.root) ||
-        !["trusted-legacy", "blocked"].includes(input.profile) ||
+        !["trusted-legacy", "trusted-upload", "blocked"].includes(
+          input.profile,
+        ) ||
         (input.profile === "trusted-legacy" &&
           (input.id !== LEGACY_STORAGE_ID ||
             input.machineKey !== LEGACY_STORAGE_KEY ||
@@ -227,11 +244,32 @@ export class StorageMountRegistry {
       )
         throw new Error("Invalid or duplicate approved storage binding");
       if (
+        input.profile === "trusted-upload" &&
+        (input.id !== SSD_UPLOAD_WORKSPACE.id ||
+          input.machineKey !== SSD_UPLOAD_WORKSPACE.machineKey ||
+          input.mountKey !== SSD_UPLOAD_WORKSPACE.mountKey ||
+          !input.requireMount ||
+          !input.requireMarker ||
+          !input.expectedMount ||
+          !path.isAbsolute(input.expectedMount.source) ||
+          !path.isAbsolute(input.expectedMount.filesystemRoot) ||
+          !["ext4", "xfs"].includes(input.expectedMount.filesystemType))
+      )
+        throw new Error("Unqualified temporary SSD binding");
+      if (
         input.profile === "blocked" &&
         (!input.requireMount || !input.requireMarker)
       )
         throw new Error("Unqualified storage binding");
-      this.bindings.set(input.id, Object.freeze({ ...input }));
+      this.bindings.set(
+        input.id,
+        Object.freeze({
+          ...input,
+          ...(input.expectedMount
+            ? { expectedMount: Object.freeze({ ...input.expectedMount }) }
+            : {}),
+        }),
+      );
       machineKeys.add(input.machineKey);
       mountKeys.add(input.mountKey);
       roots.add(input.root);
@@ -281,6 +319,7 @@ export class StorageMountRegistry {
         mount = linuxMountIdentity(
           binding.root,
           fs.readFileSync("/proc/self/mountinfo", "utf8"),
+          binding.expectedMount,
         );
         if (!mount) return result("offline", "exact-mount-absent-ambiguous-or-nested");
       }
@@ -334,7 +373,7 @@ export class StorageMountRegistry {
       return result(
         "read-only",
         "write-disabled",
-        binding.profile === "trusted-legacy",
+        binding.profile !== "blocked",
       );
     if (binding.profile === "blocked")
       return result("degraded", "secure-open-unavailable");
