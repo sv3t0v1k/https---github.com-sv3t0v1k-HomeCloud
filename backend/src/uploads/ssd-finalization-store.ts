@@ -10,20 +10,27 @@ import {
   FinalizationBinding,
   FinalizationChunk,
   FinalizationOperation,
-  FinalizationStore,
 } from "./ssd-finalization-contract";
+import {
+  ArtifactIdentity,
+  RecoveryOperation,
+  RecoveryStore,
+} from "./ssd-recovery-contract";
 
 interface JournalRow extends Omit<FinalizationOperation, "totalSize"> {
   totalSize: string;
   state: string;
   fileId: number | null;
+  targetArtifactDevice: string | null;
+  targetArtifactInode: string | null;
+  cleanupState: "pending" | "cleaned";
 }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const hash = /^[0-9a-f]{64}$/;
 const sessionColumns = `id,"userId","uploadId",filename,"parentId","totalSize","chunkSize","totalChunks","uploadedCount","uploadedSize","accountingInitialized","workspaceId",status,"expiresAt"`;
 
-/** Isolated caller only. No injectable provider, route, cleanup or recovery entry point. */
-export class PostgresSsdFinalizationStore implements FinalizationStore {
+/** Isolated caller only. No injectable provider or route. Payload I/O never enters a transaction. */
+export class PostgresSsdFinalizationStore implements RecoveryStore {
   constructor(private readonly db: DataSource) {}
 
   private validateBinding(binding: FinalizationBinding): void {
@@ -101,6 +108,208 @@ export class PostgresSsdFinalizationStore implements FinalizationStore {
       expectedSha256: row.expectedSha256,
       binding: row.binding,
     };
+  }
+
+  private async outcome(
+    manager: EntityManager,
+    row: JournalRow,
+  ): Promise<{ operation: RecoveryOperation; file: FileEntity | null }> {
+    const operation = this.operation(row);
+    this.validateBinding(operation.binding);
+    if (
+      ![
+        "assembling",
+        "verified",
+        "publishing",
+        "published",
+        "committed",
+      ].includes(row.state) ||
+      !["pending", "cleaned"].includes(row.cleanupState) ||
+      (row.state === "committed") !== (row.fileId !== null) ||
+      (row.cleanupState === "cleaned" && row.state !== "committed")
+    )
+      throw new Error("Ambiguous finalization journal");
+    const targetIdentity =
+      row.targetArtifactDevice === null && row.targetArtifactInode === null
+        ? null
+        : {
+            device: row.targetArtifactDevice!,
+            inode: row.targetArtifactInode!,
+          };
+    if (
+      (targetIdentity &&
+        (!/^(0|[1-9][0-9]*)$/.test(targetIdentity.device) ||
+          !/^(0|[1-9][0-9]*)$/.test(targetIdentity.inode) ||
+          targetIdentity.device !== row.binding.targetDevice)) ||
+      (row.state !== "assembling" && targetIdentity === null)
+    )
+      throw new Error("Ambiguous finalization target identity");
+    const recovery = {
+      ...operation,
+      state: row.state as RecoveryOperation["state"],
+      targetIdentity,
+      cleanupState: row.cleanupState,
+    };
+    const files = await manager.query(
+      `SELECT * FROM files WHERE id=$1 OR ("userId"=$2 AND "uploadId"=$3) FOR SHARE`,
+      [row.fileId, row.userId, row.uploadId],
+    );
+    // Once cleaned, ordinary file lifecycle is released. The retained journal remains the commit receipt.
+    if (row.cleanupState === "cleaned") {
+      const file = files.find((value: FileEntity) => value.id === row.fileId);
+      return {
+        operation: recovery,
+        file: file
+          ? Object.assign(new FileEntity(), file, { size: Number(file.size) })
+          : null,
+      };
+    }
+    const sessions = await manager.query(
+      `SELECT ${sessionColumns} FROM upload_sessions WHERE id=$1 FOR SHARE`,
+      [row.sessionId],
+    );
+    const session = sessions[0];
+    if (
+      sessions.length !== 1 ||
+      session.userId !== row.userId ||
+      session.uploadId !== row.uploadId ||
+      session.filename !== row.filename ||
+      session.parentId !== row.parentId ||
+      String(session.totalSize) !== String(row.totalSize) ||
+      session.chunkSize !== row.chunkSize ||
+      session.totalChunks !== row.totalChunks ||
+      session.uploadedCount !== row.totalChunks ||
+      String(session.uploadedSize) !== String(row.totalSize) ||
+      !session.accountingInitialized ||
+      session.workspaceId !== LEGACY_UPLOAD_WORKSPACE_ID ||
+      (row.state === "committed"
+        ? session.status !== "completed"
+        : !["pending", "uploading"].includes(session.status))
+    )
+      throw new Error("Ambiguous finalization session outcome");
+    if (row.state !== "committed") {
+      if (files.length) throw new Error("Ambiguous uncommitted File outcome");
+      return { operation: recovery, file: null };
+    }
+    const file = files[0];
+    if (
+      files.length !== 1 ||
+      file.id !== row.fileId ||
+      file.userId !== row.userId ||
+      file.uploadId !== row.uploadId ||
+      file.name !== row.filename ||
+      String(file.size) !== String(row.totalSize) ||
+      file.checksum !== row.expectedSha256 ||
+      file.parentId !== row.parentId ||
+      file.isFolder ||
+      file.isDeleted ||
+      file.storageLocationId !== row.binding.targetStorageId ||
+      file.relativeObjectKey !== row.binding.relativeObjectKey ||
+      file.storagePath !== row.binding.storagePath
+    )
+      throw new Error("Ambiguous committed File outcome");
+    return {
+      operation: recovery,
+      file: Object.assign(new FileEntity(), file, {
+        size: operation.totalSize,
+      }),
+    };
+  }
+
+  async lookup(
+    id: string,
+  ): Promise<{ operation: RecoveryOperation; file: FileEntity | null }> {
+    if (!uuid.test(id)) throw new Error("Invalid operation identity");
+    // A primary transaction and row locks give one authoritative outcome; never infer commit from an exception.
+    return this.db.transaction(async (manager) => {
+      const [row]: JournalRow[] = await manager.query(
+        `SELECT * FROM ssd_finalization_operations WHERE id=$1 FOR UPDATE`,
+        [id],
+      );
+      if (!row) throw new Error("Unknown finalization operation");
+      return this.outcome(manager, row);
+    });
+  }
+
+  async recordTarget(id: string, identity: ArtifactIdentity): Promise<void> {
+    if (
+      !uuid.test(id) ||
+      !/^(0|[1-9][0-9]*)$/.test(identity.device) ||
+      !/^(0|[1-9][0-9]*)$/.test(identity.inode)
+    )
+      throw new Error("Invalid target identity checkpoint");
+    await this.db.transaction(async (manager) => {
+      await this.requireDurability(manager);
+      const [row]: JournalRow[] = await manager.query(
+        `SELECT * FROM ssd_finalization_operations WHERE id=$1 FOR UPDATE`,
+        [id],
+      );
+      if (
+        !row ||
+        row.state !== "assembling" ||
+        identity.device !== row.binding.targetDevice
+      )
+        throw new Error(
+          "Target identity checkpoint requires assembling operation",
+        );
+      if (
+        row.targetArtifactDevice !== null ||
+        row.targetArtifactInode !== null
+      ) {
+        if (
+          row.targetArtifactDevice !== identity.device ||
+          row.targetArtifactInode !== identity.inode
+        )
+          throw new Error("Target identity checkpoint is immutable");
+        return;
+      }
+      await manager.query(
+        `UPDATE ssd_finalization_operations SET "targetArtifactDevice"=$2,"targetArtifactInode"=$3,"updatedAt"=now() WHERE id=$1`,
+        [id, identity.device, identity.inode],
+      );
+    });
+  }
+
+  async finishCleanup(id: string): Promise<void> {
+    if (!uuid.test(id)) throw new Error("Invalid operation identity");
+    // Caller holds the filesystem fence and has synced the verified HDD object and owned chunk removals.
+    await this.db.transaction(async (manager) => {
+      await this.requireDurability(manager);
+      const [row]: JournalRow[] = await manager.query(
+        `SELECT * FROM ssd_finalization_operations WHERE id=$1 FOR UPDATE`,
+        [id],
+      );
+      if (!row || row.state !== "committed")
+        throw new Error("Cleanup requires authoritative committed outcome");
+      if (row.cleanupState === "cleaned") return;
+      await this.outcome(manager, row);
+      await manager.query(
+        `SELECT id FROM upload_sessions WHERE id=$1 FOR UPDATE`,
+        [row.sessionId],
+      );
+      await manager.query(
+        `UPDATE ssd_finalization_operations SET "cleanupState"='cleaned',"updatedAt"=now() WHERE id=$1`,
+        [id],
+      );
+      await manager.query(`DELETE FROM upload_chunks WHERE "sessionId"=$1`, [
+        row.sessionId,
+      ]);
+    });
+  }
+
+  async *pending(): AsyncIterable<string> {
+    let after = "";
+    while (true) {
+      const rows: Array<{ id: string }> = await this.db.query(
+        `SELECT id FROM ssd_finalization_operations WHERE "cleanupState"='pending' AND id::text>$1 ORDER BY id LIMIT 128`,
+        [after],
+      );
+      if (!rows.length) return;
+      for (const row of rows) {
+        after = row.id;
+        yield row.id;
+      }
+    }
   }
 
   async begin(input: {
@@ -287,8 +496,14 @@ export class PostgresSsdFinalizationStore implements FinalizationStore {
         `SELECT * FROM ssd_finalization_operations WHERE id=$1 FOR UPDATE`,
         [operationId],
       );
+      if (row?.state === "committed") {
+        const result = await this.outcome(manager, row);
+        if (!result.file) throw new Error("Committed File no longer available");
+        return result.file;
+      }
       if (!row || row.state !== "published")
         throw new Error("Finalization requires published operation");
+      await this.outcome(manager, row);
       const [session] = await manager.query(
         `SELECT ${sessionColumns} FROM upload_sessions WHERE id=$1 FOR UPDATE`,
         [row.sessionId],
