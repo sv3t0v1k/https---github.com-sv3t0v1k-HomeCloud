@@ -108,7 +108,10 @@ class DiskTests(unittest.TestCase):
     def run_disk(self):
         def cmd(*args):
             if args[0]=='findmnt':return json.dumps({'filesystems':[self.mount]})
-            if args[0]=='lsblk':return json.dumps({'blockdevices':[self.block]})
+            if args[0]=='lsblk':
+                # Without explicit --tree lsblk JSON may flatten when NAME is absent.
+                self.assertIn('--tree',args)
+                return json.dumps({'blockdevices':[self.block]})
             raise AssertionError('Непредусмотренная команда')
         with patch.object(p,'command',side_effect=cmd):
             return p.check_disk(self.spec, getattr(self, 'role', None))

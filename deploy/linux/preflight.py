@@ -86,7 +86,7 @@ def check_disk(spec, role=None):
     source = record['source']
     require(source.startswith('/dev/') and '[' not in source, 'Необычный/bind source запрещён')
     # --inverse: раздел -> физический parent; поддерживаем только один обычный диск.
-    devices = json.loads(command('lsblk', '--json', '--inverse', '--paths',
+    devices = json.loads(command('lsblk', '--json', '--tree', '--inverse', '--paths',
                                 '--output', 'PATH,TYPE,SERIAL,TRAN,ROTA,WWN', source))['blockdevices']
     if system_root:
         # Только одна линейная цепочка: root LV -> partition -> SATA SSD.
