@@ -33,6 +33,7 @@
 | Failure & Security Testing — ненумерованный checkpoint | `COMPLETE` | [evidence и границы](./failure-security-checkpoint.md) |
 | Универсальное хранение и докачка — ненумерованный checkpoint | `COMPLETE` | [IAB/Safari functional evidence](./evidence/universal-storage-upload-ux-20261005/report.md) |
 | Единый локальный Docker baseline — ненумерованный checkpoint | `COMPLETE` | `bf97bef` / `f578030`; [runbook и preservation boundaries](./operations-runbook.md) |
+| D5.1 — Release Management & CI Foundation | `GITHUB_ACCEPTANCE_PENDING / RELEASE_BLOCKED` | [Аудит, локальные проверки и границы](./evidence/d5-1-20261013/report.md) |
 | Полный 50 ГиБ IAB Browser E2E — ненумерованный checkpoint | `PASS` | `167498d`; [scope/evidence](./evidence/browser-50gib-qualification-20261006/report.md); Safari 50 ГиБ UNQUALIFIED |
 
 ## Completed
@@ -1219,3 +1220,47 @@ Mini-PC не подключали; actual Linux UUID/udev/proc/mount/reboot/fail
 на HDD до reviewed SSD forward enrollment; SSD uploads OFF/manual/mapping absent.
 **COMPLETE не установлен; production NOT_READY / NO_GO.** Работа остановлена после
 этой коррекции, последующие этапы автоматически не начинать.
+
+## D4 — сохранённая версия испытаний mini-PC (отчёт 2026-10-13)
+
+Исходная Mac main `b5c954f35b7ea9d81ffc4aa41d78e56fc7fc8ec4`; отдельная история
+`испытания/d4-проект`: `e6551678a219f1f08bce563c1a338ae97a6ef2ce` →
+`48fb9c0e8982f23dea835cf1a2e36f83d4e38f3b`. По переданному отчёту последняя ревизия — source export
+работающего тестового mini-PC, migration520, четыре healthy контейнера и smoke/restart проверки.
+В D5.1 сервер не опрашивался: это **REPORTED**, не новое подтверждение live health/полной квалификации.
+[Источник и границы evidence](./evidence/d5-1-20261013/report.md). Production NO_GO сохранён.
+
+## D5.1 — Release Management & CI Foundation (2026-10-13)
+
+**IMPLEMENTED_LOCALLY / GITHUB_ACCEPTANCE_PENDING; release BLOCKED; COMPLETE не установлен.**
+
+Согласованный этап: аудит Mac/GitHub refs, сохранение D4 ancestry, SemVer beta candidates, PR/push CI,
+Linux/amd64 GHCR build/publish только после gates и manual approved tag+SHA, draft prerelease provenance,
+immutable image locks и offline reconciliation. [Политика и release команды](./release-management.md),
+[фактические проверки и blockers](./evidence/d5-1-20261013/report.md).
+
+Mac main и GitHub main проверены на b5c954f; D4 впереди на 2 коммита, remote D4 отсутствует.
+Работа подготовлена в отдельной ветке `этап/d5-1-ci` от 48fb9c0; исходный Mac checkout/Compose/данные
+и посторонние untracked сохранены. Действующие refs не переписывались, force push отсутствует.
+
+Локально: release negative tests 14, actionlint, четыре Compose config merges, startup 43 / preflight 72,
+frontend 278 tests, оба lint/build и compiled file-type PASS. Backend Mac full suite **FAIL**:
+956 PASS / 38 FAIL / 154 SKIP; native Linux/PG CI и Docker image/registry runtime **NOT_RUN**.
+Нельзя считать эти gates успешными до реального GitHub evidence. Backend lint имеет 15 existing warnings.
+
+Security: 17 backend production advisories; 55 backend full; 12 frontend. High/critical hard-block release,
+нет uncontrolled upgrades или silent exceptions. Historical secret findings independently classified;
+38 exact fingerprints для 48 findings, новых broad exclusions нет. Node20 EOL/base image CVE qualification
+остаётся открытым риском. GitHub main пока unprotected, CI runs ещё отсутствуют, GHCR writes не проверены.
+
+Acceptance pending: owner-approved public push/PR, реальные CI runs, advisory remediation/review,
+настройка protected main, утверждённый tag/SHA, remote build→digest→candidate manifest→draft prerelease.
+Связь обязательна для успешно завершённых этапов: **этап → commit → CI → release → image digests →
+deployment evidence**. Release candidate и deployment имеют отдельные статусы; draft/CI green не даёт
+DEPLOYED или Production GO. D1 qualification manifests не подменяются CI candidate.
+
+### D5.2 — CD & Safe Deployment — NOT_STARTED
+
+Только отдельное разрешение после D5.1 gates: approved deployment manifest/digests, target preflight,
+backup/restore evidence, scoped update, health/smoke и rollback с учётом schema compatibility.
+В D5.1 нет SSH к mini-PC, автоматического CD, изменений общих Docker/DNS/mounts/volumes/data.

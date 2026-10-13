@@ -1,0 +1,9 @@
+{
+  "source_revision": "48fb9c0e8982f23dea835cf1a2e36f83d4e38f3b",
+  "observed_at": "2026-10-13",
+  "evidence": "Отчёт пользователя о D4 в основном backend чате; сервер в D5.1 не проверялся",
+  "images": null,
+  "applied_migrations": null,
+  "reported_last_migration": 520,
+  "verification": "REPORTED_NOT_LIVE_VERIFIED"
+}
