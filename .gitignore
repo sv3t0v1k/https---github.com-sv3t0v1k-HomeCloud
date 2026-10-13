@@ -37,6 +37,8 @@ logs/
 *.log
 
 # Runtime data
+/.runtime/
+/data/
 pids/
 *.pid
 *.seed

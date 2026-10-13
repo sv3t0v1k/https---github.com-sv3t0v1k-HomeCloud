@@ -39,8 +39,9 @@ class GateTests(unittest.TestCase):
         # stat rdev/owner подменены; -b заменён на -e только в fixture-копии.
         stat = self.bin / 'stat'
         stat.write_text('#!/usr/bin/env python3\nimport json,os,sys\n'
-                        'print({"%t":"8","%T":"1"}.get(sys.argv[-2],'
-                        'json.loads(os.environ["FIXTURE_METADATA"]).get(sys.argv[-1],"bad")))\n')
+                        'm=json.loads(os.environ["FIXTURE_METADATA"])\n'
+                        'print(m.get(sys.argv[-1]+":"+sys.argv[-2],'
+                        '{"%t":"8","%T":"1"}.get(sys.argv[-2],m.get(sys.argv[-1],"bad"))))\n')
         stat.chmod(0o755)
         self.proof = self.root / 'writer-proof'
         self.writer = self.root / 'writer'
@@ -51,6 +52,7 @@ class GateTests(unittest.TestCase):
         script = script.replace('/proc/self/mountinfo', str(self.mounts))
         script = script.replace('data=/storage', 'data=' + str(self.data))
         script = script.replace('[ -b "$device" ]', '[ -e "$device" ]')
+        script = script.replace('[ -b "$source_device" ]', '[ -e "$source_device" ]')
         script = script.replace('exec sh docker/entrypoint.sh', 'exec ' + str(self.writer))
         self.script = self.root / 'gate.sh'
         self.script.write_text(script)
@@ -129,6 +131,18 @@ class GateTests(unittest.TestCase):
         self.proof.unlink()
         self.host.write_text('')
         self.run_gate()
+    def test_backend_cannot_enable_root_mode(self):
+        self.config.write_text('backend real-uuid / /project/storage 1001 65533 system-root-lvm\n')
+        self.run_gate()
+    def test_unknown_identity_mode(self):
+        self.config.write_text(self.config.read_text().rstrip()+' arbitrary\n')
+        self.run_gate()
+    def test_extra_fields(self):
+        self.config.write_text(self.config.read_text().rstrip()+' dedicated arbitrary\n')
+        self.run_gate()
+    def test_legacy_cannot_use_root(self):
+        self.config.write_text('backend real-uuid / /project/storage 1001 65533\n')
+        self.run_gate()
 
 
 class DatabaseGateTests(unittest.TestCase):
@@ -150,6 +164,60 @@ class DatabaseGateTests(unittest.TestCase):
     test_ambiguous_bind = GateTests.test_ambiguous_bind_with_invalid_second_fs
     def test_wal_symlink(self):
         (self.data / 'pg_wal').symlink_to(self.root)
+        self.run_gate()
+    def test_external_tablespace(self):
+        (self.data / 'pg_tblspc').mkdir()
+        (self.data / 'pg_tblspc/42').symlink_to(self.root)
+        self.run_gate()
+
+
+class RootLVMGateTests(unittest.TestCase):
+    run_gate=GateTests.run_gate
+    def setUp(self):
+        DatabaseGateTests.setUp(self)
+        self.host_data='/home/hs/homecloud-test/data/postgres'
+        self.source='/dev/mapper/ubuntu--vg-ubuntu--lv'
+        self.config.write_text(f'db real-uuid / {self.host_data} 1001 65533 system-root-lvm\n')
+        alias=self.dev/'disk/by-uuid/real-uuid'
+        alias.unlink();alias.symlink_to('../../dm-0')
+        (self.dev/'dm-0').touch()
+        (self.dev/'mapper').mkdir()
+        (self.dev/'mapper/ubuntu--vg-ubuntu--lv').symlink_to('../dm-0')
+        self.host.write_text(f'1 0 8:1 / / rw - ext4 {self.source} rw\n')
+        self.mounts.write_text(f'2 0 8:1 {self.host_data} {self.data} rw - ext4 {self.source} rw\n'
+                              f'3 0 8:1 /home/hs/homecloud-test/data/.homecloud-db {self.marker} ro - ext4 {self.source} rw\n')
+    def test_mapper_alias_same_rdev(self):self.run_gate(True)
+    def test_wrong_source_rdev(self):
+        self.metadata[str(self.dev/'mapper/ubuntu--vg-ubuntu--lv')+':%T']='2'
+        self.run_gate()
+    def test_missing_source_metadata(self):
+        (self.dev/'mapper/ubuntu--vg-ubuntu--lv').unlink()
+        self.run_gate()
+    def test_stale_underlay_bind(self):
+        self.mounts.write_text(self.mounts.read_text().replace('2 0 8:1','2 0 8:2'))
+        self.run_gate()
+    def test_wrong_root_bind(self):
+        self.mounts.write_text(self.mounts.read_text().replace(self.host_data+' ', '/wrong '))
+        self.run_gate()
+    def test_wrong_marker_root(self):
+        self.mounts.write_text(self.mounts.read_text().replace('/data/.homecloud-db','/else/.homecloud-db'))
+        self.run_gate()
+    def test_root_subtree_mount(self):
+        self.host.write_text(self.host.read_text().replace('8:1 / /','8:1 /subtree /'))
+        self.run_gate()
+    def test_xfs_root_refused(self):
+        self.host.write_text(self.host.read_text().replace('ext4','xfs'))
+        self.run_gate()
+    def test_root_requires_explicit_mode(self):
+        self.config.write_text(self.config.read_text().replace(' system-root-lvm',''))
+        self.run_gate()
+    def test_root_mode_cannot_use_plain_partition(self):
+        alias=self.dev/'disk/by-uuid/real-uuid'
+        alias.unlink();alias.symlink_to('../../sda1')
+        self.run_gate()
+    def test_repeated_start_revalidates_mapper_source(self):
+        self.run_gate(True);self.proof.unlink()
+        self.metadata[str(self.dev/'mapper/ubuntu--vg-ubuntu--lv')+':%T']='2'
         self.run_gate()
     def test_external_tablespace(self):
         (self.data / 'pg_tblspc').mkdir()
