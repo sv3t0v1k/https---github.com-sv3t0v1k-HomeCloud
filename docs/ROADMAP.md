@@ -1178,3 +1178,23 @@ Linux SSD DB/HDD storage — только подготовка. Физическ
 SSD enrollment/recovery и destructive restore не проверены; SSD mapping отсутствует,
 feature OFF. 520 seals legacy-only admission; будущий ON требует отдельного enrollment.
 **COMPLETE не установлен; production NOT_READY/NO_GO. Остановиться после этапа.**
+
+
+## D3 — подготовка Linux mini-PC (2026-10-13)
+
+Разрешена только подготовка на Mac, исходный HEAD `69959de`. Production override:
+SSD PostgreSQL/HDD `/storage` и `.tmp`, SSD upload OFF/manual/mapping absent.
+Host preflight UUID/serial/exact mount/UID-GID/capacity/native architecture, restart=no
+и systemd mount dependencies; DB placement/nested WAL guard, D1 recovery config и
+операторская инструкция. 520 legacy-only не расширяется через env: reviewed forward
+path отдельно, migration520 не менялась/не повторялась/не откатывалась.
+
+30/30 isolated D3 fixtures, actual Compose merge/config, 12/12 D1 config regressions,
+read-only native ARM64 scratch command и Python syntax PASS. Два независимых scoped
+reviews: unresolved MUST_FIX0. Mac main/local Compose, backend Dockerfile, migration520
+и данные сохранены; работающие Mac сервисы не менялись. Hardware/systemd Linux,
+actual target architecture/build, SSD→HDD/recovery, offsite target restore, reboot/
+powerloss/50+GiB/RSS на8GiB не проверены.
+[Инструкция оператора и STOP](linux-mini-pc.md), [evidence](evidence/d3-preparation-20261013/report.md).
+**COMPLETE не установлен; SSD OFF; production NOT_READY/NO_GO.** Подготовка D3
+закончена; остановиться. Следующие аппаратные/SSD действия требуют отдельного задания.

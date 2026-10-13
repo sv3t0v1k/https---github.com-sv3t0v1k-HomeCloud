@@ -130,56 +130,16 @@ unset HC_EMAIL
 и выполнить UPDATE с точными id+email. Quota API/администраторские роли отсутствуют.
 Login UI: http://localhost:8080/login. Из браузера upload/download используют тот же origin.
 
-## Подготовка Linux mini-PC: SSD DB → HDD permanent storage
+## Подготовка Linux mini-PC
 
-Основной Compose + production override, env вне repo, mode0600:
-
-```sh
-hcp() {
-  docker compose --project-name homecloud --env-file /etc/homecloud/runtime.env \
-    -f docker-compose.yml -f docker-compose.production.yml "$@"
-}
-hcp config --quiet
-# Дальнейшие команды только ПОСЛЕ отдельного разрешения и host enrollment:
-hcp build backend frontend
-hcp run --rm --no-deps backend node dist/storage/bootstrap-storage-identity.js
-hcp up -d --wait --wait-timeout 180
-hcp ps
-```
-
-Это инструкция для будущего оператора; на mini-PC в этой задаче ничего не выполняется.
-`SSD_DB_DIR` — existing directory на фактическом SSD; `HDD_STORAGE_DIR` — existing
-exclusive HDD directory с `.tmp`. Проверить host filesystem/mount source/failure domain,
-Docker daemon host, доступ backend UID1001 и root/.tmp mode0700. Bind mounts имеют
-`create_host_path:false`, чтобы не создать пустой fallback на системном диске.
-Но **наличие каталога не доказывает смонтированный HDD**: оператор проверяет mount и
-источник перед каждым запуском. Контейнерный marker не доказывает физическую identity.
-PostgreSQL image сам готовит права PGDATA; не назначать DB directory UID1001 backend.
-
-Production bootstrap marker — отдельная команда от UID1001 только на уже проверенном
-mount, только при отсутствии marker; existing correct marker не переписывать. Код
-никогда не auto-chown/auto-enroll'ит HDD. После restore marker/source проверяются отдельно.
-TLS lifecycle directory содержит `current/fullchain.pem` и `current/privkey.pem`;
-внешний оператор обеспечивает выдачу/renewal, DNS и сертификаты. См.
-[certificate lifecycle](certificate-lifecycle.md) и [registry](storage-registry-operations.md).
-TLS healthcheck не квалифицирует CA/DNS. Frontend host port полностью удалён prod override.
-
-Exact trust chain: ingress → frontend → backend. BACKEND_PROXY_SUBNET/FRONTEND_PROXY_IP
-и INGRESS_SUBNET/INGRESS_PROXY_IP должны быть согласованы и не пересекать host/VPN/Docker.
-Не заменять exact trust на wildcard/CIDR/hop count. Внутренние health/metrics не публикуются.
-
-Migration520 enroll'ит immutable DB legacy temp root `/storage/.tmp` и optional SSD path
-**при первом выполнении**. Здесь SSD path не передаётся, admission остаётся legacy-only.
-517 registry row сама по себе не включает SSD uploads. Позднее добавить env+ON и повторить
-`migration:run` недостаточно: 520 уже применена. Нужен отдельный проверенный enrollment
-procedure/migration, Linux native source identity и recovery qualification.
-UPLOAD_SSD_RECOVERY_MODE=manual, SSD mapping отсутствует, feature OFF в обоих вариантах.
-HDD хранит и chunks, и готовые files; SSD→HDD upload pipeline пока не активируется.
-
-RAM8GiB: конфигурационные ceilings backend4GiB + DB1GiB + frontend256MiB + ingress128MiB,
-optional Redis256MiB. Это не измеренные RSS и не гарантия50GiB/параллельных uploads.
-Остаётся headroom для OS/page cache/daemon; на Docker Desktop отдельно выделить VM RAM.
-Не менять лимиты или параллельность по догадке; требуется измерение на target.
+Актуальная инструкция D3: [Linux mini-PC: host preflight, запуск и восстановление](linux-mini-pc.md).
+Production override сохраняет SSD DB/HDD `/storage`, SSD uploads OFF/manual и отсутствие
+всех четырёх SSD mapping vars. Linux использует `restart: "no"` и systemd host mount gate;
+Mac main Compose сохраняет прежний restart policy. Перед startup проверить UUID/serial,
+source, UID/GID, capacity и native image; наличие bind каталога не доказывает mount.
+Backend production `1001:65533` согласован с image nextjs и D1 restore ownership.
+520 после legacy-only применения не enroll'ит SSD через env: требуется отдельный reviewed
+forward path. Mini-PC/physical disks/SSD activation не проверены, production NO_GO.
 
 ## D1 backup/restore
 
@@ -194,7 +154,12 @@ COMPOSE_PROJECT_NAME=homecloud-preview
 STORAGE_PATH=/storage
 ```
 
-Для Linux COMPOSE_FILE включает main:production. Recovery allowlist расширен canonical
+Для Linux COMPOSE_FILE включает absolute main:production.
+В external recovery env также обязательно задать `BACKEND_IMAGE` literal reference,
+совпадающий с `RELEASE_BACKEND_IMAGE` (Mac сейчас `homecloud-backend:dev`); default helper
+`homecloud-backend` не является эквивалентом. После Linux D1 recovery возвращать stack
+под systemd mount gate по [D3 инструкции](linux-mini-pc.md).
+Recovery allowlist расширен canonical
 Compose knobs; реальные values должны совпадать с активными контейнерами. Явный
 backend.image, image ID/config hash и фактический mount source проверяет D1; external
 volume names и STORAGE_VOLUME не являются альтернативными restore targets.
