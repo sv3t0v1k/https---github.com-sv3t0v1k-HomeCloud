@@ -13,7 +13,7 @@ set -euo pipefail
 #   - Old storage data is NEVER deleted before new data is verified in staging.
 #   - Storage switch uses atomic rename (mv) on the same filesystem.
 #   - DB restore is fail-closed: ON_ERROR_STOP=1, schema wipe, post-restore
-#     validation (known 7/8/9/10/11-table schemas, column check, row-count check).
+#     validation (known 7/8/9/10/11/13-table schemas, column and pending-SSD checks).
 #   - Checksum/size mismatches, malformed .meta, unsupported format_version
 #     all abort BEFORE any destructive operation.
 #   - Migration failure aborts restore (no WARNING+continue).
@@ -28,16 +28,16 @@ set -euo pipefail
 #   DB_NAME / DB_USER / DB_PASSWORD - explicit recovery configuration
 #
 # Operation phases:
-#   Phase A: pre-validation (READ-ONLY) — backup integrity + volume validation.
+#   Phase A: pre-validation — production read-only; dump replay in isolated tmpfs DB.
 #   Phase B: confirmation prompt (skipped with --yes).
-#   Phase C: destructive restore (stop → db → storage → start → migrate →
+#   Phase C: destructive restore (stop → db → storage → migrate →
 #            reconcile → health).
 # ===========================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 SUPPORTED_FORMAT_VERSIONS="1"
-EXPECTED_TABLE_NAMES="users files folders share_links upload_sessions refresh_tokens migrations"
+CORE_TABLE_NAMES="users files folders share_links upload_sessions refresh_tokens migrations"
 
 # ---------------------------------------------------------------------------
 # Argument parsing
@@ -62,6 +62,7 @@ done
 # Explicit external recovery configuration (shared with coordinator/reconcile).
 # ---------------------------------------------------------------------------
 source "$SCRIPT_DIR/recovery-config.sh"
+source "$SCRIPT_DIR/recovery-storage.sh"
 BACKUP_DIR="${BACKUP_DIR:-$PROJECT_ROOT/backups}"
 
 DB_NAME="${DB_NAME:-homecloud}"
@@ -160,6 +161,222 @@ assert_safe_mode() {
   esac
 }
 
+
+# The dump is SQL, not a list of table names. Execute it in a disposable DB
+# with no production mounts/network before stopping or modifying the stack.
+# The configured DB image must already exist; never pull an arbitrary image.
+validation_psql() {
+  if [ -n "${VALIDATION_CONTAINER:-}" ]; then
+    docker exec -i "$VALIDATION_CONTAINER" psql -X -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" "$@"
+  else
+    docker compose exec -T db psql -X -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" "$@"
+  fi
+}
+
+validate_restored_database() {
+  local TABLE_COUNT EXPECTED_TABLE_NAMES t EXISTS FILES_COLS USERS_COUNT
+  TABLE_COUNT=$(validation_psql -tAc \
+    "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'" | tr -d '[:space:]')
+  EXPECTED_TABLE_NAMES="$CORE_TABLE_NAMES"
+  case "$TABLE_COUNT" in
+    7) ;;
+    8) EXPECTED_TABLE_NAMES="$EXPECTED_TABLE_NAMES upload_chunks" ;;
+    9) EXPECTED_TABLE_NAMES="$EXPECTED_TABLE_NAMES upload_chunks download_capabilities" ;;
+    10) EXPECTED_TABLE_NAMES="$EXPECTED_TABLE_NAMES upload_chunks download_capabilities storage_locations" ;;
+    11) EXPECTED_TABLE_NAMES="$EXPECTED_TABLE_NAMES upload_chunks download_capabilities storage_locations upload_workspaces" ;;
+    13) EXPECTED_TABLE_NAMES="$EXPECTED_TABLE_NAMES upload_chunks download_capabilities storage_locations upload_workspaces ssd_finalization_operations ssd_finalization_chunks" ;;
+    *) die "Database validation failed: expected a known 7/8/9/10/11/13-table schema, found $TABLE_COUNT" ;;
+  esac
+  for t in $EXPECTED_TABLE_NAMES; do
+    EXISTS=$(validation_psql -tAc \
+      "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='$t' AND table_type='BASE TABLE'" | tr -d '[:space:]')
+    [ "$EXISTS" = "1" ] || die "Database validation failed: table '$t' missing after restore"
+  done
+  log "  All expected tables present: OK ($TABLE_COUNT tables)"
+  # Verify key columns against the existing historical gate.
+  FILES_COLS=$(validation_psql -tAc \
+    "SELECT string_agg(column_name, ',' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_name='files' AND table_schema='public'" | tr -d '[:space:]')
+  [ "${FILES_COLS%%,*}" = "id" ] || die "Database validation failed: files table columns unexpected ($FILES_COLS)"
+  USERS_COUNT=$(validation_psql -tAc "SELECT count(*) FROM users" | tr -d '[:space:]')
+  case "$USERS_COUNT" in ''|*[!0-9]*) die "Database validation failed: invalid users row count" ;; esac
+  validation_psql < "$SCRIPT_DIR/recovery-pending.sql" >/dev/null || die "Unsupported pending SSD state or failed recovery check; refusing restore"
+  if [ "${1:-historical}" = current ]; then
+    [ "$TABLE_COUNT" = 13 ] || die "Migration compatibility failed: expected current 13-table schema"
+    # These are the fields consumed by reconciliation and the current recovery
+    # gate. This deliberately does not claim complete constraint/type parity.
+    validation_psql -tAc 'SELECT id, "storagePath", "storageLocationId", "relativeObjectKey", size, "userId", "isFolder", "isDeleted" FROM public.files WHERE false' >/dev/null \
+      || die "Current schema required files columns are missing"
+    validation_psql -tAc 'SELECT id, "storageUsed" FROM public.users WHERE false' >/dev/null \
+      || die "Current schema required users columns are missing"
+    validation_psql -tAc 'SELECT id, "machineKey", "mountKey" FROM public.storage_locations WHERE false' >/dev/null \
+      || die "Current schema required storage location columns are missing"
+    validation_psql -tAc 'SELECT "fileId" FROM public.share_links WHERE false' >/dev/null \
+      || die "Current schema required share columns are missing"
+    validation_psql -tAc 'SELECT id, status, "workspaceId", "tempPath", "expectedSha256" FROM public.upload_sessions WHERE false' >/dev/null \
+      || die "Current schema required upload columns are missing"
+    validation_psql -tAc 'SELECT id, state, "cleanupState", "mimeType", "mimeTypeCheckpointed", "targetArtifactDevice", "targetArtifactInode" FROM public.ssd_finalization_operations WHERE false' >/dev/null \
+      || die "Current schema required journal columns are missing"
+    validation_psql -tAc 'SELECT id, timestamp, name FROM public.migrations WHERE false' >/dev/null \
+      || die "Current schema migration metadata columns are missing"
+    EXISTS=$(validation_psql -tAc "SELECT count(*) FROM public.migrations WHERE timestamp=1746825200000 AND name='DurableUploadWholeSha2561746825200000'" | tr -d '[:space:]')
+    [ "$EXISTS" = 1 ] || die "Current schema migration 520 metadata is missing or ambiguous"
+  fi
+  log "  Database validation: OK (users=$USERS_COUNT; no unsupported pending SSD state)"
+}
+
+remove_restore_migration_container() {
+  [ -n "${RESTORE_MIGRATION_CONTAINER:-}" ] || return 0
+  local token
+  if token=$(docker inspect -f '{{ index .Config.Labels "homecloud.restore.migration" }}' "$RESTORE_MIGRATION_CONTAINER" 2>/dev/null); then
+    [ "$token" = "$RESTORE_TOKEN" ] || return 1
+    docker rm -f "$RESTORE_MIGRATION_CONTAINER" >/dev/null || return 1
+  fi
+}
+
+remove_validation_container() {
+  [ -n "${VALIDATION_CONTAINER:-}" ] || return 0
+  local token helper
+  helper="$VALIDATION_CONTAINER-migrations"
+  if token=$(docker inspect -f '{{ index .Config.Labels "homecloud.restore.validation" }}' "$helper" 2>/dev/null); then
+    [ "$token" = "$VALIDATION_TOKEN" ] || return 1
+    docker rm -fv "$helper" >/dev/null || return 1
+  fi
+  token=$(docker inspect -f '{{ index .Config.Labels "homecloud.restore.validation" }}' "$VALIDATION_CONTAINER" 2>/dev/null) || return 1
+  [ "$token" = "$VALIDATION_TOKEN" ] || return 1
+  docker rm -fv "$VALIDATION_CONTAINER" >/dev/null || return 1
+  VALIDATION_CONTAINER=""
+}
+
+restore_cleanup() {
+  local rc=$?
+  trap - EXIT INT TERM
+  remove_restore_migration_container || {
+    err "CRITICAL: could not remove owned migration writer; operator must fence it"
+    [ "$rc" -ne 0 ] || rc=1
+  }
+  # Any failed destructive attempt (including partial start/health failure)
+  # leaves application writers stopped. A DB/storage rollback is NOT promised.
+  if [ "$rc" -ne 0 ] && [ "${RESTORE_DESTRUCTIVE:-0}" = 1 ]; then
+    if docker compose stop backend frontend >/dev/null 2>&1; then
+      err "Restore failed; application writers remain fenced. Review DB/storage before restarting."
+    else
+      err "CRITICAL: could not fence application services; operator must stop writers and review DB/storage"
+    fi
+  fi
+  remove_validation_container || { err "Could not remove owned validation DB container"; [ "$rc" -ne 0 ] || rc=1; }
+  if [ "${RESTORE_HOLDS_LOCK:-0}" = 1 ] && [ -d "$BACKUP_LOCK_DIR" ] && [ ! -L "$BACKUP_LOCK_DIR" ]; then
+    local lock_token
+    lock_token="$(cat "$BACKUP_LOCK_DIR/LOCK_TOKEN" 2>/dev/null || true)"
+    if [ "$lock_token" = "$RESTORE_TOKEN" ]; then
+      safe_remove_lock_dir "$BACKUP_LOCK_DIR" 2>/dev/null || err "Could not release restore lock: $BACKUP_LOCK_DIR"
+    fi
+  fi
+  exit "$rc"
+}
+trap restore_cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+validate_dump_in_isolated_database() {
+  local image image_id backend_image_id validation_url ready i
+  image=$(docker compose config --format json | python3 -c 'import json,sys; print(json.load(sys.stdin)["services"]["db"]["image"])') || die "Could not resolve configured DB image for validation"
+  [ -n "$image" ] || die "Configured DB image is empty"
+  image_id=$(docker image inspect -f '{{.Id}}' "$image") || die "Configured DB image is unavailable locally; refusing restore"
+  [ -n "$image_id" ] || die "Configured DB image identity is empty"
+  # Docker image VOLUME declarations would otherwise create anonymous disks.
+  # Every declared path must be overridden by one of our explicit tmpfs mounts.
+  docker image inspect -f '{{json .Config.Volumes}}' "$image_id" | python3 -c '
+import json,sys
+paths = json.load(sys.stdin) or {}
+allowed = {"/var/lib/postgresql/data", "/var/run/postgresql", "/tmp"}
+if not isinstance(paths, dict) or not set(paths).issubset(allowed):
+    raise SystemExit("Unsupported DB image volumes: refuse implicit anonymous volume creation")
+' || die "Configured DB image declares storage outside isolated tmpfs paths"
+  VALIDATION_TOKEN=$(random_hex 16) || die "Cannot generate validation DB identity"
+  VALIDATION_CONTAINER="homecloud-restore-validation-$VALIDATION_TOKEN"
+  docker create --name "$VALIDATION_CONTAINER" --label "homecloud.restore.validation=$VALIDATION_TOKEN" \
+    --network none --read-only --security-opt no-new-privileges \
+    --memory 512m --cpus 1 --pids-limit 128 \
+    --tmpfs /var/lib/postgresql/data:rw,noexec,nosuid,size=1073741824 \
+    --tmpfs /var/run/postgresql:rw,noexec,nosuid,size=16777216 \
+    --tmpfs /tmp:rw,noexec,nosuid,size=16777216 \
+    -e PGDATA=/var/lib/postgresql/data -e "POSTGRES_USER=$DB_USER" \
+    -e "POSTGRES_DB=$DB_NAME" -e "POSTGRES_PASSWORD=$VALIDATION_TOKEN" \
+    "$image_id" postgres -c "listen_addresses=127.0.0.1" >/dev/null || die "Could not create isolated validation DB"
+  docker start "$VALIDATION_CONTAINER" >/dev/null || die "Could not start isolated validation DB"
+  ready=0
+  for i in $(seq 1 30); do
+    # The image's temporary init server has no TCP listener. Waiting for loopback
+    # avoids racing that server's shutdown before the final postgres exec.
+    if docker exec "$VALIDATION_CONTAINER" pg_isready -h 127.0.0.1 -U "$DB_USER" -d "$DB_NAME" >/dev/null 2>&1; then ready=1; break; fi
+    sleep 1
+  done
+  [ "$ready" = 1 ] || die "Isolated validation DB did not become ready"
+  gunzip -c "$PG_DUMP_FILE" | validation_psql >/dev/null || die "PostgreSQL dump rejected by isolated validation DB (no production changes)"
+  validate_restored_database
+  backend_image_id=$(docker image inspect -f '{{.Id}}' "$BACKEND_IMAGE") \
+    || die "Backend image unavailable locally for migration validation"
+  [ -n "$backend_image_id" ] || die "Backend image identity is empty"
+  docker image inspect -f '{{json .Config.Volumes}}' "$backend_image_id" | python3 -c '
+import json,sys
+volumes = json.load(sys.stdin)
+if volumes not in (None, {}):
+    raise SystemExit("Migration image VOLUME declarations are unsupported")
+' || die "Backend migration image could create implicit volumes; refusing restore"
+  validation_url=$(python3 - "$DB_USER" "$VALIDATION_TOKEN" "$DB_NAME" <<'PYURL'
+import sys
+from urllib.parse import quote
+print("postgres://%s:%s@127.0.0.1:5432/%s" % tuple(quote(s, safe="") for s in sys.argv[1:]))
+PYURL
+) || die "Could not construct isolated migration DB configuration"
+  # Migrations 515/516 inspect paths and sizes without reading object bytes.
+  # Sparse files in private tmpfs reproduce that metadata, without copying the
+  # payload or allocating memory proportional to its total size. This proves
+  # migration path/size compatibility, not per-object payload integrity.
+  if ! python3 - "$STORAGE_ARCHIVE" <<'PYMETADATA' | docker run --rm --pull=never --name "$VALIDATION_CONTAINER-migrations" \
+    --label "homecloud.restore.validation=$VALIDATION_TOKEN" \
+    --network "container:$VALIDATION_CONTAINER" --read-only --security-opt no-new-privileges \
+    --memory 512m --cpus 1 --pids-limit 128 --user root -i --entrypoint node \
+    --tmpfs /tmp:rw,noexec,nosuid,size=16777216 \
+    --tmpfs "${STORAGE_PATH:-/storage}:rw,noexec,nosuid,size=1073741824" \
+    -e "DATABASE_URL=$validation_url" -e "STORAGE_PATH=${STORAGE_PATH:-/storage}" \
+    -e npm_config_cache=/tmp/npm-cache \
+    "$backend_image_id" -e '
+const fs=require("fs"), path=require("path"), readline=require("readline"), cp=require("child_process");
+const root=process.env.STORAGE_PATH;
+// Docker tmpfs defaults to mode 1777; the registry requires service-owned roots.
+fs.chmodSync(root,0o700);
+fs.mkdirSync(path.join(root,".tmp"),{recursive:true});
+const lines=readline.createInterface({input:process.stdin});
+lines.on("line",line=>{
+  const entry=JSON.parse(line);
+  if(typeof entry.name!=="string" || !Number.isSafeInteger(entry.size) || entry.size<0)
+    throw Error("Invalid sparse archive metadata");
+  const name=entry.name.replace(/^\.\//,"");
+  if(path.isAbsolute(name) || name.split("/").some(p=>p==="..") || name.includes("\\"))
+    throw Error("Unsafe sparse archive path");
+  const file=path.resolve(root,name);
+  if(!file.startsWith(root+path.sep)) throw Error("Sparse archive escapes storage root");
+  fs.mkdirSync(path.dirname(file),{recursive:true});
+  const fd=fs.openSync(file,"wx");
+  try { fs.ftruncateSync(fd,entry.size); } finally { fs.closeSync(fd); }
+});
+lines.on("close",()=>{
+  const result=cp.spawnSync("npm",["run","migration:run"],{stdio:"inherit"});
+  process.exit(result.status===null ? 1 : result.status);
+});' >/dev/null; then
+import json,sys,tarfile
+with tarfile.open(sys.argv[1], "r:gz") as archive:
+    for entry in archive:
+        if entry.isfile():
+            print(json.dumps({"name":entry.name,"size":entry.size}))
+PYMETADATA
+    die "Isolated backend migration replay failed; no target changes performed"
+  fi
+  validate_restored_database current
+  remove_validation_container || die "Could not remove isolated validation DB; refusing destructive restore"
+  log "  Isolated PostgreSQL dump replay and compatibility checks: OK"
+}
 
 # ---------------------------------------------------------------------------
 # Security: scan a storage tar.gz archive BEFORE any destructive operation.
@@ -264,63 +481,10 @@ PY
 }
 
 # ---------------------------------------------------------------------------
-# Resolve + validate the Docker named volume that backs backend /storage.
-# Sets STORAGE_VOLUME. Fails closed.
-# ---------------------------------------------------------------------------
-validate_docker_volume() {
-  local vol="$1"
-  [ -n "$vol" ] || return 1
-  docker volume inspect "$vol" >/dev/null 2>&1 || return 1
-  return 0
-}
-
+# Resolve only the actual verified mount of an existing backend container.
 resolve_storage_volume() {
-  # 1. Explicit override (validated).
-  if [ -n "${STORAGE_VOLUME:-}" ]; then
-    validate_docker_volume "$STORAGE_VOLUME" \
-      || die "STORAGE_VOLUME override '$STORAGE_VOLUME' is not a valid Docker named volume"
-    log "  Storage volume: $STORAGE_VOLUME (explicit override)"
-    return 0
-  fi
-
-  # 2. Auto-detect from the running backend container's /storage mount.
-  local cid vol
-  cid="$(docker compose ps -q backend 2>/dev/null || true)"
-  if [ -n "$cid" ]; then
-    vol="$(docker inspect -f \
-      '{{ range .Mounts }}{{ if and (eq .Destination "/storage") (eq .Type "volume") }}{{ .Name }}{{ end }}{{ end }}' \
-      "$cid" 2>/dev/null || true)"
-    if [ -n "$vol" ]; then
-      validate_docker_volume "$vol" \
-        || die "Auto-detected storage volume '$vol' does not pass docker volume inspect"
-      STORAGE_VOLUME="$vol"
-      log "  Storage volume: $STORAGE_VOLUME (auto-detected from backend /storage mount)"
-      return 0
-    fi
-  fi
-
-  # 3. Fallback: compose config (works even when the stack is stopped).
-  vol="$(docker compose config --format json 2>/dev/null \
-        | python3 -c '
-import sys, json
-try:
-    d = json.load(sys.stdin)
-    v = d.get("volumes", {})
-    for key in ("storage_data",):
-        if key in v:
-            print(v[key].get("name") or "")
-            break
-' 2>/dev/null || true)"
-  if [ -n "$vol" ]; then
-    validate_docker_volume "$vol" \
-      || die "Compose-resolved storage volume '$vol' does not pass docker volume inspect"
-    STORAGE_VOLUME="$vol"
-    log "  Storage volume: $STORAGE_VOLUME (resolved from docker compose config)"
-    return 0
-  fi
-
-  die "Could not resolve a Docker named volume for storage (/storage). \
-Set STORAGE_VOLUME=<volume_name> explicitly or start the stack."
+  recovery_storage_resolve || die "Could not resolve verified backend storage mount"
+  log "  Storage mount: $RECOVERY_STORAGE_TYPE $RECOVERY_STORAGE_TARGET (backend $RECOVERY_STORAGE_CONTAINER)"
 }
 
 # Resolve and validate the backup root before reading any metadata.
@@ -330,8 +494,8 @@ fi
 BACKUP_DIR="$(cd -P "$BACKUP_DIR" 2>/dev/null && pwd)" || die "Could not resolve BACKUP_DIR: $BACKUP_DIR"
 
 # ===========================================================================
-# Phase A: pre-validation (READ-ONLY — no docker compose down, no DB/volume
-# modification happens here)
+# Phase A: production read-only — the dump is replayed only inside an owned
+# disposable tmpfs DB, without production mounts or networking.
 # ===========================================================================
 
 echo "=== HomeCloud Restore (Safe / Fail-Closed) ==="
@@ -507,8 +671,8 @@ log "  Size verification: OK (db=$DB_SIZE bytes, storage=$STOR_SIZE bytes)"
 gzip -t "$PG_DUMP_FILE" || die "PostgreSQL dump gzip integrity check failed"
 log "  PostgreSQL dump gzip: OK"
 
-# A9 — SQL structure check
-gunzip -c "$PG_DUMP_FILE" | grep -qE 'CREATE TABLE|CREATE TABLE IF NOT EXISTS|CREATE EXTENSION' \
+# A9 — SQL structure check (consume all input; avoid pipefail/SIGPIPE on large dumps)
+gunzip -c "$PG_DUMP_FILE" | grep -E 'CREATE TABLE|CREATE TABLE IF NOT EXISTS|CREATE EXTENSION' >/dev/null \
   || die "PostgreSQL dump does not contain expected SQL structure (CREATE TABLE)"
 log "  PostgreSQL dump structure: OK"
 
@@ -559,12 +723,18 @@ fi
 resolve_storage_volume || die "Could not resolve Docker storage volume"
 
 # A15 — Verify backend image exists
-docker image inspect "$BACKEND_IMAGE" >/dev/null 2>&1 \
-  || die "Backend image '$BACKEND_IMAGE' not found. Run 'docker compose build' first."
+BACKEND_IMAGE=$(recovery_storage_image "$BACKEND_IMAGE") \
+  || die "Backend image must be local and match the actual backend container"
 log "  Backend image '$BACKEND_IMAGE': OK"
 
+recovery_storage_assert_clean || die "Retained restore artifacts require operator review before restore"
+
 # A16 — Verify DB credentials are available
-[ -n "$DB_PASSWORD" ] || log "  WARNING: DB_PASSWORD not set in recovery configuration (restore may fail at DB connection)"
+[ "${SKIP_RECONCILE:-0}" != 1 ] || die "SKIP_RECONCILE is unsupported for verified restore"
+[ -n "$DB_PASSWORD" ] || die "DB_PASSWORD is required in recovery configuration before restore validation"
+
+# A17 — Real SQL replay + schema/pending SSD checks, isolated from production.
+validate_dump_in_isolated_database
 
 log "  All pre-validation checks passed."
 
@@ -581,7 +751,7 @@ echo ""
 echo "Backup to restore:"
 echo "  PostgreSQL dump : $PG_DUMP_FILE"
 echo "  Storage archive : $STORAGE_ARCHIVE"
-echo "  Storage volume  : $STORAGE_VOLUME  (mounted at /storage in backend)"
+echo "  Storage mount   : $RECOVERY_STORAGE_TYPE $RECOVERY_STORAGE_TARGET"
 echo ""
 if [ "$FORCE_YES" -eq 0 ]; then
   log "This will OVERWRITE current DB and storage data."
@@ -690,28 +860,21 @@ else
   fi
 fi
 
-# Release restore lock on exit — only if we own it (token match).
-restore_cleanup() {
-  local rc=$?
-  if [ "${RESTORE_HOLDS_LOCK:-0}" -eq 1 ] && [ -d "$BACKUP_LOCK_DIR" ] && [ ! -L "$BACKUP_LOCK_DIR" ]; then
-    local lock_token
-    lock_token="$(cat "$BACKUP_LOCK_DIR/LOCK_TOKEN" 2>/dev/null || echo "")"
-    if [ "$lock_token" = "$RESTORE_TOKEN" ]; then
-      safe_remove_lock_dir "$BACKUP_LOCK_DIR" 2>/dev/null || \
-        err "Could not release restore lock: $BACKUP_LOCK_DIR"
-    fi
-  fi
-  exit "$rc"
-}
-trap restore_cleanup EXIT INT TERM
-
 # ===========================================================================
 # Phase C: destructive restore
 # ===========================================================================
 echo ""
 echo "[1/6] Stopping application services..."
-docker compose down
-
+# First check is read-only; repeat after writers stop to close admission races.
+validation_psql < "$SCRIPT_DIR/recovery-pending.sql" >/dev/null \
+  || die "Target pending SSD check failed; refusing destructive restore"
+[ "$(sha256_hex "$LATEST_META")" = "$EXPECTED_META_SHA256" ] || die "Metadata changed after preflight"
+[ "$(sha256_hex "$PG_DUMP_FILE")" = "$PG_DUMP_SHA256" ] || die "Dump changed after preflight"
+[ "$(sha256_hex "$STORAGE_ARCHIVE")" = "$STORAGE_SHA256" ] || die "Storage archive changed after preflight"
+RESTORE_DESTRUCTIVE=1
+# Revalidate the pinned mount before any target mutation.
+recovery_storage_check || die "Storage identity changed before restore"
+docker compose stop
 # --- DB restore with fail-closed semantics ---
 echo "[2/6] Restoring PostgreSQL..."
 docker compose up -d db
@@ -726,68 +889,36 @@ for i in $(seq 1 15); do
 done
 [ "$DB_READY" -eq 1 ] || die "PostgreSQL did not become ready within 15s"
 
+# Refuse to overwrite target-side pending SSD state: the archive cannot recover it.
+docker compose exec -T db psql -X -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" \
+  < "$SCRIPT_DIR/recovery-pending.sql" >/dev/null \
+  || die "Target pending SSD state or unavailable recovery guard; restore refused"
+
+recovery_storage_assert_clean || die "Retained restore artifacts detected after writer fencing"
+
 # Wipe existing schema for a clean, deterministic restore state
-docker compose exec -T db psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" -c \
-  "DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO $DB_USER;" \
+docker compose exec -T db psql -X -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" -c \
+  "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" \
   >/dev/null || die "Failed to reset database schema before restore"
 
 # Restore from dump with ON_ERROR_STOP=1 — any SQL error aborts immediately
-if ! gunzip -c "$PG_DUMP_FILE" | docker compose exec -T db psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME"; then
+if ! gunzip -c "$PG_DUMP_FILE" | docker compose exec -T db psql -X -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME"; then
   err "PostgreSQL restore failed (ON_ERROR_STOP detected an error)"
-  err "Attempting service recovery..."
-  docker compose up -d
   exit 1
 fi
 log "  PostgreSQL restored (ON_ERROR_STOP: enabled)."
 
 # --- Post-DB restore validation ---
 echo "[3/6] Validating restored database..."
-TABLE_COUNT=$(docker compose exec -T db psql -U "$DB_USER" -d "$DB_NAME" -tAc \
-  "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'" 2>/dev/null | tr -d '[:space:]')
-# Accept only the exact known schema generations. Legacy backups are migrated
-# later; unknown/missing tables must fail before the storage switch.
-case "$TABLE_COUNT" in
-  7) ;; # Before durable upload chunks / native downloads.
-  8) EXPECTED_TABLE_NAMES="$EXPECTED_TABLE_NAMES upload_chunks" ;;
-  9) EXPECTED_TABLE_NAMES="$EXPECTED_TABLE_NAMES upload_chunks download_capabilities" ;;
-  10) EXPECTED_TABLE_NAMES="$EXPECTED_TABLE_NAMES upload_chunks download_capabilities storage_locations" ;;
-  11) EXPECTED_TABLE_NAMES="$EXPECTED_TABLE_NAMES upload_chunks download_capabilities storage_locations upload_workspaces" ;;
-  *)
-    err "Database validation failed: expected a known 7/8/9/10/11-table schema, found $TABLE_COUNT"
-    docker compose up -d
-    exit 1
-    ;;
-esac
-log "  Tables in database: $TABLE_COUNT (known schema generation)"
-
-# Verify each expected table exists
-for t in $EXPECTED_TABLE_NAMES; do
-  EXISTS=$(docker compose exec -T db psql -U "$DB_USER" -d "$DB_NAME" -tAc \
-    "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='$t' AND table_type='BASE TABLE'" 2>/dev/null | tr -d '[:space:]')
-  [ "$EXISTS" = "1" ] || die "Database validation failed: table '$t' missing after restore"
-done
-log "  All expected tables present: OK"
-
-# Verify key columns match entity definitions
-FILES_COLS=$(docker compose exec -T db psql -U "$DB_USER" -d "$DB_NAME" -tAc \
-  "SELECT string_agg(column_name, ',' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_name='files' AND table_schema='public'" 2>/dev/null | tr -d '[:space:]')
-[ "${FILES_COLS%%,*}" = "id" ] || die "Database validation failed: files table columns unexpected ($FILES_COLS)"
-log "  Key column validation: OK"
-
-USERS_COUNT=$(docker compose exec -T db psql -U "$DB_USER" -d "$DB_NAME" -tAc \
-  "SELECT count(*) FROM users" 2>/dev/null | tr -d '[:space:]')
-log "  users row count: $USERS_COUNT"
-log "  Database validation: OK"
+validate_restored_database
 
 # --- Storage restore (safe: prepare → validate → rename-swap → verify → cleanup) ---
-echo "[4/6] Restoring storage into Docker volume $STORAGE_VOLUME..."
-if ! docker run --rm --user root -i --entrypoint sh \
-    -v "${STORAGE_VOLUME}:/storage" \
-    -e "EXPECTED_FILE_COUNT=${META_STORAGE_FILE_COUNT:-0}" \
-    "$BACKEND_IMAGE" \
-    -c '
+echo "[4/6] Restoring verified $RECOVERY_STORAGE_TYPE storage mount..."
+if ! recovery_storage_run rw --user root -i --entrypoint sh -- \
+    "$BACKEND_IMAGE" -c '
 set -e
-STORAGE_ROOT="/storage"
+STORAGE_ROOT="$1"
+EXPECTED_FILE_COUNT="$2"
 STAGE="$STORAGE_ROOT/.restore-staging"
 SWAP="$STORAGE_ROOT/.restore-swap"
 
@@ -804,19 +935,14 @@ safe_remove_dir() {
   [ ! -e "$path" ] && [ ! -L "$path" ] || return 1
 }
 
-# Validate predictable staging paths before creating or removing them.
+# A failed earlier restore may have left the only surviving old bytes here.
+# Preserve every retained artifact; automatic ownership guesses are unsafe.
 for cleanup_path in "$STAGE" "$SWAP"; do
-  if [ -L "$cleanup_path" ]; then
-    echo "STORAGE_RESTORE_FAIL: unsafe restore path (symlink): $cleanup_path" >&2
-    exit 1
-  fi
-  if [ -e "$cleanup_path" ] && [ ! -d "$cleanup_path" ]; then
-    echo "STORAGE_RESTORE_FAIL: unsafe restore path (not directory): $cleanup_path" >&2
+  if [ -e "$cleanup_path" ] || [ -L "$cleanup_path" ]; then
+    echo "STORAGE_RESTORE_FAIL: retained restore artifacts require operator review: $cleanup_path" >&2
     exit 1
   fi
 done
-safe_remove_dir "$STAGE" || exit 1
-safe_remove_dir "$SWAP" || exit 1
 
 # --- 1. Prepare: extract to staging ---
 mkdir -p "$STAGE"
@@ -903,17 +1029,20 @@ chown -R "$NEXTJS_UID:$NEXTJS_GID" "$STORAGE_ROOT"
 echo "  ownership set to uid=$NEXTJS_UID gid=$NEXTJS_GID"
 
 echo "STORAGE_RESTORE_OK: files=$ROOT_TOTAL"
-' < "$STORAGE_ARCHIVE"; then
-  err "Storage restore failed; starting services to recover..."
-  docker compose up -d
+' recovery-storage "$RECOVERY_STORAGE_TARGET" "${META_STORAGE_FILE_COUNT:-0}" < "$STORAGE_ARCHIVE"; then
+  err "Storage restore failed; application services remain fenced"
   exit 1
 fi
-log "  Storage restored into volume $STORAGE_VOLUME."
+log "  Storage restored into verified $RECOVERY_STORAGE_TYPE mount."
 
 # --- Migrate while the backend and its startup cleanup remain fenced ---
 echo "[5/6] Running migrations with backend stopped..."
 set +e
-docker compose run --rm --no-deps -T backend npm run migration:run
+recovery_storage_check || die "Storage/image identity changed before migration"
+RESTORE_MIGRATION_CONTAINER="homecloud-restore-migration-$RESTORE_TOKEN"
+docker compose run --rm --no-deps --pull never \
+  --name "$RESTORE_MIGRATION_CONTAINER" --label "homecloud.restore.migration=$RESTORE_TOKEN" \
+  -T backend npm run migration:run
 MIGRATION_RC=$?
 set -e
 if [ "$MIGRATION_RC" -ne 0 ]; then
@@ -931,7 +1060,6 @@ set +e
 python3 "$RECONCILE_SCRIPT" \
   --db-user "$DB_USER" \
   --db-name "$DB_NAME" \
-  --storage-volume "$STORAGE_VOLUME" \
   --backend-image "$BACKEND_IMAGE"
 RECONCILE_RC=$?
 set -e
@@ -944,7 +1072,8 @@ fi
 log "  Reconciliation: OK (no critical discrepancies)"
 
 # Start writers only after migration and reconciliation have passed.
-docker compose up -d
+recovery_storage_check || die "Storage/image identity changed before writer restart"
+docker compose up -d --no-recreate --pull never
 
 # --- Health check (actual HTTP probe, output captured) ---
 echo ""
@@ -952,12 +1081,14 @@ echo "=== Post-Restore Health Check ==="
 BACKEND_HEALTH=""
 for i in $(seq 1 30); do
   set +e
-  BACKEND_HEALTH=$(echo 'const http=require("http");http.get("http://localhost:3000/api/v1/health",(r)=>{let d="";r.on("data",c=>d+=c);r.on("end",()=>{process.stdout.write(d);process.exit(r.statusCode===200?0:1);});}).on("error",()=>process.exit(1));' | \
+  BACKEND_HEALTH=$(echo 'const http=require("http");const deadline=setTimeout(()=>process.exit(1),5000);const q=http.get("http://localhost:3000/api/v1/health/ready",(r)=>{let d="";r.on("data",c=>{d+=c;if(Buffer.byteLength(d)>8192)q.destroy(new Error("response too large"));});r.on("error",()=>process.exit(1));r.on("end",()=>{clearTimeout(deadline);process.stdout.write(d);process.exit(r.statusCode===200?0:1);});});q.setTimeout(5000,()=>q.destroy(new Error("timeout")));q.on("error",()=>process.exit(1));' | \
     docker compose exec -T backend node - 2>/dev/null)
+  HEALTH_RC=$?
   set -e
-  if [ -n "$BACKEND_HEALTH" ]; then
+  if [ "$HEALTH_RC" -eq 0 ] && [ -n "$BACKEND_HEALTH" ]; then
     break
   fi
+  BACKEND_HEALTH=""
   sleep 2
 done
 
@@ -968,7 +1099,7 @@ if [ -z "$BACKEND_HEALTH" ]; then
 fi
 
 log "  Backend health response: $BACKEND_HEALTH"
-if echo "$BACKEND_HEALTH" | grep -q '"ok"'; then
+if python3 -c 'import json,sys; body=json.load(sys.stdin); sys.exit(0 if isinstance(body,dict) and body.get("status")=="ready" and body.get("checks",{}).get("database")=="ok" and body.get("checks",{}).get("storage")=="ok" else 1)' <<< "$BACKEND_HEALTH"; then
   log "  Backend health: OK"
 else
   err "Backend health check returned unexpected response: $BACKEND_HEALTH"
@@ -980,5 +1111,5 @@ log "=== Restore completed successfully ==="
 log "Verify:"
 log "  - Backend health : http://localhost:3000/api/v1/health"
 log "  - Frontend       : http://localhost"
-log "  - Restored files : docker run --rm -v $STORAGE_VOLUME:/storage $BACKEND_IMAGE find /storage -type f"
+log "  - Restored mount : $RECOVERY_STORAGE_TYPE $RECOVERY_STORAGE_TARGET"
 exit 0
