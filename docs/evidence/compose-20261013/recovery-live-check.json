@@ -1,0 +1,35 @@
+{
+  "snapshot": {
+    "container_id": "27ed00f2965b38b9fe5744e1db885e84128dc31c980c403f73841f874623e74c",
+    "image_id": "sha256:f52ab53cd848cff19abb8a3911741e36591991635273d5bd33a9bf4fcdbb553d",
+    "project": "homecloud-preview",
+    "config_hash": "64ca0060787f3b5d083a326d3d4992ecf0892cacd6666d981e7093f71b6705a7",
+    "target": "/storage",
+    "type": "volume",
+    "source": "/var/lib/docker/volumes/homecloud-preview_storage_data/_data",
+    "name": "homecloud-preview_storage_data",
+    "declared": {
+      "type": "volume",
+      "source": "storage_data",
+      "target": "/storage",
+      "volume": {}
+    },
+    "volume": {
+      "CreatedAt": "2026-09-30T10:30:32Z",
+      "Driver": "local",
+      "Labels": {
+        "com.docker.compose.config-hash": "cf443064858a15e1845cfdb39b25dd349e62bb843a5209fc8681c395dd9ef08c",
+        "com.docker.compose.project": "homecloud-preview",
+        "com.docker.compose.version": "5.1.3",
+        "com.docker.compose.volume": "storage_data"
+      },
+      "Mountpoint": "/var/lib/docker/volumes/homecloud-preview_storage_data/_data",
+      "Name": "homecloud-preview_storage_data",
+      "Options": null,
+      "Scope": "local"
+    }
+  },
+  "helperExitCode": 0,
+  "helperUid": 1001,
+  "migrationsBypassed": true
+}

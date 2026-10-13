@@ -1,6 +1,6 @@
 # HomeCloud — единый roadmap
 
-**Текущее состояние на 2026-10-06:** полный 50 ГиБ Browser E2E — **PASS** в IAB/localhost ([доказательства](./evidence/browser-50gib-qualification-20261006/report.md)); универсальное хранение и очередь с докачкой подтверждены; единственный локальный стек — `homecloud-preview` с постоянными data/runtime/TLS. Safari 50 ГиБ — **UNQUALIFIED**, production — **NOT_READY / NO_GO**. Предпроизводственная версия `v0.9.0-local.1` не вводит новую Phase. [Контракт версии](./local-release-baseline.md).
+**Текущее состояние на 2026-10-13:** полный 50 ГиБ Browser E2E — **PASS** в IAB/localhost ([доказательства](./evidence/browser-50gib-qualification-20261006/report.md)); универсальное хранение и очередь с докачкой подтверждены; единственный Mac тестовый стек — `homecloud-preview`, основной `docker-compose.yml`, HTTP localhost:8080 и постоянные volumes; TLS не требуется для ежедневной работы. Safari 50 ГиБ — **UNQUALIFIED**, production — **NOT_READY / NO_GO**. Предпроизводственная версия `v0.9.0-local.1` не вводит новую Phase. [Контракт версии](./local-release-baseline.md).
 
 Разделы выполненных Phase и датированные checkpoints ниже — история на соответствующую дату. Старые 1/10 ГиБ, Blob/100 МиБ, O(N²), BLOCKED/FAIL и временные TLS paths сохраняются как исторические границы; актуальное состояние задают позднейшие ненумерованные checkpoints и эта сводка.
 
@@ -1154,3 +1154,27 @@ Final canonical records13existingcontainers/76volumes/10networks равны befo
 **COMPLETE не установлен; production NOT_READY/NO_GO и SSD activationOFF сохраняются.**
 Работа остановлена послеD1. D2/D3 не начаты; следующий gate только по отдельному
 согласованию владельца. Запрещённый audit file и чужие untracked не включены в работу.
+
+
+## Рабочий Compose Mac/dev и подготовка Linux (2026-10-13)
+
+По прямому уточнению владельца текущий Mac Docker — тестовый, важных данных нет;
+вторая тестовая инфраструктура не создавалась. Exact base `c2edc270`.
+Main Compose + optional Vite local override + Linux production override, рабочий env
+шаблон, русские YAML comments, migrations-before-API, native Linux build, parsed
+healthcheck и D1 env/mount/image compatibility. Existing DB/storage volumes сохранены.
+
+Build/config/3healthy PASS; API22/22 (upload/download/Range/native/pending persistence),
+IAB native download exactSHA256 PASS; Vite5173→API3000 PASS; probe7/7; offline73PASS/
+3expectedSKIP (добавлен1config regression); frontend278/278; lint0errors/15existing
+backendwarnings. Recovery/config и release fingerprint совместимость проверены; operator preflight13/13
+и manifest31/31 PASS. Исторические release harnesses не requalified.
+Два независимых review: unresolved MUST_FIX0. Backend full baseline
+38FAIL/154SKIP не исправлен и не выдаётся за PASS. Stopped old TLS ingress и собственные
+малые smoke данные сохранены; unrelated containers unchanged.
+[Runbook](docker-compose.md), [отчёт и границы](evidence/compose-20261013/report.md).
+
+Linux SSD DB/HDD storage — только подготовка. Физические disks/mini-PC/TLS/50+GiB/RSS,
+SSD enrollment/recovery и destructive restore не проверены; SSD mapping отсутствует,
+feature OFF. 520 seals legacy-only admission; будущий ON требует отдельного enrollment.
+**COMPLETE не установлен; production NOT_READY/NO_GO. Остановиться после этапа.**

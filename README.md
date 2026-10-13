@@ -95,67 +95,40 @@ git clone https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud.git 
 cd HomeCloud
 ```
 
-### 2. Единственное локальное окружение
+### 2. Рабочее окружение на Mac
 
-Обычная разработка использует **только `homecloud-preview`**: production topology плюс
-`docker-compose.local.yml`. Требуется Docker Compose >= 2.24.4 (`!override` заменяет
-публичные port bindings, а не добавляет loopback bindings к ним).
-
-Runtime secrets и TLS находятся вне репозитория в
-`~/Library/Application Support/HomeCloud/{config,tls,challenges}`. Не копируйте
-секреты в repo `.env` и не используйте исчезающие `/private/tmp` overrides.
-Local override требует существующие external volumes
-`homecloud-preview_db_data` и `homecloud-preview_storage_data`: отсутствие volume
-останавливает запуск вместо создания пустой базы. Для нового хоста сначала
-восстановите проверенный backup по [runbook](docs/operations-runbook.md).
-
-### 3. Запуск и проверка
+Основной файл теперь **`docker-compose.yml`**: PostgreSQL + backend + frontend,
+HTTP localhost:8080, постоянные project volumes, Redis OFF и SSD uploads OFF.
+Секреты генерируются из `.env.example`; точная подготовка первого запуска и
+использование существующей БД описаны в [Compose runbook](docs/docker-compose.md).
 
 ```sh
-# Выполнять из корня HomeCloud. Файл env защищён правами 0600.
-hc() {
-  docker compose --project-name homecloud-preview \
-    --env-file "$HOME/Library/Application Support/HomeCloud/config/runtime.env" \
-    -f docker-compose.production.yml -f docker-compose.local.yml "$@"
-}
-hc config --quiet
-hc up -d --build --wait
-hc ps
+docker compose config --quiet
+docker compose up -d --build --wait --wait-timeout 180
+docker compose ps
 ```
 
-[Полные инструкции запуска, обновления, миграций и восстановления](docs/operations-runbook.md).
-`docker-compose.yml` — историческая конфигурация; не запускайте её для обычной
-разработки: она связывает другие volumes и создаёт конкурирующее окружение.
+`docker-compose.local.yml` нужен только для Vite HMR/API loopback3000.
+`docker-compose.production.yml` применяется **поверх основного** на Linux:
+SSD DB + HDD files, TLS ingress, отдельный host enrollment. Mini-PC не проверен,
+production NO_GO сохраняется. Больше не нужны fixed external preview volumes,
+TLS или отдельная вторая инфраструктура для ежедневной Mac-разработки.
 
-### 4. Создание пользователя
+### 3. Пользователь и доступ
 
-Регистрация доступна через `POST /api/v1/auth/register` на том же frontend URL;
-экран UI поддерживает вход, отдельного экрана регистрации пока нет. Пароли не хранятся в Git.
-Модель ролей отсутствует: регистрация создаёт обычного пользователя с нулевой
-квотой. Для загрузки оператор назначает квоту отдельно; local dev-аккаунт уже
-получил 100 ГиБ. См. runbook; пароли пользователей напрямую в БД не менять.
-
-## Доступ
-
-| Сервис | URL | Описание |
-|--------|-----|----------|
-| Frontend | http://localhost:8080 | Канонический локальный UI |
-| HTTPS ingress | https://homecloud.localhost | Локальный сертификат, без публичной CA-квалификации |
-| API | http://localhost:8080/api/v1 | API через frontend; backend port не опубликован |
-| HTTP ingress | http://homecloud.localhost | 308 на HTTPS; ACME challenge отдельно |
-
-DB/backend/Redis не публикуются; Redis profile отключён. Health/metrics недоступны
-через публичные proxy routes. Используйте `hc ps` и внутренний readiness endpoint.
-Локальный сертификат не установлен в системное доверие: браузер может показать
-предупреждение. HTTP localhost остаётся доступным для обычной работы.
+UI: http://localhost:8080/login, API: http://localhost:8080/api/v1.
+Регистрация — `POST /api/v1/auth/register`; новый пользователь получает quota0,
+оператор назначает квоту отдельно по точным id+email. [Команды](docs/docker-compose.md#первый-пользователь-и-квота).
+Health/metrics закрыты на nginx; проверка внутри backend:
+`docker compose exec -T backend node docker/healthcheck.cjs`.
 
 ## Структура проекта
 
 ```
 HomeCloud/
-├── docker-compose.production.yml # Топология
-├── docker-compose.local.yml     # Единственный локальный override
-├── docker-compose.yml          # Историческая конфигурация
+├── docker-compose.production.yml # Linux SSD DB/HDD storage + TLS override
+├── docker-compose.local.yml     # Необязательный API port для Vite HMR
+├── docker-compose.yml          # Основной Mac/dev Compose
 ├── .env.example                # Пример переменных окружения
 ├── README.md                   # Документация
 ├── backend/
@@ -224,7 +197,7 @@ HomeCloud/
 │           └── upload-session.entity.ts
 └── frontend/
     ├── Dockerfile              # Multi-stage: Node build + Nginx serve
-    ├── nginx.conf              # SPA fallback + API proxy
+    ├── nginx.conf.template              # SPA fallback + API proxy
     ├── package.json
     ├── vite.config.ts
     ├── tsconfig.json
@@ -350,9 +323,9 @@ HomeCloud/
 
 | Volume | Назначение |
 |--------|------------|
-| `homecloud-preview_db_data` | Каноническая PostgreSQL БД |
+| `${COMPOSE_PROJECT_NAME}_db_data` | PostgreSQL на Mac |
 | `redis_data` | Опциональный Redis; в local baseline выключен |
-| `homecloud-preview_storage_data` | Канонические пользовательские файлы |
+| `${COMPOSE_PROJECT_NAME}_storage_data` | Пользовательские файлы на Mac |
 
 ## Резервное копирование
 
@@ -362,12 +335,12 @@ HomeCloud/
 
 | Переменная | Локальный baseline | Описание |
 |------------|--------------|----------|
-| `DB_NAME` | `homecloud_preview` | Имя базы данных |
-| `DB_USER` | `homecloud_preview` | Пользователь PostgreSQL |
+| `DB_NAME` | `homecloud` | Имя базы данных |
+| `DB_USER` | `homecloud` | Пользователь PostgreSQL |
 | `DB_PASSWORD` | Внешний сильный секрет | Пароль PostgreSQL |
 | `JWT_SECRET` | Внешний сильный секрет | Секрет для access токенов |
 | `JWT_REFRESH_SECRET` | Независимый внешний секрет | Секрет для refresh токенов |
-| `REDIS_URL` | Пусто; Redis выключен | URL Redis |
+| `REDIS_PASSWORD` | Генерируемый hex секрет | Требуется dev validator; Redis profile выключен |
 | `STORAGE_PATH` | `/storage` | Путь к хранилищу файлов |
 | `MAX_FILE_SIZE` | `1099511627776` | Максимальный размер файла (0 = без ограничений) |
 | Базовая часть клиента | `10485760` | Константа 10 МиБ с адаптацией по maxChunks; legacy `CHUNK_SIZE` env не управляет текущей UploadQueue |

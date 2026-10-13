@@ -1,0 +1,68 @@
+{
+  "containers": [
+    {
+      "service": "backend",
+      "id": "27ed00f2965b38b9fe5744e1db885e84128dc31c980c403f73841f874623e74c",
+      "imageId": "sha256:f52ab53cd848cff19abb8a3911741e36591991635273d5bd33a9bf4fcdbb553d",
+      "health": "healthy",
+      "memoryLimit": 4294967296,
+      "mounts": [
+        {
+          "Type": "volume",
+          "Name": "homecloud-preview_storage_data",
+          "Source": "/var/lib/docker/volumes/homecloud-preview_storage_data/_data",
+          "Destination": "/storage",
+          "Driver": "local",
+          "Mode": "rw",
+          "RW": true,
+          "Propagation": ""
+        }
+      ],
+      "ports": {
+        "3000/tcp": null
+      }
+    },
+    {
+      "service": "db",
+      "id": "2eee7cfcd0ce275fb3f48b2f9c32f7e66588bd26ed694702ac4e3f0fd6d7b02e",
+      "imageId": "sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685",
+      "health": "healthy",
+      "memoryLimit": 1073741824,
+      "mounts": [
+        {
+          "Type": "volume",
+          "Name": "homecloud-preview_db_data",
+          "Source": "/var/lib/docker/volumes/homecloud-preview_db_data/_data",
+          "Destination": "/var/lib/postgresql/data",
+          "Driver": "local",
+          "Mode": "rw",
+          "RW": true,
+          "Propagation": ""
+        }
+      ],
+      "ports": {
+        "5432/tcp": null
+      }
+    },
+    {
+      "service": "frontend",
+      "id": "a0038f42c940c42bbcb4f81b5caec0cf156857afe92b498b55886f45eb0ecb50",
+      "imageId": "sha256:c6d0b6484a56655d031c12396a81a0c797944fe68c7c312f8aeae930791c0ae2",
+      "health": "healthy",
+      "memoryLimit": 268435456,
+      "mounts": [],
+      "ports": {
+        "80/tcp": [
+          {
+            "HostIp": "127.0.0.1",
+            "HostPort": "8080"
+          }
+        ]
+      }
+    }
+  ],
+  "exactDownload": true,
+  "pendingChunk": true,
+  "bytes": 3145768,
+  "sha256": "d3702142bd88fb10a19fa59a2ed60a6cfdd0755f63be0dcd77a097160fb356a7"
+}

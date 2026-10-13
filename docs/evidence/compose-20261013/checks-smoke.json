@@ -1,0 +1,138 @@
+[
+  {
+    "name": "main-services",
+    "passed": true,
+    "details": null
+  },
+  {
+    "name": "SSD-OFF-no-mapping",
+    "passed": true,
+    "details": null
+  },
+  {
+    "name": "readiness-DB-storage",
+    "passed": true,
+    "details": null
+  },
+  {
+    "name": "actual-original-storage-volume",
+    "passed": true,
+    "details": null
+  },
+  {
+    "name": "actual-original-DB-volume",
+    "passed": true,
+    "details": null
+  },
+  {
+    "name": "migrations-520",
+    "passed": true,
+    "details": null
+  },
+  {
+    "name": "public-health-blocked",
+    "passed": true,
+    "details": null
+  },
+  {
+    "name": "register-own-user",
+    "passed": true,
+    "details": null
+  },
+  {
+    "name": "quota-own-user",
+    "passed": true,
+    "details": null
+  },
+  {
+    "name": "login-own-user",
+    "passed": true,
+    "details": null
+  },
+  {
+    "name": "limits-legacy-mode",
+    "passed": true,
+    "details": {
+      "keys": [
+        "maxFileBytes",
+        "maxActiveBytes",
+        "maxChunkBytes",
+        "maxChunks",
+        "remainingActiveBytes",
+        "quotaRemainingBytes",
+        "effectiveMaxFileBytes"
+      ]
+    }
+  },
+  {
+    "name": "3-plus-chunks-complete",
+    "passed": true,
+    "details": null
+  },
+  {
+    "name": "download-exact-sha256",
+    "passed": true,
+    "details": {
+      "bytes": 3145768,
+      "sha256": "d3702142bd88fb10a19fa59a2ed60a6cfdd0755f63be0dcd77a097160fb356a7"
+    }
+  },
+  {
+    "name": "range-206-exact",
+    "passed": true,
+    "details": null
+  },
+  {
+    "name": "native-cookie-download-exact",
+    "passed": true,
+    "details": null
+  },
+  {
+    "name": "pending-own-chunk",
+    "passed": true,
+    "details": {
+      "keys": [
+        "uploadId",
+        "filename",
+        "totalSize",
+        "chunkSize",
+        "totalChunks",
+        "uploadedSize",
+        "status",
+        "expiresAt",
+        "parentId",
+        "chunks"
+      ]
+    }
+  },
+  {
+    "name": "readiness-after-restart",
+    "passed": true,
+    "details": null
+  },
+  {
+    "name": "persistence-file-after-restart",
+    "passed": true,
+    "details": null
+  },
+  {
+    "name": "persistence-pending-chunk-after-restart",
+    "passed": true,
+    "details": null
+  },
+  {
+    "name": "persistence-quota-after-restart",
+    "passed": true,
+    "details": null
+  },
+  {
+    "name": "idempotent-migration-restart",
+    "passed": true,
+    "details": null
+  },
+  {
+    "name": "persistence-mount-source",
+    "passed": true,
+    "details": null
+  }
+]

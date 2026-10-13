@@ -1,0 +1,242 @@
+{
+  "main": {
+    "backend": {
+      "image": "homecloud-backend:dev",
+      "ports": [],
+      "mounts": [
+        {
+          "type": "volume",
+          "source": "storage_data",
+          "target": "/storage",
+          "volume": {}
+        }
+      ],
+      "networks": {
+        "app_network": null
+      },
+      "nodeEnv": "development",
+      "ssdEnabled": "false"
+    },
+    "db": {
+      "image": "postgres:16-alpine",
+      "ports": [],
+      "mounts": [
+        {
+          "type": "volume",
+          "source": "db_data",
+          "target": "/var/lib/postgresql/data",
+          "volume": {}
+        }
+      ],
+      "networks": {
+        "app_network": null
+      },
+      "nodeEnv": null,
+      "ssdEnabled": null
+    },
+    "frontend": {
+      "image": "homecloud-frontend:dev",
+      "ports": [
+        {
+          "mode": "ingress",
+          "host_ip": "127.0.0.1",
+          "target": 80,
+          "published": "8080",
+          "protocol": "tcp"
+        }
+      ],
+      "mounts": [],
+      "networks": {
+        "app_network": null,
+        "web_network": null
+      },
+      "nodeEnv": null,
+      "ssdEnabled": null
+    }
+  },
+  "local": {
+    "backend": {
+      "image": "homecloud-backend:dev",
+      "ports": [
+        {
+          "mode": "ingress",
+          "host_ip": "127.0.0.1",
+          "target": 3000,
+          "published": "3000",
+          "protocol": "tcp"
+        }
+      ],
+      "mounts": [
+        {
+          "type": "volume",
+          "source": "storage_data",
+          "target": "/storage",
+          "volume": {}
+        }
+      ],
+      "networks": {
+        "app_network": null,
+        "web_network": null
+      },
+      "nodeEnv": "development",
+      "ssdEnabled": "false"
+    },
+    "db": {
+      "image": "postgres:16-alpine",
+      "ports": [],
+      "mounts": [
+        {
+          "type": "volume",
+          "source": "db_data",
+          "target": "/var/lib/postgresql/data",
+          "volume": {}
+        }
+      ],
+      "networks": {
+        "app_network": null
+      },
+      "nodeEnv": null,
+      "ssdEnabled": null
+    },
+    "frontend": {
+      "image": "homecloud-frontend:dev",
+      "ports": [
+        {
+          "mode": "ingress",
+          "host_ip": "127.0.0.1",
+          "target": 80,
+          "published": "8080",
+          "protocol": "tcp"
+        }
+      ],
+      "mounts": [],
+      "networks": {
+        "app_network": null,
+        "web_network": null
+      },
+      "nodeEnv": null,
+      "ssdEnabled": null
+    }
+  },
+  "production": {
+    "backend": {
+      "image": "homecloud-backend:dev",
+      "ports": [],
+      "mounts": [
+        {
+          "type": "bind",
+          "source": "/srv/homecloud-hdd/storage",
+          "target": "/storage",
+          "bind": {
+            "create_host_path": false
+          }
+        }
+      ],
+      "networks": {
+        "app_network": null,
+        "backend_proxy": null
+      },
+      "nodeEnv": "production",
+      "ssdEnabled": "false"
+    },
+    "db": {
+      "image": "postgres:16-alpine",
+      "ports": [],
+      "mounts": [
+        {
+          "type": "bind",
+          "source": "/srv/homecloud-ssd/postgres",
+          "target": "/var/lib/postgresql/data",
+          "bind": {
+            "create_host_path": false
+          }
+        }
+      ],
+      "networks": {
+        "app_network": null
+      },
+      "nodeEnv": null,
+      "ssdEnabled": null
+    },
+    "frontend": {
+      "image": "homecloud-frontend:dev",
+      "ports": [],
+      "mounts": [],
+      "networks": {
+        "backend_proxy": {
+          "ipv4_address": "172.30.0.10"
+        },
+        "ingress_frontend": null
+      },
+      "nodeEnv": null,
+      "ssdEnabled": null
+    },
+    "ingress": {
+      "image": "nginx:1.28-alpine",
+      "ports": [
+        {
+          "mode": "ingress",
+          "host_ip": "0.0.0.0",
+          "target": 80,
+          "published": "80",
+          "protocol": "tcp"
+        },
+        {
+          "mode": "ingress",
+          "host_ip": "0.0.0.0",
+          "target": 443,
+          "published": "443",
+          "protocol": "tcp"
+        }
+      ],
+      "mounts": [
+        {
+          "type": "bind",
+          "source": "/Users/aleksejkozemakin/Desktop/HomeCloud/deploy/ingress/19-validate-public-host.sh",
+          "target": "/docker-entrypoint.d/19-validate-public-host.sh",
+          "read_only": true,
+          "bind": {}
+        },
+        {
+          "type": "bind",
+          "source": "/Users/aleksejkozemakin/Desktop/HomeCloud/deploy/ingress/default.conf.template",
+          "target": "/etc/nginx/templates/default.conf.template",
+          "read_only": true,
+          "bind": {}
+        },
+        {
+          "type": "bind",
+          "source": "/Users/aleksejkozemakin/Desktop/HomeCloud/deploy/ingress/upgrade.conf",
+          "target": "/etc/nginx/conf.d/upgrade.conf",
+          "read_only": true,
+          "bind": {}
+        },
+        {
+          "type": "bind",
+          "source": "/etc/homecloud/tls",
+          "target": "/etc/nginx/tls",
+          "read_only": true,
+          "bind": {
+            "create_host_path": false
+          }
+        },
+        {
+          "type": "bind",
+          "source": "/var/lib/homecloud/acme",
+          "target": "/var/www/acme",
+          "read_only": true,
+          "bind": {
+            "create_host_path": false
+          }
+        }
+      ],
+      "networks": {
+        "ingress_frontend": {
+          "ipv4_address": "172.29.0.10"
+        }
+      },
+      "nodeEnv": null,
+      "ssdEnabled": null
+    }
+  }
+}
