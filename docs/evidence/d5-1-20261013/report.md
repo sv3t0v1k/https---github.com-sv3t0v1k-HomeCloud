@@ -114,3 +114,30 @@ UNKNOWN. Snapshot [deployment-reported.json](./deployment-reported.json) — д�
 Mini-PC не подключался и не обновлялся. Никаких Docker daemon/service/container/volume/mount/DNS/data
 изменений Mac или сервера не делалось. D5.2 (approved target update, preflight/backup/health/rollback)
 не начат и требует отдельного разрешения.
+
+
+## Разрешённая публикация и первый реальный CI
+
+После отдельного подтверждения владельца опубликована ветка `этап/d5-1-ci` и создан
+[draft PR №1](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/pull/1).
+Main остаётся b5c954f; tags/GHCR/Release/CD не изменялись.
+
+Первый PR CI на513e395: [run38397115671](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38397115671).
+Frontend и secrets PASS. Linux native addon compiled; все12 PostgreSQL suites выполнились без skips.
+Полный backend:1121PASS/27FAIL/0SKIP,79suites (77PASS/2FAIL). Runtime правильно отказал root-процессу
+в двух storage suites (`privileged-runtime-refused`). Configuration: четыре Compose merges и43startup
+PASS;70preflight PASS/2ERRORS. [Числа и source identity](./github-ci-initial.json).
+Security gates FAIL по известным high/critical; они не обходились.
+
+Подготовлено минимальное исправление CI: полный backend suite выполняется под обычным `node` user
+через runuser; собственный checkout ephemeral runner перед этим получает соответствующее ownership.
+Ни production/runtime guard, ни service credentials не ослаблены. Независимое review APPROVE;
+исправление27failures ещё требует нового CI результата.
+
+Preflight source теперь сопоставляет mounts по уникальному target, а не позиции в Compose JSON:
+ровно6unique targets, exact data+5gate mounts, все source/type/readonly/no-create требования сохранены.
+Перестановка valid mounts допустима; duplicates/extra mounts отказывают. Добавлены4regressions,
+76/76локальноPASS и independent review APPROVE. Код mini-PC не обновлялся.
+
+D5.1 остаётся GITHUB_ACCEPTANCE_PENDING / RELEASE_BLOCKED. Последующие реальные результаты
+отражаются в PR checks/body; успешный infrastructure job не заменяет dependency/release/registry gates.

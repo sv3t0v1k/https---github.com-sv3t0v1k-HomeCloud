@@ -1264,3 +1264,17 @@ DEPLOYED или Production GO. D1 qualification manifests не подменяю�
 Только отдельное разрешение после D5.1 gates: approved deployment manifest/digests, target preflight,
 backup/restore evidence, scoped update, health/smoke и rollback с учётом schema compatibility.
 В D5.1 нет SSH к mini-PC, автоматического CD, изменений общих Docker/DNS/mounts/volumes/data.
+
+
+### D5.1 — публикация на review и исправление CI (2026-10-13)
+
+По отдельному разрешению опубликована ветка `этап/d5-1-ci`, создан
+[draft PR №1](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/pull/1). Main/tags не менялись.
+Первый Linux CI: native compile и12PostgreSQL suites выполнялись; полный backend1121PASS/27FAIL/0SKIP
+из-за корректного отказа root. Frontend/secrets PASS; security BLOCKED по high/critical; preflight2errors
+воспроизводятся перестановкой serialized mounts. [Факты](./evidence/d5-1-20261013/github-ci-initial.json).
+
+Подготовлены reviewed corrections: backend CI tests под unprivileged node; preflight exact6unique
+mount targets с сохранением всех safety checks,4новых regression tests. Локально76preflight и16release
+negative tests PASS; actionlint PASS. Новый CI результат pending; failures не объявлены исправленными
+до фактического выполнения. COMPLETE не установлен, GHCR/новый release не выполнялись. D5.2 NOT_STARTED.

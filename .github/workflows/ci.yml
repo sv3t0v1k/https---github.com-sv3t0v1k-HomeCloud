@@ -31,7 +31,7 @@ jobs:
     env:
       HOMECLOUD_TEST_DATABASE_URL: postgres://homecloud_ci:disposable-ci-only@postgres:5432/homecloud_ci
     steps:
-      - run: apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev git python3
+      - run: apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev git python3 util-linux
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           ref: ${{ inputs.source_sha || github.sha }}
@@ -41,7 +41,10 @@ jobs:
       - run: sh native/build.sh
         working-directory: backend
       - run: python3 scripts/ci/test-release.py
-      - run: npm test -- --runInBand --json --outputFile=../backend-tests.json
+      - name: Full suite as unprivileged user
+        run: |
+          chown -R node:node "$GITHUB_WORKSPACE"
+          runuser -u node -- npm test -- --runInBand --json --outputFile=../backend-tests.json
         working-directory: backend
       - name: PostgreSQL suites must execute
         run: |
@@ -86,7 +89,7 @@ jobs:
         with:
           ref: ${{ inputs.source_sha || github.sha }}
           persist-credentials: false
-      - run: python3 scripts/ci/compose-check.py
+      - run: docker compose version && python3 scripts/ci/compose-check.py
       - run: python3 deploy/linux/test_startup_gate.py
       - run: python3 deploy/linux/test_preflight.py
         env:

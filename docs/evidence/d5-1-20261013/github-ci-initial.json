@@ -1,0 +1,42 @@
+{
+  "run_id": 38397115671,
+  "event": "pull_request",
+  "source_commit": "513e3952bc90fa5f6f061f61c1363495d639186f",
+  "url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38397115671",
+  "backend": {
+    "counts": {
+      "numTotalTestSuites": 79,
+      "numPassedTestSuites": 77,
+      "numFailedTestSuites": 2,
+      "numPendingTestSuites": 0,
+      "numTotalTests": 1148,
+      "numPassedTests": 1121,
+      "numFailedTests": 27,
+      "numPendingTests": 0
+    },
+    "postgres_suites_passed": 12,
+    "failure": "27 assertions in 2 storage suites; runtime refused privileged root"
+  },
+  "configuration": "4 Compose merges and43startup PASS;70preflight PASS/2ERRORS; ordering dependence reproduced",
+  "frontend": "PASS",
+  "secrets": "PASS",
+  "audit_counts": {
+    "backend": {
+      "info": 0,
+      "low": 4,
+      "moderate": 36,
+      "high": 13,
+      "critical": 2,
+      "total": 55
+    },
+    "frontend": {
+      "info": 0,
+      "low": 0,
+      "moderate": 3,
+      "high": 7,
+      "critical": 2,
+      "total": 12
+    }
+  },
+  "release_gate": "BLOCKED"
+}

@@ -161,10 +161,13 @@ def check_config(config, inventory):
         ('db', '/var/lib/postgresql/data', inventory['ssd']['data']),
     ):
         mounts = services[name]['volumes']
-        require(len(mounts) == 6 and mounts[0]['type'] == 'bind' and
-                mounts[0]['target'] == target and mounts[0]['source'] == source and
-                not mounts[0].get('read_only', False) and
-                mounts[0].get('bind', {}).get('create_host_path') is False,
+        by_target = {mount['target']: mount for mount in mounts}
+        require(len(mounts) == 6 and len(by_target) == 6 and target in by_target,
+                'Нужны ровно шесть уникальных mount targets')
+        data_mount = by_target[target]
+        require(data_mount['type'] == 'bind' and data_mount['source'] == source and
+                not data_mount.get('read_only', False) and
+                data_mount.get('bind', {}).get('create_host_path') is False,
                 'Не совпадает SSD/HDD bind mapping')
         require(services[name].get('entrypoint') == ['sh', '/run/homecloud/startup-gate.sh', name],
                 'Writer обязан проходить startup gate')
@@ -177,8 +180,9 @@ def check_config(config, inventory):
             '/run/homecloud/dev': '/dev',
             '/run/homecloud/volume-marker': str(Path(source).parent / ('.homecloud-' + name)),
         }
-        require({m['target'] for m in mounts[1:]} == set(expected), 'Неверный набор gate mounts')
-        for mount in mounts[1:]:
+        require(set(by_target) == set(expected) | {target}, 'Неверный набор gate mounts')
+        for gate_target in expected:
+            mount = by_target[gate_target]
             require(mount['type'] == 'bind' and
                     os.path.normpath(mount['source']) == expected[mount['target']] and
                     mount.get('read_only') is True and

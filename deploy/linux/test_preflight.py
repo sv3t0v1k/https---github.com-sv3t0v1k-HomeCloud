@@ -52,6 +52,27 @@ class ConfigTests(unittest.TestCase):
         with self.assertRaises(p.Refusal):
             p.check_config(c,self.inventory)
 
+    @staticmethod
+    def mount(config, role, target):
+        return next(m for m in config['services'][role]['volumes'] if m['target'] == target)
+
+    def test_mount_order_is_not_part_of_admission_contract(self):
+        for order in ('reversed', 'sorted'):
+            config = copy.deepcopy(self.config)
+            for role in ('db', 'backend'):
+                mounts = config['services'][role]['volumes']
+                config['services'][role]['volumes'] = list(reversed(mounts)) if order == 'reversed' else sorted(mounts, key=lambda m:m['target'])
+            p.check_config(config, self.inventory)
+
+    def test_duplicate_data_target_refused(self):
+        self.refusal(lambda c:self.mount(c, 'backend', '/run/homecloud/dev').update(target='/storage'))
+
+    def test_duplicate_gate_target_refused(self):
+        self.refusal(lambda c:self.mount(c, 'db', '/run/homecloud/dev').update(target='/run/homecloud/startup.gate'))
+
+    def test_extra_mount_refused(self):
+        self.refusal(lambda c:c['services']['backend']['volumes'].append(dict(type='bind', source='/tmp/rogue', target='/rogue')))
+
     def test_restart_bypass(self):
         self.refusal(lambda c:c['services']['db'].update(restart='always'))
     def test_ssd_on(self):
@@ -59,9 +80,9 @@ class ConfigTests(unittest.TestCase):
     def test_empty_mapping_also_refused(self):
         self.refusal(lambda c:c['services']['backend']['environment'].update(UPLOAD_SSD_PATH=''))
     def test_fallback_creation(self):
-        self.refusal(lambda c:c['services']['backend']['volumes'][0]['bind'].update(create_host_path=True))
+        self.refusal(lambda c:self.mount(c, 'backend', '/storage')['bind'].update(create_host_path=True))
     def test_wrong_mapping(self):
-        self.refusal(lambda c:c['services']['db']['volumes'][0].update(source='/srv/system/postgres'))
+        self.refusal(lambda c:self.mount(c, 'db', '/var/lib/postgresql/data').update(source='/srv/system/postgres'))
     def test_mac_port_leak(self):
         self.refusal(lambda c:c['services']['frontend'].update(ports=[{'published':'8080'}]))
     def test_wrong_gid(self):
@@ -78,7 +99,7 @@ class ConfigTests(unittest.TestCase):
     def test_missing_gate(self):
         self.refusal(lambda c:c['services']['db'].pop('entrypoint'))
     def test_writable_gate(self):
-        self.refusal(lambda c:c['services']['backend']['volumes'][1].update(read_only=False))
+        self.refusal(lambda c:self.mount(c, 'backend', '/run/homecloud/startup-gate.sh').update(read_only=False))
     def test_preview_project(self):
         self.refusal(lambda c:c.update(name='homecloud-preview'))
     def test_privileged_writer(self):
