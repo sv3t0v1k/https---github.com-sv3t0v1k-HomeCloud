@@ -64,6 +64,21 @@ class Contract(unittest.TestCase):
     def test_format_errors_redacted(self):
         for text in ('DB_PASSWORD='+self.secret+'\nDB_PASSWORD='+self.secret, 'BAD='+self.secret, 'DB_PASSWORD="'+self.secret):
             self.file.write_text(text); self.rejected()
+    def test_canonical_compose_keys_in_external_file(self):
+        # One external runtime file must resolve the same compose knobs after D1
+        # disables dotenv discovery; path/port values remain literal, not sourced.
+        self.values.update(HTTP_PORT='8181', MAX_UPLOAD_CHUNKS='4000',
+                           JWT_EXPIRES_IN='20m', JWT_REFRESH_EXPIRES_IN='8d',
+                           UPLOAD_SESSION_TTL_HOURS='48', HDD_STORAGE_DIR='/srv/hdd/storage',
+                           SSD_DB_DIR='/srv/ssd/postgres', PUBLIC_BIND_IP='127.0.0.1',
+                           BACKEND_PROXY_SUBNET='172.31.0.0/24', FRONTEND_PROXY_IP='172.31.0.10',
+                           INGRESS_SUBNET='172.28.0.0/24', INGRESS_PROXY_IP='172.28.0.10')
+        self.write()
+        config = self.load()
+        for key, value in self.values.items(): self.assertEqual(config[key], value)
+        self.values['UPLOAD_SSD_ENABLED'] = 'true'
+        self.write(); self.rejected()
+
     def test_identifier_and_absolute_compose_validation(self):
         self.rejected(DB_NAME="db';SELECT")
         self.rejected(COMPOSE_FILE='compose.yml')

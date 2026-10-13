@@ -10,7 +10,7 @@ const commit='a'.repeat(40), other='b'.repeat(40), backend='sha256:'+'1'.repeat(
 function fixture() {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'homecloud-manifest-'));
   for (const dir of ['backend/src/migrations','backend/src/entities','frontend/src']) fs.mkdirSync(path.join(root,dir),{recursive:true});
-  const files={'backend/src/migrations/123-Example.ts':'export class Example123 {}','backend/src/entities/user.entity.ts':'class User {}','backend/src/data-source.ts':'const migrations=[];','backend/Dockerfile':'FROM node','backend/package-lock.json':'{}','frontend/src/app.ts':'export const app=1;','frontend/Dockerfile':'FROM nginx','docker-compose.production.yml':'services: {}'};
+  const files={'backend/src/migrations/123-Example.ts':'export class Example123 {}','backend/src/entities/user.entity.ts':'class User {}','backend/src/data-source.ts':'const migrations=[];','backend/Dockerfile':'FROM node','backend/package-lock.json':'{}','frontend/src/app.ts':'export const app=1;','frontend/Dockerfile':'FROM nginx','docker-compose.yml':'services: {backend: {image: backend}}','docker-compose.production.yml':'services: {}'};
   for (const [name,content] of Object.entries(files)) fs.writeFileSync(path.join(root,name),content);
   return root;
 }
@@ -36,7 +36,30 @@ test('missing live migrations block rollback',()=>check((root,value)=>assert.thr
 test('extra live migrations block rollback',()=>check((root,value)=>assert.throws(()=>m.validate(value,null,inspect,value,undefined,['Example123','Future456']),/applied migrations/)));
 test('duplicate live migrations block rollback',()=>check((root,value)=>assert.throws(()=>m.validate(value,null,inspect,value,undefined,['Example123','Example123']),/applied migrations/)));
 test('manifest identity tampering rejected',()=>check((root,value)=>{value.images.backend.image_id='sha256:'+'3'.repeat(64); assert.throws(()=>m.shape(value),/identity/);}));
-test('missing production compose fails generation',()=>check((root)=>{fs.unlinkSync(path.join(root,'docker-compose.production.yml')); assert.throws(()=>manifest(root));}));
+test('missing production compose fails generation and source qualification',()=>check((root,value)=>{fs.unlinkSync(path.join(root,'docker-compose.production.yml')); assert.throws(()=>manifest(root)); assert.throws(()=>m.validate(value,root,inspect,null,commit));}));
+test('missing main compose fails generation and source qualification',()=>check((root,value)=>{fs.unlinkSync(path.join(root,'docker-compose.yml')); assert.throws(()=>manifest(root)); assert.throws(()=>m.validate(value,root,inspect,null,commit));}));
+test('production contract hashes both manifests in canonical main then overlay order',()=>check((root,value)=>{
+  const inputs=['docker-compose.yml','docker-compose.production.yml'].map(name=>({name,sha256:m.hash(fs.readFileSync(path.join(root,name)))}));
+  assert.equal(value.compose_sha256,m.hash(JSON.stringify(inputs)));
+  assert.notEqual(value.compose_sha256,m.hash(JSON.stringify([...inputs].reverse())));
+}));
+for (const name of ['docker-compose.yml','docker-compose.production.yml']) {
+  test('changed '+name+' changes release digest and rejects original manifest',()=>check((root,value)=>{
+    fs.appendFileSync(path.join(root,name),'\n# changed deployment contract\n');
+    const changed=manifest(root);
+    assert.notEqual(changed.compose_sha256,value.compose_sha256);
+    assert.notEqual(changed.release_id,value.release_id);
+    assert.equal(changed.source_sha256,value.source_sha256);
+    assert.deepEqual(changed.schema,value.schema);
+    assert.throws(()=>m.validate(value,root,inspect,null,commit),/compose checksum mismatch/);
+  }));
+}
+test('historical standalone checksum retains shape but cannot qualify current topology',()=>check((root,value)=>{
+  const legacy=mutate(value,v=>{v.compose_sha256=m.hash(fs.readFileSync(path.join(root,'docker-compose.production.yml')));});
+  assert.doesNotThrow(()=>m.shape(legacy));
+  assert.equal(m.validate(legacy,null,inspect),true);
+  assert.throws(()=>m.validate(legacy,root,inspect,null,commit),/compose checksum mismatch/);
+}));
 test('unexpected secret-bearing field rejected',()=>check((root,value)=>assert.throws(()=>m.shape(mutate(value,v=>v.password='example')),/unexpected/)));
 
 test('unsupported TypeScript migration filename blocks generation',()=>check((root)=>{fs.writeFileSync(path.join(root,'backend/src/migrations/untracked-change.ts'),'export class Future456 {}'); assert.throws(()=>manifest(root),/unsupported migration filename/);}));

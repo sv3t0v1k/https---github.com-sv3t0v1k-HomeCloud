@@ -14,7 +14,7 @@ class Tests(unittest.TestCase):
   (self.p/'wrapper').chmod(0o700)
   (self.p/'tls').chmod(0o700);(self.p/'tls/versions').chmod(0o700)
   (self.p/'tls/current').symlink_to('versions/generation')
-  self.e=dict(DB_NAME='fixture',DB_USER='fixture',DB_PASSWORD=SECRET,COMPOSE_FILE=str(ROOT/'docker-compose.production.yml'),COMPOSE_PROJECT_NAME='fixture',JWT_SECRET=SECRET,JWT_REFRESH_SECRET=SECRET,PUBLIC_HOST='cloud.example.com',TLS_CERT_DIR=str(self.p/'tls'),ACME_WEBROOT_DIR=str(self.p/'webroot'),BACKUP_PRODUCTION_DIR=str(self.p/'backup'),BACKUP_OFFSITE_DIR=str(self.p/'offsite'),BACKUP_AGE_RECIPIENTS_FILE=str(self.p/'recipients'))
+  self.e=dict(DB_NAME='fixture',DB_USER='fixture',DB_PASSWORD=SECRET,COMPOSE_FILE=str(ROOT/'docker-compose.yml')+':'+str(ROOT/'docker-compose.production.yml'),COMPOSE_PROJECT_NAME='fixture',JWT_SECRET=SECRET,JWT_REFRESH_SECRET=SECRET,PUBLIC_HOST='cloud.example.com',TLS_CERT_DIR=str(self.p/'tls'),ACME_WEBROOT_DIR=str(self.p/'webroot'),BACKUP_PRODUCTION_DIR=str(self.p/'backup'),BACKUP_OFFSITE_DIR=str(self.p/'offsite'),BACKUP_AGE_RECIPIENTS_FILE=str(self.p/'recipients'))
   self.s=dict(state_dir=str(self.p/'state'),recovery_env=str(self.p/'env'),backup_wrapper=str(self.p/'wrapper'),backup_marker=str(self.p/'backup/last-backup-success.json'),webhook_url='https://alerts.example.com',webhook_headers={'Authorization':SECRET},cert_args={'hostname':'cloud.example.com','state-dir':str(self.p/'tls'),'webroot':str(self.p/'webroot'),'acme-dir':str(self.p/'acme'),'container':'fixture','cert-name':'cloud.example.com'})
   self.q={g:{k:dict(qualified=False,record='') for k in keys} for g,keys in (('external',h.EXTERNAL),('approvals',h.APPROVALS))}
   self.m=ROOT/'docs/evidence/registry-distribution/current-manifest.json'

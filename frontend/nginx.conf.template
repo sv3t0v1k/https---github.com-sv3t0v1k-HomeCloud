@@ -3,16 +3,16 @@ log_format homecloud_private 'status=$status bytes=$body_bytes_sent duration=$re
 # nginx error records могут содержать raw request/upstream URI.
 # Диагностика: nginx -t, status/access counters и безопасные backend logs.
 # Only the production ingress may supply client/protocol metadata.
-set_real_ip_from 172.29.0.10;
+set_real_ip_from ${INGRESS_PROXY_IP};
 real_ip_header X-Forwarded-For;
 real_ip_recursive off;
 map $realip_remote_addr $authoritative_proto {
   default $scheme;
-  172.29.0.10 $http_x_forwarded_proto;
+  ${INGRESS_PROXY_IP} $http_x_forwarded_proto;
 }
 map $realip_remote_addr $authoritative_host {
   default $host;
-  172.29.0.10 $http_x_forwarded_host;
+  ${INGRESS_PROXY_IP} $http_x_forwarded_host;
 }
 server {
   access_log /dev/stdout homecloud_private;
@@ -31,7 +31,7 @@ server {
     client_max_body_size 51m;
     proxy_request_buffering off;
     proxy_http_version 1.1;
-    proxy_pass http://homebackend:3000;
+    proxy_pass http://backend:3000;
     proxy_set_header Host $authoritative_host;
     proxy_set_header X-Forwarded-Host $authoritative_host;
     proxy_set_header X-Forwarded-Proto $authoritative_proto;
@@ -51,7 +51,7 @@ server {
     client_body_timeout 300s;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
-    proxy_pass http://homebackend:3000;
+    proxy_pass http://backend:3000;
     proxy_set_header Host $authoritative_host;
     proxy_set_header X-Forwarded-Host $authoritative_host;
     proxy_set_header X-Forwarded-Proto $authoritative_proto;
@@ -59,7 +59,7 @@ server {
     proxy_set_header X-Real-IP $remote_addr;
   }
   location /api/ {
-    proxy_pass http://homebackend:3000;
+    proxy_pass http://backend:3000;
     proxy_set_header Host $authoritative_host;
     proxy_set_header X-Forwarded-Host $authoritative_host;
     proxy_set_header X-Forwarded-Proto $authoritative_proto;
@@ -67,7 +67,7 @@ server {
     proxy_set_header X-Real-IP $remote_addr;
   }
   location /socket.io/ {
-    proxy_pass http://homebackend:3000;
+    proxy_pass http://backend:3000;
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "upgrade";

@@ -25,7 +25,11 @@ function source(root, explicitCommit) {
   const entityDir=path.join(root,'backend/src/entities');
   const mappings=['backend/src/data-source.ts',...fs.readdirSync(entityDir).filter(n=>n.endsWith('.ts')).sort().map(n=>'backend/src/entities/'+n)].map(name=>({name,sha256:hash(fs.readFileSync(path.join(root,name)))}));
   const source_files = ['backend','frontend'].flatMap(role=>{ const walk=dir=>fs.readdirSync(path.join(root,dir),{withFileTypes:true}).filter(e=>!['node_modules','dist','.git'].includes(e.name) && !e.name.startsWith('.env')).flatMap(e=>e.isDirectory()?walk(dir+'/'+e.name):e.isFile()?[dir+'/'+e.name]:[]); return walk(role).sort().map(name=>({name,sha256:hash(fs.readFileSync(path.join(root,name)))})); });
-  return {commit, schema: {policy:'exact-source-contract-v1', migrations, mappings, marker:hash(canonical({migrations,mappings}))}, compose_sha256:hash(fs.readFileSync(path.join(root,'docker-compose.production.yml'))), source_sha256:hash(canonical(source_files))};
+  // Production is main + overlay in this order. Preserve the manifest/schema
+  // protocol: historical standalone manifests describe their old source commit;
+  // a release for this topology must be regenerated and requalified, not edited.
+  const compose_files = ['docker-compose.yml','docker-compose.production.yml'].map(name=>({name,sha256:hash(fs.readFileSync(path.join(root,name)))}));
+  return {commit, schema: {policy:'exact-source-contract-v1', migrations, mappings, marker:hash(canonical({migrations,mappings}))}, compose_sha256:hash(canonical(compose_files)), source_sha256:hash(canonical(source_files))};
 }
 function dockerInspect(id) {
   if (!ID.test(id) && !registryRef(id)) fail('immutable image reference required');

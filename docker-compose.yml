@@ -1,102 +1,147 @@
+# Основной Compose: ежедневная работа на Mac, без TLS и второго тестового стека.
+# cp .env.example .env; заполнить секреты; docker compose up -d --build --wait
+# Используем прежний project, но volumes вычисляет Compose, без external preview names.
+name: ${COMPOSE_PROJECT_NAME:-homecloud-preview}
+
+x-backend-environment: &backend-environment
+  NODE_ENV: development
+  PORT: "3000"
+  DB_NAME: ${DB_NAME:-homecloud}
+  DB_USER: ${DB_USER:-homecloud}
+  DB_PASSWORD: ${DB_PASSWORD:?Заполните DB_PASSWORD}
+  # Пароль генерировать в hex: URL-safe, не требует percent-encoding.
+  DATABASE_URL: postgres://${DB_USER:-homecloud}:${DB_PASSWORD:?Заполните DB_PASSWORD}@db:5432/${DB_NAME:-homecloud}
+  JWT_SECRET: ${JWT_SECRET:?Заполните JWT_SECRET}
+  JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Заполните JWT_REFRESH_SECRET}
+  JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
+  JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+  # Redis пока не используется. Этот пароль требует dev startup validator.
+  REDIS_PASSWORD: ${REDIS_PASSWORD:?Заполните REDIS_PASSWORD даже без Redis}
+  FRONTEND_URL: http://localhost:${HTTP_PORT:-8080}
+  STORAGE_PATH: /storage
+  # SSD uploads OFF; четыре SSD mount variables намеренно НЕ передаются.
+  # 520 без UPLOAD_SSD_PATH фиксирует legacy admission; env ON позже этого не меняет.
+  UPLOAD_SSD_ENABLED: "false"
+  UPLOAD_SSD_RECOVERY_MODE: manual
+  UPLOAD_SESSION_TTL_HOURS: ${UPLOAD_SESSION_TTL_HOURS:-24}
+  MAX_FILE_SIZE: ${MAX_FILE_SIZE:-1099511627776}
+  MAX_TOTAL_SIZE: ${MAX_TOTAL_SIZE:-2199023255552}
+  MAX_UPLOAD_CHUNKS: ${MAX_UPLOAD_CHUNKS:-100000}
+  MAX_CHUNK_SIZE: ${MAX_CHUNK_SIZE:-52428800}
+  METRICS_TOKEN: ${METRICS_TOKEN:-}
+
 services:
+  # PostgreSQL на постоянном volume; порт не публикуется на хост.
   db:
     image: postgres:16-alpine
-    container_name: homedb
     environment:
       POSTGRES_DB: ${DB_NAME:-homecloud}
       POSTGRES_USER: ${DB_USER:-homecloud}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Заполните DB_PASSWORD}
     volumes:
       - db_data:/var/lib/postgresql/data
-    networks:
-      - app_network
+    networks: [app_network]
+    restart: unless-stopped
+    # Это предел конфигурации, НЕ измеренный расход RAM.
+    mem_limit: 1g
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 12
+    logging: &logging
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
 
-  redis:
-    image: redis:7-alpine
-    container_name: homeredis
-    command: >
-      sh -c 'redis-server
-      ${REDIS_PASSWORD:+--requirepass $REDIS_PASSWORD}'
-    volumes:
-      - redis_data:/data
-    networks:
-      - app_network
-    healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
+  # Linux image собирает native addon для своей архитектуры, включая Docker Desktop ARM64.
+  # EntryPoint: migrations (transaction all) → API; ошибка миграции не запускает API.
+  # Helpers D1 и явное npm run migration:run обходят автоматический startup.
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: homebackend
-    environment:
-      NODE_ENV: production
-      PORT: 3000
-      DB_NAME: ${DB_NAME:-homecloud}
-      DB_USER: ${DB_USER:-homecloud}
-      DB_PASSWORD: ${DB_PASSWORD}
-      DATABASE_URL: postgres://${DB_USER:-homecloud}:${DB_PASSWORD}@db:5432/${DB_NAME:-homecloud}
-      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
-      STORAGE_PATH: /storage
-      # Метрики выключены без отдельного токена; endpoint требует Bearer.
-      METRICS_TOKEN: ${METRICS_TOKEN:-}
-      MAX_FILE_SIZE: ${MAX_FILE_SIZE:-1099511627776}
-      MAX_TOTAL_SIZE: ${MAX_TOTAL_SIZE:-2199023255552}
-      MAX_UPLOAD_CHUNKS: ${MAX_UPLOAD_CHUNKS:-100000}
-      CHUNK_SIZE: ${CHUNK_SIZE:-10485760}
-      MAX_CHUNK_SIZE: ${MAX_CHUNK_SIZE:-52428800}
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+    image: ${RELEASE_BACKEND_IMAGE:-homecloud-backend:dev}
+    build: {context: ./backend, dockerfile: Dockerfile}
+    environment: *backend-environment
     volumes:
       - storage_data:/storage
     depends_on:
-      db:
-        condition: service_healthy
+      db: {condition: service_healthy}
+    networks: [app_network]
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 60s
+    mem_limit: 4g
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000/api/v1/health/ready', (r) => { process.exit(r.statusCode === 200 ? 0 : 1); }).on('error', () => process.exit(1));\""]
+      # Бounded HTTP + parsed readiness: проверяются БД, storage и .tmp.
+      test: [CMD, node, docker/healthcheck.cjs]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 30s
-    networks:
-      - app_network
-    restart: unless-stopped
+      retries: 6
+      start_period: 60s
+    logging: *logging
 
+  # Статический React + nginx: UI, API, WebSocket, потоковая передача чанков/файлов.
+  # Mac доступен только с этого компьютера; backend и БД не публикуются.
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: homefrontend
+    image: ${RELEASE_FRONTEND_IMAGE:-homecloud-frontend:dev}
+    build: {context: ./frontend, dockerfile: Dockerfile}
+    environment:
+      # В Mac topology нет ingress. Documentation-only TEST-NET address не доверяет peer.
+      INGRESS_PROXY_IP: 192.0.2.1
+      NGINX_ENVSUBST_FILTER: ^INGRESS_PROXY_IP$
     ports:
-      - "80:80"
+      - "127.0.0.1:${HTTP_PORT:-8080}:80"
     depends_on:
-      backend:
-        condition: service_healthy
+      backend: {condition: service_healthy}
+    networks: [app_network, web_network]
+    restart: unless-stopped
+    mem_limit: 256m
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost/ || exit 1"]
-      interval: 5s
+      test: [CMD-SHELL, 'wget -q -O /dev/null http://127.0.0.1/']
+      interval: 10s
       timeout: 3s
       retries: 5
-    networks:
-      - app_network
+    logging: *logging
+
+  # Не нужен для приложения; включать только явно: --profile redis up -d redis.
+  redis:
+    profiles: [redis]
+    image: redis:7-alpine
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Заполните REDIS_PASSWORD}
+    command:
+      - sh
+      - -ec
+      - |
+        case "$$REDIS_PASSWORD" in
+          ''|*[!0-9a-fA-F]*) echo 'REDIS_PASSWORD must be hex' >&2; exit 1 ;;
+        esac
+        [ "$${#REDIS_PASSWORD}" -ge 32 ] || exit 1
+        umask 077
+        printf 'requirepass %s\n' "$$REDIS_PASSWORD" > /tmp/homecloud-redis.conf
+        exec redis-server /tmp/homecloud-redis.conf --appendonly yes
+    volumes: [redis_data:/data]
+    networks: [app_network]
     restart: unless-stopped
+    mem_limit: 256m
+    healthcheck:
+      test: [CMD-SHELL, 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli --no-auth-warning ping | grep -qx PONG']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    logging: *logging
 
 volumes:
+  # Docker Desktop хранит их внутри Linux VM. Они НЕ отдельные физические SSD/HDD.
+  # Текущий project сохраняет homecloud-preview_db_data/storage_data автоматически.
   db_data:
-  redis_data:
   storage_data:
-  uploads_data:
+  redis_data:
 
 networks:
+  # Compose выбирает подсеть автоматически. Не публикует БД и ограничивает egress.
   app_network:
+    driver: bridge
+    internal: true
+  # Frontend нужен обычный bridge для опубликованного Mac host port.
+  # БД/backend остаются только на internal network (кроме opt-in dev API).
+  web_network:
     driver: bridge

@@ -14,13 +14,13 @@ result={}; marker='synthetic-private-'+uuid.uuid4().hex
 try:
  d('network','create',name)
  (root/'upstream.conf').write_text('server { listen 3000; location / { return 200 "OK"; } }')
- (root/'frontend.conf').write_bytes(b'proxy_connect_timeout 1s; proxy_read_timeout 1s;\n'+(repo/'frontend/nginx.conf').read_bytes())
+ (root/'frontend.conf').write_bytes(b'proxy_connect_timeout 1s; proxy_read_timeout 1s;\n'+(repo/'frontend/nginx.conf.template').read_text().replace('${INGRESS_PROXY_IP}','192.0.2.1').encode())
  (root/'ingress.conf').write_text(('proxy_connect_timeout 1s; proxy_read_timeout 1s;\n'+(repo/'deploy/ingress/default.conf.template').read_text()).replace('${PUBLIC_HOST}','privacy.example.invalid'))
  (root/'current').mkdir(mode=0o700)
  run('openssl','req','-x509','-newkey','rsa:2048','-nodes','-days','1','-subj','/CN=privacy.example.invalid','-keyout',str(root/'current/privkey.pem'),'-out',str(root/'current/fullchain.pem')); (root/'current/privkey.pem').chmod(0o600)
  def start(suffix,*args):
   n=name+'-'+suffix; d('run','-d','--name',n,'--network',name,*args); resources.append(n); return n
- upstream=start('upstream','--network-alias','homebackend','-v',str(root/'upstream.conf')+':/etc/nginx/conf.d/default.conf:ro','nginx:alpine')
+ upstream=start('upstream','--network-alias','backend','-v',str(root/'upstream.conf')+':/etc/nginx/conf.d/default.conf:ro','nginx:alpine')
  fp,ip=port(),port()
  front=start('frontend','--network-alias','frontend','-p',f'127.0.0.1:{fp}:80','-v',str(root/'frontend.conf')+':/etc/nginx/conf.d/default.conf:ro','nginx:alpine')
  ingress=start('ingress','-p',f'127.0.0.1:{ip}:443','-v',str(root/'ingress.conf')+':/etc/nginx/conf.d/default.conf:ro','-v',str(root)+':/etc/nginx/tls:ro','-v',str(repo/'deploy/ingress/upgrade.conf')+':/etc/nginx/conf.d/upgrade.conf:ro','nginx:alpine')

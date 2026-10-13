@@ -1,26 +1,12 @@
-# Единственное локальное окружение; использовать вместе с production Compose.
-# Compose >= 2.24.4: !override исключает добавление публичных bindings.
-name: homecloud-preview
+# Необязательный Mac/dev override. Основной docker-compose.yml уже работает на Mac.
+# Для frontend HMR: npm ci && npm run dev -- --host 127.0.0.1 (из frontend/).
+# Vite proxy обращается только к loopback API ниже; затем UI http://localhost:5173.
+# docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build --wait
 services:
   backend:
-    image: homecloud-preview-backend:local-baseline
-    environment:
-      REDIS_URL: ""
-      REDIS_PASSWORD: ""
-  frontend:
-    image: homecloud-preview-frontend:local-baseline
     ports:
-      - "127.0.0.1:8080:80"
-  ingress:
-    ports: !override
-      - "127.0.0.1:80:80"
-      - "127.0.0.1:443:443"
-
-# external запрещает молча создать пустую БД при отсутствии существующего volume.
-volumes:
-  db_data:
-    external: true
-    name: homecloud-preview_db_data
-  storage_data:
-    external: true
-    name: homecloud-preview_storage_data
+      - "127.0.0.1:3000:3000"
+    networks: [app_network, web_network]
+    environment:
+      FRONTEND_URL: http://localhost:5173
+  # Это opt-in доступ к internal health/API для разработки. Не применять на mini-PC.
