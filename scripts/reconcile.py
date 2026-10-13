@@ -21,6 +21,8 @@ import subprocess
 import sys
 import os
 from recovery_config import load_config, compose_command, ConfigError
+from recovery_storage import resolve_storage, checked_storage, storage_command, StorageError
+import json
 
 CRITICAL_ISSUES = "CRITICAL"
 WARNING_ISSUES = "WARNING"
@@ -54,71 +56,81 @@ def psql(query, db_user, db_name):
     ]
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
     if r.returncode != 0:
-        return None
+        raise StorageError("database reconciliation query failed")
     return r.stdout.strip()
 
 
-def list_storage_files(storage_vol, backend_image):
-    """List all regular files in the storage volume (excluding workspace/restore and registry metadata).
-    Returns a dict: {relative_path: size_in_bytes}.
-    """
-    cmd = [
-        "docker", "run", "--rm", "-v", f"{storage_vol}:/storage",
-        backend_image, "sh", "-c",
-        'find /storage -type f -not -path "*/.tmp/*" -not -path "*/.restore-*" '
-        '-exec stat -c "%s %n" {} + 2>/dev/null',
-    ]
+def list_storage_files(snapshot, backend_image):
+    """Read actual backend storage; inspection or archive errors fail closed."""
+    target = snapshot['target']
+    cmd = storage_command(snapshot, 'ro', backend_image, [
+        'sh', '-c',
+        'find "$1" -type f -not -path "*/.tmp/*" -not -path "*/.restore-*" '
+        '-exec stat -c "%s %n" {} +', 'reconcile-storage', target,
+    ])
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    if r.returncode:
+        raise StorageError('storage reconciliation enumeration failed')
     files = {}
-    for line in r.stdout.strip().split("\n"):
-        line = line.strip()
-        if not line:
-            continue
+    for line in r.stdout.splitlines():
         parts = line.split(None, 1)
-        if len(parts) != 2:
-            continue
+        if len(parts) != 2 or not parts[1].startswith(target + '/'):
+            raise StorageError('invalid storage reconciliation enumeration')
         size_str, full_path = parts
-        rel_path = full_path
-        if rel_path.startswith("/storage/"):
-            rel_path = rel_path[len("/storage/"):]
-        elif rel_path == "/storage":
-            continue
-        # Validate the path before including
+        rel_path = full_path[len(target) + 1:]
         if not validate_storage_path(rel_path):
             continue
         try:
-            files[rel_path] = int(size_str)
+            size = int(size_str)
+            if size < 0:
+                raise ValueError()
+            files[rel_path] = size
         except ValueError:
-            files[rel_path] = 0
+            raise StorageError('invalid storage reconciliation file size') from None
     return files
 
 
-def get_file_size(storage_vol, backend_image, rel_path):
-    """Get the size of a single file in the storage volume."""
+def get_file_size(snapshot, backend_image, rel_path):
+    """Read one validated path without interpolating it into shell source."""
     if not validate_storage_path(rel_path):
-        return 0
-    # Use Python to avoid shell interpolation of rel_path
-    cmd = [
-        "docker", "run", "--rm", "-v", f"{storage_vol}:/storage",
-        backend_image, "python3", "-c",
-        "import os, sys; p = sys.argv[1]; "
-        "full = '/storage/' + p if not p.startswith('/') else p; "
-        "try: print(os.path.getsize(full)) if os.path.isfile(full) else print(0) "
-        "except Exception: print(0)",
-        rel_path,
-    ]
+        raise StorageError('invalid reconciliation object key')
+    cmd = storage_command(snapshot, 'ro', backend_image, [
+        'python3', '-c',
+        'import os, sys; p = os.path.join(sys.argv[1], sys.argv[2]); '
+        'print(os.path.getsize(p) if os.path.isfile(p) else 0)',
+        snapshot['target'], rel_path,
+    ])
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+    if r.returncode:
+        raise StorageError('storage reconciliation stat failed')
     try:
         return int(r.stdout.strip())
     except (ValueError, TypeError):
-        return 0
+        raise StorageError('invalid reconciliation stat result') from None
+
+
+def file_records_query(snapshot):
+    # The selected root is validated by recovery_storage, then SQL-quoted.
+    # PostgreSQL concatenation checks the same root sealed by migration 515.
+    root = snapshot['target'].replace("'", "''")
+    return f"""
+        SELECT CASE WHEN location."machineKey" = 'legacy-storage'
+                         AND location."mountKey" = 'legacy-storage'
+                         AND file."storagePath" = '{root}/' || file."relativeObjectKey"
+                    THEN file."relativeObjectKey" ELSE '' END,
+               file.size, file."userId"
+        FROM files file
+        LEFT JOIN storage_locations location ON location.id = file."storageLocationId"
+        WHERE "isFolder" = false
+          AND "isDeleted" = false
+        """
 
 
 def main():
     parser = argparse.ArgumentParser(description="HomeCloud restore reconciliation")
     parser.add_argument("--db-user", required=True)
     parser.add_argument("--db-name", required=True)
-    parser.add_argument("--storage-volume", required=True)
+    parser.add_argument("--storage-volume", help="optional assertion; must match the actual backend mount")
     parser.add_argument("--backend-image", required=True)
     args = parser.parse_args()
 
@@ -134,24 +146,23 @@ def main():
         print("RECONCILE: skipped (SKIP_RECONCILE=1)")
         sys.exit(0)
 
+    try:
+        if args.storage_volume:
+            configured = os.environ.get('STORAGE_VOLUME', '')
+            if configured and configured != args.storage_volume:
+                raise StorageError('CLI volume assertion conflicts with recovery configuration')
+            os.environ['STORAGE_VOLUME'] = args.storage_volume
+        prior = os.environ.get('RECOVERY_STORAGE_SNAPSHOT')
+        snapshot = checked_storage(json.loads(prior)) if prior else resolve_storage()
+    except (StorageError, ValueError, KeyError):
+        print('RECONCILE: storage identity validation failed', file=sys.stderr)
+        return 1
+
     errors = []   # critical
     warnings = []  # non-critical
 
     # --- 1. Get DB file records ---
-    db_rows = psql(
-        """
-        SELECT CASE WHEN location."machineKey" = 'legacy-storage'
-                         AND location."mountKey" = 'legacy-storage'
-                         AND file."storagePath" = '/storage/' || file."relativeObjectKey"
-                    THEN file."relativeObjectKey" ELSE '' END,
-               file.size, file."userId"
-        FROM files file
-        LEFT JOIN storage_locations location ON location.id = file."storageLocationId"
-        WHERE "isFolder" = false
-          AND "isDeleted" = false
-        """,
-        args.db_user, args.db_name,
-    )
+    db_rows = psql(file_records_query(snapshot), args.db_user, args.db_name)
     db_files = {}
     if db_rows:
         for line in db_rows.split("\n"):
@@ -178,7 +189,11 @@ def main():
                 db_files[path] = (size, uid)
 
     # --- 2. Get physical files with sizes ---
-    phys_files = list_storage_files(args.storage_volume, args.backend_image)
+    try:
+        phys_files = list_storage_files(snapshot, args.backend_image)
+    except (StorageError, OSError, subprocess.TimeoutExpired):
+        print('RECONCILE: storage enumeration failed', file=sys.stderr)
+        return 1
 
     # --- 3. Build sets for comparison ---
     db_paths = set(db_files.keys())
@@ -317,4 +332,8 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except (StorageError, OSError, subprocess.TimeoutExpired):
+        print('RECONCILE: required database/storage inspection failed', file=sys.stderr)
+        sys.exit(1)

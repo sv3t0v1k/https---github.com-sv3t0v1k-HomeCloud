@@ -5,7 +5,7 @@ set -euo pipefail
 # ===========================================================================
 # HomeCloud Backup — Phase 5.3: Reliable Backup Pipeline
 #
-# Creates PostgreSQL dump + Docker named-volume storage archive with
+# Creates PostgreSQL dump + verified backend storage archive with
 # atomicity, integrity verification, and metadata.
 #
 # Safety guarantees:
@@ -150,6 +150,7 @@ done
 # Explicit external recovery configuration (shared with coordinator/reconcile).
 # ---------------------------------------------------------------------------
 source "$SCRIPT_DIR/recovery-config.sh"
+source "$SCRIPT_DIR/recovery-storage.sh"
 BACKUP_DIR="${BACKUP_DIR:-$PROJECT_ROOT/backups}"
 
 DB_NAME="${DB_NAME:-homecloud}"
@@ -404,38 +405,18 @@ DB_SIZE_BYTES=$(docker compose exec -T db psql -U "$DB_USER" -d "$DB_NAME" -tAc 
 [ "$DB_SIZE_BYTES" -gt 0 ] 2>/dev/null || DB_SIZE_BYTES=0
 log "  Database size estimate: ${DB_SIZE_BYTES} bytes"
 
-# Resolve storage volume name from compose config (project_name + volume source)
-STORAGE_VOLUME=$(docker compose config --format json 2>/dev/null | python3 -c '
-import sys, json
-try:
-    d = json.load(sys.stdin)
-    project_name = d.get("name", "")
-    backend = d.get("services", {}).get("backend", {})
-    for v in backend.get("volumes", []):
-        if isinstance(v, dict):
-            target = v.get("target", "")
-            source = v.get("source", "")
-        else:
-            parts = v.split(":")
-            target = parts[1] if len(parts) >= 2 else ""
-            source = parts[0]
-        if target == "/storage" and source:
-            if project_name:
-                print(project_name + "_" + source)
-            else:
-                print(source)
-            break
-except Exception:
-    pass
-' 2>/dev/null || true)
-
-STORAGE_SIZE_BYTES=0
-if [ -n "$STORAGE_VOLUME" ]; then
-  STORAGE_SIZE_BYTES=$(docker run --rm -v "${STORAGE_VOLUME}:/storage" "$BACKEND_IMAGE" \
-    du -sb /storage 2>/dev/null | awk '{print $1}' || echo 0)
-  [ "$STORAGE_SIZE_BYTES" -gt 0 ] 2>/dev/null || STORAGE_SIZE_BYTES=0
-  log "  Storage size estimate: ${STORAGE_SIZE_BYTES} bytes (volume: $STORAGE_VOLUME)"
-fi
+# Pin the actual existing backend mount; never derive or create a volume name.
+recovery_storage_resolve || { err "Cannot resolve verified backend storage"; exit 1; }
+log "  Storage: $RECOVERY_STORAGE_TYPE at $RECOVERY_STORAGE_TARGET"
+recovery_storage_assert_clean || { err "Retained restore artifacts; backup refused"; exit 1; }
+# Pending SSD bytes are outside this archive's recovery contract.
+docker compose exec -T db psql -X -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" \
+  < "$SCRIPT_DIR/recovery-pending.sql" >/dev/null \
+  || { err "Pending SSD state or unavailable recovery guard; backup refused"; exit 1; }
+STORAGE_SIZE_BYTES=$(recovery_storage_run ro -- "$BACKEND_IMAGE" du -sb "$RECOVERY_STORAGE_TARGET" | awk '{print $1}') \
+  || { err "Cannot estimate verified storage size"; exit 1; }
+[[ "$STORAGE_SIZE_BYTES" =~ ^[0-9]+$ ]] || { err "Invalid storage size estimate"; exit 1; }
+log "  Storage size estimate: ${STORAGE_SIZE_BYTES} bytes"
 
 # Require at least 1.5x the uncompressed estimate, expressed in KiB.
 # df -Pk reports 1K-blocks, so both sides of the comparison use the same unit.
@@ -530,33 +511,14 @@ fi
 # ---------------------------------------------------------------------------
 echo "[2/6] Archiving storage files to staging..."
 
-if [ -n "$STORAGE_VOLUME" ]; then
-  # Docker named volume path (preferred — what Phase 5.1 §2.1 says actually executes)
-  if ! docker run --rm -v "${STORAGE_VOLUME}:/storage" "$BACKEND_IMAGE" \
-    tar -czf - --exclude='.tmp' --exclude='*.tmp' -C /storage . > "$STAGING_STOR"; then
-    RC=$?
-    err "Storage archive creation failed (exit code $RC)"
-    log_json "backup_failed" ',"error":"storage_tar_failed","exit_code":1'
-    printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "storage_tar_failed exit_code=$RC" > "$LAST_FAILURE_FILE"
-    exit 1
-  fi
-  log "  Storage archive staged (via Docker named volume $STORAGE_VOLUME)"
-elif [ -d "$STORAGE_PATH" ]; then
-  # Local path fallback
-  if ! tar -czf "$STAGING_STOR" --exclude='.tmp' --exclude='*.tmp' -C "$STORAGE_PATH" . ; then
-    RC=$?
-    err "Storage archive creation failed (exit code $RC)"
-    log_json "backup_failed" ',"error":"storage_tar_failed","exit_code":1'
-    printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "storage_tar_failed exit_code=$RC" > "$LAST_FAILURE_FILE"
-    exit 1
-  fi
-  log "  Storage archive staged (via local path $STORAGE_PATH)"
-else
-  err "Storage not accessible: no Docker volume resolved and local path '$STORAGE_PATH' not found"
-  log_json "backup_failed" ',"error":"storage_not_accessible","exit_code":1'
-  printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "storage_not_accessible" > "$LAST_FAILURE_FILE"
+if ! recovery_storage_run ro -- "$BACKEND_IMAGE" \
+    tar -czf - --exclude='.tmp' --exclude='*.tmp' -C "$RECOVERY_STORAGE_TARGET" . > "$STAGING_STOR"; then
+  err "Verified read-only storage archive creation failed"
+  log_json "backup_failed" ',"error":"storage_tar_failed","exit_code":1'
+  printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "storage_tar_failed" > "$LAST_FAILURE_FILE"
   exit 1
 fi
+log "  Storage archive staged (verified $RECOVERY_STORAGE_TYPE mount, read-only)"
 
 # Verify storage archive
 if [ ! -f "$STAGING_STOR" ] || [ ! -s "$STAGING_STOR" ]; then
@@ -647,6 +609,13 @@ if [ "$ARCHIVE_FC" != "$STORAGE_FILE_COUNT" ]; then
   exit 1
 fi
 
+# Fail closed if unsupported state appeared while taking the sequential backup.
+# A maintenance write barrier remains required; these checks are not a snapshot.
+recovery_storage_check || { err "Storage identity changed before publication"; exit 1; }
+recovery_storage_assert_clean || { err "Retained restore artifacts; publication refused"; exit 1; }
+docker compose exec -T db psql -X -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" \
+  < "$SCRIPT_DIR/recovery-pending.sql" >/dev/null \
+  || { err "Pending SSD state or unavailable recovery guard; publication refused"; exit 1; }
 log "  All staging artifacts verified: OK"
 
 # ---------------------------------------------------------------------------
@@ -688,6 +657,7 @@ meta = {
     "app_version": app_version,
     "migration_count": int(migration_count) if migration_count.isdigit() else 0,
     "postgresql_version": pg_version,
+    "recovery_scope": "legacy-storage-only; pending SSD uploads/finalization unsupported",
 }
 
 try:
