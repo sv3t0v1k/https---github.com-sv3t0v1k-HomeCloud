@@ -145,6 +145,27 @@ class ReleaseTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     r.create(args)
 
+    def test_mac_root_selects_actual_checkout(self):
+        args = type('Args', (), dict(github_sha=self.commit, manifest=None, deployment=None, mac_root=str(self.root)))()
+        original = r.ROOT
+        r.ROOT = self.root/'not-a-repository'
+        output = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(output):
+                self.assertEqual(r.reconcile(args), 2)
+        finally:
+            r.ROOT = original
+        result = json.loads(output.getvalue())
+        self.assertEqual(result['mac_commit'], self.commit)
+        self.assertEqual(result['mac_root'], str(self.root.resolve()))
+
+    def test_nested_mac_root_blocked(self):
+        nested = self.root/'nested'
+        nested.mkdir()
+        args = type('Args', (), dict(github_sha=self.commit, manifest=None, deployment=None, mac_root=str(nested)))()
+        with self.assertRaisesRegex(ValueError, 'checkout root'):
+            r.reconcile(args)
+
     def test_unfounded_snapshot_blocked(self):
         deployment = self.root/'deployment.json'
         args = type('Args', (), dict(github_sha=self.commit, manifest=None, deployment=str(deployment)))()

@@ -11,7 +11,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
-EXCLUDED = ':(exclude)scripts/tests/PHASE-5.3.1-TEST-AUDIT.md'
+EXCLUDED = ':(top,exclude)scripts/tests/PHASE-5.3.1-TEST-AUDIT.md'
 SHA = re.compile(r'^[a-f0-9]{40}$')
 TAG = re.compile(r'^v0\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-beta\.([1-9][0-9]*)$')
 DIGEST = re.compile(r'^sha256:[a-f0-9]{64}$')
@@ -121,9 +121,14 @@ def create(args):
 
 def reconcile(args):
     # Snapshot supplied by operator only; no SSH, Docker API or live target access.
-    mac = git('rev-parse', 'HEAD')
-    dirty = bool(git('status', '--porcelain', '--untracked-files=normal', '--', '.', EXCLUDED))
-    refs = dict(mac_branch=git('branch', '--show-current'), mac_commit=mac, mac_dirty=dirty,
+    mac_root = Path(getattr(args, 'mac_root', None) or ROOT).resolve()
+    def mac_git(*command):
+        return subprocess.check_output(['git', *command], cwd=mac_root, text=True, stderr=subprocess.PIPE,
+                                       env={**os.environ, 'GIT_OPTIONAL_LOCKS': '0'}).strip()
+    require(Path(mac_git('rev-parse', '--show-toplevel')).resolve() == mac_root, 'mac-root must be Git checkout root')
+    mac = mac_git('rev-parse', 'HEAD')
+    dirty = bool(mac_git('status', '--porcelain', '--untracked-files=normal', '--', '.', EXCLUDED))
+    refs = dict(mac_root=str(mac_root), mac_branch=mac_git('branch', '--show-current'), mac_commit=mac, mac_dirty=dirty,
                 github_commit=args.github_sha or 'UNKNOWN', release='UNKNOWN',
                 deployment='UNKNOWN', evidence_mode='OFFLINE_SNAPSHOTS_NOT_LIVE_HEALTH', drift=[])
     if dirty:
@@ -153,6 +158,12 @@ def reconcile(args):
         applied = deployment.get('applied_migrations')
         require(applied is None or (isinstance(applied, list) and all(isinstance(x, str) and x for x in applied)), 'invalid applied schema evidence')
         refs['deployment'] = deployment
+        if args.github_sha and deployment['source_revision'] != args.github_sha:
+            refs['drift'].append('GitHub / deployment source differs')
+        if mac != deployment['source_revision']:
+            refs['drift'].append('Mac / deployment source differs')
+        if not deployment.get('images'):
+            refs['drift'].append('Deployment digests UNKNOWN')
         if args.manifest:
             if deployment['source_revision'] != candidate['commit']:
                 refs['drift'].append('Release / deployment source differs')
@@ -177,7 +188,7 @@ def main():
     for name in ('tag', 'commit', 'repository', 'backend', 'frontend', 'run-id', 'attempt', 'output'):
         make.add_argument('--'+name, required=True)
     drift = subs.add_parser('reconcile')
-    for name in ('github-sha', 'manifest', 'deployment'):
+    for name in ('github-sha', 'manifest', 'deployment', 'mac-root'):
         drift.add_argument('--'+name)
     args = parser.parse_args()
     if args.command == 'verify-tag':

@@ -1243,7 +1243,7 @@ Mac main и GitHub main проверены на b5c954f; D4 впереди на 
 Работа подготовлена в отдельной ветке `этап/d5-1-ci` от 48fb9c0; исходный Mac checkout/Compose/данные
 и посторонние untracked сохранены. Действующие refs не переписывались, force push отсутствует.
 
-Локально: release negative tests 14, actionlint, четыре Compose config merges, startup 43 / preflight 72,
+Локально: release negative tests 16, actionlint, четыре Compose config merges, startup 43 / preflight 72,
 frontend 278 tests, оба lint/build и compiled file-type PASS. Backend Mac full suite **FAIL**:
 956 PASS / 38 FAIL / 154 SKIP; native Linux/PG CI и Docker image/registry runtime **NOT_RUN**.
 Нельзя считать эти gates успешными до реального GitHub evidence. Backend lint имеет 15 existing warnings.

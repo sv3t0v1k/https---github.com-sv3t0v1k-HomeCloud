@@ -53,7 +53,7 @@ Registry digests node20-alpine, node20-bookworm CI, nginx1.28-alpine, postgres16
 
 | Проверка | Фактический результат |
 |---|---|
-| Release/audit negative tests | 14 tests PASS; invalid/lightweight tag, dirty source, mixed identity/platform/digest, malformed audit/evidence |
+| Release/audit negative tests | 16 tests PASS; invalid/lightweight tag, dirty source, mixed identity/platform/digest, malformed audit/evidence |
 | Actionlint1.7.12 (checksum verified) | PASS; shellcheck интеграция отключена, отсутствие shellcheck не заявляется PASS |
 | Compose base / local / production / project-test config | 4 PASS, synthetic env, config only |
 | D4 preflight/config fixtures | 72 PASS |

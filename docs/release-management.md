@@ -48,7 +48,7 @@ allowlists. Новые commit/line findings не исключаются; изм�
 Scanner не доказывает абсолютное отсутствие секретов. Результат нового diff дополнительно проверяется
 перед публикацией. Нельзя публично прикладывать неотредактированный secret scan report.
 
-Node20 сохранён ради scope/совместимости, но уже EOL; переход на поддерживаемую версию требует отдельной
+Node20 сохранён ради scope/совместимости, но уже [EOL по данным Node.js](https://nodejs.org/en/about/eol); переход на поддерживаемую версию требует отдельной
 задачи и регрессии. Pinning не устраняет CVE. OS/base image vulnerability scan и upgrades ещё не
 квалифицированы; production gate остаётся закрыт. Native tests в glibc CI не заменяют musl image smoke
 и испытания mini-PC.
@@ -69,7 +69,7 @@ branch protection не настроено: его owner-approved настрой�
 Stock nginx ingress/postgres не пересобираются; lock содержит upstream digests для будущего D5.2.
 Это **не меняет** floating refs работающего Mac/server Compose. Apt/apk/npm registry и runner VM не
 заявлены как полностью воспроизводимая/offline цепочка. BuildKit provenance приложен к index,
-криптографическая подпись/verification SLSA не заявляется.
+криптографическая подпись/verification SLSA не заявляется. [Контракт Docker provenance](https://docs.docker.com/build/metadata/attestations/slsa-provenance/).
 
 Перед release-lock job pull на disposable GitHub runner проверяет RepoDigest, linux/amd64 и exact OCI
 labels обоих образов. Локальный Mac reconciliation pull не делает. Частичная ошибка publish может
@@ -112,13 +112,14 @@ gh release download "$RELEASE_TAG" --repo "$REPO" --pattern release-lock.json --
 
 ```sh
 python3 scripts/ci/release.py reconcile \
+  --mac-root /Users/aleksejkozemakin/Desktop/HomeCloud \
   --github-sha b5c954f35b7ea9d81ffc4aa41d78e56fc7fc8ec4 \
   --deployment docs/evidence/d5-1-20261013/deployment-reported.json
 # Позже добавить --manifest /path/to/release-lock.json.
 ```
 
 Exit2 означает drift/UNKNOWN, exit1 — невалидное evidence, exit0 — соответствие **предоставленных
-снимков**, не live health. Mac branch/HEAD/dirty читаются locally; GitHub SHA — snapshot, сверяется
+снимков**, не live health. Mac branch/HEAD/dirty читаются locally из --mac-root (по умолчанию checkout скрипта); GitHub SHA — snapshot, сверяется
 отдельно `git ls-remote origin refs/heads/main`. Скрипт не fetch/push/pull/SSH и не изменяет состояние.
 Deployment JSON должен содержать `source_revision`, `observed_at`, `evidence`, `images` (role → repository@digest)
 и `applied_migrations` (точные class names). Missing/different digests/schema сообщаются явно. Датированный
