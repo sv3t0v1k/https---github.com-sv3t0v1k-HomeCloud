@@ -1278,3 +1278,10 @@ backup/restore evidence, scoped update, health/smoke и rollback с учётом
 mount targets с сохранением всех safety checks,4новых regression tests. Локально76preflight и16release
 negative tests PASS; actionlint PASS. Новый CI результат pending; failures не объявлены исправленными
 до фактического выполнения. COMPLETE не установлен, GHCR/новый release не выполнялись. D5.2 NOT_STARTED.
+
+
+D5.1 второй PR CI на b0a8439: Linux backend1148/1148tests,79/79suites,0SKIP;12PostgreSQL suites,
+lint/compiled build PASS; frontend/secrets PASS. Configuration остаётся FAIL из-за Compose2.38.2
+omitempty false bind flag, причина воспроизведена отдельно. CI pin Compose5.1.3/checksum подготовлен;
+production false flag gate не ослаблен. [Evidence](./evidence/d5-1-20261013/github-ci-backend-pass.json).
+Security/release BLOCKED сохраняется; COMPLETE и D5.2 не меняются.

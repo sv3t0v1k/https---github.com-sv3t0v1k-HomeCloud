@@ -1,0 +1,14 @@
+{
+  "run_id": 38398153980,
+  "source_commit": "b0a84390f512d63fedda4e4be109a7ad602c2ad4",
+  "backend_suite_passed": 1148,
+  "backend_suites_passed": 79,
+  "failed": 0,
+  "skipped": 0,
+  "postgres_suites_passed": 12,
+  "backend_job": "PASS_TESTS_LINT_COMPILED_BUILD",
+  "frontend": "PASS",
+  "secrets": "PASS",
+  "configuration": "FAIL_COMPOSE_2_38_2_OMITS_FALSE_BIND_FLAGS",
+  "release_gate": "BLOCKED"
+}

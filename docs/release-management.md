@@ -28,6 +28,10 @@ frontend tests, lint обоих пакетов, build и compiled file-type chec
 PostgreSQL suites нельзя silently skip: job требует ≥12 соответствующих suites, все assertions PASS.
 Другие skips видны в Jest JSON и требуют объяснения при acceptance.
 
+Configuration job pins Compose5.1.3 binary с verified SHA256. Строгий preflight требует explicit false
+в normalized JSON; Compose2.38.2 omitempty вывод не квалифицирован и fail-closed отказывается.
+Pin/shim применяется только на ephemeral runner, не меняет Mac/server Docker.
+
 Все Actions pinned полным SHA. PR/push имеют только contents:read; credentials checkout не сохраняются.
 Нет pull_request_target, SSH, self-hosted runner или автоматического CD. `gate` отвергает любой failed,
 cancelled или skipped обязательный job. Actionlint — локальная проверка синтаксиса/выражений workflows;

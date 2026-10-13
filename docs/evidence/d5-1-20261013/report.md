@@ -141,3 +141,23 @@ Preflight source теперь сопоставляет mounts по уникал�
 
 D5.1 остаётся GITHUB_ACCEPTANCE_PENDING / RELEASE_BLOCKED. Последующие реальные результаты
 отражаются в PR checks/body; успешный infrastructure job не заменяет dependency/release/registry gates.
+
+
+### Linux backend gate PASS, normalized Compose API pin
+
+Второй PR [run38398153980](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38398153980)
+на b0a8439 подтвердил1148/1148backend tests,79/79suites,0FAIL/0SKIP,12PostgreSQL suites PASS;
+backend lint и compiled file-type/build PASS. Frontend и secrets PASS.
+[Artifact counts](./github-ci-backend-pass.json). Security gate сохраняет BLOCKED.
+
+Configuration всё ещё отказал: runner Compose2.38.2 сериализует create_host_path=false как bind={}.
+Это отдельно воспроизведено official checksum-verified2.38.2 renderer без Docker daemon.
+[Исходная omitempty схема](https://raw.githubusercontent.com/compose-spec/compose-go/v2.7.1/types/types.go)
+и [зависимость Compose2.38.2](https://raw.githubusercontent.com/docker/compose/v2.38.2/go.mod).
+Прежняя order dependence действительно устранена, но это не была единственная причина CI failure.
+Missing false не принимается как подтверждённый запрет создания bind source: production check не ослаблен.
+
+Configuration CI теперь pins tested Compose5.1.3 official Linux binary с фиксированным SHA256.
+PATH shim рядом с binary работает и при очищенном environment fixture; принимает только compose.
+Pin действует только в ephemeral CI job; global Mac/server Compose не изменялся. Новый configuration
+результат требуется подтвердить реальным runner. Другие normalized Compose versions не квалифицированы.
