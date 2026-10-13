@@ -1,0 +1,22 @@
+# Шаблон для /opt/homecloud и exact mountpoints; имена .mount сверить systemd-escape.
+# Автоматическое восстановление после ошибки не настроено: оператор разбирает STOP.
+[Unit]
+Description=HomeCloud — запуск после проверки физических дисков
+Requires=docker.service
+After=docker.service srv-homecloud\x2dssd.mount srv-homecloud\x2dhdd.mount
+BindsTo=srv-homecloud\x2dssd.mount srv-homecloud\x2dhdd.mount
+RequiresMountsFor=/srv/homecloud-ssd /srv/homecloud-hdd
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/homecloud
+ExecStartPre=/usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/root /usr/bin/python3 deploy/linux/preflight.py
+ExecStart=/usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/root /usr/bin/docker compose --env-file /etc/homecloud/runtime.env -f docker-compose.yml -f docker-compose.production.yml up -d --no-build --pull never --wait --wait-timeout 180
+# ExecStopPost работает также при частично неудавшемся ExecStart. Volumes/CID сохраняются.
+ExecStopPost=/usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/root /usr/bin/docker compose --env-file /etc/homecloud/runtime.env -f docker-compose.yml -f docker-compose.production.yml stop
+TimeoutStartSec=300
+TimeoutStopSec=180
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,20 @@
+{
+  "ssd": {
+    "mount": "/srv/homecloud-ssd",
+    "uuid": "ЗАПОЛНИТЬ-UUID-SSD",
+    "serial": "ЗАПОЛНИТЬ-SERIAL-SSD",
+    "data": "/srv/homecloud-ssd/postgres",
+    "min_free_bytes": 10737418240,
+    "min_free_inodes": 10000
+  },
+  "hdd": {
+    "mount": "/srv/homecloud-hdd",
+    "uuid": "ЗАПОЛНИТЬ-UUID-HDD",
+    "serial": "ЗАПОЛНИТЬ-SERIAL-HDD",
+    "data": "/srv/homecloud-hdd/storage",
+    "min_free_bytes": 21474836480,
+    "min_free_inodes": 10000
+  },
+  "postgres_uid": 70,
+  "postgres_gid": 70
+}

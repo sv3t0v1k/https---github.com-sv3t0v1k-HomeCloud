@@ -4,14 +4,20 @@
 # Подготовка без запуска на mini-PC; реальная работоспособность там НЕ проверена.
 # SSD сейчас содержит БД; HDD содержит permanent files И legacy .tmp.
 # SSD upload workspace не подключён и OFF. Не добавлять privileged/capabilities.
+# Запуск только после deploy/linux/preflight.py через systemd; no исключает обход
+# host mount gate автоматическим Docker restart после reboot/daemon restart.
 services:
   db:
+    restart: "no"
     volumes: !override
       - type: bind
         source: ${SSD_DB_DIR:?Укажите существующий каталог БД на SSD}
         target: /var/lib/postgresql/data
         bind: {create_host_path: false}
   backend:
+    restart: "no"
+    # Явный UID/GID совпадает с nextjs и D1 restore ownership (id -g nextjs).
+    user: "1001:65533"
     environment:
       NODE_ENV: production
       FRONTEND_URL: https://${PUBLIC_HOST:?Укажите публичное DNS имя}
@@ -30,6 +36,7 @@ services:
       app_network:
       backend_proxy:
   frontend:
+    restart: "no"
     # !override действительно удаляет Mac port, не добавляет к нему новые bindings.
     ports: !override []
     environment:
@@ -65,7 +72,7 @@ services:
     networks:
       ingress_frontend:
         ipv4_address: ${INGRESS_PROXY_IP:-172.29.0.10}
-    restart: unless-stopped
+    restart: "no"
     mem_limit: 128m
     healthcheck:
       # Listener/UI probe, не доказательство доверия CA, сертификата или внешнего DNS.
@@ -77,6 +84,10 @@ services:
     logging:
       driver: json-file
       options: {max-size: "10m", max-file: "3"}
+
+  # Опциональный Redis тоже не должен обходить Linux host gate.
+  redis:
+    restart: "no"
 
 networks:
   # Две exact IP нужны текущему контракту proxy trust, не произвольное доверие подсети.
