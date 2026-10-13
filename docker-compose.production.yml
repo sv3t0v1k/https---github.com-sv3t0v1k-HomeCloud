@@ -4,25 +4,55 @@
 # Подготовка без запуска на mini-PC; реальная работоспособность там НЕ проверена.
 # SSD сейчас содержит БД; HDD содержит permanent files И legacy .tmp.
 # SSD upload workspace не подключён и OFF. Не добавлять privileged/capabilities.
-# Запуск только после deploy/linux/preflight.py через systemd; no исключает обход
-# host mount gate автоматическим Docker restart после reboot/daemon restart.
+# Каждый старт DB/backend проходит gate ДО writer. Host preflight — проверка подготовки.
+# systemd не обязателен: ранний Docker restart безопасно отказывается при missing mount.
+name: ${COMPOSE_PROJECT_NAME:?Укажите отдельный production Compose project}
 services:
   db:
-    restart: "no"
+    entrypoint: [sh, /run/homecloud/startup-gate.sh, db]
+    command: [postgres]
+    restart: unless-stopped
     volumes: !override
       - type: bind
         source: ${SSD_DB_DIR:?Укажите существующий каталог БД на SSD}
         target: /var/lib/postgresql/data
         bind: {create_host_path: false}
+      - type: bind
+        source: ./deploy/linux/startup-gate.sh
+        target: /run/homecloud/startup-gate.sh
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: /etc/homecloud/startup-db.gate
+        target: /run/homecloud/startup.gate
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: /proc/1/mountinfo
+        target: /run/homecloud/host-mountinfo
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: /dev
+        target: /run/homecloud/dev
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${SSD_DB_DIR}/../.homecloud-db
+        target: /run/homecloud/volume-marker
+        read_only: true
+        bind: {create_host_path: false}
   backend:
-    restart: "no"
+    entrypoint: [sh, /run/homecloud/startup-gate.sh, backend]
+    command: [node, dist/main.js]
+    restart: unless-stopped
     # Явный UID/GID совпадает с nextjs и D1 restore ownership (id -g nextjs).
     user: "1001:65533"
     environment:
       NODE_ENV: production
-      FRONTEND_URL: https://${PUBLIC_HOST:?Укажите публичное DNS имя}
+      FRONTEND_URL: ${PUBLIC_ORIGIN:?Укажите точный внешний HTTPS origin без trailing slash}
       REDIS_PASSWORD: ""
-      TRUSTED_PROXY_IP: ${FRONTEND_PROXY_IP:-172.30.0.10}
+      TRUSTED_PROXY_IP: ${FRONTEND_PROXY_IP:?Укажите exact frontend peer IP}
       UPLOAD_SSD_ENABLED: "false"
       UPLOAD_SSD_RECOVERY_MODE: manual
     # /storage сохраняется: migration520 и существующие DB bindings зависят от него.
@@ -32,18 +62,43 @@ services:
         source: ${HDD_STORAGE_DIR:?Укажите существующий storage каталог на HDD}
         target: /storage
         bind: {create_host_path: false}
+      - type: bind
+        source: ./deploy/linux/startup-gate.sh
+        target: /run/homecloud/startup-gate.sh
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: /etc/homecloud/startup-backend.gate
+        target: /run/homecloud/startup.gate
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: /proc/1/mountinfo
+        target: /run/homecloud/host-mountinfo
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: /dev
+        target: /run/homecloud/dev
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${HDD_STORAGE_DIR}/../.homecloud-backend
+        target: /run/homecloud/volume-marker
+        read_only: true
+        bind: {create_host_path: false}
     networks: !override
       app_network:
       backend_proxy:
   frontend:
-    restart: "no"
+    restart: unless-stopped
     # !override действительно удаляет Mac port, не добавляет к нему новые bindings.
     ports: !override []
     environment:
-      INGRESS_PROXY_IP: ${INGRESS_PROXY_IP:-172.29.0.10}
+      INGRESS_PROXY_IP: ${INGRESS_PROXY_IP:?Укажите exact ingress peer IP}
     networks: !override
       backend_proxy:
-        ipv4_address: ${FRONTEND_PROXY_IP:-172.30.0.10}
+        ipv4_address: ${FRONTEND_PROXY_IP:?Укажите exact frontend peer IP}
       ingress_frontend:
   ingress:
     image: nginx:1.28-alpine
@@ -51,8 +106,8 @@ services:
       PUBLIC_HOST: ${PUBLIC_HOST:?Укажите публичное DNS имя}
       NGINX_ENVSUBST_FILTER: ^PUBLIC_HOST$
     ports:
-      - "${PUBLIC_BIND_IP:-0.0.0.0}:80:80"
-      - "${PUBLIC_BIND_IP:-0.0.0.0}:443:443"
+      - "${PUBLIC_BIND_IP:-127.0.0.1}:${PUBLIC_HTTP_PORT:?Укажите свободный HTTP port HomeCloud}:80"
+      - "${PUBLIC_BIND_IP:-127.0.0.1}:${PUBLIC_HTTPS_PORT:?Укажите свободный HTTPS port HomeCloud}:443"
     volumes:
       - ./deploy/ingress/19-validate-public-host.sh:/docker-entrypoint.d/19-validate-public-host.sh:ro
       - ./deploy/ingress/default.conf.template:/etc/nginx/templates/default.conf.template:ro
@@ -71,8 +126,8 @@ services:
       frontend: {condition: service_healthy}
     networks:
       ingress_frontend:
-        ipv4_address: ${INGRESS_PROXY_IP:-172.29.0.10}
-    restart: "no"
+        ipv4_address: ${INGRESS_PROXY_IP:?Укажите exact ingress peer IP}
+    restart: unless-stopped
     mem_limit: 128m
     healthcheck:
       # Listener/UI probe, не доказательство доверия CA, сертификата или внешнего DNS.
@@ -85,8 +140,9 @@ services:
       driver: json-file
       options: {max-size: "10m", max-file: "3"}
 
-  # Опциональный Redis тоже не должен обходить Linux host gate.
+  # Redis не входит в production HomeCloud; отдельный профиль исключает случайный запуск.
   redis:
+    profiles: !override [unqualified-production-redis]
     restart: "no"
 
 networks:
@@ -96,8 +152,8 @@ networks:
     driver: bridge
     internal: true
     ipam:
-      config: [{subnet: "${BACKEND_PROXY_SUBNET:-172.30.0.0/24}"}]
+      config: [{subnet: "${BACKEND_PROXY_SUBNET:?Укажите свободную backend proxy subnet}"}]
   ingress_frontend:
     driver: bridge
     ipam:
-      config: [{subnet: "${INGRESS_SUBNET:-172.29.0.0/24}"}]
+      config: [{subnet: "${INGRESS_SUBNET:?Укажите свободную ingress subnet}"}]

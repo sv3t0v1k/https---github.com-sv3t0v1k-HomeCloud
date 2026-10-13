@@ -1,3 +1,5 @@
+# Опциональный boot-order helper: Docker-first запуск НЕ требует установки unit.
+# Не supervisor; restart policies и per-start gate находятся в Compose.
 # Шаблон для /opt/homecloud и exact mountpoints; имена .mount сверить systemd-escape.
 # Автоматическое восстановление после ошибки не настроено: оператор разбирает STOP.
 [Unit]

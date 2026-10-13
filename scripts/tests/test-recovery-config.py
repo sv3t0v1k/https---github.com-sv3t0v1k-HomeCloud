@@ -71,6 +71,8 @@ class Contract(unittest.TestCase):
                            JWT_EXPIRES_IN='20m', JWT_REFRESH_EXPIRES_IN='8d',
                            UPLOAD_SESSION_TTL_HOURS='48', HDD_STORAGE_DIR='/srv/hdd/storage',
                            SSD_DB_DIR='/srv/ssd/postgres', PUBLIC_BIND_IP='127.0.0.1',
+                           PUBLIC_HTTP_PORT='18080', PUBLIC_HTTPS_PORT='18443',
+                           PUBLIC_ORIGIN='https://cloud.example.invalid:18443',
                            BACKEND_PROXY_SUBNET='172.31.0.0/24', FRONTEND_PROXY_IP='172.31.0.10',
                            INGRESS_SUBNET='172.28.0.0/24', INGRESS_PROXY_IP='172.28.0.10')
         self.write()

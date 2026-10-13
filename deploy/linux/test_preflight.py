@@ -26,7 +26,10 @@ class ConfigTests(unittest.TestCase):
                       PUBLIC_HOST='cloud.example.invalid', SSD_DB_DIR='/srv/homecloud-ssd/postgres',
                       HDD_STORAGE_DIR='/srv/homecloud-hdd/storage', TLS_CERT_DIR='/tmp/d3-tls',
                       ACME_WEBROOT_DIR='/tmp/d3-acme', RELEASE_BACKEND_IMAGE='homecloud-backend:d3-fixture',
-                      RELEASE_FRONTEND_IMAGE='homecloud-frontend:d3-fixture')
+                      RELEASE_FRONTEND_IMAGE='homecloud-frontend:d3-fixture',
+                      PUBLIC_HTTP_PORT='18080', PUBLIC_HTTPS_PORT='18443', PUBLIC_ORIGIN='https://cloud.example.invalid:18443',
+                      INGRESS_SUBNET='172.29.0.0/24', INGRESS_PROXY_IP='172.29.0.10',
+                      BACKEND_PROXY_SUBNET='172.30.0.0/24', FRONTEND_PROXY_IP='172.30.0.10')
         with tempfile.NamedTemporaryFile(mode='w') as env:
             env.write(''.join(k+'='+v+'\n' for k,v in values.items()))
             env.flush()
@@ -49,7 +52,7 @@ class ConfigTests(unittest.TestCase):
             p.check_config(c,self.inventory)
 
     def test_restart_bypass(self):
-        self.refusal(lambda c:c['services']['db'].update(restart='unless-stopped'))
+        self.refusal(lambda c:c['services']['db'].update(restart='always'))
     def test_ssd_on(self):
         self.refusal(lambda c:c['services']['backend']['environment'].update(UPLOAD_SSD_ENABLED='true'))
     def test_empty_mapping_also_refused(self):
@@ -68,6 +71,19 @@ class ConfigTests(unittest.TestCase):
         self.refusal(lambda c:c['services']['backend'].update(image='registry:5000/backend'))
     def test_memory_overcommit(self):
         self.refusal(lambda c:c['services']['backend'].update(mem_limit=8*1024**3))
+
+    def test_missing_writer_command(self):
+        self.refusal(lambda c:c['services']['db'].pop('command'))
+    def test_missing_gate(self):
+        self.refusal(lambda c:c['services']['db'].pop('entrypoint'))
+    def test_writable_gate(self):
+        self.refusal(lambda c:c['services']['backend']['volumes'][1].update(read_only=False))
+    def test_preview_project(self):
+        self.refusal(lambda c:c.update(name='homecloud-preview'))
+    def test_privileged_writer(self):
+        self.refusal(lambda c:c['services']['db'].update(privileged=True))
+    def test_external_network(self):
+        self.refusal(lambda c:c['networks']['app_network'].update(external=True))
 
 
 class DiskTests(unittest.TestCase):

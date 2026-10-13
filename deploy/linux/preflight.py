@@ -87,8 +87,11 @@ def check_data_directory(value, disk, uid, gid):
 
 def check_config(config, inventory):
     services = config['services']
+    require(config.get('name') not in (None, '', 'homecloud-preview'),
+            'Нужен отдельный production project, не Mac preview')
     for name in ('db', 'backend', 'frontend', 'ingress'):
-        require(services[name].get('restart') == 'no', 'Production restart обязан быть no')
+        require(services[name].get('restart') == 'unless-stopped', 'Неверная production restart policy')
+        require(not services[name].get('container_name'), 'Fixed container_name запрещён')
     backend = services['backend']
     env = backend['environment']
     require(env.get('UPLOAD_SSD_ENABLED') == 'false' and env.get('UPLOAD_SSD_RECOVERY_MODE') == 'manual',
@@ -104,11 +107,35 @@ def check_config(config, inventory):
         ('db', '/var/lib/postgresql/data', inventory['ssd']['data']),
     ):
         mounts = services[name]['volumes']
-        require(len(mounts) == 1 and mounts[0]['type'] == 'bind' and
+        require(len(mounts) == 6 and mounts[0]['type'] == 'bind' and
                 mounts[0]['target'] == target and mounts[0]['source'] == source and
                 not mounts[0].get('read_only', False) and
                 mounts[0].get('bind', {}).get('create_host_path') is False,
                 'Не совпадает SSD/HDD bind mapping')
+        require(services[name].get('entrypoint') == ['sh', '/run/homecloud/startup-gate.sh', name],
+                'Writer обязан проходить startup gate')
+        require(services[name].get('command') == ({'db': ['postgres'], 'backend': ['node', 'dist/main.js']}[name]),
+                'Нужна явная штатная команда после override entrypoint')
+        expected = {
+            '/run/homecloud/startup-gate.sh': str(Path(__file__).with_name('startup-gate.sh').resolve()),
+            '/run/homecloud/startup.gate': '/etc/homecloud/startup-' + name + '.gate',
+            '/run/homecloud/host-mountinfo': '/proc/1/mountinfo',
+            '/run/homecloud/dev': '/dev',
+            '/run/homecloud/volume-marker': str(Path(source).parent / ('.homecloud-' + name)),
+        }
+        require({m['target'] for m in mounts[1:]} == set(expected), 'Неверный набор gate mounts')
+        for mount in mounts[1:]:
+            require(mount['type'] == 'bind' and
+                    os.path.normpath(mount['source']) == expected[mount['target']] and
+                    mount.get('read_only') is True and
+                    mount.get('bind', {}).get('create_host_path') is False,
+                    'Gate mount обязан быть exact readonly без создания source')
+        require(not services[name].get('privileged') and not services[name].get('cap_add') and
+                not services[name].get('devices'), 'Gate не требует privileged/devices/cap_add')
+    for network in config.get('networks', {}).values():
+        require(not network.get('external') and
+                str(network.get('name', '')).startswith(config['name'] + '_'),
+                'Нужны только project-scoped networks')
     require(not services['frontend'].get('ports') and not backend.get('ports') and
             not services['db'].get('ports'), 'Внутренние ports не должны публиковаться')
     for name in ('backend', 'frontend'):
@@ -129,6 +156,26 @@ def check_postgres_layout(value):
             'External PostgreSQL tablespaces не поддерживаются')
 
 
+def check_gate_files(role, disk, uid, gid):
+    # Строгий line format читается без source/eval и на host, и внутри контейнера.
+    values = (role, disk['uuid'], disk['mount'], disk['data'], str(uid), str(gid))
+    require(all(value and not any(c.isspace() for c in value) for value in values),
+            'Пробелы в gate identity/path не поддерживаются')
+    gate = Path('/etc/homecloud/startup-' + role + '.gate')
+    marker = Path(disk['data']).parent / ('.homecloud-' + role)
+    for path, owner, mode in ((gate, (0, 0), 0o644), (marker, (uid, gid), 0o400)):
+        require(path.resolve(strict=True) == path and path.is_file(), 'Gate/marker не canonical file')
+        meta = path.stat()
+        require((meta.st_uid, meta.st_gid, stat.S_IMODE(meta.st_mode)) == (*owner, mode),
+                'Неверный owner/mode gate/marker')
+    require(gate.read_text() == ' '.join(values) + '\n', 'Gate не совпадает с inventory')
+    require(marker.read_text() == f'homecloud-v1 {role} {disk["uuid"]}\n', 'Marker не совпадает с inventory')
+    record = json.loads(command('findmnt', '--json', '--target', str(marker),
+                                '--output', 'TARGET,UUID'))['filesystems']
+    require(len(record) == 1 and record[0]['target'] == disk['mount'] and
+            record[0]['uuid'] == disk['uuid'], 'Marker не на ожидаемом диске')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--inventory', default='/etc/homecloud/host-disks.json')
@@ -141,7 +188,12 @@ def main():
     meta = env_file.stat()
     require(env_file.is_absolute() and env_file.resolve() == env_file and meta.st_uid == 0 and
             stat.S_IMODE(meta.st_mode) == 0o600, 'runtime.env обязан быть canonical root:0600')
-    inventory = json.loads(Path(args.inventory).read_text())
+    inventory_file = Path(args.inventory)
+    meta = inventory_file.stat()
+    require(inventory_file.is_absolute() and inventory_file.resolve() == inventory_file and
+            meta.st_uid == 0 and stat.S_IMODE(meta.st_mode) == 0o600,
+            'Inventory обязан быть canonical root:0600')
+    inventory = json.loads(inventory_file.read_text())
     # Приоритет shell environment способен подменить значения --env-file. Отказ до config.
     reserved = ('COMPOSE_', 'DOCKER_', 'RELEASE_', 'DB_', 'JWT_', 'UPLOAD_', 'MAX_',
                 'SSD_', 'HDD_', 'PUBLIC_', 'TLS_', 'ACME_', 'BACKEND_', 'FRONTEND_',
@@ -173,12 +225,14 @@ def main():
     check_postgres_layout(inventory['ssd']['data'])
     check_data_directory(inventory['hdd']['data'], inventory['hdd'], 1001, 65533)
     check_data_directory(str(Path(inventory['hdd']['data']) / '.tmp'), inventory['hdd'], 1001, 65533)
+    check_gate_files('db', inventory['ssd'], pg_uid, pg_gid)
+    check_gate_files('backend', inventory['hdd'], 1001, 65533)
     for name in ('db', 'backend', 'frontend', 'ingress'):
         image = config['services'][name]['image']
         result = json.loads(command('docker', 'image', 'inspect', image, '--format', '{{json .}}'))
         require(result['Os'] == 'linux' and result['Architecture'] == 'amd64', 'Image не linux/amd64')
     print('PASS: host mounts/UUID/serial, bind mapping, owner/mode, SSD OFF, RAM floor, local amd64 images')
-    print('Не квалифицирует marker/SQL journals/native syscalls/health/TLS/backup/physical outages.')
+    print('Не квалифицирует logical storage marker/SQL journals/native syscalls/health/TLS/backup/physical outages.')
 
 
 if __name__ == '__main__':
