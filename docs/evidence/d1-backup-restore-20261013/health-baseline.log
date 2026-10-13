@@ -1,0 +1,44 @@
+.F..FF.F
+======================================================================
+FAIL: test_http_error_with_ok_body_is_failure (__main__.HealthGate)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/aleksejkozemakin/.codex/.chatgpt-projects/g-p-6aaa72ceff208191895b0fd466f3e892/d1-work/scripts/tests/test-restore-health.py", line 39, in test_http_error_with_ok_body_is_failure
+    self.assertNotEqual(self.gate({'status':'ready', 'checks':{'database':'ok','storage':'ok'}}, 1).returncode, 0)
+AssertionError: 0 == 0
+
+======================================================================
+FAIL: test_not_ready_body_is_failure (__main__.HealthGate)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/aleksejkozemakin/.codex/.chatgpt-projects/g-p-6aaa72ceff208191895b0fd466f3e892/d1-work/scripts/tests/test-restore-health.py", line 42, in test_not_ready_body_is_failure
+    self.assertNotEqual(self.gate({'status':'not_ready','checks':{'database':'ok','storage':'failed'}}).returncode, 0)
+AssertionError: 0 == 0
+
+======================================================================
+FAIL: test_probe_has_bounded_total_deadline_without_network (__main__.HealthGate)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/aleksejkozemakin/.codex/.chatgpt-projects/g-p-6aaa72ceff208191895b0fd466f3e892/d1-work/scripts/tests/test-restore-health.py", line 64, in test_probe_has_bounded_total_deadline_without_network
+    result=subprocess.run(['node','--require',str(module),'-e',match.group(1)],capture_output=True,timeout=8)
+subprocess.TimeoutExpired: Command '['node', '--require', '/private/tmp/tmpgqqhd6vq/http-fixture.cjs', '-e', 'const http=require("http");http.get("http://localhost:3000/api/v1/health",(r)=>{let d="";r.on("data",c=>d+=c);r.on("end",()=>{process.stdout.write(d);process.exit(r.statusCode===200?0:1);});}).on("error",()=>process.exit(1));']' timed out after 8 seconds
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/aleksejkozemakin/.codex/.chatgpt-projects/g-p-6aaa72ceff208191895b0fd466f3e892/d1-work/scripts/tests/test-restore-health.py", line 66, in test_probe_has_bounded_total_deadline_without_network
+    self.fail('Actual probe did not terminate within bounded deadline')
+AssertionError: Actual probe did not terminate within bounded deadline
+
+======================================================================
+FAIL: test_unrelated_ok_string_is_failure (__main__.HealthGate)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/aleksejkozemakin/.codex/.chatgpt-projects/g-p-6aaa72ceff208191895b0fd466f3e892/d1-work/scripts/tests/test-restore-health.py", line 45, in test_unrelated_ok_string_is_failure
+    self.assertNotEqual(self.gate({'error':'ok'}).returncode, 0)
+AssertionError: 0 == 0
+
+----------------------------------------------------------------------
+Ran 8 tests in 8.255s
+
+FAILED (failures=4)

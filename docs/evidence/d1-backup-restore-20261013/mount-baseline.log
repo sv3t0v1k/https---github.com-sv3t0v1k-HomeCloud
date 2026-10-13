@@ -1,0 +1,35 @@
+FFFssssssssssssssssssssss
+======================================================================
+FAIL: test_bind_source_is_not_named_volume (__main__.Baseline)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/aleksejkozemakin/.codex/.chatgpt-projects/g-p-6aaa72ceff208191895b0fd466f3e892/d1-work/scripts/tests/test-recovery-storage.py", line 43, in test_bind_source_is_not_named_volume
+    self.assertEqual(result.stdout.strip(), '')
+AssertionError: 'hc-fixture_/isolated/fixture' != ''
+- hc-fixture_/isolated/fixture
++ 
+
+
+======================================================================
+FAIL: test_external_name_is_not_project_prefixed (__main__.Baseline)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/aleksejkozemakin/.codex/.chatgpt-projects/g-p-6aaa72ceff208191895b0fd466f3e892/d1-work/scripts/tests/test-recovery-storage.py", line 37, in test_external_name_is_not_project_prefixed
+    self.assertEqual(result.stdout.strip(), 'existing-external-storage')
+AssertionError: 'hc-fixture_storage_data' != 'existing-external-storage'
+- hc-fixture_storage_data
++ existing-external-storage
+
+
+======================================================================
+FAIL: test_override_must_match_actual_backend (__main__.Baseline)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/aleksejkozemakin/.codex/.chatgpt-projects/g-p-6aaa72ceff208191895b0fd466f3e892/d1-work/scripts/tests/test-recovery-storage.py", line 49, in test_override_must_match_actual_backend
+    self.assertNotEqual(result.returncode, 0)
+AssertionError: 0 == 0
+
+----------------------------------------------------------------------
+Ran 25 tests in 0.064s
+
+FAILED (failures=3, skipped=22)

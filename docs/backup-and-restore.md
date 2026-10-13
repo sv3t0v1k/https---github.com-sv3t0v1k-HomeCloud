@@ -149,7 +149,7 @@ Restore flags:
 
 Скрипт выполняет следующие фазы:
 
-#### Phase A: Pre-validation (READ-ONLY)
+#### Phase A: Pre-validation (цель read-only, disposable scratch writable)
 1. Находит последний backup по `.meta`.
 2. Проверяет наличие и целостность соответствующего `.meta.sha256` до чтения JSON.
 3. Парсит `.meta` через JSON parser.
@@ -163,8 +163,8 @@ Restore flags:
 11. Сравнивает file count в архиве с `storage_file_count` в `.meta`.
 12. Security scan архива (path traversal, symlinks, device files, FIFO).
 13. Проверяет дисковое пространство (2× storage archive).
-14. Разрешает и валидирует Docker storage volume.
-15. Проверяет существование backend image.
+14. Проверяет фактический backend mount/container/image и retained restore artifacts.
+15. Реально выполняет dump и migrations в изолированной scratch-БД, проверяет известную схему и pending SSD state.
 
 #### Phase B: Confirmation
 - Запрашивает подтверждение ("yes").
@@ -173,12 +173,12 @@ Restore flags:
 #### Phase C: Destructive restore
 
 **DB restore (fail-closed):**
-1. `docker compose down` — остановка сервисов.
+1. `docker compose stop` — остановка сервисов с сохранением backend CID; target SSD guard повторяется после остановки writers.
 2. Запуск `db` контейнера, ожидание `pg_isready`.
 3. `DROP SCHEMA public CASCADE; CREATE SCHEMA public;` — чистый слой.
 4. `gunzip -c dump.sql.gz | psql -v ON_ERROR_STOP=1` — restore с немедленной остановкой при ошибке.
 5. Пост-валидация:
-   - Только известные полные наборы таблиц: исторические 7 (users, files, folders, share_links, upload_sessions, refresh_tokens, migrations), переходные 8 (+ upload_chunks), текущие 9 (+ download_capabilities). Каждая ожидаемая таблица обязательна; неизвестная или отсутствующая таблица блокирует storage switch. После восстановления старой схемы отдельно применяются проверенные миграции
+   - Только известные полные наборы BASE TABLE: 7/8/9/10/11/13. Каждая ожидаемая таблица обязательна. До изменения цели dump и миграции уже проверены в отдельной scratch-БД; миграции цели затем выполняются при остановленных writers.
    - Ключевые колонки (первичные ключи)
    - Row count таблицы users
 
@@ -189,7 +189,7 @@ Restore flags:
 4. `mv` старого содержимого в `.restore-swap` (atomic rename на том же FS).
 5. `mv` staging contents в root (atomic rename).
 6. Проверяет file count в root.
-7. **Если проверка провалена**: rollback — `mv .restore-swap` обратно в root.
+7. **Если post-switch проверка провалена**: предпринимается local rollback entries; его успех при любом crash/failure не гарантирован, writers остаются fenced.
 8. Если проверка пройдена: удаляет `.restore-swap`.
 9. `chown` к nextjs (uid 1001) — Docker volumes root-owned.
 10. Создаёт `.tmp` директорию.
@@ -277,7 +277,7 @@ Restore flags:
 ## Свойства безопасности restore
 
 1. **Старые данные не удаляются до подтверждения**: старый storage перемещается в `.restore-swap` (не удаляется), и удаляется только после успешного переключения.
-2. **Atomic switch**: `mv` (rename) на том же filesystem — не требует копирования данных.
+2. **Переименование отдельных entries**: каждый `mv` использует rename на том же filesystem. Переключение всего набора не атомарно; crash может оставить частично перенесённый набор, поэтому writers ограждены.
 3. **Rollback возможен**: если пост-switch проверка провалена, `.restore-swap` перемещается обратно.
 4. **DB fail-closed**: `ON_ERROR_STOP=1` прерывает psql при первой SQL ошибке.
 5. **Schema wipe**: `DROP SCHEMA CASCADE` перед restore гарантирует чистое состояние.
@@ -396,7 +396,7 @@ Production schedule настраивается после проверки mount
 ### Backup не создаётся
 - Проверьте, что Docker Compose сервисы запущены
 - Проверьте права на директорию `backups/`
-- Проверьте, что `STORAGE_PATH` существует или Docker volume доступен
+- Проверьте существующий backend container, его Compose config-hash и фактический mount `STORAGE_PATH`; fallback на host path/вычисленное имя volume отсутствует
 - Проверьте `backups/.last-failure` для деталей ошибки
 - Если exit code 2 — другой backup/restore уже запущен (проверьте `backups/.backup.lock/`)
 - Если exit code 3 — недостаточно дискового пространства
@@ -420,7 +420,103 @@ Production schedule настраивается после проверки mount
 
 ### Restore оставляет систему в частичном состоянии
 - Restore останавливает сервисы перед изменением данных
-- При ошибке DB restore попытается запустить сервисы для recovery
-- При ошибке storage restore сервисы запускаются без изменений storage
+- При любой ошибке destructive restore backend/frontend остаются остановленными; EXIT/INT/TERM повторяют fencing. Ошибка stop выводится как CRITICAL, подтверждение fencing тогда не выдаётся.
+- Полный rollback БД и файлов не обещается. Перед ручным запуском требуется проверить обе стороны и выполнить reconciliation.
 - Проверьте внутренний readiness после restore по [каноническому runbook](./operations-runbook.md#запуск-и-health); backend port не опубликован. Liveness не доказывает готовность данных
 - Проверьте reconciliation report для выявления несоответствий
+
+
+## D1 — усиленный контракт backup/restore (2026-10-13)
+
+D1 меняет только recovery scripts/tests/docs. Deployment Compose, активация SSD,
+D2/D3 и readiness проекта не изменены; production NO_GO сохраняется.
+[Проверки, baseline и ограничения](evidence/d1-backup-restore-20261013/report.md).
+
+**Обязательная идентичность цели.** Требуется существующий обычный backend
+container выбранного Compose project, включая остановленный. Его полный CID,
+project/service/oneoff labels, config-hash и image ID должны совпадать с текущим
+Compose config. `BACKEND_IMAGE` обязан разрешаться в тот же локальный image ID;
+неподходящий override и missing image отклоняются. Docker Compose должен
+поддерживать `config --format json`, `config --hash backend`, `run --pull never`.
+Build-only manifest без явного `image` отклоняется: D1 не меняет deployment
+Compose и не подбирает image по предполагаемому project prefix.
+Скрипты отключают автоматическое чтение checkout `.env`.
+
+`STORAGE_PATH` выбирает ровно один writable backend mount. Named volume
+проверяется по фактическому Name/Source/Driver и результату volume inspect,
+включая explicit `external.name`; `STORAGE_VOLUME` служит только assertion этого
+имени. Helper использует `--volumes-from <CID>:ro|rw` и сохраняет существующий
+container через stop. Bind использует canonical существующий локальный source,
+проверку client device/inode и `--mount`; missing source не создаётся. Bind с недоступным локально
+source (в том числе remote-only), symlinks, nested mounts, anonymous/tmpfs storage, отсутствующий/несколько
+backend containers, неизвестный type/source или изменившаяся identity — отказ.
+Архив, estimate и reconciliation читают storage только RO, без сети и pull;
+лишние image `VOLUME` отклоняются. Writable volume helper наследует и остальные
+mounts backend, но его payload обращается только к проверенному STORAGE_PATH.
+
+**До разрушения цели.** Помимо sidecar/checksum/size/tar checks, restore реально
+выполняет SQL в отдельной scratch PostgreSQL-БД. Используется локальный pinned
+DB image, `--network none`, loopback только внутри собственного namespace,
+read-only rootfs, private tmpfs, без target mounts/портов. Декларации DB image
+VOLUME допускаются только на явно overridden tmpfs paths. Exact BASE TABLE
+поколения: 7, 8, 9, 10, 11 и 13; 12/unknown/missing tables отклоняются.
+
+В том же изолированном namespace запускаются миграции проверенного backend
+image. Только paths/sizes архивных regular files воспроизводятся sparse-файлами
+в private tmpfs; payload не копируется. Это проверяет path/size/migration
+совместимость и минимальные актуальные поля reconciliation/recovery с migration
+520, но не полное равенство SQL типов/constraints и не отдельные checksum объектов.
+`--validate-only` создаёт и удаляет свои disposable containers; целевую БД/storage
+не изменяет. Preflight ограничен 512MiB RAM, 1 CPU, 128 PID и 1GiB scratch PGDATA;
+превышение лимитов даёт отказ, успешное восстановление больших БД не квалифицировано.
+
+**SSD recovery fail-closed.** Архив содержит только постоянное legacy storage,
+исключает `.tmp` и `*.tmp` и не содержит SSD workspace bytes. Backup проверяет
+pending state до dump и перед публикацией. Restore проверяет snapshot и целевую
+БД до stop и после fencing: active nonlegacy/SSD sessions, незавершённые journal
+operations и pending cleanup запрещены. Journal 518 без cleanup proof запрещён
+при любом nonempty содержимом. Современный committed+cleaned journal допускается
+как retained metadata; восстановление его device/inode identities и replay не
+обещаются. Активные постоянные File записи проверяются через reconciliation storage. Все
+исторические rows должны проходить актуальные миграции с каноническими bindings;
+совместимость названий таблиц не делает произвольные старые paths допустимыми.
+Legacy временные upload chunks также не архивируются: resume pending legacy
+uploads не является гарантией backup. Требуется maintenance write barrier на всё
+время backup/restore, а также отсутствие concurrent mount/source substitutions.
+Два pending checks не превращают последовательные dump/tar в атомарный snapshot.
+
+**После destructive failure.** Скрипт не вызывает recovery `up`; backend/frontend
+останавливаются также после migration/reconciliation/readiness failure и сигналов, обрабатываемых
+shell trap. Собственный migration oneoff получает token name/label и удаляется
+cleanup с проверкой ownership; реальный сигнал во время attach отдельно не
+квалифицирован, offline checks покрывают exit130/143 и owned cleanup.
+Reconciliation skip запрещён. Writers стартуют только после успешной миграции и
+reconciliation; readiness требует HTTP200 и JSON `status=ready` с database/storage
+checks `ok`; каждый probe имеет total deadline 5s и body cap 8192B. Hashes metadata/dump/archive повторяются после confirmation под lock.
+SIGKILL, daemon restart, внешний auto-start и сторонние writers не ограждены этим
+shell process: operator maintenance barrier остаётся обязательным. Полный rollback
+БД/files не реализован. Остатки `.restore-staging`/`.restore-swap` сохраняются и
+блокируют автоматический backup/restore до ручного разбора; повторный запуск не
+удаляет возможную последнюю старую копию. Rename entries не даёт атомарности всего
+набора при crash/power loss.
+
+Client bind inode recheck не доказывает daemon inode и не закрывает окно между
+inspection и mount. Скрипты требуют исключить concurrent replace/remount; физическая
+SSD/HDD и Linux native boundary, reboot/power loss и 50+GiB/RSS на 8GiB host остаются
+отдельными gates. Одноразовые Mac/Docker fixtures не заменяют эту квалификацию.
+
+Без Docker выполняются:
+```bash
+python3 scripts/tests/test-recovery-storage.py
+python3 scripts/tests/test-restore-schema.py
+python3 scripts/tests/test-restore-preflight.py
+python3 scripts/tests/test-restore-health.py
+python3 scripts/tests/test-restore-storage.py
+python3 scripts/tests/test-restore-cleanup.py
+python3 scripts/tests/test-recovery-config.py
+python3 scripts/tests/storage-registry-metadata.test.py
+```
+Real fixtures запускаются только отдельными `test-d1-runtime.py` /
+`test-d1-historical.py` с явно подготовленным `hc-d1-runtime:*` image и absolute
+paths для evidence. Исторические deployment smoke/drill entry points без отдельной
+проверки isolation не запускать на preview ради D1.

@@ -1,0 +1,73 @@
+{
+  "numTotalTestSuites": 79,
+  "numPassedTestSuites": 63,
+  "numFailedTestSuites": 4,
+  "numPendingTestSuites": 12,
+  "numTotalTests": 1148,
+  "numPassedTests": 956,
+  "numFailedTests": 38,
+  "numPendingTests": 154,
+  "success": false,
+  "failed_tests": [
+    {
+      "file": "src/uploads/upload-rate-limit.spec.ts",
+      "tests": [
+        "authenticated upload rate policy (HTTP) accepts 5120 synthetic chunks at 20 requests/s across concurrent uploads without the ordinary IP cap",
+        "authenticated upload rate policy (HTTP) keeps the ordinary global policy at 100 requests per 60 seconds while uploads have a separate budget",
+        "authenticated upload rate policy (HTTP) bounds one user's burst across session IDs and refreshed JWTs and allows a different user",
+        "authenticated upload rate policy (HTTP) keeps upload control routes, unknown suffixes and unsupported methods in the ordinary global budget",
+        "authenticated upload rate policy (HTTP) holds a shared per-user concurrency cap across sessions and releases it on service settlement",
+        "authenticated upload rate policy (HTTP) releases concurrency and disk ingress after malformed multipart and service errors",
+        "authenticated upload rate policy (HTTP) rejects excessive text fields, oversized chunkIndex and truncated multipart while releasing ingress and leases",
+        "authenticated upload rate policy (HTTP) still applies the shared post-JWT upload budget to malformed session IDs before parsing files",
+        "authenticated upload rate policy (HTTP) rejects an IP admission burst before another JWT verification",
+        "authenticated upload rate policy (HTTP) caps all users' processing together and recovers capacity after settlement",
+        "authenticated upload rate policy (HTTP) keeps a disconnected processing handler's slot until its service promise settles",
+        "authenticated upload rate policy (HTTP) protects abort against abuse using its own finite budget",
+        "authenticated upload rate policy (HTTP) releases the ingress lease and partial disk file when a slow multipart client disconnects"
+      ]
+    },
+    {
+      "file": "src/uploads/upload-workspace.spec.ts",
+      "tests": [
+        "UploadWorkspaceResolver legacy binding derives only the operator root and preserves exact session/chunk bytes",
+        "UploadWorkspaceResolver legacy binding refuses workspace binding and retained path bridge mismatches",
+        "UploadWorkspaceResolver legacy binding permits missing terminal session directory without creating it",
+        "UploadWorkspaceResolver legacy binding fails closed after workspace disappearance even if it returns",
+        "UploadWorkspaceResolver legacy binding detects same-FS workspace replacement and never repins",
+        "UploadWorkspaceResolver legacy binding refuses symbolic workspace and session/ingress directories",
+        "UploadWorkspaceResolver legacy binding requires actual ingress/chunks directories and same filesystem",
+        "UploadWorkspaceResolver legacy binding reuses MS-2 admission before each operation and propagates mount failure",
+        "UploadWorkspaceResolver legacy binding refuses non-directory ingress and session objects",
+        "UploadWorkspaceResolver legacy binding recovers the same legacy workspace only with a new resolver after observed loss, preserving binary bytes",
+        "UploadWorkspaceResolver legacy binding releases its root anchor and refuses subsequent reuse"
+      ]
+    },
+    {
+      "file": "src/uploads/ingress-file-cleanup.interceptor.spec.ts",
+      "tests": [
+        "IngressFileCleanupInterceptor cleans after success and preserves the response",
+        "IngressFileCleanupInterceptor cleans after downstream DTO error without masking it",
+        "IngressFileCleanupInterceptor never deletes a path outside ingress",
+        "IngressFileCleanupInterceptor cleans a request-owned file when the socket aborts before Multer completes"
+      ]
+    },
+    {
+      "file": "src/uploads/secure-filesystem.spec.ts",
+      "tests": [
+        "Linux descriptor filesystem creates, syncs, reads, publishes without overwriting, enumerates and removes",
+        "Linux descriptor filesystem refuses uncanonical key ../escape",
+        "Linux descriptor filesystem refuses uncanonical key a/../../escape",
+        "Linux descriptor filesystem refuses uncanonical key a/../escape",
+        "Linux descriptor filesystem refuses uncanonical key nul\u0000tail",
+        "Linux descriptor filesystem refuses symlink ancestors and leaves, even when link points inside",
+        "Linux descriptor filesystem recursive cleanup unlinks symlinks without following outside directories",
+        "Linux descriptor filesystem refuses hardlinked regular files and non-regular leaves",
+        "Linux descriptor filesystem refuses a substituted or symbolic root during acquisition",
+        "Linux descriptor filesystem closes idempotently and fails closed on every later operation"
+      ]
+    }
+  ],
+  "comparison": "Backend src byte-equal to exact 5279d25 baseline; candidate backend suite not duplicated because D1 changes scripts only.",
+  "execution_note": "Sandbox denied localhost listen initially. Escalated run saved Jest JSON after assertions; own Jest process terminated with SIGTERM due open handles after completion."
+}

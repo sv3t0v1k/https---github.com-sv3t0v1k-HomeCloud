@@ -1,0 +1,22 @@
+F........F...
+======================================================================
+FAIL: test_current_journal_schema_is_accepted (__main__.RestoreSchema)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/aleksejkozemakin/.codex/.chatgpt-projects/g-p-6aaa72ceff208191895b0fd466f3e892/d1-work/scripts/tests/test-restore-schema.py", line 76, in test_current_journal_schema_is_accepted
+    self.assertEqual(result.returncode, 0, result.stderr)
+AssertionError: 1 != 0 : Database validation failed: expected a known 7/8/9/10/11-table schema, found 13
+
+
+======================================================================
+FAIL: test_unknown_schema_never_restarts_writers (__main__.RestoreSchema)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/aleksejkozemakin/.codex/.chatgpt-projects/g-p-6aaa72ceff208191895b0fd466f3e892/d1-work/scripts/tests/test-restore-schema.py", line 81, in test_unknown_schema_never_restarts_writers
+    self.assertNotIn('RECOVERY_START', result.stdout)
+AssertionError: 'RECOVERY_START' unexpectedly found in 'RECOVERY_START\n'
+
+----------------------------------------------------------------------
+Ran 13 tests in 0.413s
+
+FAILED (failures=2)

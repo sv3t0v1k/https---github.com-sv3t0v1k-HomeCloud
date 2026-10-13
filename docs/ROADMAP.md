@@ -1129,3 +1129,28 @@ Backend production/config/migrations и постоянный preview stack не 
 Неаттестированные ранние anonymous volumes сохранены; blanket prune не выполнялся.
 **COMPLETE не установлен; SSD activation OFF / production NO_GO. Работа остановлена
 после этого checkpoint; следующий gate только по отдельному согласованию.**
+
+
+## D1 — Backup & Restore Hardening (2026-10-13)
+
+Отдельно разрешённый checkpoint на exact `5279d25a2c0c798f546e346a95d89c2f4c99ef4f`;
+implementation/test HEAD `e8fd368`. Actual backend mount identity, external name/bind,
+RO helpers/no implicit volumes; private SQL+migration preflight current13/historical
+7–11 и13@518/519; pending SSD fail-closed, retained swap/staging, error/signal shell
+fencing и owned migration cleanup, bounded readiness. Deployment/backend/migrations/
+frontend/SSD activation не менялись. [Отчёт и ограничения](evidence/d1-backup-restore-20261013/report.md).
+
+72 offlinePASS/3 explicit baseline-onlySKIP; current disposable12/12 и historical/
+additional9/9PASS. Original scripts9 expected regression assertionFAIL;25 прежних
+offline instances сохранилиPASS. Mac backend exact source956PASS/38FAIL/154SKIP;
+backend src byte-equal, failures не исправлялись. Lint0errors/15 прежнихwarnings,
+TypeScript/NestbuildPASS. Independent critical review unresolvedMUST_FIX0.
+
+Final canonical records13existingcontainers/76volumes/10networks равны before/after;
+12own fixtures cleanupPASS/residue0. Preview/live contents/DB/mini-PC не использованы.
+Первый mixed-script runtime и tmpfs1777 historical failure сохранены, не gate.
+Нет полного rollback/atomic whole switch/daemon bind inode proof; maintenancebarrier
+обязателен, largeDB/payload/physicalSSD/HDD/reboot/powerloss/50+GiB не квалифицированы.
+**COMPLETE не установлен; production NOT_READY/NO_GO и SSD activationOFF сохраняются.**
+Работа остановлена послеD1. D2/D3 не начаты; следующий gate только по отдельному
+согласованию владельца. Запрещённый audit file и чужие untracked не включены в работу.

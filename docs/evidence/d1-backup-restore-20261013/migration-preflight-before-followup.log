@@ -1,0 +1,37 @@
+F.F...FF....
+======================================================================
+FAIL: test_backend_volume_declaration_blocks_helper_creation (__main__.RestorePreflight)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/aleksejkozemakin/.codex/.chatgpt-projects/g-p-6aaa72ceff208191895b0fd466f3e892/d1-work/scripts/tests/test-restore-preflight.py", line 139, in test_backend_volume_declaration_blocks_helper_creation
+    self.assertNotEqual(result.returncode, 0)
+AssertionError: 0 == 0
+
+======================================================================
+FAIL: test_current_missing_required_columns_blocks_before_production (__main__.RestorePreflight)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/aleksejkozemakin/.codex/.chatgpt-projects/g-p-6aaa72ceff208191895b0fd466f3e892/d1-work/scripts/tests/test-restore-preflight.py", line 133, in test_current_missing_required_columns_blocks_before_production
+    self.assertNotEqual(result.returncode, 0)
+AssertionError: 0 == 0
+
+======================================================================
+FAIL: test_migration_error_blocks_before_production (__main__.RestorePreflight)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/aleksejkozemakin/.codex/.chatgpt-projects/g-p-6aaa72ceff208191895b0fd466f3e892/d1-work/scripts/tests/test-restore-preflight.py", line 127, in test_migration_error_blocks_before_production
+    self.assertNotEqual(result.returncode, 0)
+AssertionError: 0 == 0
+
+======================================================================
+FAIL: test_migration_replay_is_isolated_and_pinned (__main__.RestorePreflight)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/aleksejkozemakin/.codex/.chatgpt-projects/g-p-6aaa72ceff208191895b0fd466f3e892/d1-work/scripts/tests/test-restore-preflight.py", line 115, in test_migration_replay_is_isolated_and_pinned
+    self.assertTrue(migration, 'migration replay is missing')
+AssertionError: '' is not true : migration replay is missing
+
+----------------------------------------------------------------------
+Ran 12 tests in 1.149s
+
+FAILED (failures=4)

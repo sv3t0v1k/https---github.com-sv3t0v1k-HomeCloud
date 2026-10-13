@@ -1,0 +1,13 @@
+{
+  "runtime_cases": 12,
+  "historical_cases": 9,
+  "all_cleanup_passed": true,
+  "source_unchanged_during_gate": true,
+  "existing_resource_counts": {
+    "containers": 13,
+    "volumes": 76,
+    "networks": 10
+  },
+  "runtime_existing_resources_identical": true,
+  "historical_existing_resources_identical": true
+}

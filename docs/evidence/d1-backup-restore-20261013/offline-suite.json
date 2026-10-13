@@ -1,0 +1,42 @@
+[
+  {
+    "command": "python3 scripts/tests/test-recovery-storage.py",
+    "exit_code": 0,
+    "output": "sss......................\n----------------------------------------------------------------------\nRan 25 tests in 0.020s\n\nOK (skipped=3)"
+  },
+  {
+    "command": "python3 scripts/tests/test-restore-schema.py",
+    "exit_code": 0,
+    "output": ".............\n----------------------------------------------------------------------\nRan 13 tests in 0.564s\n\nOK"
+  },
+  {
+    "command": "python3 scripts/tests/test-restore-preflight.py",
+    "exit_code": 0,
+    "output": ".............\n----------------------------------------------------------------------\nRan 13 tests in 2.181s\n\nOK"
+  },
+  {
+    "command": "python3 scripts/tests/test-restore-health.py",
+    "exit_code": 0,
+    "output": "........\n----------------------------------------------------------------------\nRan 8 tests in 5.532s\n\nOK"
+  },
+  {
+    "command": "python3 scripts/tests/test-restore-storage.py",
+    "exit_code": 0,
+    "output": "..\n----------------------------------------------------------------------\nRan 2 tests in 0.048s\n\nOK"
+  },
+  {
+    "command": "python3 scripts/tests/test-restore-cleanup.py",
+    "exit_code": 0,
+    "output": ".\n----------------------------------------------------------------------\nRan 1 test in 0.645s\n\nOK"
+  },
+  {
+    "command": "python3 scripts/tests/test-recovery-config.py",
+    "exit_code": 0,
+    "output": "...........\n----------------------------------------------------------------------\nRan 11 tests in 1.252s\n\nOK"
+  },
+  {
+    "command": "python3 scripts/tests/storage-registry-metadata.test.py",
+    "exit_code": 0,
+    "output": "..\n----------------------------------------------------------------------\nRan 2 tests in 0.000s\n\nOK"
+  }
+]
