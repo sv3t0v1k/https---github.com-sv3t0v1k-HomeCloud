@@ -1,0 +1,1663 @@
+{
+  "date": "2026-10-14",
+  "sourceHead": "2f671f1fb86b60c4a8c7b0d58a5f51f322b4cc97",
+  "prCheckoutMergeSha": "c8c2bc69543867f5e1fb8f95cd88b491c832deb0",
+  "pushCheckoutSha": "2f671f1fb86b60c4a8c7b0d58a5f51f322b4cc97",
+  "runs": [
+    {
+      "conclusion": "success",
+      "databaseId": 38482225216,
+      "event": "pull_request",
+      "headSha": "2f671f1fb86b60c4a8c7b0d58a5f51f322b4cc97",
+      "jobs": [
+        {
+          "completedAt": "2026-10-13T23:07:46Z",
+          "conclusion": "success",
+          "databaseId": 115587268333,
+          "name": "frontend",
+          "startedAt": "2026-10-13T23:07:04Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-13T23:07:05Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-13T23:07:05Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:07Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 2,
+              "startedAt": "2026-10-13T23:07:05Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:11Z",
+              "conclusion": "success",
+              "name": "Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+              "number": 3,
+              "startedAt": "2026-10-13T23:07:07Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:15Z",
+              "conclusion": "success",
+              "name": "Run npm ci --no-audit",
+              "number": 4,
+              "startedAt": "2026-10-13T23:07:11Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:33Z",
+              "conclusion": "success",
+              "name": "Run npm test",
+              "number": 5,
+              "startedAt": "2026-10-13T23:07:15Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:36Z",
+              "conclusion": "success",
+              "name": "Run npm run lint",
+              "number": 6,
+              "startedAt": "2026-10-13T23:07:33Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:42Z",
+              "conclusion": "success",
+              "name": "Run npm run build",
+              "number": 7,
+              "startedAt": "2026-10-13T23:07:36Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:43Z",
+              "conclusion": "success",
+              "name": "Post Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+              "number": 13,
+              "startedAt": "2026-10-13T23:07:42Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:44Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 14,
+              "startedAt": "2026-10-13T23:07:43Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:44Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 15,
+              "startedAt": "2026-10-13T23:07:44Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38482225216/job/115587268333"
+        },
+        {
+          "completedAt": "2026-10-13T23:10:20Z",
+          "conclusion": "success",
+          "databaseId": 115587268532,
+          "name": "backend",
+          "startedAt": "2026-10-13T23:07:04Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-13T23:07:06Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-13T23:07:05Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:32Z",
+              "conclusion": "success",
+              "name": "Initialize containers",
+              "number": 2,
+              "startedAt": "2026-10-13T23:07:06Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:37Z",
+              "conclusion": "success",
+              "name": "Run apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev git python3 util-linux",
+              "number": 3,
+              "startedAt": "2026-10-13T23:07:32Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:38Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 4,
+              "startedAt": "2026-10-13T23:07:37Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:49Z",
+              "conclusion": "success",
+              "name": "Run npm ci --no-audit",
+              "number": 5,
+              "startedAt": "2026-10-13T23:07:38Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:49Z",
+              "conclusion": "success",
+              "name": "Run sh native/build.sh",
+              "number": 6,
+              "startedAt": "2026-10-13T23:07:49Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:49Z",
+              "conclusion": "success",
+              "name": "Run python3 scripts/ci/test-release.py",
+              "number": 7,
+              "startedAt": "2026-10-13T23:07:49Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:10:01Z",
+              "conclusion": "success",
+              "name": "Full suite as unprivileged user",
+              "number": 8,
+              "startedAt": "2026-10-13T23:07:49Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:10:01Z",
+              "conclusion": "success",
+              "name": "PostgreSQL suites must execute",
+              "number": 9,
+              "startedAt": "2026-10-13T23:10:01Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:10:07Z",
+              "conclusion": "success",
+              "name": "Run npm run lint",
+              "number": 10,
+              "startedAt": "2026-10-13T23:10:01Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:10:15Z",
+              "conclusion": "success",
+              "name": "Run npm run test:file-type:compiled",
+              "number": 11,
+              "startedAt": "2026-10-13T23:10:07Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:10:15Z",
+              "conclusion": "success",
+              "name": "Patched dependency runtime and multipart boundaries",
+              "number": 12,
+              "startedAt": "2026-10-13T23:10:15Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:10:16Z",
+              "conclusion": "success",
+              "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+              "number": 13,
+              "startedAt": "2026-10-13T23:10:15Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:10:17Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 25,
+              "startedAt": "2026-10-13T23:10:16Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:10:17Z",
+              "conclusion": "success",
+              "name": "Stop containers",
+              "number": 26,
+              "startedAt": "2026-10-13T23:10:17Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:10:17Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 27,
+              "startedAt": "2026-10-13T23:10:17Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38482225216/job/115587268532"
+        },
+        {
+          "completedAt": "2026-10-13T23:07:12Z",
+          "conclusion": "success",
+          "databaseId": 115587268569,
+          "name": "configuration",
+          "startedAt": "2026-10-13T23:07:04Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-13T23:07:05Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-13T23:07:04Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:06Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 2,
+              "startedAt": "2026-10-13T23:07:05Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:07Z",
+              "conclusion": "success",
+              "name": "Pin normalized Compose API; preserve explicit false bind flags",
+              "number": 3,
+              "startedAt": "2026-10-13T23:07:06Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:07Z",
+              "conclusion": "success",
+              "name": "Run docker compose version && python3 scripts/ci/compose-check.py",
+              "number": 4,
+              "startedAt": "2026-10-13T23:07:07Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:10Z",
+              "conclusion": "success",
+              "name": "Run python3 deploy/linux/test_startup_gate.py",
+              "number": 5,
+              "startedAt": "2026-10-13T23:07:07Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:11Z",
+              "conclusion": "success",
+              "name": "Run python3 deploy/linux/test_preflight.py",
+              "number": 6,
+              "startedAt": "2026-10-13T23:07:10Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:11Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 12,
+              "startedAt": "2026-10-13T23:07:11Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:11Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 13,
+              "startedAt": "2026-10-13T23:07:11Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38482225216/job/115587268569"
+        },
+        {
+          "completedAt": "2026-10-13T23:07:39Z",
+          "conclusion": "success",
+          "databaseId": 115587268586,
+          "name": "image-build (frontend)",
+          "startedAt": "2026-10-13T23:07:04Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-13T23:07:06Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-13T23:07:04Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:08Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 2,
+              "startedAt": "2026-10-13T23:07:06Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:08Z",
+              "conclusion": "success",
+              "name": "Run python3 -c 'import json,os; d=json.load(open(\"scripts/ci/images.lock.json\")); f=open(os.environ[\"GITHUB_OUTPUT\"],\"a\"); [f.write(k+\"=\"+v+\"\\n\") for k,v in d.items()]'",
+              "number": 3,
+              "startedAt": "2026-10-13T23:07:08Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:13Z",
+              "conclusion": "success",
+              "name": "Run docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435",
+              "number": 4,
+              "startedAt": "2026-10-13T23:07:08Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:32Z",
+              "conclusion": "success",
+              "name": "Run docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83",
+              "number": 5,
+              "startedAt": "2026-10-13T23:07:13Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:32Z",
+              "conclusion": "skipped",
+              "name": "Backend production image native dependencies, without mounts or startup",
+              "number": 6,
+              "startedAt": "2026-10-13T23:07:32Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:34Z",
+              "conclusion": "success",
+              "name": "Post Run docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83",
+              "number": 10,
+              "startedAt": "2026-10-13T23:07:32Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:38Z",
+              "conclusion": "success",
+              "name": "Post Run docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435",
+              "number": 11,
+              "startedAt": "2026-10-13T23:07:34Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:38Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 12,
+              "startedAt": "2026-10-13T23:07:38Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:38Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 13,
+              "startedAt": "2026-10-13T23:07:38Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38482225216/job/115587268586"
+        },
+        {
+          "completedAt": "2026-10-13T23:08:09Z",
+          "conclusion": "success",
+          "databaseId": 115587268689,
+          "name": "image-build (backend)",
+          "startedAt": "2026-10-13T23:07:04Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-13T23:07:07Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-13T23:07:05Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:09Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 2,
+              "startedAt": "2026-10-13T23:07:07Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:09Z",
+              "conclusion": "success",
+              "name": "Run python3 -c 'import json,os; d=json.load(open(\"scripts/ci/images.lock.json\")); f=open(os.environ[\"GITHUB_OUTPUT\"],\"a\"); [f.write(k+\"=\"+v+\"\\n\") for k,v in d.items()]'",
+              "number": 3,
+              "startedAt": "2026-10-13T23:07:09Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:16Z",
+              "conclusion": "success",
+              "name": "Run docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435",
+              "number": 4,
+              "startedAt": "2026-10-13T23:07:09Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:58Z",
+              "conclusion": "success",
+              "name": "Run docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83",
+              "number": 5,
+              "startedAt": "2026-10-13T23:07:16Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:58Z",
+              "conclusion": "success",
+              "name": "Backend production image native dependencies, without mounts or startup",
+              "number": 6,
+              "startedAt": "2026-10-13T23:07:58Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:08:00Z",
+              "conclusion": "success",
+              "name": "Post Run docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83",
+              "number": 10,
+              "startedAt": "2026-10-13T23:07:58Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:08:07Z",
+              "conclusion": "success",
+              "name": "Post Run docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435",
+              "number": 11,
+              "startedAt": "2026-10-13T23:08:00Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:08:07Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 12,
+              "startedAt": "2026-10-13T23:08:07Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:08:07Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 13,
+              "startedAt": "2026-10-13T23:08:07Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38482225216/job/115587268689"
+        },
+        {
+          "completedAt": "2026-10-13T23:07:22Z",
+          "conclusion": "success",
+          "databaseId": 115587268768,
+          "name": "security (frontend)",
+          "startedAt": "2026-10-13T23:07:04Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-13T23:07:06Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-13T23:07:05Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:08Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 2,
+              "startedAt": "2026-10-13T23:07:06Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:12Z",
+              "conclusion": "success",
+              "name": "Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+              "number": 3,
+              "startedAt": "2026-10-13T23:07:08Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:16Z",
+              "conclusion": "success",
+              "name": "Run npm ci --ignore-scripts --no-audit",
+              "number": 4,
+              "startedAt": "2026-10-13T23:07:12Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:17Z",
+              "conclusion": "success",
+              "name": "Capture audit response, reject infrastructure errors",
+              "number": 5,
+              "startedAt": "2026-10-13T23:07:16Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:17Z",
+              "conclusion": "success",
+              "name": "Run python3 scripts/ci/audit-gate.py audit-frontend.json",
+              "number": 6,
+              "startedAt": "2026-10-13T23:07:17Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:19Z",
+              "conclusion": "success",
+              "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+              "number": 7,
+              "startedAt": "2026-10-13T23:07:17Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:19Z",
+              "conclusion": "success",
+              "name": "Post Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+              "number": 13,
+              "startedAt": "2026-10-13T23:07:19Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:19Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 14,
+              "startedAt": "2026-10-13T23:07:19Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:19Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 15,
+              "startedAt": "2026-10-13T23:07:19Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38482225216/job/115587268768"
+        },
+        {
+          "completedAt": "2026-10-13T23:07:12Z",
+          "conclusion": "success",
+          "databaseId": 115587268817,
+          "name": "secrets",
+          "startedAt": "2026-10-13T23:07:04Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-13T23:07:06Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-13T23:07:05Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:09Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 2,
+              "startedAt": "2026-10-13T23:07:06Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:10Z",
+              "conclusion": "success",
+              "name": "Pinned gitleaks; full reachable history, forbidden audit excluded before reading",
+              "number": 3,
+              "startedAt": "2026-10-13T23:07:09Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:11Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 6,
+              "startedAt": "2026-10-13T23:07:10Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:11Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 7,
+              "startedAt": "2026-10-13T23:07:11Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38482225216/job/115587268817"
+        },
+        {
+          "completedAt": "2026-10-13T23:07:31Z",
+          "conclusion": "success",
+          "databaseId": 115587268845,
+          "name": "security (backend)",
+          "startedAt": "2026-10-13T23:07:04Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-13T23:07:06Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-13T23:07:05Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:08Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 2,
+              "startedAt": "2026-10-13T23:07:06Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:12Z",
+              "conclusion": "success",
+              "name": "Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+              "number": 3,
+              "startedAt": "2026-10-13T23:07:08Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:24Z",
+              "conclusion": "success",
+              "name": "Run npm ci --ignore-scripts --no-audit",
+              "number": 4,
+              "startedAt": "2026-10-13T23:07:12Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:27Z",
+              "conclusion": "success",
+              "name": "Capture audit response, reject infrastructure errors",
+              "number": 5,
+              "startedAt": "2026-10-13T23:07:24Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:27Z",
+              "conclusion": "success",
+              "name": "Run python3 scripts/ci/audit-gate.py audit-backend.json",
+              "number": 6,
+              "startedAt": "2026-10-13T23:07:27Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:28Z",
+              "conclusion": "success",
+              "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+              "number": 7,
+              "startedAt": "2026-10-13T23:07:27Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:28Z",
+              "conclusion": "success",
+              "name": "Post Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+              "number": 13,
+              "startedAt": "2026-10-13T23:07:28Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:28Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 14,
+              "startedAt": "2026-10-13T23:07:28Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:28Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 15,
+              "startedAt": "2026-10-13T23:07:28Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38482225216/job/115587268845"
+        },
+        {
+          "completedAt": "2026-10-13T23:10:26Z",
+          "conclusion": "success",
+          "databaseId": 115588432120,
+          "name": "gate",
+          "startedAt": "2026-10-13T23:10:23Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-13T23:10:24Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-13T23:10:24Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:10:24Z",
+              "conclusion": "success",
+              "name": "Require every gate",
+              "number": 2,
+              "startedAt": "2026-10-13T23:10:24Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:10:24Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 3,
+              "startedAt": "2026-10-13T23:10:24Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38482225216/job/115588432120"
+        }
+      ],
+      "status": "completed",
+      "url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38482225216"
+    },
+    {
+      "conclusion": "success",
+      "databaseId": 38482221084,
+      "event": "push",
+      "headSha": "2f671f1fb86b60c4a8c7b0d58a5f51f322b4cc97",
+      "jobs": [
+        {
+          "completedAt": "2026-10-13T23:07:26Z",
+          "conclusion": "success",
+          "databaseId": 115587254356,
+          "name": "security (backend)",
+          "startedAt": "2026-10-13T23:07:02Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-13T23:07:04Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-13T23:07:02Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:06Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 2,
+              "startedAt": "2026-10-13T23:07:04Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:11Z",
+              "conclusion": "success",
+              "name": "Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+              "number": 3,
+              "startedAt": "2026-10-13T23:07:06Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:19Z",
+              "conclusion": "success",
+              "name": "Run npm ci --ignore-scripts --no-audit",
+              "number": 4,
+              "startedAt": "2026-10-13T23:07:11Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:22Z",
+              "conclusion": "success",
+              "name": "Capture audit response, reject infrastructure errors",
+              "number": 5,
+              "startedAt": "2026-10-13T23:07:19Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:22Z",
+              "conclusion": "success",
+              "name": "Run python3 scripts/ci/audit-gate.py audit-backend.json",
+              "number": 6,
+              "startedAt": "2026-10-13T23:07:22Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:23Z",
+              "conclusion": "success",
+              "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+              "number": 7,
+              "startedAt": "2026-10-13T23:07:22Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:23Z",
+              "conclusion": "success",
+              "name": "Post Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+              "number": 13,
+              "startedAt": "2026-10-13T23:07:23Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:23Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 14,
+              "startedAt": "2026-10-13T23:07:23Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:23Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 15,
+              "startedAt": "2026-10-13T23:07:23Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38482221084/job/115587254356"
+        },
+        {
+          "completedAt": "2026-10-13T23:07:07Z",
+          "conclusion": "success",
+          "databaseId": 115587254582,
+          "name": "secrets",
+          "startedAt": "2026-10-13T23:07:01Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-13T23:07:02Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-13T23:07:02Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:04Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 2,
+              "startedAt": "2026-10-13T23:07:02Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:05Z",
+              "conclusion": "success",
+              "name": "Pinned gitleaks; full reachable history, forbidden audit excluded before reading",
+              "number": 3,
+              "startedAt": "2026-10-13T23:07:04Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:05Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 6,
+              "startedAt": "2026-10-13T23:07:05Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:05Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 7,
+              "startedAt": "2026-10-13T23:07:05Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38482221084/job/115587254582"
+        },
+        {
+          "completedAt": "2026-10-13T23:10:29Z",
+          "conclusion": "success",
+          "databaseId": 115587254618,
+          "name": "backend",
+          "startedAt": "2026-10-13T23:07:02Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-13T23:07:04Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-13T23:07:03Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:32Z",
+              "conclusion": "success",
+              "name": "Initialize containers",
+              "number": 2,
+              "startedAt": "2026-10-13T23:07:04Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:37Z",
+              "conclusion": "success",
+              "name": "Run apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev git python3 util-linux",
+              "number": 3,
+              "startedAt": "2026-10-13T23:07:32Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:38Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 4,
+              "startedAt": "2026-10-13T23:07:37Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:49Z",
+              "conclusion": "success",
+              "name": "Run npm ci --no-audit",
+              "number": 5,
+              "startedAt": "2026-10-13T23:07:38Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:50Z",
+              "conclusion": "success",
+              "name": "Run sh native/build.sh",
+              "number": 6,
+              "startedAt": "2026-10-13T23:07:49Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:50Z",
+              "conclusion": "success",
+              "name": "Run python3 scripts/ci/test-release.py",
+              "number": 7,
+              "startedAt": "2026-10-13T23:07:50Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:10:08Z",
+              "conclusion": "success",
+              "name": "Full suite as unprivileged user",
+              "number": 8,
+              "startedAt": "2026-10-13T23:07:50Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:10:08Z",
+              "conclusion": "success",
+              "name": "PostgreSQL suites must execute",
+              "number": 9,
+              "startedAt": "2026-10-13T23:10:08Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:10:15Z",
+              "conclusion": "success",
+              "name": "Run npm run lint",
+              "number": 10,
+              "startedAt": "2026-10-13T23:10:08Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:10:23Z",
+              "conclusion": "success",
+              "name": "Run npm run test:file-type:compiled",
+              "number": 11,
+              "startedAt": "2026-10-13T23:10:15Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:10:24Z",
+              "conclusion": "success",
+              "name": "Patched dependency runtime and multipart boundaries",
+              "number": 12,
+              "startedAt": "2026-10-13T23:10:23Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:10:25Z",
+              "conclusion": "success",
+              "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+              "number": 13,
+              "startedAt": "2026-10-13T23:10:24Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:10:25Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 25,
+              "startedAt": "2026-10-13T23:10:25Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:10:26Z",
+              "conclusion": "success",
+              "name": "Stop containers",
+              "number": 26,
+              "startedAt": "2026-10-13T23:10:25Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:10:26Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 27,
+              "startedAt": "2026-10-13T23:10:26Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38482221084/job/115587254618"
+        },
+        {
+          "completedAt": "2026-10-13T23:07:13Z",
+          "conclusion": "success",
+          "databaseId": 115587254640,
+          "name": "configuration",
+          "startedAt": "2026-10-13T23:07:02Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-13T23:07:03Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-13T23:07:03Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:05Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 2,
+              "startedAt": "2026-10-13T23:07:03Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:06Z",
+              "conclusion": "success",
+              "name": "Pin normalized Compose API; preserve explicit false bind flags",
+              "number": 3,
+              "startedAt": "2026-10-13T23:07:05Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:06Z",
+              "conclusion": "success",
+              "name": "Run docker compose version && python3 scripts/ci/compose-check.py",
+              "number": 4,
+              "startedAt": "2026-10-13T23:07:06Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:11Z",
+              "conclusion": "success",
+              "name": "Run python3 deploy/linux/test_startup_gate.py",
+              "number": 5,
+              "startedAt": "2026-10-13T23:07:06Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:11Z",
+              "conclusion": "success",
+              "name": "Run python3 deploy/linux/test_preflight.py",
+              "number": 6,
+              "startedAt": "2026-10-13T23:07:11Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:11Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 12,
+              "startedAt": "2026-10-13T23:07:11Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:11Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 13,
+              "startedAt": "2026-10-13T23:07:11Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38482221084/job/115587254640"
+        },
+        {
+          "completedAt": "2026-10-13T23:07:18Z",
+          "conclusion": "success",
+          "databaseId": 115587254642,
+          "name": "security (frontend)",
+          "startedAt": "2026-10-13T23:07:01Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-13T23:07:03Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-13T23:07:02Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:05Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 2,
+              "startedAt": "2026-10-13T23:07:03Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:10Z",
+              "conclusion": "success",
+              "name": "Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+              "number": 3,
+              "startedAt": "2026-10-13T23:07:05Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:14Z",
+              "conclusion": "success",
+              "name": "Run npm ci --ignore-scripts --no-audit",
+              "number": 4,
+              "startedAt": "2026-10-13T23:07:10Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:15Z",
+              "conclusion": "success",
+              "name": "Capture audit response, reject infrastructure errors",
+              "number": 5,
+              "startedAt": "2026-10-13T23:07:14Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:15Z",
+              "conclusion": "success",
+              "name": "Run python3 scripts/ci/audit-gate.py audit-frontend.json",
+              "number": 6,
+              "startedAt": "2026-10-13T23:07:15Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:16Z",
+              "conclusion": "success",
+              "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+              "number": 7,
+              "startedAt": "2026-10-13T23:07:15Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:16Z",
+              "conclusion": "success",
+              "name": "Post Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+              "number": 13,
+              "startedAt": "2026-10-13T23:07:16Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:16Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 14,
+              "startedAt": "2026-10-13T23:07:16Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:16Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 15,
+              "startedAt": "2026-10-13T23:07:16Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38482221084/job/115587254642"
+        },
+        {
+          "completedAt": "2026-10-13T23:07:47Z",
+          "conclusion": "success",
+          "databaseId": 115587254821,
+          "name": "image-build (frontend)",
+          "startedAt": "2026-10-13T23:07:02Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-13T23:07:05Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-13T23:07:03Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:07Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 2,
+              "startedAt": "2026-10-13T23:07:05Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:07Z",
+              "conclusion": "success",
+              "name": "Run python3 -c 'import json,os; d=json.load(open(\"scripts/ci/images.lock.json\")); f=open(os.environ[\"GITHUB_OUTPUT\"],\"a\"); [f.write(k+\"=\"+v+\"\\n\") for k,v in d.items()]'",
+              "number": 3,
+              "startedAt": "2026-10-13T23:07:07Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:19Z",
+              "conclusion": "success",
+              "name": "Run docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435",
+              "number": 4,
+              "startedAt": "2026-10-13T23:07:07Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:38Z",
+              "conclusion": "success",
+              "name": "Run docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83",
+              "number": 5,
+              "startedAt": "2026-10-13T23:07:19Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:38Z",
+              "conclusion": "skipped",
+              "name": "Backend production image native dependencies, without mounts or startup",
+              "number": 6,
+              "startedAt": "2026-10-13T23:07:38Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:40Z",
+              "conclusion": "success",
+              "name": "Post Run docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83",
+              "number": 10,
+              "startedAt": "2026-10-13T23:07:38Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:45Z",
+              "conclusion": "success",
+              "name": "Post Run docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435",
+              "number": 11,
+              "startedAt": "2026-10-13T23:07:40Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:45Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 12,
+              "startedAt": "2026-10-13T23:07:45Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:45Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 13,
+              "startedAt": "2026-10-13T23:07:45Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38482221084/job/115587254821"
+        },
+        {
+          "completedAt": "2026-10-13T23:07:44Z",
+          "conclusion": "success",
+          "databaseId": 115587254832,
+          "name": "frontend",
+          "startedAt": "2026-10-13T23:07:01Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-13T23:07:03Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-13T23:07:02Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:04Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 2,
+              "startedAt": "2026-10-13T23:07:03Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:08Z",
+              "conclusion": "success",
+              "name": "Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+              "number": 3,
+              "startedAt": "2026-10-13T23:07:04Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:12Z",
+              "conclusion": "success",
+              "name": "Run npm ci --no-audit",
+              "number": 4,
+              "startedAt": "2026-10-13T23:07:08Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:32Z",
+              "conclusion": "success",
+              "name": "Run npm test",
+              "number": 5,
+              "startedAt": "2026-10-13T23:07:12Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:35Z",
+              "conclusion": "success",
+              "name": "Run npm run lint",
+              "number": 6,
+              "startedAt": "2026-10-13T23:07:32Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:41Z",
+              "conclusion": "success",
+              "name": "Run npm run build",
+              "number": 7,
+              "startedAt": "2026-10-13T23:07:35Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:42Z",
+              "conclusion": "success",
+              "name": "Post Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+              "number": 13,
+              "startedAt": "2026-10-13T23:07:41Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:42Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 14,
+              "startedAt": "2026-10-13T23:07:42Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:42Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 15,
+              "startedAt": "2026-10-13T23:07:42Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38482221084/job/115587254832"
+        },
+        {
+          "completedAt": "2026-10-13T23:08:06Z",
+          "conclusion": "success",
+          "databaseId": 115587254842,
+          "name": "image-build (backend)",
+          "startedAt": "2026-10-13T23:07:02Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-13T23:07:05Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-13T23:07:02Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:06Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 2,
+              "startedAt": "2026-10-13T23:07:05Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:06Z",
+              "conclusion": "success",
+              "name": "Run python3 -c 'import json,os; d=json.load(open(\"scripts/ci/images.lock.json\")); f=open(os.environ[\"GITHUB_OUTPUT\"],\"a\"); [f.write(k+\"=\"+v+\"\\n\") for k,v in d.items()]'",
+              "number": 3,
+              "startedAt": "2026-10-13T23:07:06Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:13Z",
+              "conclusion": "success",
+              "name": "Run docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435",
+              "number": 4,
+              "startedAt": "2026-10-13T23:07:06Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:55Z",
+              "conclusion": "success",
+              "name": "Run docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83",
+              "number": 5,
+              "startedAt": "2026-10-13T23:07:13Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:56Z",
+              "conclusion": "success",
+              "name": "Backend production image native dependencies, without mounts or startup",
+              "number": 6,
+              "startedAt": "2026-10-13T23:07:55Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:07:57Z",
+              "conclusion": "success",
+              "name": "Post Run docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83",
+              "number": 10,
+              "startedAt": "2026-10-13T23:07:56Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:08:04Z",
+              "conclusion": "success",
+              "name": "Post Run docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435",
+              "number": 11,
+              "startedAt": "2026-10-13T23:07:57Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:08:05Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 12,
+              "startedAt": "2026-10-13T23:08:04Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:08:05Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 13,
+              "startedAt": "2026-10-13T23:08:05Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38482221084/job/115587254842"
+        },
+        {
+          "completedAt": "2026-10-13T23:10:34Z",
+          "conclusion": "success",
+          "databaseId": 115588485400,
+          "name": "gate",
+          "startedAt": "2026-10-13T23:10:31Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-13T23:10:32Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-13T23:10:32Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:10:32Z",
+              "conclusion": "success",
+              "name": "Require every gate",
+              "number": 2,
+              "startedAt": "2026-10-13T23:10:32Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-13T23:10:32Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 3,
+              "startedAt": "2026-10-13T23:10:32Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38482221084/job/115588485400"
+        }
+      ],
+      "status": "completed",
+      "url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38482221084"
+    }
+  ],
+  "backend": {
+    "total": 1148,
+    "passed": 1148,
+    "failed": 0,
+    "skipped": 0,
+    "suites": 79,
+    "postgresSuites": [
+      {
+        "name": "src/uploads/ssd-finalization-store.postgres.spec.ts",
+        "tests": 42,
+        "status": "passed"
+      },
+      {
+        "name": "src/uploads/uploads.service.postgres.spec.ts",
+        "tests": 32,
+        "status": "passed"
+      },
+      {
+        "name": "src/sharing/sharing.postgres.spec.ts",
+        "tests": 7,
+        "status": "passed"
+      },
+      {
+        "name": "src/uploads/durable-upload-whole-sha256.postgres.spec.ts",
+        "tests": 13,
+        "status": "passed"
+      },
+      {
+        "name": "src/files/native-downloads.postgres.spec.ts",
+        "tests": 9,
+        "status": "passed"
+      },
+      {
+        "name": "src/uploads/upload-workspace.postgres.spec.ts",
+        "tests": 11,
+        "status": "passed"
+      },
+      {
+        "name": "src/files/files.service.postgres.spec.ts",
+        "tests": 4,
+        "status": "passed"
+      },
+      {
+        "name": "src/uploads/upload-rate-limit.postgres.spec.ts",
+        "tests": 1,
+        "status": "passed"
+      },
+      {
+        "name": "src/files/security-ownership.postgres.spec.ts",
+        "tests": 17,
+        "status": "passed"
+      },
+      {
+        "name": "src/storage/storage-placement.postgres.spec.ts",
+        "tests": 10,
+        "status": "passed"
+      },
+      {
+        "name": "src/uploads/prepare-ssd-workspace.postgres.spec.ts",
+        "tests": 5,
+        "status": "passed"
+      },
+      {
+        "name": "src/sharing/share-locked-until-timestamptz.postgres.spec.ts",
+        "tests": 3,
+        "status": "passed"
+      }
+    ],
+    "dependencyRuntime": {
+      "passed": 7,
+      "failed": 0,
+      "skipped": 0
+    },
+    "lint": {
+      "errors": 0,
+      "warnings": 15
+    },
+    "nativeCompile": "PASS",
+    "compiledFileTypeBuild": "PASS"
+  },
+  "frontend": {
+    "files": 22,
+    "passed": 278,
+    "failed": 0,
+    "lint": "PASS",
+    "build": "PASS"
+  },
+  "configuration": {
+    "composeMerges": 4,
+    "preflightTests": 76,
+    "startupTests": 43,
+    "releaseNegativeTests": 16
+  },
+  "images": {
+    "architecture": "linux/amd64",
+    "backend": "PASS",
+    "frontend": "PASS",
+    "backendMuslAddonAndJpegDecoder": "PASS",
+    "publish": false,
+    "ghcr": "NOT_RUN",
+    "releaseDigestProvenance": "NOT_RUN"
+  },
+  "audit": {
+    "backend": {
+      "info": 0,
+      "low": 0,
+      "moderate": 30,
+      "high": 0,
+      "critical": 0,
+      "total": 30
+    },
+    "frontend": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    }
+  },
+  "limitations": [
+    "Node20EOL; pinned action Node20 runtime forced to Node24 by GitHub runner",
+    "No physical storage/server/startup qualification",
+    "Moderate advisories remain; no Production GO"
+  ]
+}

@@ -33,7 +33,7 @@
 | Failure & Security Testing — ненумерованный checkpoint | `COMPLETE` | [evidence и границы](./failure-security-checkpoint.md) |
 | Универсальное хранение и докачка — ненумерованный checkpoint | `COMPLETE` | [IAB/Safari functional evidence](./evidence/universal-storage-upload-ux-20261005/report.md) |
 | Единый локальный Docker baseline — ненумерованный checkpoint | `COMPLETE` | `bf97bef` / `f578030`; [runbook и preservation boundaries](./operations-runbook.md) |
-| D5.1 — Release Management & CI Foundation | `D5.1.1_REVIEWED / FRESH_CI_PENDING / RELEASE_BLOCKED` | [Аудит, локальные проверки и границы](./evidence/d5-1-20261013/report.md) |
+| D5.1 — Release Management & CI Foundation | `D5.1.1_CI_PASS / RELEASE_BLOCKED` | [Аудит, локальные проверки и границы](./evidence/d5-1-20261013/report.md) |
 | Полный 50 ГиБ IAB Browser E2E — ненумерованный checkpoint | `PASS` | `167498d`; [scope/evidence](./evidence/browser-50gib-qualification-20261006/report.md); Safari 50 ГиБ UNQUALIFIED |
 
 ## Completed
@@ -1289,14 +1289,16 @@ Security/release BLOCKED сохраняется; COMPLETE и D5.2 не меня�
 
 ### D5.1.1 — Security Remediation (2026-10-14)
 
-**REMEDIATION_REVIEWED / FRESH_GITHUB_CI_PENDING; release BLOCKED; COMPLETE не установлен.**
+**HIGH_CRITICAL_REMEDIATED / GITHUB_CI_PASS; release BLOCKED; COMPLETE не установлен.**
 [Аудит всех 55 backend / 12 frontend записей, версии/пути и review](./evidence/d5-1-1-20261014/report.md).
 Backend full 55→30 moderate, production 17→9 moderate; frontend 12→0. High/critical/low backend 0,
 frontend всех severity 0; all-tree security gate не ослаблен. Scoped compatible patches, Multer2.4
 inclusive bounds, Sharp0.35.5, dev-only CLI11/Vitest4 и удаление неиспользуемого Tailwind compiler.
 Авторский CSS сохранён; 279-node parity / 4 Chromium-WebKit probes PASS. Independent security review APPROVE.
 Локально runtime7/targeted61/frontend278/build/lint/actionlint, release16/preflight76/startup43 и4Compose PASS.
-Свежий Linux/PostgreSQL/full suite и2Linux-amd64images требуют фактического GitHub CI на новом HEAD.
+Свежий [PR CI38482225216](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38482225216) и [push CI38482221084](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38482221084) на2f671f1: все9jobs PASS; backend1148/1148,79suites,0FAIL/0SKIP,12PG/154tests;
+frontend278; runtime7; Compose4/preflight76/startup43/release16; Linux-amd642images/musl-native smoke PASS.
+[Точные source/merge refs и raw results](./evidence/d5-1-1-20261014/github-ci.json).
 Остаточные4leaf/5GHSA включают untrusted file-type ASF risk; Node20EOL/base CVE qualification,
-main/tag protection и registry/provenance/release acceptance открыты. Draft PR№1 обновляется,
+main/tag protection и registry/provenance/release acceptance открыты. Draft PR№1 обновлён,
 main/tags/release/GHCR/deployment/мини-ПК не меняются. Production NO_GO; D5.2 NOT_STARTED.

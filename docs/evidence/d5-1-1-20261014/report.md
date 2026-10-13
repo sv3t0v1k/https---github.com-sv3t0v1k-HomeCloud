@@ -1,6 +1,6 @@
 # D5.1.1 — Security Remediation, 2026-10-14
 
-Статус: **REMEDIATION_REVIEWED / FRESH_GITHUB_CI_PENDING**. Production **NO_GO**. Работа в отдельном Mac worktree `этап/d5-1-ci`, существующий [draft PR №1](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/pull/1). Baseline: `e0c5e00655067b052d2e105e6a27e939eb22eeff`.
+Статус: **HIGH_CRITICAL_REMEDIATED / GITHUB_CI_PASS / RELEASE_BLOCKED**. Production **NO_GO**. Работа в отдельном Mac worktree `этап/d5-1-ci`, существующий [draft PR №1](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/pull/1). Baseline: `e0c5e00655067b052d2e105e6a27e939eb22eeff`.
 
 ## Фактический аудит
 
@@ -31,7 +31,7 @@ Backend: 40 уникальных GHSA → 5 (35 устранены). Frontend: 9
 | Tailwind3 → braces / selector-parser | удалён неиспользуемый compiler; сохранены обычный CSS reset и `.sr-only` | Уязвимая build chain удалена; авторские стили сохранены |
 | Frontend brace-expansion / source-map-js | patches1.1.21/5.0.12 и1.2.2 | Остальные frontend findings устранены |
 
-Major updates ограничены двумя необходимыми инструментами: CLI11 (dev-only, вместо более широкого npm suggestion CLI12) и Vitest4 (patched release, прежняя ветка3 не закрывает findings). [Vitest migration](https://v4.vitest.dev/guide/migration.html), [Nest CLI11.0.18](https://github.com/nestjs/nest-cli/releases/tag/11.0.18). Никаких mass `audit fix --force`, framework migration, отключения gate или broad overrides. Sharp0.x смена minor также требует регрессии native codecs — она выполнена локально, production musl проверяется отдельным CI job.
+Major updates инструментов ограничены двумя необходимыми изменениями: CLI11 (dev-only, вместо более широкого npm suggestion CLI12) и Vitest4 (patched release, прежняя ветка3 не закрывает findings). [Vitest migration](https://v4.vitest.dev/guide/migration.html), [Nest CLI11.0.18](https://github.com/nestjs/nest-cli/releases/tag/11.0.18). Runtime Multer1→2 — отдельный необходимый major для закрытия multipart advisories; его транспортные границы проверены helper и регрессиями. Никаких mass `audit fix --force`, framework migration, отключения gate или broad overrides. Sharp0.x смена minor также требует регрессии native codecs — она выполнена локально, production musl проверяется отдельным CI job.
 
 Multer2.4 самостоятельно делает fileSize/parts inclusive. Старое HomeCloud `N+1` добавляло лишний разрешённый байт, parts3 разрешал лишнюю часть. Getter теперь возвращает N, production parts2. Проверки принимают N и отвергают N+1/третью часть. Проверены crafted multipart field names и synthetic callback cleanup после abort; физическое удаление на target этим helper не квалифицировано.
 
@@ -60,10 +60,20 @@ CI добавляет backend helper и Linux/amd64 backend/frontend image build
 
 ## Блокеры релиза и D5.2
 
-1. Свежий full GitHub PR/push CI и images на новом source SHA пока PENDING; raw results будут добавлены после фактического завершения.
+1. High/critical remediation и свежий GitHub CI PASS на source SHA ниже; D5.1 release acceptance остаётся открытым, COMPLETE не установлен.
 2. Остаточные moderate, прежде всего untrusted ASF parsing, требуют отдельной remediation/risk acceptance. Node20 EOL и OS/base image CVE scan/qualification не решены этим изменением.
 3. GitHub main protection/required checks и tag protection ещё не квалифицированы; approved tag/SHA отсутствует.
 4. GHCR publish, remote digest/provenance reconciliation и release flow не выполнялись и не считаются PASS.
 5. D5.2 **NOT_STARTED**; deployment/target preflight/backup/restore/health/rollback остаются отдельными gates. Новый tag/release/merge/deployment не разрешены и не выполнялись.
 
 Исходный Mac main b5c954f, D4/server-reported48fb9c0 и его parent e655167 сохраняются. Сервер не опрашивался, мини-ПК/данные/Compose/Docker daemon не менялись. Запрещённый audit файл и посторонние untracked не читались и не изменялись.
+
+## Реальный GitHub CI — PASS
+
+[PR CI38482225216](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38482225216) и [push CI38482221084](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38482221084) завершены **SUCCESS**, все9jobs PASS, source head `2f671f1fb86b60c4a8c7b0d58a5f51f322b4cc97`. [Raw run/job statuses и test summary](./github-ci.json). PR реально checkout GitHub merge ref `c8c2bc69543867f5e1fb8f95cd88b491c832deb0`; push CI — exact source head. Source, tag и deployment не смешиваются.
+
+Backend: **1148/1148 tests,79/79 suites,0FAIL,0SKIP**,12PostgreSQL suites/154tests; native compile, lint (0errors/15existing warnings), compiled file-type/build и7/7 dependency runtime PASS. Frontend:278/278tests в22files, lint/build PASS. Configuration:4Compose merges,76preflight,43startup;16release negative PASS. Fresh CI audit: backend30moderate, frontend0, high/critical0. Secrets scan PASS.
+
+Обе Linux/amd64 images собраны; musl secure-fs addon load и Sharp JPEG decoder PASS. Это локальные images disposable GitHub runner, **GHCR publish и release digest/provenance NOT_RUN**. Нативный smoke не заменяет target qualification. Runner сообщает deprecation pinned Actions Node20 runtime и принудительный runtimeNode24; app/test/buildNode20 EOL сохраняется отдельным blocker.
+
+Последующий коммит содержит только этот evidence/roadmap; его PR/push CI оценивается отдельно по GitHub checks. Raw evidence выше относится к указанному source head и не выдаётся за результат ещё не запущенного SHA.

@@ -1,6 +1,6 @@
 # D5.1 — управление версиями и CI
 
-Статус: локальная реализация, GitHub/registry acceptance ещё не выполнен. Production NO_GO.
+Статус: PR/push CI и D5.1.1 high/critical remediation PASS; registry/release acceptance ещё не выполнен. Production NO_GO.
 Единственный roadmap — [ROADMAP.md](./ROADMAP.md). [Фактический аудит и проверки](./evidence/d5-1-20261013/report.md).
 
 ## Версии и границы
