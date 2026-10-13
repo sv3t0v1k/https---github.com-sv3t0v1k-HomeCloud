@@ -1198,3 +1198,24 @@ powerloss/50+GiB/RSS на8GiB не проверены.
 [Инструкция оператора и STOP](linux-mini-pc.md), [evidence](evidence/d3-preparation-20261013/report.md).
 **COMPLETE не установлен; SSD OFF; production NOT_READY/NO_GO.** Подготовка D3
 закончена; остановиться. Следующие аппаратные/SSD действия требуют отдельного задания.
+
+
+### Коррекция D3: существующий Docker-хост (2026-10-13)
+
+Исходный HEAD `3228bb99992f029a5b632831ae10972522b02643`. HomeCloud — независимый
+Docker Compose project; Docker Engine/чужие приложения не менялись. Обязательный
+systemd unit заменён per-start entrypoint gate PostgreSQL/backend до initdb/migrations/API:
+UUID device metadata + host/source + собственный bind identity/root, physical markers,
+UID/GID/mode, nested mounts/PG layout. Ранний restart при missing mount отказывает;
+поздний host mount не разрешает stale underlay bind. Systemd оставлен опциональным
+boot-order helper. Production ports/origin/subnets задаются явно, networks project-scoped.
+
+27 gate fixtures,36 preflight/config fixtures,12 D1 config regressions и isolated Docker
+missing-config/direct-restart smoke PASS. Независимое review: оба выявленных P1 исправлены,
+неустранённых критических замечаний нет. Подробные результаты и пределы:
+[evidence](evidence/d3-docker-first-20261013/report.md), [точные команды](linux-mini-pc.md).
+Mini-PC не подключали; actual Linux UUID/udev/proc/mount/reboot/failure/D1 qualification
+не выполнена. Mac стек/данные и посторонние untracked сохранены. Временные chunks остаются
+на HDD до reviewed SSD forward enrollment; SSD uploads OFF/manual/mapping absent.
+**COMPLETE не установлен; production NOT_READY / NO_GO.** Работа остановлена после
+этой коррекции, последующие этапы автоматически не начинать.

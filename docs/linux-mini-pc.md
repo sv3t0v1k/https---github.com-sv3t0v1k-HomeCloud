@@ -1,4 +1,4 @@
-# D3: подготовка HomeCloud к Linux mini-PC
+# D3: независимый Docker Compose на существующем Linux mini-PC
 
 На 2026-10-13 подготовлен запуск **SSD → PostgreSQL, HDD → /storage**. SSD для
 временных загрузок **OFF**: временные chunks остаются на HDD `/storage/.tmp`.
@@ -9,8 +9,8 @@ Production **NOT_READY / NO_GO**, COMPLETE не установлен. Все к�
 ## Что необходимо подтвердить до запуска
 
 Native Linux x86_64, rootful local Docker без userns remap, Compose >=2.24.4
-(`!override`), Python3, util-linux (`findmnt`, `lsblk`), systemd, установленная RAM
-8 GiB. ARM/32bit/Rosetta/Desktop, LVM/RAID/crypt, NFS/SMB и другие FS требуют отдельной
+(`!override`), Python3 для read-only preflight, util-linux (`findmnt`, `lsblk`), установленная RAM
+8 GiB. Systemd нужен только при выборе опционального boot-order helper. ARM/32bit/Rosetta/Desktop, LVM/RAID/crypt, NFS/SMB и другие FS требуют отдельной
 квалификации, этот preflight их отвергает. Использовать ext4 или xfs; наличие ext4/xfs
 не заменяет аппаратную проверку. Репозиторий предполагается в `/opt/homecloud`.
 
@@ -24,6 +24,8 @@ INGRESS_SUBNET/INGRESS_PROXY_IP и BACKEND_PROXY_SUBNET/FRONTEND_PROXY_IP сог
 не заменять exact peer trust на wildcard/CIDR/hop count.
 
 Заполнить PUBLIC_HOST, TLS_CERT_DIR, ACME_WEBROOT_DIR, SSD_DB_DIR, HDD_STORAGE_DIR,
+COMPOSE_PROJECT_NAME (отдельный, например homecloud; никогда homecloud-preview),
+PUBLIC_BIND_IP, PUBLIC_HTTP_PORT, PUBLIC_HTTPS_PORT, PUBLIC_ORIGIN и обе proxy subnet с exact peer IP,
 оба RELEASE_*_IMAGE отдельными target tags/digests. В env не добавлять SSD mapping:
 UPLOAD_SSD_PATH/MOUNT_SOURCE/MOUNT_ROOT/FS_TYPE должны отсутствовать даже как пустые
 значения. Не устанавливать feature ON или recovery once.
@@ -44,9 +46,35 @@ findmnt --target /srv/homecloud-ssd -o TARGET,SOURCE,FSTYPE,UUID,OPTIONS
 findmnt --target /srv/homecloud-hdd -o TARGET,SOURCE,FSTYPE,UUID,OPTIONS
 # Перед запуском также сверить host/VPN/Docker routes с обеими proxy subnets.
 ip route
+sudo docker compose ls
 sudo docker network ls
+# Только чтение: убедиться, что выбранные IP/порты свободны.
+sudo ss -ltn
+sudo docker network inspect <существующие-network-имена> --format '{{json .IPAM.Config}}'
 sudo docker compose version
 ```
+
+Новые обязательные несекретные ключи в external runtime.env (пример, выбрать свободные):
+
+```dotenv
+COMPOSE_PROJECT_NAME=homecloud
+PUBLIC_BIND_IP=127.0.0.1
+PUBLIC_HTTP_PORT=18080
+PUBLIC_HTTPS_PORT=18443
+PUBLIC_HOST=cloud.example.org
+PUBLIC_ORIGIN=https://cloud.example.org:18443
+BACKEND_PROXY_SUBNET=172.30.0.0/24
+FRONTEND_PROXY_IP=172.30.0.10
+INGRESS_SUBNET=172.29.0.0/24
+INGRESS_PROXY_IP=172.29.0.10
+```
+
+Loopback пример предполагает заранее согласованный routing, не даёт внешнего доступа
+сам по себе. Origin/порты/CA qualification должны соответствовать фактическому пути.
+Штатный HTTP→HTTPS redirect ingress сохраняет внешний443. Custom host bindings
+18080/18443 использовать с подтверждённым routing на внешние80/443; прямой custom
+HTTPS URL годится для отдельной пробы, HTTP redirect для него пока не квалифицирован.
+Если origin на443, писать `https://cloud.example.org` без `:443` и без trailing slash.
 
 UUID+serial сопоставляют ожидаемые устройства; это не криптографическая identity.
 SSD и HDD — разные physical disks и failure domains. Не форматировать существующие
@@ -67,20 +95,57 @@ UUID=<UUID-HDD> /srv/homecloud-hdd ext4 defaults,nofail,x-systemd.device-timeout
 `postgres`/`storage`. После проверенного монтирования подготовить **дочерние** каталоги
 на соответствующих FS. Не менять рекурсивно права существующей БД/files.
 
-Production `restart: "no"` запрещает автоматический Docker restart в обход host gate.
-`create_host_path:false` запрещает создание missing source, но каталог может существовать
-на системном диске при missing mount. Поэтому перед каждым стартом обязателен host
-preflight: exact mountpoint, UUID, physical serial, разные диски, writable FS, отсутствие
-symlinks/nested data mounts (включая pg_wal), external PostgreSQL tablespaces, owner/mode, свободное место/inodes, daemon/image arch.
+Production — отдельный Compose project с project-scoped именами сетей/контейнеров;
+fixed/external names отсутствуют. Порты HTTP/HTTPS и две proxy subnet обязательны в
+external env. Выбрать свободные значения после проверки существующих приложений и
+host/VPN routes; peer IP менять вместе с subnet. Default bind IP — localhost. PUBLIC_ORIGIN — точный browser origin, например
+`https://cloud.example.org` для443 либо `https://cloud.example.org:18443` для прямого
+custom port, без trailing slash; он задаёт production CORS FRONTEND_URL.
+Пример портов18080/18443 — только свободные кандидаты, проверять occupancy.
+При прямом публичном TLS использовать свободный host IP:80/443; HTTP01 требует
+внешнего port80. Для других портов оператор должен отдельно подтвердить routing/CA
+challenge и существующий reverse proxy; чужую конфигурацию эта задача не меняет.
 
-Запуск systemd использует RequiresMountsFor + BindsTo/After exact `.mount` units.
-При их переходе в inactive HomeCloud останавливается. Сбой питания/зависший I/O могут
-оставить mount unit active: этот шаблон не доказывает автоматическое fencing таких
-отказов. Прямые `docker start/restart`, вторые writers и remount во время работы запрещены
-операторским контрактом. Root/Docker admin может обойти gate; это не security sandbox.
+Docker Engine уже установлен: не переустанавливать, не менять daemon.json/docker.service,
+не останавливать чужие контейнеры. Все приложения HomeCloud, PostgreSQL и TLS — в Docker.
+На host нужны mounts/udev, защищённые config/markers и read-only preflight.
 
-Источники: [Docker restart/bind](https://docs.docker.com/reference/compose-file/services/),
-[systemd BindsTo/After](https://github.com/systemd/systemd/blob/main/man/systemd.unit.xml).
+### Gate при каждом старте writer
+
+Production DB/backend имеют entrypoint `deploy/linux/startup-gate.sh` и
+`restart: unless-stopped`. **До initdb/chown, migrations/API и штатных Compose run
+helpers** gate читает только metadata: udev `/dev/disk/by-uuid`, host mountinfo и
+собственный `/proc/self/mountinfo`. Проверяет UUID→major:minor, `/dev` source, exact
+host mountpoint, ext4/xfs rw, exact root собственного bind, отсутствие nested mounts,
+marker, UID/GID/0700; backend также `.tmp`, DB — pg_wal/tablespaces. Неверный/missing
+диск или недоступная metadata => exit1, writer не запускается. Gate ничего не создаёт
+и не исправляет. Наличие каталога, скопированный marker и поздний host mount не дают PASS
+для bind системного раздела. `create_host_path:false` установлен на всех gate/data binds.
+
+`/dev` подключён readonly под `/run/homecloud/dev` **только для stat/readlink metadata**;
+нет privileged, devices или добавленных capabilities. Device cgroup не открывается для
+block I/O. На hardened host чтение proc/udev может быть запрещено: STOP, отдельная
+qualification без ослабления защиты. UUID/source/marker не криптографическая identity;
+root/Docker admin может подменить metadata или `--entrypoint`, это вне модели gate.
+
+Compose не упорядочивает host mounts; Docker daemon restart не выполняет Compose
+`depends_on`. Мы обеспечиваем отказ раннего старта, а не ожидание диска. При раннем
+отказе policy не гарантирует повторную попытку (в частности, startup <10s); после
+монтирования оператор выполняет `hcc up -d --no-build --pull never --wait`. Если bind
+был создан до mount, может потребоваться явное пересоздание **только** остановленного
+writer после preflight; сначала проверить CID/D1 maintenance contract. Автоматического
+fallback/ожидания/пересоздания данных нет. systemd для безопасности старта не обязателен;
+`homecloud.service` оставлен опциональным boot-order helper. Его BindsTo может остановить
+проект при исчезновении mount unit, но не доказывает fencing зависшего I/O.
+
+Gate — проверка старта, не runtime fencing при physical disk loss/remount. Не выполнять
+unmount/substitution живых disks; сначала `hcc stop`. Live I/O failure, reboot и device
+re-enumeration требуют проверки на disposable Linux цели. Production остаётся NO_GO.
+
+Источники: [Docker restart policies](https://docs.docker.com/engine/containers/start-containers-automatically/),
+[bind mounts](https://docs.docker.com/engine/storage/bind-mounts/),
+[Compose startup order](https://docs.docker.com/compose/how-tos/startup-order/),
+[mountinfo fields](https://man7.org/linux/man-pages/man5/proc_pid_mountinfo.5.html).
 
 ## Images, UID/GID, каталоги и marker
 
@@ -91,13 +156,13 @@ symlinks/nested data mounts (включая pg_wal), external PostgreSQL tablesp
 ```sh
 cd /opt/homecloud
 hcc() {
-  sudo env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/root \
+  (cd /opt/homecloud && sudo env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/root \
     docker compose --env-file /etc/homecloud/runtime.env \
-    -f docker-compose.yml -f docker-compose.production.yml "$@"
+    -f docker-compose.yml -f docker-compose.production.yml "$@")
 }
 hcpreflight() {
-  sudo env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/root \
-    python3 deploy/linux/preflight.py
+  (cd /opt/homecloud && sudo env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/root \
+    python3 /opt/homecloud/deploy/linux/preflight.py)
 }
 hcp() { hcpreflight && hcc "$@"; }  # запуск/oneoff только после PASS
 hcc config --quiet
@@ -136,9 +201,8 @@ Production backend явно `1001:65533`, как фактический nextjs �
 # Указать фактически проверенный PG UID/GID, не UID backend.
 sudo install -d -m 0700 -o <PG-UID> -g <PG-GID> /srv/homecloud-ssd/postgres
 sudo install -d -m 0700 -o 1001 -g 65533 /srv/homecloud-hdd/storage /srv/homecloud-hdd/storage/.tmp
-hcpreflight
-# Только если HDD marker отсутствует и этот root предназначен именно данному HomeCloud:
-hcp run --rm --no-deps --pull never backend node dist/storage/bootstrap-storage-identity.js
+# После подготовки gate config/physical markers ниже выполнить hcpreflight.
+# Logical marker bootstrap выполняется после enrollment gate ниже.
 ```
 
 Bootstrap запускается от1001, не создаёт каталог и не перезаписывает marker. Existing
@@ -146,6 +210,56 @@ marker проверить штатным backend startup/registry; не заме
 Marker подтверждает logical legacy-storage, host preflight — ожидаемый физический диск.
 `.tmp` на HDD; **SSD workspace не создавать/не enroll/не bind-mount** сейчас.
 Каталог БД подготовлен отдельно на SSD; backend к нему не имеет volume mapping.
+
+### Первичное enrollment физических markers и gate records
+
+Это **не SSD upload enrollment**. Один раз после ручного подтверждения exact mounts,
+UUID/serial, source, owner data directories подготовить два config record root:0644 в
+root-owned `/etc/homecloud` (0700 для внешних env, но gate files bind читаются отдельно).
+Markers находятся в parent data directory, вне PGDATA/storage и вне D1 data swap;
+создавать только отсутствующие, не заменять существующие и не запускать при missing mount.
+Запуск ниже повторно проверяет диски и каталоги перед записью, не меняет данные/их права.
+Использует фактические inventory UID/GID; markers имеют service-owner/0400.
+
+```sh
+cd /opt/homecloud
+sudo env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/root \
+  python3 - <<'PYGATE'
+import importlib.util, json, os
+from pathlib import Path
+spec = importlib.util.spec_from_file_location('preflight', 'deploy/linux/preflight.py')
+p = importlib.util.module_from_spec(spec); spec.loader.exec_module(p)
+i = json.loads(Path('/etc/homecloud/host-disks.json').read_text())
+ssd = p.check_disk(i['ssd']); hdd = p.check_disk(i['hdd'])
+p.require(ssd != hdd and i['ssd']['uuid'] != i['hdd']['uuid'], 'Нужны разные диски')
+rows = [('db', i['ssd'], i['postgres_uid'], i['postgres_gid']),
+        ('backend', i['hdd'], 1001, 65533)]
+for role, disk, uid, gid in rows:
+    p.check_data_directory(disk['data'], disk, uid, gid)
+    if role == 'backend':
+        p.check_data_directory(str(Path(disk['data']) / '.tmp'), disk, uid, gid)
+    else:
+        p.check_postgres_layout(disk['data'])
+    values = (role, disk['uuid'], disk['mount'], disk['data'], str(uid), str(gid))
+    p.require(all(v and not any(c.isspace() for c in v) for v in values), 'Пробелы запрещены')
+    marker = Path(disk['data']).parent / ('.homecloud-' + role)
+    gate = Path('/etc/homecloud/startup-' + role + '.gate')
+    # Exclusive create: existing identity не перезаписывается. После partial failure STOP/разбор.
+    for path, text, owner, mode in [(marker, f'homecloud-v1 {role} {disk["uuid"]}\n', (uid, gid), 0o400),
+                                    (gate, ' '.join(values) + '\n', (0, 0), 0o644)]:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, mode)
+        with os.fdopen(fd, 'w') as out:
+            os.fchown(out.fileno(), *owner); os.fchmod(out.fileno(), mode)
+            out.write(text); out.flush(); os.fsync(out.fileno())
+PYGATE
+hcpreflight
+# Только если штатного logical HDD marker ещё нет:
+hcp run --rm --no-deps --pull never backend node dist/storage/bootstrap-storage-identity.js
+```
+
+Существующие gate/markers проверить `hcpreflight`, не пересоздавать ради PASS. Host
+preflight дополнительно проверяет physical serial, разные диски, capacity, native
+Docker/images/config; shell gate проверяет реальные identities при **каждом** start/restart.
 
 ## БД, 520 и pending journals
 
@@ -207,8 +321,7 @@ Config-only подготовка не доказывает destructive restore. 
 не проверен. [D1 контракт](backup-and-restore.md#d1--усиленный-контракт-backuprestore-2026-10-13).
 
 ```sh
-# Сначала остановить systemd, чтобы он не оставался active после maintenance.
-sudo systemctl stop homecloud
+# Если опциональный unit был установлен/запущен: сначала sudo systemctl stop homecloud.
 # Дополнительное fencing на случай неполного stop; DB оставить/поднять отдельно.
 hcc stop ingress frontend backend
 hcpreflight
@@ -245,63 +358,70 @@ retained artifacts и не повторять restore вслепую. Прове
 reconciliation, exact download hash, image ID/config-hash/mount marker, readiness; измерить
 RPO/RTO и offsite recovery отдельно. Пока аппаратного D1 round-trip нет — NO_GO.
 
-После успешного backup/validate-only вернуть сервис только через host preflight и
-`sudo systemctl start homecloud`. Важно: destructive D1 restore сам запускает сервисы
-для завершающих checks, когда unit ещё inactive. В это окно BindsTo fencing отсутствует;
-на всё время recovery исключить remount/substitution и сторонний autostart. После
-успешного restore закрыть ingress/writers (`hcc stop ingress frontend backend`), выполнить
-host preflight, fenced SQL/проверку journal/reconciliation evidence и затем
-`sudo systemctl start homecloud`. Проверить unit active и health всех сервисов. При
-любом отказе не запускать unit. Не считать helper-started stack управляемым systemd.
+После успешного backup/validate-only/разрешённого restore вернуть проект через
+`hcpreflight` и `hcc up -d --no-build --pull never --wait`. Gate DB/backend сохраняется
+при D1 helper-started штатных Compose services; отдельные helper с explicit entrypoint
+относятся к привилегированным операторским действиям, требуют maintenance/preflight.
+Сверить CID/config/image/mount/marker, SQL journal/reconciliation и readiness. При
+любом отказе writers оставить остановленными. Existing backend CID до D1 не удалять.
 
-## Запуск, health, RAM и остановка
+## Запуск, обновление, restart и остановка только HomeCloud
 
-Шаблон `deploy/linux/homecloud.service` требует `/opt/homecloud`, `/etc/homecloud/runtime.env`
-и exact mountpoints выше. При иных paths изменить WorkingDirectory, RequiresMountsFor,
-BindsTo/After unit names одновременно. Не включать unit до проверок marker/native/DB. Сверить `command -v docker` и
-`command -v python3`: unit предполагает `/usr/bin/docker` и `/usr/bin/python3`; при иных
-путях исправить все соответствующие Exec строки до установки. `/opt/homecloud` и
-systemd unit должен менять только доверенный оператор/root.
+`hcc` фиксирует external env и main+production manifest. Не менять project имя после
+создания. `stop` не зависит от PASS и сохраняет CID/data. При обновлении сохранить
+проверенную image pair/config и D1 backup; остановить writers до migrations. Env/release
+pair менять отдельно в root0600 runtime.env и recovery.env, сохранять DB credentials.
 
 ```sh
-systemd-escape --path --suffix=mount /srv/homecloud-ssd
-systemd-escape --path --suffix=mount /srv/homecloud-hdd
-sudo install -m 0644 deploy/linux/homecloud.service /etc/systemd/system/homecloud.service
-sudo systemctl daemon-reload
-sudo systemd-analyze verify /etc/systemd/system/homecloud.service
 hcpreflight
-sudo systemctl start homecloud
+hcc up -d --no-build --pull never --wait --wait-timeout 180
 hcc ps
 hcc exec -T backend node docker/healthcheck.cjs
-# Приватная readiness: DB SELECT1, root/.tmp. Не доказывает serial/SSD recovery.
 hcc logs --tail=80 backend ingress
-# Внешне через настоящий DNS/CA, без -k:
-curl -fsS https://<PUBLIC_HOST>/ -o /dev/null
-# После аппаратных boot/missing-mount тестов можно разрешить автозапуск:
-# sudo systemctl enable homecloud
+# Внешняя проверка через настоящий DNS/CA, без -k, с выбранным HTTPS port:
+curl -fsS <PUBLIC_ORIGIN>/ -o /dev/null
+# Restart повторно выполняет per-start gate; config/image не обновляет.
+hcpreflight && hcc restart db backend frontend ingress
+# После restart зависимости readiness не ожидаются: проверить ps/health, при отказе STOP.
+# Обновление только проверенной image pair; не запускать миграцию параллельно API:
+hcc stop ingress frontend backend
+hcc pull backend frontend
+hcpreflight && hcc up -d --no-build --pull never --wait --wait-timeout 180
+# Остановка всего и только выбранного project, даже при missing mount:
+hcc stop
 ```
 
-При ExecStart failure ExecStopPost останавливает в том числе частично запущенные сервисы,
-сохраняет volumes/CID. Unit oneshot active не мониторит health постоянно; `unhealthy`
-сам по себе не перезапускает контейнер. Проверять health и логи, затем stop/разбор;
-автоматический restart намеренно отключён до аппаратной qualification.
+Сначала проверить images после pull и совместимость schema/release. Пример подразумевает
+registry release refs; для local Linux build использовать `hcc build backend frontend`
+после остановки writers. Runtime gate не квалифицирует release/rollback. Не выполнять
+`down -v`, prune, rm данных/чужих ресурсов. При `unhealthy` закрыть writers и разобрать
+причину; Docker policy health не мониторит.
+
+### Необязательное упорядочивание загрузки host
+
+`deploy/linux/homecloud.service` можно применять **только по отдельному решению оператора**,
+после Linux qualification, если нужен boot-order helper с BindsTo. Unit не обязателен
+для Compose management или fail-closed startup. Шаблон предполагает `/opt/homecloud`,
+`/etc/homecloud/runtime.env`, `/usr/bin/docker`, `/usr/bin/python3` и exact mount units;
+при других путях исправить шаблон, проверить `systemd-analyze verify` до установки.
+Не модифицировать общий docker.service/daemon.json. В этой задаче unit не устанавливался.
 
 RAM ceilings: backend4GiB + DB1GiB + frontend256MiB + ingress128MiB =5.375GiB;
 optional Redis ещё256MiB. Это пределы, не измеренные RSS. Preflight требует MemTotal>=7GiB
 (8GiB installed с reserved memory) и MemAvailable>=2GiB перед стартом; это floor, не
 доказательство peak headroom. На target измерить `docker stats --no-stream`, MemAvailable,
-OOM/restarts, swap/I/O, 50+GiB upload и выбранную concurrency. Не включать optional Redis
+OOM/restarts, swap/I/O, 50+GiB upload и выбранную concurrency. Production Redis находится в unqualified-production-redis profile; не включать его
 ради этого приложения. Не повышать лимиты без измерений. CPU limits здесь не придуманы.
 
-Rollback приложения: stop unit/writers, сохранить точные текущие image IDs/config/env и
+Rollback приложения: stop writers (и optional unit, если выбран), сохранить точные текущие image IDs/config/env и
 backup. Старый image запускать только при доказанной schema compatibility; миграции вниз
 не выполнять. Новая schema несовместима/данные изменились → оставить stack остановленным,
 отдельный D1 recovery план. Snapshot image не откатывает БД/files.
 
 ```sh
 # STOP работает даже при missing mount/preflight failure.
-sudo systemctl stop homecloud
-hcc stop ingress frontend backend db
+# Если выбран optional unit: sudo systemctl stop homecloud.
+hcc stop
 ```
 
 ## Вечером на mini-PC: последовательность и стоп-критерии
@@ -314,7 +434,10 @@ hcc stop ingress frontend backend db
    настоящий TLS/DNS; маленький API/UI upload/download/Range с точным SHA256.
 4. Проверить persistence после service restart/reboot. Missing mount/wrong UUID/wrong serial
    испытывать **на отдельной disposable цели**, без remount/unplug живого PGDATA/HDD.
-   Подтвердить отказ старта и отсутствие fallback; systemd enable — только после этого.
+   Проверить Compose restart, прямой docker restart own CID, daemon restart/reboot:
+   каждый новый старт повторяет gate; подтвердить отсутствие initdb/API/fallback. Late mount
+   после stale bind должен дать STOP. Не перезапускать общий daemon на shared production host
+   ради проверки: сначала отдельная disposable Linux цель.
 5. D1 paired encrypted backup/offsite/validate-only и разрешённый disposable restore
    DB+HDD, reconciliation/hash/readiness, failure fencing/retained artifacts/RPO/RTO.
 6. Отдельный будущий SSD gate: reviewed forward enrollment520, native roots/identity,

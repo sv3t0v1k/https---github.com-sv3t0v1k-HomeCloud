@@ -134,7 +134,8 @@ Login UI: http://localhost:8080/login. Из браузера upload/download и�
 
 Актуальная инструкция D3: [Linux mini-PC: host preflight, запуск и восстановление](linux-mini-pc.md).
 Production override сохраняет SSD DB/HDD `/storage`, SSD uploads OFF/manual и отсутствие
-всех четырёх SSD mapping vars. Linux использует `restart: "no"` и systemd host mount gate;
+всех четырёх SSD mapping vars. Linux использует `restart: unless-stopped` и gate в entrypoint каждого DB/backend startup;
+systemd unit опционален. Отдельные project/ports/subnets задать после проверки конфликтов;
 Mac main Compose сохраняет прежний restart policy. Перед startup проверить UUID/serial,
 source, UID/GID, capacity и native image; наличие bind каталога не доказывает mount.
 Backend production `1001:65533` согласован с image nextjs и D1 restore ownership.
@@ -158,7 +159,7 @@ STORAGE_PATH=/storage
 В external recovery env также обязательно задать `BACKEND_IMAGE` literal reference,
 совпадающий с `RELEASE_BACKEND_IMAGE` (Mac сейчас `homecloud-backend:dev`); default helper
 `homecloud-backend` не является эквивалентом. После Linux D1 recovery возвращать stack
-под systemd mount gate по [D3 инструкции](linux-mini-pc.md).
+через per-start gate и host preflight по [D3 инструкции](linux-mini-pc.md).
 Recovery allowlist расширен canonical
 Compose knobs; реальные values должны совпадать с активными контейнерами. Явный
 backend.image, image ID/config hash и фактический mount source проверяет D1; external
