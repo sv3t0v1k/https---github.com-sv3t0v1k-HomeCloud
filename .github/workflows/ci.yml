@@ -53,6 +53,9 @@ jobs:
         working-directory: backend
       - run: npm run test:file-type:compiled
         working-directory: backend
+      - name: Patched dependency runtime and multipart boundaries
+        run: runuser -u node -- node --test --test-timeout=10000 test/dependency-security-runtime.cjs
+        working-directory: backend
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
@@ -111,6 +114,52 @@ jobs:
       - run: python3 deploy/linux/test_preflight.py
         env:
           HOMECLOUD_TEST_ROOT: ${{ github.workspace }}
+  image-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        component: [backend, frontend]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
+          persist-credentials: false
+      - id: bases
+        run: |
+          python3 -c 'import json,os; d=json.load(open("scripts/ci/images.lock.json")); f=open(os.environ["GITHUB_OUTPUT"],"a"); [f.write(k+"="+v+"\n") for k,v in d.items()]'
+      - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+        with:
+          version: v0.38.0
+          driver-opts: image=moby/buildkit@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea
+      - uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: ./${{ matrix.component }}
+          platforms: linux/amd64
+          push: false
+          load: true
+          provenance: false
+          tags: homecloud-ci-${{ matrix.component }}:${{ github.sha }}
+          build-args: |
+            NODE_IMAGE=${{ steps.bases.outputs.node }}
+            NGINX_IMAGE=${{ steps.bases.outputs.nginx }}
+      - name: Backend production image native dependencies, without mounts or startup
+        if: matrix.component == 'backend'
+        env:
+          IMAGE: homecloud-ci-backend:${{ github.sha }}
+        run: |
+          docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --entrypoint node "$IMAGE" -e '
+          const assert=require("node:assert/strict");
+          const sharp=require("sharp");
+          assert.equal(process.getuid(),1001);
+          assert.equal(sharp.versions.sharp,"0.35.5");
+          require("./native/secure-fs.node");
+          sharp({create:{width:20,height:10,channels:3,background:"#336699"}}).jpeg().toBuffer()
+          .then(input=>sharp(input).resize(10,10,{fit:"inside"}).png().toBuffer())
+          .then(output=>sharp(output).metadata())
+          .then(meta=>{assert.equal(meta.width,10);assert.equal(meta.height,5);console.log("PASS: linux/amd64 musl native addon and image decoder");})
+          .catch(error=>{console.error(error.message);process.exitCode=1;});'
   security:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -163,7 +212,7 @@ jobs:
           "$RUNNER_TEMP/gitleaks" git --redact=100 --log-opts="--all -- . :(exclude)scripts/tests/PHASE-5.3.1-TEST-AUDIT.md" .
   gate:
     if: always()
-    needs: [backend, frontend, configuration, security, secrets]
+    needs: [backend, frontend, configuration, image-build, security, secrets]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:

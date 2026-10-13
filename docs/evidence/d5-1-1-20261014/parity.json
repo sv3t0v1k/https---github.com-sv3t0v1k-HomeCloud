@@ -1,0 +1,28 @@
+{
+  "comparison": "preflight+sr-only+authored styles vs original compiled CSS with proven-unused utilityrules excluded",
+  "actualCandidateAstEqualsBaseline": true,
+  "baselineNodes": 279,
+  "candidateNodes": 279,
+  "authoredCssOnlyDirectivesChanged": true,
+  "removedUnusedUtilities": [
+    ".container",
+    "@media (min-width: 640px)",
+    "@media (min-width: 768px)",
+    "@media (min-width: 1024px)",
+    "@media (min-width: 1280px)",
+    "@media (min-width: 1536px)",
+    ".visible",
+    ".fixed",
+    ".block",
+    ".table",
+    ".grid",
+    ".contents",
+    ".hidden",
+    ".resize",
+    ".truncate",
+    ".rounded",
+    ".lowercase",
+    ".blur",
+    ".filter"
+  ]
+}

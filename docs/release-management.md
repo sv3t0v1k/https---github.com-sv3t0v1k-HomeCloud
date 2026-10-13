@@ -23,7 +23,7 @@ force push, переназначение тега и перезапись releas
 
 PR/push запускают `ci.yml`: backend native compile + полный Jest на отдельной PostgreSQL service,
 frontend tests, lint обоих пакетов, build и compiled file-type check, четыре Compose config merges,
-72 preflight/config + 43 startup fixtures, negative release tests, npm audit и gitleaks.
+76 preflight/config + 43 startup fixtures, negative release tests, npm audit и gitleaks.
 Сервис PostgreSQL существует только на GitHub runner; real DB credentials/target не используются.
 PostgreSQL suites нельзя silently skip: job требует ≥12 соответствующих suites, все assertions PASS.
 Другие skips видны в Jest JSON и требуют объяснения при acceptance.
@@ -40,8 +40,10 @@ cancelled или skipped обязательный job. Actionlint — локал
 `npm audit` проверяет полный backend и frontend tree. Невалидный ответ/ошибка registry — BLOCKED;
 high или critical — BLOCKED. Moderate/low сохраняются в отчёте, требуют triage, не скрываются.
 Нет baseline по числу advisories, continue-on-error, автоматического npm audit fix или dependency upgrades.
-На 13 октября: backend production 17 (1 critical, 5 high), backend full 55 (2 critical, 13 high),
-frontend full 12 (2 critical, 7 high). Достижимость CVE не доказана; release/GHCR gates сейчас закрыты.
+Исходный аудит13октября: backend production17, full55, frontend12. D5.1.1 на14октября:
+backend production9moderate, full30moderate; frontend0; high/critical0 без ослабления policy.
+[Реестр устранённых и открытых findings](./evidence/d5-1-1-20261014/report.md). ASF parsing untrusted
+upload headers остаётся открытым release risk; green audit threshold не даёт Production GO.
 Для исключения нужна отдельная согласованная remediation/документированная risk decision и review
 изменения policy; текущий код исключений для high/critical не имеет.
 
@@ -55,7 +57,8 @@ Scanner не доказывает абсолютное отсутствие се
 Node20 сохранён ради scope/совместимости, но уже [EOL по данным Node.js](https://nodejs.org/en/about/eol); переход на поддерживаемую версию требует отдельной
 задачи и регрессии. Pinning не устраняет CVE. OS/base image vulnerability scan и upgrades ещё не
 квалифицированы; production gate остаётся закрыт. Native tests в glibc CI не заменяют musl image smoke
-и испытания mini-PC.
+и испытания mini-PC. PR CI D5.1.1 добавляет ephemeral Linux/amd64 image builds
+без publish и native decoder smoke без mounts/startup; это не target qualification.
 
 ## Релиз по явно утверждённому tag + commit
 
