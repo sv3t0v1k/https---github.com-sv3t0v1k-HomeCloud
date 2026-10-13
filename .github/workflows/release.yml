@@ -1,0 +1,177 @@
+name: Подготовить релиз HomeCloud
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Утверждённый annotated beta tag (v0.x.x-beta.N)'
+        required: true
+        type: string
+      commit:
+        description: 'Полный SHA утверждённого commit текущей main'
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: homecloud-release
+  cancel-in-progress: false
+jobs:
+  validate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      commit: ${{ steps.source.outputs.commit }}
+      tag_object: ${{ steps.source.outputs.tag_object }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: source
+        env:
+          TAG: ${{ inputs.tag }}
+          COMMIT: ${{ inputs.commit }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/ci/release.py verify-tag --tag "$TAG" --commit "$COMMIT"
+          git merge-base --is-ancestor 48fb9c0e8982f23dea835cf1a2e36f83d4e38f3b "$COMMIT"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq .commit.sha)" = "$COMMIT"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq .protected)" = true
+          echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
+          echo "tag_object=$(git rev-parse "refs/tags/$TAG")" >> "$GITHUB_OUTPUT"
+      - name: Refuse existing release; API failures also block
+        env:
+          TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases" > "$RUNNER_TEMP/releases.json"
+          python3 -c 'import json,os; r=json.load(open(os.environ["RUNNER_TEMP"]+"/releases.json")); assert not any(x["tag_name"]==os.environ["TAG"] for x in r), "Release already exists"'
+  ci:
+    needs: validate
+    uses: ./.github/workflows/ci.yml
+    with:
+      source_sha: ${{ needs.validate.outputs.commit }}
+    permissions:
+      contents: read
+  images:
+    needs: [validate, ci]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      packages: write
+    env:
+      TAG: ${{ inputs.tag }}
+      COMMIT: ${{ needs.validate.outputs.commit }}
+      TAG_OBJECT: ${{ needs.validate.outputs.tag_object }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ needs.validate.outputs.commit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Recheck tag immediately before registry writes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/ci/release.py verify-tag --tag "$TAG" --commit "$COMMIT"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq .object.sha)" = "$TAG_OBJECT"
+          test "$(git rev-parse "refs/tags/$TAG")" = "$TAG_OBJECT"
+      - id: names
+        run: |
+          echo "repository=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          python3 -c 'import json,os; d=json.load(open("scripts/ci/images.lock.json")); f=open(os.environ["GITHUB_OUTPUT"],"a"); [f.write(k+"="+v+"\n") for k,v in d.items()]'
+      - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+        with:
+          version: v0.38.0
+          driver-opts: image=moby/buildkit@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea
+      - uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - id: backend
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: ./backend
+          platforms: linux/amd64
+          push: true
+          provenance: mode=max
+          build-args: NODE_IMAGE=${{ steps.names.outputs.node }}
+          tags: ghcr.io/${{ steps.names.outputs.repository }}/backend:${{ inputs.tag }}-${{ github.run_id }}-${{ github.run_attempt }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ steps.names.outputs.repository }}
+            org.opencontainers.image.revision=${{ needs.validate.outputs.commit }}
+            org.opencontainers.image.version=${{ inputs.tag }}
+            io.homecloud.role=backend
+            io.homecloud.pair=${{ needs.validate.outputs.commit }}
+      - id: frontend
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: ./frontend
+          platforms: linux/amd64
+          push: true
+          provenance: mode=max
+          build-args: |
+            NODE_IMAGE=${{ steps.names.outputs.node }}
+            NGINX_IMAGE=${{ steps.names.outputs.nginx }}
+          tags: ghcr.io/${{ steps.names.outputs.repository }}/frontend:${{ inputs.tag }}-${{ github.run_id }}-${{ github.run_attempt }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ steps.names.outputs.repository }}
+            org.opencontainers.image.revision=${{ needs.validate.outputs.commit }}
+            org.opencontainers.image.version=${{ inputs.tag }}
+            io.homecloud.role=frontend
+            io.homecloud.pair=${{ needs.validate.outputs.commit }}
+      - name: Verify registry digests and prepare candidate lock
+        env:
+          REPOSITORY: ${{ steps.names.outputs.repository }}
+          BACKEND_DIGEST: ${{ steps.backend.outputs.digest }}
+          FRONTEND_DIGEST: ${{ steps.frontend.outputs.digest }}
+        run: |
+          python3 scripts/ci/release.py create --tag "$TAG" --commit "$COMMIT" --repository "$REPOSITORY" --backend "$BACKEND_DIGEST" --frontend "$FRONTEND_DIGEST" --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --output release-lock.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-lock-${{ github.run_attempt }}
+          path: release-lock.json
+          if-no-files-found: error
+          retention-days: 90
+  draft:
+    needs: [validate, images]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ inputs.tag }}
+      COMMIT: ${{ needs.validate.outputs.commit }}
+      TAG_OBJECT: ${{ needs.validate.outputs.tag_object }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ needs.validate.outputs.commit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-lock-${{ github.run_attempt }}
+      - name: Create draft only; never overwrite
+        run: |
+          python3 scripts/ci/release.py verify-tag --tag "$TAG" --commit "$COMMIT"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq .object.sha)" = "$TAG_OBJECT"
+          test "$(git rev-parse "refs/tags/$TAG")" = "$TAG_OBJECT"
+          python3 -c 'import json,sys; sys.path.insert(0,"scripts/ci"); import release; x=json.load(open("release-lock.json")); release.shape(x); assert x["tag"]==__import__("os").environ["TAG"] and x["commit"]==__import__("os").environ["COMMIT"] and x["tag_object"]==__import__("os").environ["TAG_OBJECT"]'
+          cat > "$RUNNER_TEMP/notes.md" <<NOTES
+          Этап D5.1 — кандидат HomeCloud $TAG.
+
+          Исходный commit: $COMMIT.
+          Тесты, Compose, dependency и secret gates успешно выполнены в текущем CI run.
+          Linux/amd64 backend/frontend опубликованы в GHCR и проверены по digest и OCI revision.
+          Неизменяемые ссылки и source contract записаны в release-lock.json.
+          BuildKit provenance приложен к registry index; криптографическая подпись не заявляется.
+
+          Статус: NOT_DEPLOYED. Mini-PC не обновлялся. Production NO_GO.
+          Это кандидат CI, не квалифицированный D1 release-manifest и не доказательство target health/backup/rollback.
+          NOTES
+          gh release create "$TAG" release-lock.json --verify-tag --draft --prerelease --target "$COMMIT" --title "HomeCloud $TAG — кандидат этапа D5.1" --notes-file "$RUNNER_TEMP/notes.md"
