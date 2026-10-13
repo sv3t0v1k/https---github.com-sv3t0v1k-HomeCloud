@@ -26,15 +26,9 @@ export function parseMaxChunkSize(raw: unknown): number {
 }
 
 export function getMulterFileSizeLimit(raw: unknown): number {
-  const maxChunkSize = parseMaxChunkSize(raw);
-  if (maxChunkSize === Number.MAX_SAFE_INTEGER) {
-    throw new BadRequestException(
-      "MAX_CHUNK_SIZE is too large for the multipart transport limit",
-    );
-  }
-  // Busboy emits LIMIT_FILE_SIZE as soon as the configured byte count is
-  // reached. Keep the production maximum inclusive while rejecting N + 1.
-  return maxChunkSize + 1;
+  // Multer 2.4 makes fileSize inclusive and adjusts the Busboy limit itself.
+  // Adding another byte here would incorrectly admit MAX_CHUNK_SIZE + 1.
+  return parseMaxChunkSize(raw);
 }
 
 export interface IngressChunkFile {
