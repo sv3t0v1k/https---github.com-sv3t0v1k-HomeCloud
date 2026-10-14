@@ -1,0 +1,33 @@
+{
+  "index_digest": "sha256:06c018cfca884f84f3fa3e0374cbe0443f4d82cee98cce48761b3d947db226ff",
+  "platform_digest": "sha256:2243669d5fe1b8c91143867bfbe3242102c21a9efbe624158348d0d9cf0cf98c",
+  "statement_digest": "sha256:4f0b4baba290c713edaa582386e75edab1905badb906de7004da86df0bd26e66",
+  "commit": "2a01cc812bed10a7ba96769d3dce2524b1e8edec",
+  "repository": "ghcr.io/sv3t0v1k/https---github.com-sv3t0v1k-homecloud/frontend",
+  "version": "dry-run",
+  "platform": "linux/amd64",
+  "dockerfile_sha256": "7efe399e74bb609a49845dc403a7baf43a8b06d3b916f0d8bf6a506b317f4fab",
+  "materials": [
+    {
+      "uri": "pkg:docker/nginx@1.30.5-alpine?digest=sha256:0985e772fb9f729e6fa0980da05fca5d9c468e870eed43071545afa9d2e27d94&platform=linux%2Famd64",
+      "digest": {
+        "sha256": "0985e772fb9f729e6fa0980da05fca5d9c468e870eed43071545afa9d2e27d94"
+      }
+    },
+    {
+      "uri": "pkg:docker/node@24.21.0-alpine?digest=sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1&platform=linux%2Famd64",
+      "digest": {
+        "sha256": "ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1"
+      }
+    }
+  ],
+  "verified": "DIGEST_SUBJECT_VCS_DOCKERFILE_ARGS_BASE_MATERIALS",
+  "signature": "UNSIGNED",
+  "limitation": "Local-context VCS metadata is a builder claim; not cryptographic source-content authentication.",
+  "format": "homecloud-provenance-dry-run-v1",
+  "status": "OFFLINE_OCI_VERIFIED",
+  "tag_state": "SYNTHETIC_VERSION_LABEL_ONLY_NO_GIT_TAG",
+  "ghcr_state": "NOT_PUBLISHED_NOT_TESTED",
+  "release_state": "NOT_CREATED",
+  "production": "NO_GO"
+}

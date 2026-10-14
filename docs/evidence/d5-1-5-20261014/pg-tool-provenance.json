@@ -1,0 +1,7 @@
+{
+  "scanner": "golang.org/x/vuln/cmd/govulncheck@v1.9.0",
+  "sha256": "4ac8f6a0a541a148527861c87b8eadfaf5a57140fdddca6f1ee60f334dea5245",
+  "installGOSUMDB": "sum.golang.org",
+  "installGOPROXY": "https://proxy.golang.org",
+  "moduleChecksum": "h1:12VaqnI9kJfqwRoPptxoqsUhQtdfrSbdksT7X/KY/sc="
+}

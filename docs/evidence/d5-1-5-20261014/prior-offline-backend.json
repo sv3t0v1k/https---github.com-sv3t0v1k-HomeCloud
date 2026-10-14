@@ -1,0 +1,27 @@
+{
+  "index_digest": "sha256:2b427de4df3d8c1b087a4cbdfb034c39fd5074b7e52f5bdffca3e64213563698",
+  "platform_digest": "sha256:aef42129962e334a94de4468d496db7c01e1407699ec1410a1c63558cdcda604",
+  "statement_digest": "sha256:9cfe9e1211148f44f144a0bf289dc9ff21645b532bcaffee31fa42b1f97d139c",
+  "commit": "2a01cc812bed10a7ba96769d3dce2524b1e8edec",
+  "repository": "ghcr.io/sv3t0v1k/https---github.com-sv3t0v1k-homecloud/backend",
+  "version": "dry-run",
+  "platform": "linux/amd64",
+  "dockerfile_sha256": "8b54ff3f5a6d734d56551d8a476cf89eeb4b82065d787170c8f5c69b23ce4c11",
+  "materials": [
+    {
+      "uri": "pkg:docker/node@24.21.0-alpine?digest=sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1&platform=linux%2Famd64",
+      "digest": {
+        "sha256": "ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1"
+      }
+    }
+  ],
+  "verified": "DIGEST_SUBJECT_VCS_DOCKERFILE_ARGS_BASE_MATERIALS",
+  "signature": "UNSIGNED",
+  "limitation": "Local-context VCS metadata is a builder claim; not cryptographic source-content authentication.",
+  "format": "homecloud-provenance-dry-run-v1",
+  "status": "OFFLINE_OCI_VERIFIED",
+  "tag_state": "SYNTHETIC_VERSION_LABEL_ONLY_NO_GIT_TAG",
+  "ghcr_state": "NOT_PUBLISHED_NOT_TESTED",
+  "release_state": "NOT_CREATED",
+  "production": "NO_GO"
+}

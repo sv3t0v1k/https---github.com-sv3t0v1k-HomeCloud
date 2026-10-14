@@ -1,0 +1,303 @@
+[
+  {
+    "image": "postgres",
+    "targets": [
+      "usr/local/bin/gosu"
+    ],
+    "relevant_events": [
+      {
+        "layer": 0,
+        "digest": "sha256:e2de96513ba9eb53b431787ec8a65cdde380ac4772a3e4c4b714dcfde2a102b5",
+        "name": "usr",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 0,
+        "digest": "sha256:e2de96513ba9eb53b431787ec8a65cdde380ac4772a3e4c4b714dcfde2a102b5",
+        "name": "usr/local",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 0,
+        "digest": "sha256:e2de96513ba9eb53b431787ec8a65cdde380ac4772a3e4c4b714dcfde2a102b5",
+        "name": "usr/local/bin",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 2,
+        "digest": "sha256:210b280f9556440a6475a3d20cb52baac3ed21a482dbc5889005d9da5ec612f4",
+        "name": "usr",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 2,
+        "digest": "sha256:210b280f9556440a6475a3d20cb52baac3ed21a482dbc5889005d9da5ec612f4",
+        "name": "usr/local",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 2,
+        "digest": "sha256:210b280f9556440a6475a3d20cb52baac3ed21a482dbc5889005d9da5ec612f4",
+        "name": "usr/local/bin",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 2,
+        "digest": "sha256:210b280f9556440a6475a3d20cb52baac3ed21a482dbc5889005d9da5ec612f4",
+        "name": "usr/local/bin/gosu",
+        "type": "0",
+        "linkname": ""
+      },
+      {
+        "layer": 3,
+        "digest": "sha256:81717818649a9c77cf8c6f954d4d1cf744961a39e95756bc9cbf0f1f63f750f8",
+        "name": "usr",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 3,
+        "digest": "sha256:81717818649a9c77cf8c6f954d4d1cf744961a39e95756bc9cbf0f1f63f750f8",
+        "name": "usr/local",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 3,
+        "digest": "sha256:81717818649a9c77cf8c6f954d4d1cf744961a39e95756bc9cbf0f1f63f750f8",
+        "name": "usr/local/bin",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 5,
+        "digest": "sha256:25b77f59fd950b831b1d657ac02b3f928f53fd09180c59ebed1ffd697838c31a",
+        "name": "usr",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 5,
+        "digest": "sha256:25b77f59fd950b831b1d657ac02b3f928f53fd09180c59ebed1ffd697838c31a",
+        "name": "usr/local",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 5,
+        "digest": "sha256:25b77f59fd950b831b1d657ac02b3f928f53fd09180c59ebed1ffd697838c31a",
+        "name": "usr/local/bin",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 6,
+        "digest": "sha256:6c25da34e03ff0b3cfff79692019fae820b89a50db84537f15168a4d538c337b",
+        "name": "usr",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 6,
+        "digest": "sha256:6c25da34e03ff0b3cfff79692019fae820b89a50db84537f15168a4d538c337b",
+        "name": "usr/local",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 9,
+        "digest": "sha256:6117bd39f23f25487117cad6c2a1cdda0ec0e4652de068ae90b8ce4ef8647aaa",
+        "name": "usr",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 9,
+        "digest": "sha256:6117bd39f23f25487117cad6c2a1cdda0ec0e4652de068ae90b8ce4ef8647aaa",
+        "name": "usr/local",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 9,
+        "digest": "sha256:6117bd39f23f25487117cad6c2a1cdda0ec0e4652de068ae90b8ce4ef8647aaa",
+        "name": "usr/local/bin",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 10,
+        "digest": "sha256:509688edf37bf62fcdb59297fd894b2b5ae4fc0beb79d98ad2e9ff06a26a939c",
+        "name": "usr",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 10,
+        "digest": "sha256:509688edf37bf62fcdb59297fd894b2b5ae4fc0beb79d98ad2e9ff06a26a939c",
+        "name": "usr/local",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 10,
+        "digest": "sha256:509688edf37bf62fcdb59297fd894b2b5ae4fc0beb79d98ad2e9ff06a26a939c",
+        "name": "usr/local/bin",
+        "type": "5",
+        "linkname": ""
+      }
+    ],
+    "redirecting_or_opaque_ancestor_events": [],
+    "conclusion": "No target-relevant whiteout or non-directory ancestor entry in any actual layer; direct regular-file extraction valid for these paths only."
+  },
+  {
+    "image": "ingress",
+    "targets": [
+      "lib/apk/db/installed",
+      "usr/sbin/nginx"
+    ],
+    "relevant_events": [
+      {
+        "layer": 0,
+        "digest": "sha256:589002ba0eaed121a1dbf42f6648f29e5be55d5c8a6ee0f8eaa0285cc21ac153",
+        "name": "lib",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 0,
+        "digest": "sha256:589002ba0eaed121a1dbf42f6648f29e5be55d5c8a6ee0f8eaa0285cc21ac153",
+        "name": "lib/apk",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 0,
+        "digest": "sha256:589002ba0eaed121a1dbf42f6648f29e5be55d5c8a6ee0f8eaa0285cc21ac153",
+        "name": "lib/apk/db",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 0,
+        "digest": "sha256:589002ba0eaed121a1dbf42f6648f29e5be55d5c8a6ee0f8eaa0285cc21ac153",
+        "name": "lib/apk/db/installed",
+        "type": "0",
+        "linkname": ""
+      },
+      {
+        "layer": 0,
+        "digest": "sha256:589002ba0eaed121a1dbf42f6648f29e5be55d5c8a6ee0f8eaa0285cc21ac153",
+        "name": "usr",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 0,
+        "digest": "sha256:589002ba0eaed121a1dbf42f6648f29e5be55d5c8a6ee0f8eaa0285cc21ac153",
+        "name": "usr/sbin",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 1,
+        "digest": "sha256:1d9cbdb003be4f77dc59400a5eb400afcac245934b539c7bffe52abae7720f3c",
+        "name": "lib",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 1,
+        "digest": "sha256:1d9cbdb003be4f77dc59400a5eb400afcac245934b539c7bffe52abae7720f3c",
+        "name": "lib/apk",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 1,
+        "digest": "sha256:1d9cbdb003be4f77dc59400a5eb400afcac245934b539c7bffe52abae7720f3c",
+        "name": "lib/apk/db",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 1,
+        "digest": "sha256:1d9cbdb003be4f77dc59400a5eb400afcac245934b539c7bffe52abae7720f3c",
+        "name": "lib/apk/db/installed",
+        "type": "0",
+        "linkname": ""
+      },
+      {
+        "layer": 1,
+        "digest": "sha256:1d9cbdb003be4f77dc59400a5eb400afcac245934b539c7bffe52abae7720f3c",
+        "name": "usr",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 1,
+        "digest": "sha256:1d9cbdb003be4f77dc59400a5eb400afcac245934b539c7bffe52abae7720f3c",
+        "name": "usr/sbin",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 1,
+        "digest": "sha256:1d9cbdb003be4f77dc59400a5eb400afcac245934b539c7bffe52abae7720f3c",
+        "name": "usr/sbin/nginx",
+        "type": "0",
+        "linkname": ""
+      },
+      {
+        "layer": 7,
+        "digest": "sha256:0151c82f84a9c78800cb330f93f88d6ffe39f030ec9a60dbc0a12c4c7109536c",
+        "name": "lib",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 7,
+        "digest": "sha256:0151c82f84a9c78800cb330f93f88d6ffe39f030ec9a60dbc0a12c4c7109536c",
+        "name": "lib/apk",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 7,
+        "digest": "sha256:0151c82f84a9c78800cb330f93f88d6ffe39f030ec9a60dbc0a12c4c7109536c",
+        "name": "lib/apk/db",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 7,
+        "digest": "sha256:0151c82f84a9c78800cb330f93f88d6ffe39f030ec9a60dbc0a12c4c7109536c",
+        "name": "lib/apk/db/installed",
+        "type": "0",
+        "linkname": ""
+      },
+      {
+        "layer": 7,
+        "digest": "sha256:0151c82f84a9c78800cb330f93f88d6ffe39f030ec9a60dbc0a12c4c7109536c",
+        "name": "usr",
+        "type": "5",
+        "linkname": ""
+      },
+      {
+        "layer": 7,
+        "digest": "sha256:0151c82f84a9c78800cb330f93f88d6ffe39f030ec9a60dbc0a12c4c7109536c",
+        "name": "usr/sbin",
+        "type": "5",
+        "linkname": ""
+      }
+    ],
+    "redirecting_or_opaque_ancestor_events": [],
+    "conclusion": "No target-relevant whiteout or non-directory ancestor entry in any actual layer; direct regular-file extraction valid for these paths only."
+  }
+]

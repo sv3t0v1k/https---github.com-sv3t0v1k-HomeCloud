@@ -1,0 +1,469 @@
+{
+  "manifest_digest": "sha256:0dcc88822d45581e65ae329f8be769762bf628d3b2bb7d2a077d4aa5c98b30e3",
+  "config_digest": "sha256:dc73b49f5124cf2ee538dfbdfbd121f0b4ccdcb20fea30f3a81bd477c02e2bb5",
+  "all_layer_hashes_verified": true,
+  "os": "linux",
+  "architecture": "amd64",
+  "nginx_binary_sha256": "bf30939947d1d9ac8dccb6477c336e612760d3ee3c43991085fd54b4c7d741d8",
+  "nginx_elf_class": "ELF64",
+  "nginx_machine": 62,
+  "apk_inventory_sha256": "63f197a7b64ea2fbfe65dc1e189a5db9a73fa7e331533fe5b2da034c1d8ce787",
+  "packages": [
+    {
+      "P": "alpine-baselayout",
+      "V": "3.7.1-r8",
+      "A": "x86_64",
+      "o": "alpine-baselayout"
+    },
+    {
+      "P": "alpine-baselayout-data",
+      "V": "3.7.1-r8",
+      "A": "x86_64",
+      "o": "alpine-baselayout"
+    },
+    {
+      "P": "alpine-keys",
+      "V": "2.6-r0",
+      "A": "x86_64",
+      "o": "alpine-keys"
+    },
+    {
+      "P": "alpine-release",
+      "V": "3.23.3-r0",
+      "A": "x86_64",
+      "o": "alpine-base"
+    },
+    {
+      "P": "aom-libs",
+      "V": "3.13.1-r1",
+      "A": "x86_64",
+      "o": "aom"
+    },
+    {
+      "P": "apk-tools",
+      "V": "3.0.3-r1",
+      "A": "x86_64",
+      "o": "apk-tools"
+    },
+    {
+      "P": "brotli-libs",
+      "V": "1.2.0-r0",
+      "A": "x86_64",
+      "o": "brotli"
+    },
+    {
+      "P": "busybox",
+      "V": "1.37.0-r30",
+      "A": "x86_64",
+      "o": "busybox"
+    },
+    {
+      "P": "busybox-binsh",
+      "V": "1.37.0-r30",
+      "A": "x86_64",
+      "o": "busybox"
+    },
+    {
+      "P": "c-ares",
+      "V": "1.34.6-r0",
+      "A": "x86_64",
+      "o": "c-ares"
+    },
+    {
+      "P": "ca-certificates",
+      "V": "20251003-r0",
+      "A": "x86_64",
+      "o": "ca-certificates"
+    },
+    {
+      "P": "ca-certificates-bundle",
+      "V": "20251003-r0",
+      "A": "x86_64",
+      "o": "ca-certificates"
+    },
+    {
+      "P": "curl",
+      "V": "8.17.0-r1",
+      "A": "x86_64",
+      "o": "curl"
+    },
+    {
+      "P": "fontconfig",
+      "V": "2.17.1-r0",
+      "A": "x86_64",
+      "o": "fontconfig"
+    },
+    {
+      "P": "freetype",
+      "V": "2.14.1-r0",
+      "A": "x86_64",
+      "o": "freetype"
+    },
+    {
+      "P": "geoip",
+      "V": "1.6.12-r6",
+      "A": "x86_64",
+      "o": "geoip"
+    },
+    {
+      "P": "gettext-envsubst",
+      "V": "0.24.1-r1",
+      "A": "x86_64",
+      "o": "gettext"
+    },
+    {
+      "P": "libapk",
+      "V": "3.0.3-r1",
+      "A": "x86_64",
+      "o": "apk-tools"
+    },
+    {
+      "P": "libavif",
+      "V": "1.3.0-r0",
+      "A": "x86_64",
+      "o": "libavif"
+    },
+    {
+      "P": "libbsd",
+      "V": "0.12.2-r0",
+      "A": "x86_64",
+      "o": "libbsd"
+    },
+    {
+      "P": "libbz2",
+      "V": "1.0.8-r6",
+      "A": "x86_64",
+      "o": "bzip2"
+    },
+    {
+      "P": "libcrypto3",
+      "V": "3.5.5-r0",
+      "A": "x86_64",
+      "o": "openssl"
+    },
+    {
+      "P": "libcurl",
+      "V": "8.17.0-r1",
+      "A": "x86_64",
+      "o": "curl"
+    },
+    {
+      "P": "libdav1d",
+      "V": "1.5.2-r0",
+      "A": "x86_64",
+      "o": "dav1d"
+    },
+    {
+      "P": "libedit",
+      "V": "20251016.3.1-r0",
+      "A": "x86_64",
+      "o": "libedit"
+    },
+    {
+      "P": "libexpat",
+      "V": "2.7.5-r0",
+      "A": "x86_64",
+      "o": "expat"
+    },
+    {
+      "P": "libgcc",
+      "V": "15.2.0-r2",
+      "A": "x86_64",
+      "o": "gcc"
+    },
+    {
+      "P": "libgd",
+      "V": "2.3.3-r10",
+      "A": "x86_64",
+      "o": "gd"
+    },
+    {
+      "P": "libice",
+      "V": "1.1.2-r0",
+      "A": "x86_64",
+      "o": "libice"
+    },
+    {
+      "P": "libidn2",
+      "V": "2.3.8-r0",
+      "A": "x86_64",
+      "o": "libidn2"
+    },
+    {
+      "P": "libintl",
+      "V": "0.24.1-r1",
+      "A": "x86_64",
+      "o": "gettext"
+    },
+    {
+      "P": "libjpeg-turbo",
+      "V": "3.1.2-r0",
+      "A": "x86_64",
+      "o": "libjpeg-turbo"
+    },
+    {
+      "P": "libmd",
+      "V": "1.1.0-r0",
+      "A": "x86_64",
+      "o": "libmd"
+    },
+    {
+      "P": "libncursesw",
+      "V": "6.5_p20251123-r0",
+      "A": "x86_64",
+      "o": "ncurses"
+    },
+    {
+      "P": "libpng",
+      "V": "1.6.55-r0",
+      "A": "x86_64",
+      "o": "libpng"
+    },
+    {
+      "P": "libpsl",
+      "V": "0.21.5-r3",
+      "A": "x86_64",
+      "o": "libpsl"
+    },
+    {
+      "P": "libsharpyuv",
+      "V": "1.6.0-r0",
+      "A": "x86_64",
+      "o": "libwebp"
+    },
+    {
+      "P": "libsm",
+      "V": "1.2.6-r0",
+      "A": "x86_64",
+      "o": "libsm"
+    },
+    {
+      "P": "libssl3",
+      "V": "3.5.5-r0",
+      "A": "x86_64",
+      "o": "openssl"
+    },
+    {
+      "P": "libstdc++",
+      "V": "15.2.0-r2",
+      "A": "x86_64",
+      "o": "gcc"
+    },
+    {
+      "P": "libunistring",
+      "V": "1.4.1-r0",
+      "A": "x86_64",
+      "o": "libunistring"
+    },
+    {
+      "P": "libuuid",
+      "V": "2.41.2-r0",
+      "A": "x86_64",
+      "o": "util-linux"
+    },
+    {
+      "P": "libwebp",
+      "V": "1.6.0-r0",
+      "A": "x86_64",
+      "o": "libwebp"
+    },
+    {
+      "P": "libx11",
+      "V": "1.8.12-r1",
+      "A": "x86_64",
+      "o": "libx11"
+    },
+    {
+      "P": "libxau",
+      "V": "1.0.12-r0",
+      "A": "x86_64",
+      "o": "libxau"
+    },
+    {
+      "P": "libxcb",
+      "V": "1.17.0-r1",
+      "A": "x86_64",
+      "o": "libxcb"
+    },
+    {
+      "P": "libxdmcp",
+      "V": "1.1.5-r1",
+      "A": "x86_64",
+      "o": "libxdmcp"
+    },
+    {
+      "P": "libxext",
+      "V": "1.3.6-r2",
+      "A": "x86_64",
+      "o": "libxext"
+    },
+    {
+      "P": "libxml2",
+      "V": "2.13.9-r0",
+      "A": "x86_64",
+      "o": "libxml2"
+    },
+    {
+      "P": "libxpm",
+      "V": "3.5.17-r0",
+      "A": "x86_64",
+      "o": "libxpm"
+    },
+    {
+      "P": "libxslt",
+      "V": "1.1.43-r3",
+      "A": "x86_64",
+      "o": "libxslt"
+    },
+    {
+      "P": "libxt",
+      "V": "1.3.1-r0",
+      "A": "x86_64",
+      "o": "libxt"
+    },
+    {
+      "P": "libyuv",
+      "V": "0.0.1887.20251502-r1",
+      "A": "x86_64",
+      "o": "libyuv"
+    },
+    {
+      "P": "musl",
+      "V": "1.2.5-r21",
+      "A": "x86_64",
+      "o": "musl"
+    },
+    {
+      "P": "musl-utils",
+      "V": "1.2.5-r21",
+      "A": "x86_64",
+      "o": "musl"
+    },
+    {
+      "P": "ncurses-terminfo-base",
+      "V": "6.5_p20251123-r0",
+      "A": "x86_64",
+      "o": "ncurses"
+    },
+    {
+      "P": "nghttp2-libs",
+      "V": "1.68.0-r0",
+      "A": "x86_64",
+      "o": "nghttp2"
+    },
+    {
+      "P": "nghttp3",
+      "V": "1.13.1-r0",
+      "A": "x86_64",
+      "o": "nghttp3"
+    },
+    {
+      "P": "nginx",
+      "V": "1.28.3-r1",
+      "A": "x86_64",
+      "o": "nginx"
+    },
+    {
+      "P": "nginx-module-acme",
+      "V": "1.28.3.0.3.1-r1",
+      "A": "x86_64",
+      "o": "nginx-module-acme"
+    },
+    {
+      "P": "nginx-module-geoip",
+      "V": "1.28.3-r1",
+      "A": "x86_64",
+      "o": "nginx-module-geoip"
+    },
+    {
+      "P": "nginx-module-image-filter",
+      "V": "1.28.3-r1",
+      "A": "x86_64",
+      "o": "nginx-module-image-filter"
+    },
+    {
+      "P": "nginx-module-njs",
+      "V": "1.28.3.0.9.6-r1",
+      "A": "x86_64",
+      "o": "nginx-module-njs"
+    },
+    {
+      "P": "nginx-module-xslt",
+      "V": "1.28.3-r1",
+      "A": "x86_64",
+      "o": "nginx-module-xslt"
+    },
+    {
+      "P": "pcre2",
+      "V": "10.47-r0",
+      "A": "x86_64",
+      "o": "pcre2"
+    },
+    {
+      "P": "scanelf",
+      "V": "1.3.8-r2",
+      "A": "x86_64",
+      "o": "pax-utils"
+    },
+    {
+      "P": "ssl_client",
+      "V": "1.37.0-r30",
+      "A": "x86_64",
+      "o": "busybox"
+    },
+    {
+      "P": "tiff",
+      "V": "4.7.1-r0",
+      "A": "x86_64",
+      "o": "tiff"
+    },
+    {
+      "P": "tzdata",
+      "V": "2026a-r0",
+      "A": "x86_64",
+      "o": "tzdata"
+    },
+    {
+      "P": "xz-libs",
+      "V": "5.8.2-r0",
+      "A": "x86_64",
+      "o": "xz"
+    },
+    {
+      "P": "zlib",
+      "V": "1.3.1-r2",
+      "A": "x86_64",
+      "o": "zlib"
+    },
+    {
+      "P": "zstd-libs",
+      "V": "1.5.7-r2",
+      "A": "x86_64",
+      "o": "zstd"
+    }
+  ],
+  "package_count": 72,
+  "scan_inventory_exact_match": true,
+  "layer_events": [
+    {
+      "path": "lib/apk/db/installed",
+      "layer": "sha256:589002ba0eaed121a1dbf42f6648f29e5be55d5c8a6ee0f8eaa0285cc21ac153",
+      "size": 15151
+    },
+    {
+      "path": "lib/apk/db/installed",
+      "layer": "sha256:1d9cbdb003be4f77dc59400a5eb400afcac245934b539c7bffe52abae7720f3c",
+      "size": 45396
+    },
+    {
+      "path": "usr/sbin/nginx",
+      "layer": "sha256:1d9cbdb003be4f77dc59400a5eb400afcac245934b539c7bffe52abae7720f3c",
+      "size": 1285264
+    },
+    {
+      "path": "lib/apk/db/installed",
+      "layer": "sha256:0151c82f84a9c78800cb330f93f88d6ffe39f030ec9a60dbc0a12c4c7109536c",
+      "size": 105114
+    }
+  ]
+}
