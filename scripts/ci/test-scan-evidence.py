@@ -26,7 +26,8 @@ class EvidenceTests(unittest.TestCase):
                            Trivy=dict(Version='0.75.0'),
                            Metadata=dict(ImageID='sha256:fixture',
                                          ImageConfig=dict(os='linux', architecture='amd64')),
-                           Results=[dict(Class='os-pkgs', Type='alpine', Vulnerabilities=[])])
+                           Results=[dict(Class='os-pkgs', Type='alpine', Vulnerabilities=[],
+                                         Packages=[dict(Name='libc', Version='1.0')])])
 
     def test_fresh(self):
         evidence.validate(self.report, self.metadata, 'fixture:ci', self.now)
@@ -50,10 +51,14 @@ class EvidenceTests(unittest.TestCase):
             with self.subTest(change=change), self.assertRaises(ValueError):
                 evidence.validate({**self.report, **change}, self.metadata, 'fixture:ci', self.now)
 
-    def invoke(self, severity=None, metadata=None):
+    def invoke(self, severity=None, metadata=None, source='remote', mode=None, invalid=False):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             report = copy.deepcopy(self.report)
+            if source == 'archive':
+                report['ArtifactName'] = str(root/'image.oci')
+            if invalid:
+                report['Results'] = [dict(Class='lang-pkgs')]
             if severity:
                 report['Results'][0]['Vulnerabilities'] = [dict(
                     VulnerabilityID='CVE-TEST', PkgName='fixture', Severity=severity)]
@@ -67,13 +72,22 @@ args=sys.argv[1:]
 assert args[args.index('--ignorefile')+1] == '/dev/null'
 assert args[args.index('--config')+1] == '/dev/null'
 assert '--ignore-unfixed=false' in args
+assert '--list-all-pkgs' in args
+if os.environ['SOURCE'] == 'archive':
+    assert '--input' in args and '--image-src' not in args
+else:
+    assert args[args.index('--image-src')+1] == os.environ['SOURCE']
 pathlib.Path(args[args.index('--output')+1]).write_text(pathlib.Path(os.environ['FIXTURE']).read_text())
 ''')
             scanner.chmod(0o700)
             output = root/'scan.json'
-            result = subprocess.run(['sh', str(HERE/'scan-image.sh'), str(scanner), 'remote',
-                                     'fixture:ci', str(output)], capture_output=True, text=True,
-                                    env={**os.environ, 'FIXTURE': str(root/'fixture.json')})
+            arguments = ['sh', str(HERE/'scan-image.sh'), str(scanner), source,
+                         report['ArtifactName'], str(output)]
+            if mode:
+                arguments.append(mode)
+            result = subprocess.run(arguments, capture_output=True, text=True,
+                                    env={**os.environ, 'FIXTURE': str(root/'fixture.json'),
+                                         'SOURCE': source})
             sidecar = json.loads(output.with_suffix('.evidence.json').read_text())
             self.assertEqual(json.loads(output.read_text()), report)
             return result.returncode, sidecar
@@ -90,6 +104,27 @@ pathlib.Path(args[args.index('--output')+1]).write_text(pathlib.Path(os.environ[
             code, sidecar = self.invoke(severity)
             self.assertEqual(code, 0)
             self.assertEqual(sidecar['requested_reference'], 'fixture:ci')
+
+    def test_archive_exact_input_and_default_strict(self):
+        code, sidecar = self.invoke(source='archive')
+        self.assertEqual(code, 0)
+        self.assertEqual(sidecar['source_kind'], 'archive')
+        code, _ = self.invoke(source='archive', severity='HIGH')
+        self.assertNotEqual(code, 0)
+
+    def test_diagnostic_severity_does_not_hide_invalidity(self):
+        code, _ = self.invoke(severity='CRITICAL', mode='diagnostic')
+        self.assertEqual(code, 0)
+        code, _ = self.invoke(severity='CRITICAL', mode='diagnostic', invalid=True)
+        self.assertNotEqual(code, 0)
+        code, sidecar = self.invoke(mode='diagnostic', metadata={**self.metadata,
+                                   'UpdatedAt': (self.now-timedelta(hours=25)).isoformat()})
+        self.assertNotEqual(code, 0)
+        self.assertEqual(sidecar['evidence_status'], 'BLOCKED')
+
+    def test_unknown_source_rejected(self):
+        with self.assertRaises(ValueError):
+            evidence.validate(self.report, self.metadata, 'fixture:ci', self.now, 'unknown')
 
     def test_stale_sidecar_retained(self):
         code, sidecar = self.invoke(metadata={**self.metadata,

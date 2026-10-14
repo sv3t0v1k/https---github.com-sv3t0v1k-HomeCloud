@@ -16,7 +16,9 @@ def timestamp(value):
     return result
 
 
-def validate(report, metadata, reference, now):
+def validate(report, metadata, reference, now, source_kind='remote'):
+    if source_kind not in ('remote', 'docker', 'archive'):
+        raise ValueError('Unknown scan source kind')
     if metadata.get('Version') != 2:
         raise ValueError('Expected vulnerability DB schema 2')
     updated, downloaded, next_update = (timestamp(metadata[k]) for k in
@@ -51,7 +53,7 @@ def main():
                         artifact_name=report.get('ArtifactName'),
                         image_id=report.get('Metadata', {}).get('ImageID'),
                         repo_digests=report.get('Metadata', {}).get('RepoDigests', []))
-        validate(report, metadata, reference, now)
+        validate(report, metadata, reference, now, source_kind)
         if any(r.get('Type') == 'jar' for r in report.get('Results', [])):
             raise ValueError('Java target requires separate Java DB qualification')
         evidence['evidence_status'] = 'PASS'
