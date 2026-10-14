@@ -48,6 +48,53 @@ class BindingTests(unittest.TestCase):
         result = binding.bind(self.path, self.report, 'backend', self.source, provenance=self.proof)
         self.assertEqual(result['platform_digest'], self.manifest['digest'])
 
+    def test_materialize_exact_selected_image_and_bind_directory(self):
+        layout=binding.materialize(self.path)
+        self.assertEqual(str(layout),self.path+'.scan-layout')
+        index=json.loads((layout/'index.json').read_text())
+        self.assertEqual(index['manifests'][0]['digest'],self.manifest['digest'])
+        report={**self.report,'ArtifactName':str(layout)}
+        result=binding.bind(self.path,report,'backend',self.source,provenance=self.proof)
+        self.assertEqual(result['platform_digest'],self.manifest['digest'])
+        with self.assertRaises(FileExistsError):
+            binding.materialize(self.path)
+
+    def test_layout_tampering_or_symlink_rejected(self):
+        for mutation in ('blob','index','extra','symlink'):
+            with self.subTest(mutation=mutation):
+                layout=binding.materialize(self.path)
+                report={**self.report,'ArtifactName':str(layout)}
+                if mutation=='blob':
+                    (layout/'blobs/sha256'/self.manifest['digest'][7:]).write_bytes(b'changed')
+                elif mutation=='index':
+                    (layout/'index.json').write_text('{"schemaVersion":2,"manifests":[]}')
+                elif mutation=='extra':
+                    (layout/'unexpected').write_text('extra')
+                else:
+                    marker=layout/'oci-layout'
+                    marker.unlink()
+                    marker.symlink_to(Path(self.temp.name)/'outside')
+                with self.assertRaises(ValueError):
+                    binding.bind(self.path,report,'backend',self.source,provenance=self.proof)
+                import shutil
+                shutil.rmtree(layout)
+
+    def test_no_archive_path_extraction_and_no_layout_symlink_overwrite(self):
+        outside=Path(self.temp.name)/'outside'
+        with tarfile.open(self.path,'a') as archive:
+            info=tarfile.TarInfo('../outside')
+            data=b'not extracted'
+            info.size=len(data)
+            archive.addfile(info,io.BytesIO(data))
+        layout=binding.materialize(self.path)
+        self.assertFalse(outside.exists())
+        import shutil
+        shutil.rmtree(layout)
+        layout.symlink_to(outside, target_is_directory=True)
+        with self.assertRaises(FileExistsError):
+            binding.materialize(self.path)
+        self.assertFalse(outside.exists())
+
     def test_other_scan_config_or_filesystem(self):
         for mutate in (lambda x:x.update(ArtifactName='other.tar'),
                        lambda x:x['Metadata'].update(ImageID='sha256:'+'c'*64),

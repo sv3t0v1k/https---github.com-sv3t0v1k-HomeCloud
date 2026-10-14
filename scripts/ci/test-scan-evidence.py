@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Adversarial freshness/identity cases and end-to-end severity gate checks."""
 import copy
+import hashlib
+import io
+import tarfile
 from datetime import datetime, timedelta, timezone
 import importlib.util
 import json
@@ -55,8 +58,25 @@ class EvidenceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             report = copy.deepcopy(self.report)
+            reference = report['ArtifactName']
             if source == 'archive':
-                report['ArtifactName'] = str(root/'image.oci')
+                reference = str(root/'image.oci')
+                report['ArtifactName'] = reference+'.scan-layout'
+                blobs = {}
+                def blob(value):
+                    key = 'sha256:'+hashlib.sha256(value).hexdigest()
+                    blobs['blobs/sha256/'+key[7:]] = value
+                    return dict(digest=key, size=len(value))
+                config = blob(json.dumps(dict(os='linux', architecture='amd64', rootfs=dict(diff_ids=['sha256:'+'a'*64]))).encode())
+                layer = blob(b'fixture layer')
+                manifest = blob(json.dumps(dict(schemaVersion=2, config=config, layers=[layer])).encode())
+                manifest['mediaType'] = 'application/vnd.oci.image.manifest.v1+json'
+                blobs['index.json'] = json.dumps(dict(schemaVersion=2, manifests=[manifest])).encode()
+                with tarfile.open(reference, 'w') as archive:
+                    for name, value in blobs.items():
+                        entry = tarfile.TarInfo(name)
+                        entry.size = len(value)
+                        archive.addfile(entry, io.BytesIO(value))
             if invalid:
                 report['Results'] = [dict(Class='lang-pkgs')]
             if severity:
@@ -75,6 +95,7 @@ assert '--ignore-unfixed=false' in args
 assert '--list-all-pkgs' in args
 if os.environ['SOURCE'] == 'archive':
     assert '--input' in args and '--image-src' not in args
+    assert pathlib.Path(args[args.index('--input')+1], 'index.json').is_file()
 else:
     assert args[args.index('--image-src')+1] == os.environ['SOURCE']
 pathlib.Path(args[args.index('--output')+1]).write_text(pathlib.Path(os.environ['FIXTURE']).read_text())
@@ -82,7 +103,7 @@ pathlib.Path(args[args.index('--output')+1]).write_text(pathlib.Path(os.environ[
             scanner.chmod(0o700)
             output = root/'scan.json'
             arguments = ['sh', str(HERE/'scan-image.sh'), str(scanner), source,
-                         report['ArtifactName'], str(output)]
+                         reference, str(output)]
             if mode:
                 arguments.append(mode)
             result = subprocess.run(arguments, capture_output=True, text=True,

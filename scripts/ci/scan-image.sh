@@ -13,6 +13,7 @@ cache_dir="$(dirname "$scanner")/cache"
 # Include all severities and both OS/language packages in the retained report.
 # No ignore-unfixed, ignore file, policy exceptions, secret scan, or daemon mutation.
 if [ "$source_kind" = archive ]; then
+  reference=$(python3 "$(dirname "$0")/oci-scan-binding.py" --prepare-layout --archive "$reference")
   set -- --input "$reference"
 else
   set -- --image-src "$source_kind" "$reference"

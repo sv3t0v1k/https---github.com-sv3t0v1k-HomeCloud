@@ -9,7 +9,7 @@ output=${4:?Specify evidence directory}
   echo 'Environment scans require a GitHub Actions Linux amd64 job' >&2; exit 1;
 }
 case "$component" in backend|frontend|none) ;; *) exit 1 ;; esac
-workspace=$(git rev-parse --show-toplevel)
+workspace=$(git -c "safe.directory=$GITHUB_WORKSPACE" rev-parse --show-toplevel)
 workspace=$(realpath "$workspace")
 [ "$workspace" != / ] || exit 1
 script_dir=$(CDPATH= cd -- "$(dirname "$0")" && pwd)

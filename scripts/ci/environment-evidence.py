@@ -168,7 +168,7 @@ def capture(environment_id, component, workspace, output, skip_dirs):
     evidence = dict(format='homecloud-environment-scan-evidence-v1', source_kind='actual-job-filesystem',
                     observed_at=datetime.now(timezone.utc).isoformat(), environment_id=environment_id,
                     platform=f'{platform.system().lower()}/{platform.machine()}', component=component,
-                    workspace=str(root), source_commit=subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(), rootfs_target='/', rootfs_excluded_dirs=excluded,
+                    workspace=str(root), source_commit=subprocess.check_output(['git', '-c', 'safe.directory='+str(root), 'rev-parse', 'HEAD'], text=True).strip(), rootfs_target='/', rootfs_excluded_dirs=excluded,
                     component_target=str(selected) if selected else None, tools=tools,
                     os_release=Path('/etc/os-release').read_text(),
                     github=dict(run_id=os.environ.get('GITHUB_RUN_ID'), run_attempt=os.environ.get('GITHUB_RUN_ATTEMPT'),

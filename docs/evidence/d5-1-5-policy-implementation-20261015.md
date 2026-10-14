@@ -23,7 +23,7 @@ Rootfs выполняется только на GitHub Linux amd64 runner. Check
 
 ## Проверки до GitHub CI
 
-80 targeted tests PASS: release 19, provenance 9, scan evidence 10, scan policy 7, environment evidence 18, OCI binding 6, aggregate coverage 8, stage cache 3. Shell syntax и actionlint двух workflows PASS. Независимое source security review: ранее обнаруженные gaps закрыты, конкретных оставшихся обходов не найдено; actual CI требуется для интеграционного подтверждения.
+83 targeted tests PASS: release 19, provenance 9, scan evidence 10, scan policy 7, environment evidence 18, OCI binding 9, aggregate coverage 8, stage cache 3. Shell syntax и actionlint двух workflows PASS. Независимое source security review: ранее обнаруженные gaps закрыты, конкретных оставшихся обходов не найдено; actual CI требуется для интеграционного подтверждения.
 
 ## Findings для решения владельца
 
@@ -34,3 +34,7 @@ Rootfs выполняется только на GitHub Linux amd64 runner. Check
 Первый CI a03c5f2 обнаружил несовместимый --include-dev-deps у Trivy image/rootfs (флаг поддержан только filesystem), tag@digest у Skopeo и npm empty optional/alias inventory. Исправлен только CLI/нормализация; filesystem сохраняет dev scan, физические rootfs/image inventories включают установленные пакеты. Полнота OS/npm проверяется независимо. Skopeo получает тот же repository@digest, archive binding проверяет исходный locked platform digest.
 
 Secret gate выявил 61 sourcegraph-access-token finding в историческом raw govulncheck JSON. Все 61 строки — публичные go.googlesource.com/go/+/40hex ссылки. Исходный finding не скрыт, исключение не принято; evidence перечислено в d5-1-5-policy-secret-findings-20261015.json. Secret job остаётся BLOCKED.
+
+OCI compatibility: Trivy0.75 input принимает OCI directory, не tar. Добавлена безопасная материализация только выбранного amd64 manifest/config/layers из проверенного исходного archive. Archive не меняется; raw scan target — точный .scan-layout, binding перепроверяет все blobs/index/отсутствие symlinks. Native Trivy0.75 CLI проверен на минимальном synthetic Alpine fixture без Docker; это проверка формата, не production qualification. OCI binding 9 и scan-evidence 10 targeted tests PASS.
+
+Backend container: добавлен curl, необходимый существующему checksum-pinned scanner installer. Git inventory доверяет только точному workspace для чтения HEAD после предусмотренного chown node в suite; wildcard/global safe.directory не устанавливается. Все добавленные apt пакеты входят в фактический OS inventory/scan.

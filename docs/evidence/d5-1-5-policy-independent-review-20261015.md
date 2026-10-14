@@ -41,3 +41,7 @@ https://raw.githubusercontent.com/aquasecurity/trivy/v0.75.0/pkg/fanal/walker/fs
 ## Integration-fix review
 
 Targeted integration fixes: APPROVE. Trivy image/rootfs unsupported flag removed; filesystem dev flag retained. Physical package coverage remains strict. Qualified npm empty optional slots and aliases are reconciled against actual installed manifests; malformed/missing/invalid records still block. Skopeo tag normalization preserves repository@exactdigest and locked platform validation. Environment targeted tests now 18 PASS, total 80 PASS. Gitleaks findings remain a separate unresolved blocker; no suppression added.
+
+## OCI-directory review
+
+APPROVE: exact source archive is authoritative; scanner layout is freshly copied from verified selected amd64 blobs and fully reverified at binding. No raw report rewrite, no unsafe extraction, no suppression. OCI tests now9, evidence10; native tiny fixture proves input compatibility only. Actual final production qualification remains required.

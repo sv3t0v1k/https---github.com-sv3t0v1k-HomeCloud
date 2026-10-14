@@ -5,6 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import shutil
 import tarfile
 
 from provenance import Archive, digest, require
@@ -55,6 +56,63 @@ def identity(path):
     return descriptor['digest'], manifest, config
 
 
+def layout_index(platform_digest, manifest_size, manifest):
+    return dict(schemaVersion=2, manifests=[dict(
+        mediaType=manifest.get('mediaType', 'application/vnd.oci.image.manifest.v1+json'),
+        digest=platform_digest, size=manifest_size, platform=dict(os='linux', architecture='amd64'))])
+
+
+def verify_layout(archive, layout):
+    """The scanner directory must contain only the selected original image bytes."""
+    require(str(layout) == str(archive)+'.scan-layout', 'unexpected scan layout path')
+    platform, manifest, _ = identity(archive)
+    root = Path(layout)
+    require(root.is_dir() and not root.is_symlink(), 'unsafe scan layout directory')
+    store = Archive(archive)
+    selected = [dict(digest=platform, size=store.tar.getmember('blobs/sha256/'+platform[7:]).size),
+                manifest['config'], *manifest['layers']]
+    store.tar.close()
+    expected = {'index.json', 'oci-layout', 'blobs', 'blobs/sha256'}
+    expected.update('blobs/sha256/'+descriptor['digest'][7:] for descriptor in selected)
+    paths = list(root.rglob('*'))
+    require(all(not path.is_symlink() for path in paths), 'symlink in scan layout')
+    require({str(path.relative_to(root)) for path in paths} == expected, 'unexpected scan layout members')
+    require(json.loads((root/'oci-layout').read_text()) == {'imageLayoutVersion':'1.0.0'}, 'invalid OCI layout marker')
+    require(json.loads((root/'index.json').read_text()) == layout_index(platform, selected[0]['size'], manifest),
+            'scan layout index mismatch')
+    for descriptor in selected:
+        path = root/'blobs/sha256'/descriptor['digest'][7:]
+        require(path.is_file() and path.stat().st_size == descriptor['size']
+                and file_digest(path) == descriptor['digest'], 'scan layout blob mismatch')
+    return root
+
+
+def materialize(archive, layout=None):
+    """Copy validated members to fresh fixed names; never extract archive paths."""
+    platform, manifest, _ = identity(archive)
+    root = Path(layout if layout is not None else str(archive)+'.scan-layout')
+    require(str(root) == str(archive)+'.scan-layout', 'unexpected scan layout path')
+    root.mkdir()  # Exclusive: never merge with or overwrite an existing directory.
+    (root/'blobs/sha256').mkdir(parents=True)
+    store = Archive(archive)
+    selected = [dict(digest=platform, size=store.tar.getmember('blobs/sha256/'+platform[7:]).size),
+                manifest['config'], *manifest['layers']]
+    for descriptor in selected:
+        name = 'blobs/sha256/'+descriptor['digest'][7:]
+        member = store.tar.getmember(name)
+        require(member.isfile() and member.size == descriptor['size'], 'unsafe selected OCI member')
+        destination = root/name
+        if destination.exists():
+            continue  # A repeated layer digest is stored once.
+        with store.tar.extractfile(member) as source, destination.open('xb') as target:
+            shutil.copyfileobj(source, target, length=1024*1024)
+        require(file_digest(destination) == descriptor['digest'], 'copied OCI member mismatch')
+    store.tar.close()
+    (root/'oci-layout').write_text(json.dumps({'imageLayoutVersion':'1.0.0'})+'\n')
+    (root/'index.json').write_text(json.dumps(layout_index(platform, selected[0]['size'], manifest))+'\n')
+    return verify_layout(archive, root)
+
+
 def bind(archive, report, role, source, expected=None, provenance=None):
     require(re.fullmatch(r'[a-f0-9]{40}', source), 'full source commit required')
     platform_digest, manifest, config = identity(archive)
@@ -63,7 +121,10 @@ def bind(archive, report, role, source, expected=None, provenance=None):
     if expected:
         require(platform_digest == expected, 'runtime lock/manifest mismatch')
     require(report.get('ArtifactType') == 'container_image', 'expected image scan')
-    require(report.get('ArtifactName') == str(archive), 'scan/archive path mismatch')
+    target = report.get('ArtifactName')
+    require(target in (str(archive), str(archive)+'.scan-layout'), 'scan/archive path mismatch')
+    if target == str(archive)+'.scan-layout':
+        verify_layout(archive, target)
     require(report.get('Metadata', {}).get('ImageID') == manifest['config']['digest'], 'scan/config digest mismatch')
     observed = report.get('Metadata', {}).get('ImageConfig', {})
     require((observed.get('os'), observed.get('architecture')) == ('linux', 'amd64'), 'scan platform mismatch')
@@ -98,14 +159,21 @@ def loaded(archive, inspect, role, source):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--archive', required=True)
+    parser.add_argument('--prepare-layout', action='store_true')
     parser.add_argument('--report')
     parser.add_argument('--loaded-inspect')
-    parser.add_argument('--role', required=True)
-    parser.add_argument('--source', required=True)
+    parser.add_argument('--role')
+    parser.add_argument('--source')
     parser.add_argument('--expected')
     parser.add_argument('--provenance')
-    parser.add_argument('--output', required=True)
+    parser.add_argument('--output')
     args = parser.parse_args()
+    if args.prepare_layout:
+        require(not any((args.report, args.loaded_inspect, args.role, args.source, args.output,
+                         args.expected, args.provenance)), 'prepare-layout takes only archive')
+        print(materialize(args.archive))
+        return
+    require(bool(args.role and args.source and args.output), 'role, source and output required')
     if args.loaded_inspect:
         require(not args.report, 'select scan or loaded proof')
         result = loaded(args.archive, json.loads(Path(args.loaded_inspect).read_text()), args.role, args.source)
