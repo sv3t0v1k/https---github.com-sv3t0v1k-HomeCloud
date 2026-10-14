@@ -33,7 +33,7 @@
 | Failure & Security Testing — ненумерованный checkpoint | `COMPLETE` | [evidence и границы](./failure-security-checkpoint.md) |
 | Универсальное хранение и докачка — ненумерованный checkpoint | `COMPLETE` | [IAB/Safari functional evidence](./evidence/universal-storage-upload-ux-20261005/report.md) |
 | Единый локальный Docker baseline — ненумерованный checkpoint | `COMPLETE` | `bf97bef` / `f578030`; [runbook и preservation boundaries](./operations-runbook.md) |
-| D5.1 — Release Management & CI Foundation | `D5.1.2_RELEASE_BLOCKED` | [Readiness, сканы и конкретные блокеры](./evidence/d5-1-2-20261014/report.md) |
+| D5.1 — Release Management & CI Foundation | `D5.1.4_RELEASE_BLOCKED` | [Квалификация баз и политика image scans](./image-security-policy.md) |
 | Полный 50 ГиБ IAB Browser E2E — ненумерованный checkpoint | `PASS` | `167498d`; [scope/evidence](./evidence/browser-50gib-qualification-20261006/report.md); Safari 50 ГиБ UNQUALIFIED |
 
 ## Completed
@@ -1309,6 +1309,17 @@ real Date.now999ms vs1000ms (277PASS/1FAIL), gateFAIL сохранён в [incid
 SHA/session/publication не ослаблены; SSD13/fullfrontend278/lint/build и independentreview PASS.
 Production код не менялся. Финальный source HEAD проверяется новым PR/push CI; фактические checks
 на PR не подменяются прежним source2f671f1. D5.1 release acceptance остаётся открытым; D5.2 NOT_STARTED.
+
+### D5.1.4 — Image Security Policy & Base Qualification (2026-10-14)
+
+**BLOCKED; Production NO_GO.** [Политика и CVE](./image-security-policy.md).
+Runtime D5.1.3 backend/frontend0H/0C; base PostgreSQL1C/24H — Go stdlib в gosu,
+source-inferred недостижимость не является разрешённым исключением. Node8H/nginx3H/
+CI Node4C60H остаются блокерами. Совместимые теги сохранили прежние digests;
+PG16Bookworm4C87H и Node24Trixie0C51H не приняты. CI Perl обновляется адресно,
+scan DB freshness/identity сохраняются отдельно; raw severity gate не ослаблен.
+Production floating PostgreSQL/ingress и post-install build/CI coverage не закрыты.
+COMPLETE/Production GO не установлены; D5.2 NOT_STARTED.
 
 ### D5.1.2 — Release Readiness (2026-10-14)
 

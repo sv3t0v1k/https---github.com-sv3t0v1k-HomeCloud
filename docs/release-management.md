@@ -139,6 +139,14 @@ mini-PC, общей Docker/DNS/mount/volume конфигурации в D5.1.
 
 ## D5.1.2 — проверенная подготовка, 2026-10-14
 
+### D5.1.4 — квалификация баз и политика image scans
+
+[Политика, конкретные CVE и evidence](./image-security-policy.md). Все существующие
+raw-base/HIGH/CRITICAL blockers сохранены; индивидуальные исключения не согласованы.
+Добавлены DB freshness/target evidence и адресный Perl security patch в CI.
+Выявлены coverage gaps production PostgreSQL/ingress и post-install build/CI images.
+BLOCKED, Production NO_GO; D5.2 NOT_STARTED. Новая квалификация не заменяет проверки D5.1.3.
+
 ### D5.1.3 — адресное исправление runtime containers
 
 Финальный backend runtime больше не содержит global npm/npx: восемь high из bundled npm,

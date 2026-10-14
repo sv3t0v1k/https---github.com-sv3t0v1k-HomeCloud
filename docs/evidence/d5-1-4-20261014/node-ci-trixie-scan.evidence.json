@@ -1,0 +1,24 @@
+{
+  "artifact_name": "docker.io/library/node:24.21.0-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66",
+  "evidence_status": "PASS",
+  "format": "homecloud-image-scan-evidence-v1",
+  "image_id": "sha256:04f59b17d8d39a8fdeb138fecb8fcbaa6e208ed7b6db929c7e98ad9005e0a52f",
+  "java_db": "not_required_no_java_targets",
+  "maximum_db_age_hours": 24,
+  "observed_at": "2026-10-14T12:47:31.882862+00:00",
+  "platform": "linux/amd64",
+  "repo_digests": [
+    "node@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66"
+  ],
+  "requested_reference": "docker.io/library/node:24.21.0-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66",
+  "scanner": {
+    "Version": "0.75.0"
+  },
+  "source_kind": "remote",
+  "vulnerability_db": {
+    "DownloadedAt": "2026-10-14T09:39:41.932946Z",
+    "NextUpdate": "2026-10-15T07:11:52.271767002Z",
+    "UpdatedAt": "2026-10-14T07:11:52.271767627Z",
+    "Version": 2
+  }
+}
