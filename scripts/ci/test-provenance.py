@@ -98,6 +98,15 @@ class Tests(unittest.TestCase):
         store,sha = self.fixture(lambda c,v:v['materials'][0]['digest'].update(sha256='a'*64))
         self.assertEqual(self.check(store,sha)['commit'],self.commit)
 
+    def test_approved_beta_version_and_invalid_versions(self):
+        self.labels['org.opencontainers.image.version']='v0.9.1-beta.1'
+        store,sha=self.fixture()
+        self.assertEqual(p.verify(store,sha,'backend',self.commit,'owner/homecloud','v0.9.1-beta.1')['version'],
+                         'v0.9.1-beta.1')
+        for version in ('latest','v1.0.0','v0.09.1-beta.1','v0.9.1-beta.0'):
+            with self.subTest(version=version), self.assertRaises(ValueError):
+                p.verify(store,sha,'backend',self.commit,'owner/homecloud',version)
+
     def test_corrupted_blob_rejected(self):
         store,sha = self.fixture()
         key = next(iter(store.blobs))
@@ -176,6 +185,13 @@ class Tests(unittest.TestCase):
             self.assertEqual(result['tag_state'],'IN_MEMORY_ONLY_NO_OBJECT_OR_REF_CREATED')
             self.assertEqual(result['ghcr_state'],'NOT_PUBLISHED_NOT_TESTED')
             self.assertEqual(result['manifest_sha256'],r.identity(result))
+            beta='v0.9.1-beta.1'
+            candidate=pair_module.pair({**backend,'version':beta},{**frontend,'version':beta},
+                                       self.commit,'owner/homecloud','1','1',version=beta)
+            self.assertEqual(candidate['candidate_version'],beta)
+            self.assertEqual(candidate['release_state'],'NOT_CREATED')
+            with self.assertRaises(ValueError):
+                pair_module.pair(backend,frontend,self.commit,'owner/homecloud','1','1',version='latest')
             for changes in ({'commit':'d'*40},{'repository':'ghcr.io/owner/homecloud/backend'},
                             {'platform':'linux/arm64'},{'version':'v0.0.0-beta.1'},
                             {'status':'NOT_VERIFIED'},{'verified':'LABELS_ONLY'},

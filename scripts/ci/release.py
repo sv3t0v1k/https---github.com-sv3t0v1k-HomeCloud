@@ -3,6 +3,7 @@
 import argparse
 from datetime import date, datetime
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -23,7 +24,17 @@ SOURCE_PATHS = ('docker-compose.yml', 'docker-compose.production.yml', 'docker-c
                 '.github/workflows/ci.yml', '.github/workflows/release.yml', 'scripts/ci/release.py',
                 'scripts/ci/provenance.py', 'scripts/ci/images.platforms.json',
                 'scripts/ci/install-trivy.sh', 'scripts/ci/scan-image.sh', 'scripts/ci/scan-evidence.py',
-                'scripts/ci/provenance-pair.py')
+                'scripts/ci/provenance-pair.py', 'scripts/ci/scan-policy.py',
+                'scripts/ci/scan-environment.sh', 'scripts/ci/environment-evidence.py',
+                'scripts/ci/oci-scan-binding.py', 'scripts/ci/policy-coverage.py',
+                'scripts/ci/stage-cache-proof.py', 'scripts/ci/qualify-stages.sh',
+                'scripts/ci/production-images.lock.json')
+RUNTIME = {'backend', 'frontend', 'postgres', 'ingress'}
+BUILD = {'backend-deps', 'backend-builder', 'frontend-deps', 'frontend-builder', 'buildkit'}
+ENVIRONMENTS = {'backend', 'frontend', 'configuration', 'image-build-backend', 'image-build-frontend',
+                'provenance-pair', 'base-node', 'base-nginx', 'base-postgres', 'base-node-ci',
+                'security-backend', 'security-frontend', 'secrets',
+                'support-postgres', 'support-ingress', 'support-buildkit'}
 
 
 def run(*args):
@@ -56,6 +67,66 @@ def identity(value):
     return hashlib.sha256(json.dumps(body, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
 
 
+def qualification(value, commit, run_id=None, attempt=None):
+    require(value.get('format') == 'homecloud-production-qualification-v1', 'missing production qualification')
+    require(value.get('source_commit') == commit, 'qualification/source mismatch')
+    require(isinstance(value.get('ci'), dict)
+            and all(isinstance(value['ci'].get(key), str) and value['ci'][key].isdigit()
+                    for key in ('run_id', 'attempt')), 'missing qualification run identity')
+    if run_id is not None:
+        require(value['ci'] == dict(run_id=run_id, attempt=attempt), 'qualification/run mismatch')
+    require(value.get('status') == 'PASS' and value.get('coverage') == 'COVERED', 'qualification blocked or incomplete')
+    require(value.get('policy') == 'OWNER_APPROVED_NO_CVE_EXCEPTIONS'
+            and value.get('production') == 'NO_GO' and value.get('errors') == [], 'unexpected qualification policy')
+    for group, roles in (('runtime', RUNTIME), ('build', BUILD), ('environments', ENVIRONMENTS)):
+        require(set(value[group]) == roles, 'incomplete qualification: '+group)
+        for role, item in value[group].items():
+            require(item.get('gate') == 'PASS' and item.get('source_commit') == commit,
+                    'blocked or mismatched qualification: '+group+'/'+role)
+            if group != 'environments':
+                require(item.get('role') == role and item.get('platform') == 'linux/amd64'
+                        and item.get('binding') == 'ARCHIVE_MANIFEST_CONFIG_SCAN_VERIFIED', 'invalid artifact binding')
+                require(all(DIGEST.fullmatch(item.get(k, '')) for k in
+                            ('archive_sha256', 'platform_digest', 'config_digest', 'scan_sha256')), 'invalid bound digest')
+                require(not item.get('findings', {}).get('HIGH', 0)
+                        and not item.get('findings', {}).get('CRITICAL', 0), 'qualified artifact has high/critical')
+            else:
+                expected = {'rootfs', 'component'} if role in ('backend', 'frontend', 'security-backend', 'security-frontend') else {'rootfs'}
+                require(set(item.get('scans', {})) == expected and all(scan.get('gate') == 'PASS'
+                        and not scan.get('findings', {}).get('HIGH', 0)
+                        and not scan.get('findings', {}).get('CRITICAL', 0)
+                        for scan in item['scans'].values()), 'environment has high/critical')
+    require(set(value['raw_bases']) == {'node', 'nginx', 'postgres', 'node-ci'}
+            and all(item.get('gate') == 'DIAGNOSTIC' for item in value['raw_bases'].values()), 'missing raw diagnostics')
+    return value
+
+
+def verify_qualified(args):
+    value = qualification(json.loads(Path(args.qualification).read_text()), args.commit, args.run_id, args.attempt)
+    require(TAG.fullmatch(args.tag) and REPO.fullmatch(args.repository), 'invalid candidate source')
+    spec = importlib.util.spec_from_file_location('oci_scan_binding', Path(__file__).with_name('oci-scan-binding.py'))
+    binding = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(binding)
+    for role in ('backend', 'frontend'):
+        archive = getattr(args, role+'_archive')
+        proof = json.loads(Path(getattr(args, role+'_proof')).read_text())
+        bound = value['runtime'][role]
+        require(binding.file_digest(archive) == bound['archive_sha256'], 'qualified archive changed: '+role)
+        platform, manifest, _ = binding.identity(archive)
+        require(platform == bound['platform_digest'] and manifest['config']['digest'] == bound['config_digest'],
+                'qualified archive identity changed: '+role)
+        verified = provenance.verify(provenance.Archive(archive), proof['index_digest'], role,
+                                     args.commit, args.repository, args.tag)
+        require(proof.get('format') == 'homecloud-provenance-dry-run-v1'
+                and proof.get('status') == 'OFFLINE_OCI_VERIFIED'
+                and proof.get('ghcr_state') == 'NOT_PUBLISHED_NOT_TESTED', 'invalid retained offline proof')
+        require(all(proof.get(key) == verified.get(key) for key in
+                    ('commit', 'repository', 'version', 'platform', 'index_digest', 'platform_digest',
+                     'statement_digest', 'verified', 'signature')), 'retained/recomputed provenance mismatch')
+        require(verified['platform_digest'] == bound['platform_digest'], 'qualification/provenance mismatch')
+    print('PASS: exact qualified OCI candidates; registry writes NOT_RUN')
+
+
 def shape(value):
     require(value.get('format') == 'homecloud-ci-candidate-v1', 'not a CI candidate')
     require(bool(TAG.fullmatch(value['tag']) and SHA.fullmatch(value['commit'])), 'invalid source')
@@ -73,6 +144,7 @@ def shape(value):
     for role, ref in value['base_images'].items():
         require(bool(re.fullmatch(r'docker.io/library/'+role+r':[A-Za-z0-9_.-]+@sha256:[a-f0-9]{64}', ref)), 'unpinned base image')
     require(set(value['images']) == {'backend', 'frontend'}, 'full image pair required')
+    qualified = qualification(value['production_qualification'], value['commit'], value['ci']['run_id'], value['ci']['attempt'])
     for role, image in value['images'].items():
         require(image['repository'] == 'ghcr.io/'+value['repository']+'/'+role, 'unexpected registry')
         require(bool(DIGEST.fullmatch(image['digest'])), 'immutable digest required')
@@ -85,6 +157,7 @@ def shape(value):
         require(proof['verified'] == 'DIGEST_SUBJECT_VCS_DOCKERFILE_ARGS_BASE_MATERIALS', 'unverified provenance')
         require(proof['signature'] == 'UNSIGNED', 'unexpected signature claim')
         require(all(DIGEST.fullmatch(proof[k]) for k in ('platform_digest', 'statement_digest')), 'invalid provenance digest')
+        require(proof['platform_digest'] == qualified['runtime'][role]['platform_digest'], 'published/qualified runtime mismatch')
     require(value['manifest_sha256'] == identity(value), 'manifest checksum mismatch')
 
 
@@ -92,6 +165,7 @@ def create(args):
     verify_tag(args.tag, args.commit)
     require(bool(REPO.fullmatch(args.repository)), 'invalid repository')
     require(args.run_id.isdigit() and args.attempt.isdigit(), 'invalid run provenance')
+    qualified = qualification(json.loads(Path(args.qualification).read_text()), args.commit, args.run_id, args.attempt)
     images = {}
     for role in ('backend', 'frontend'):
         digest = getattr(args, role)
@@ -111,6 +185,7 @@ def create(args):
             require(labels.get(key) == expected, 'registry label mismatch: '+key)
         proof = provenance.verify(provenance.Registry(args.repository+'/'+role), digest, role,
                                   args.commit, args.repository, args.tag)
+        require(proof['platform_digest'] == qualified['runtime'][role]['platform_digest'], 'published/qualified runtime mismatch')
         images[role] = dict(repository=repository, digest=digest, revision=args.commit,
                             version=args.tag, platform='linux/amd64', provenance_verification=proof)
     files = [ROOT/name for name in SOURCE_PATHS]
@@ -125,6 +200,7 @@ def create(args):
                     ci=dict(status='success', run_id=args.run_id, attempt=args.attempt,
                             url='https://github.com/'+args.repository+'/actions/runs/'+args.run_id),
                     provenance='BuildKit mode=max v0.2 digest/subject/VCS/Dockerfile/base materials verified; unsigned',
+                    production_qualification=qualified,
                     deployment_status='NOT_DEPLOYED')
     manifest['manifest_sha256'] = identity(manifest)
     shape(manifest)
@@ -198,8 +274,12 @@ def main():
     verify.add_argument('--tag', required=True)
     verify.add_argument('--commit', required=True)
     make = subs.add_parser('create')
-    for name in ('tag', 'commit', 'repository', 'backend', 'frontend', 'run-id', 'attempt', 'output'):
+    for name in ('tag', 'commit', 'repository', 'backend', 'frontend', 'run-id', 'attempt', 'output', 'qualification'):
         make.add_argument('--'+name, required=True)
+    qualified = subs.add_parser('verify-qualified')
+    for name in ('qualification', 'commit', 'tag', 'repository', 'backend-archive', 'frontend-archive',
+                 'backend-proof', 'frontend-proof', 'run-id', 'attempt'):
+        qualified.add_argument('--'+name, required=True)
     drift = subs.add_parser('reconcile')
     for name in ('github-sha', 'manifest', 'deployment', 'mac-root'):
         drift.add_argument('--'+name)
@@ -209,6 +289,8 @@ def main():
         print('PASS: annotated tag / commit / checkout')
     elif args.command == 'create':
         create(args)
+    elif args.command == 'verify-qualified':
+        verify_qualified(args)
     else:
         return reconcile(args)
     return 0

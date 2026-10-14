@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 MAX_METADATA = 16 * 1024 * 1024
 BUILDKIT = 'https://mobyproject.org/buildkit@v1'
 DIGEST = re.compile(r'^sha256:[a-f0-9]{64}$')
+VERSION = re.compile(r'^(?:dry-run|v0\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)-beta\.[1-9][0-9]*)$')
 
 
 class SafeRedirect(urllib.request.HTTPRedirectHandler):
@@ -111,6 +112,7 @@ class Registry:
 
 
 def verify(store, index_digest, component, commit, repository, version):
+    require(bool(VERSION.fullmatch(version)), 'invalid candidate version')
     require(re.fullmatch(r'[a-f0-9]{40}', commit), 'full clean commit required')
     require(re.fullmatch(r'[a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9_.-]*', repository), 'invalid source repository')
     index = store.index(index_digest)
@@ -197,9 +199,10 @@ def main():
     parser.add_argument('--commit', required=True)
     parser.add_argument('--repository', required=True)
     parser.add_argument('--output', required=True)
+    parser.add_argument('--version', default='dry-run')
     args = parser.parse_args()
     metadata = json.loads(Path(args.metadata).read_text())
-    result = verify(Archive(args.archive), metadata['containerimage.digest'], args.component, args.commit, args.repository, 'dry-run')
+    result = verify(Archive(args.archive), metadata['containerimage.digest'], args.component, args.commit, args.repository, args.version)
     result.update(format='homecloud-provenance-dry-run-v1', status='OFFLINE_OCI_VERIFIED',
                   tag_state='SYNTHETIC_VERSION_LABEL_ONLY_NO_GIT_TAG', ghcr_state='NOT_PUBLISHED_NOT_TESTED',
                   release_state='NOT_CREATED', production='NO_GO')

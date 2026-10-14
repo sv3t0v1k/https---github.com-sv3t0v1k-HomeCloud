@@ -52,6 +52,7 @@ jobs:
     uses: ./.github/workflows/ci.yml
     with:
       source_sha: ${{ needs.validate.outputs.commit }}
+      candidate_version: ${{ inputs.tag }}
     permissions:
       contents: read
   images:
@@ -65,16 +66,52 @@ jobs:
       TAG: ${{ inputs.tag }}
       COMMIT: ${{ needs.validate.outputs.commit }}
       TAG_OBJECT: ${{ needs.validate.outputs.tag_object }}
-      # The explicit verify-tag pathspec enforces clean tracked source without reading excluded audit.
-      BUILDX_GIT_CHECK_DIRTY: 'false'
-      BUILDX_GIT_LABELS: 'false'
-      BUILDX_GIT_INFO: 'true'
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           ref: ${{ needs.validate.outputs.commit }}
           fetch-depth: 0
           persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: production-qualification-${{ github.run_attempt }}
+          path: qualified
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: production-oci-backend-${{ github.run_attempt }}
+          path: qualified
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: production-oci-frontend-${{ github.run_attempt }}
+          path: qualified
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: offline-provenance-backend-${{ github.run_attempt }}
+          path: qualified
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: offline-provenance-frontend-${{ github.run_attempt }}
+          path: qualified
+      - id: names
+        run: echo "repository=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - name: Verify same-run qualified archives before registry access
+        env:
+          REPOSITORY: ${{ steps.names.outputs.repository }}
+        run: |
+          python3 scripts/ci/release.py verify-qualified --qualification qualified/production-qualification.json --commit "$COMMIT" --tag "$TAG" --repository "$REPOSITORY" --backend-archive qualified/backend.oci.tar --frontend-archive qualified/frontend.oci.tar --backend-proof qualified/offline-backend.json --frontend-proof qualified/offline-frontend.json --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT"
+      - name: Prepare publication tools and qualify actual publication environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y skopeo
+          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/homecloud-trivy"
+          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/homecloud-trivy/trivy" release-images none release-environment
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: release-publication-environment-${{ github.run_attempt }}
+          path: release-environment
+          if-no-files-found: error
+          retention-days: 90
       - name: Recheck tag immediately before registry writes
         env:
           GH_TOKEN: ${{ github.token }}
@@ -82,73 +119,53 @@ jobs:
           python3 scripts/ci/release.py verify-tag --tag "$TAG" --commit "$COMMIT"
           test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq .object.sha)" = "$TAG_OBJECT"
           test "$(git rev-parse "refs/tags/$TAG")" = "$TAG_OBJECT"
-      - id: names
-        run: |
-          echo "repository=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
-          python3 -c 'import json,os; d=json.load(open("scripts/ci/images.lock.json")); f=open(os.environ["GITHUB_OUTPUT"],"a"); [f.write(k+"="+v+"\n") for k,v in d.items()]'
-      - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
-        with:
-          version: v0.38.0
-          driver-opts: image=moby/buildkit@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea
       - uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
-      - id: backend
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
-        with:
-          context: ./backend
-          platforms: linux/amd64
-          push: true
-          provenance: mode=max,version=v0.2
-          build-args: NODE_IMAGE=${{ steps.names.outputs.node }}
-          tags: ghcr.io/${{ steps.names.outputs.repository }}/backend:${{ inputs.tag }}-${{ github.run_id }}-${{ github.run_attempt }}
-          labels: |
-            org.opencontainers.image.source=https://github.com/${{ steps.names.outputs.repository }}
-            org.opencontainers.image.revision=${{ needs.validate.outputs.commit }}
-            org.opencontainers.image.version=${{ inputs.tag }}
-            io.homecloud.role=backend
-            io.homecloud.pair=${{ needs.validate.outputs.commit }}
-      - id: frontend
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
-        with:
-          context: ./frontend
-          platforms: linux/amd64
-          push: true
-          provenance: mode=max,version=v0.2
-          build-args: |
-            NODE_IMAGE=${{ steps.names.outputs.node }}
-            NGINX_IMAGE=${{ steps.names.outputs.nginx }}
-          tags: ghcr.io/${{ steps.names.outputs.repository }}/frontend:${{ inputs.tag }}-${{ github.run_id }}-${{ github.run_attempt }}
-          labels: |
-            org.opencontainers.image.source=https://github.com/${{ steps.names.outputs.repository }}
-            org.opencontainers.image.revision=${{ needs.validate.outputs.commit }}
-            org.opencontainers.image.version=${{ inputs.tag }}
-            io.homecloud.role=frontend
-            io.homecloud.pair=${{ needs.validate.outputs.commit }}
+      - name: Publish the qualified archives without rebuilding
+        id: publish
+        env:
+          REPOSITORY: ${{ steps.names.outputs.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          printf '%s' "$GH_TOKEN" | skopeo login --authfile "$RUNNER_TEMP/registry-auth.json" --username "$GITHUB_ACTOR" --password-stdin ghcr.io
+          for role in backend frontend; do
+            destination="ghcr.io/$REPOSITORY/$role:$TAG-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+            skopeo copy --authfile "$RUNNER_TEMP/registry-auth.json" --all --preserve-digests "oci-archive:qualified/$role.oci.tar" "docker://$destination"
+            digest=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["index_digest"])' "qualified/offline-$role.json")
+            echo "$role=$digest" >> "$GITHUB_OUTPUT"
+          done
       - name: Verify registry digests and prepare candidate lock
         env:
           REPOSITORY: ${{ steps.names.outputs.repository }}
-          BACKEND_DIGEST: ${{ steps.backend.outputs.digest }}
-          FRONTEND_DIGEST: ${{ steps.frontend.outputs.digest }}
+          BACKEND_DIGEST: ${{ steps.publish.outputs.backend }}
+          FRONTEND_DIGEST: ${{ steps.publish.outputs.frontend }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          python3 scripts/ci/release.py create --tag "$TAG" --commit "$COMMIT" --repository "$REPOSITORY" --backend "$BACKEND_DIGEST" --frontend "$FRONTEND_DIGEST" --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --output release-lock.json
+          python3 scripts/ci/release.py create --tag "$TAG" --commit "$COMMIT" --repository "$REPOSITORY" --backend "$BACKEND_DIGEST" --frontend "$FRONTEND_DIGEST" --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --qualification qualified/production-qualification.json --output release-lock.json
       - name: Scan exact published digests before any draft is created
         env:
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ github.token }}
           REPOSITORY: ${{ steps.names.outputs.repository }}
-          BACKEND_DIGEST: ${{ steps.backend.outputs.digest }}
-          FRONTEND_DIGEST: ${{ steps.frontend.outputs.digest }}
+          BACKEND_DIGEST: ${{ steps.publish.outputs.backend }}
+          FRONTEND_DIGEST: ${{ steps.publish.outputs.frontend }}
         run: |
-          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/homecloud-trivy"
           set +e
-          sh scripts/ci/scan-image.sh "$RUNNER_TEMP/homecloud-trivy/trivy" docker "ghcr.io/$REPOSITORY/backend@$BACKEND_DIGEST" image-backend.json
+          sh scripts/ci/scan-image.sh "$RUNNER_TEMP/homecloud-trivy/trivy" remote "ghcr.io/$REPOSITORY/backend@$BACKEND_DIGEST" image-backend.json
           backend_result=$?
-          sh scripts/ci/scan-image.sh "$RUNNER_TEMP/homecloud-trivy/trivy" docker "ghcr.io/$REPOSITORY/frontend@$FRONTEND_DIGEST" image-frontend.json
+          sh scripts/ci/scan-image.sh "$RUNNER_TEMP/homecloud-trivy/trivy" remote "ghcr.io/$REPOSITORY/frontend@$FRONTEND_DIGEST" image-frontend.json
           frontend_result=$?
+          postgres=$(python3 -c 'import json; print(json.load(open("scripts/ci/production-images.lock.json"))["postgres"])')
+          ingress=$(python3 -c 'import json; print(json.load(open("scripts/ci/production-images.lock.json"))["ingress"])')
+          sh scripts/ci/scan-image.sh "$RUNNER_TEMP/homecloud-trivy/trivy" remote "$postgres" image-postgres.json
+          postgres_result=$?
+          sh scripts/ci/scan-image.sh "$RUNNER_TEMP/homecloud-trivy/trivy" remote "$ingress" image-ingress.json
+          ingress_result=$?
           set -e
-          test "$backend_result" -eq 0 && test "$frontend_result" -eq 0
+          test "$backend_result" -eq 0 && test "$frontend_result" -eq 0 && test "$postgres_result" -eq 0 && test "$ingress_result" -eq 0
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:

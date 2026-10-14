@@ -67,6 +67,21 @@ class ReleaseTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 r.verify_tag(tag, self.commit)
 
+    def qualification(self):
+        def image(role):
+            return dict(role=role, source_commit=self.commit, platform='linux/amd64',
+                        binding='ARCHIVE_MANIFEST_CONFIG_SCAN_VERIFIED', gate='PASS', findings={},
+                        **{key:'sha256:'+'b'*64 for key in ('archive_sha256','platform_digest','config_digest','scan_sha256')})
+        return dict(format='homecloud-production-qualification-v1', source_commit=self.commit,
+                    ci=dict(run_id='1',attempt='1'),
+                    status='PASS', coverage='COVERED', policy='OWNER_APPROVED_NO_CVE_EXCEPTIONS',
+                    production='NO_GO', errors=[], runtime={role:image(role) for role in r.RUNTIME},
+                    build={role:image(role) for role in r.BUILD},
+                    environments={role:dict(source_commit=self.commit,gate='PASS',
+                                            scans={kind:dict(gate='PASS',findings={}) for kind in
+                                                   (('rootfs','component') if role in ('backend','frontend','security-backend','security-frontend') else ('rootfs',))}) for role in r.ENVIRONMENTS},
+                    raw_bases={role:dict(gate='DIAGNOSTIC') for role in ('node','nginx','postgres','node-ci')})
+
     def manifest(self):
         value = dict(format='homecloud-ci-candidate-v1', repository='owner/homecloud',
                      tag='v0.9.1-beta.1', tag_object='c'*40, commit=self.commit,
@@ -74,7 +89,7 @@ class ReleaseTests(unittest.TestCase):
                      schema_migrations=['Migration520'],
                      source_files={**{name:'b'*64 for name in r.SOURCE_PATHS}, 'backend/src/migrations/520-Fixture.ts':'b'*64},
                      base_images={role:'docker.io/library/'+role+':fixture@sha256:'+'a'*64 for role in ('node','nginx','postgres')},
-                     deployment_status='NOT_DEPLOYED', images={role:dict(repository='ghcr.io/owner/homecloud/'+role,
+                     deployment_status='NOT_DEPLOYED', production_qualification=self.qualification(), images={role:dict(repository='ghcr.io/owner/homecloud/'+role,
                      digest='sha256:'+'a'*64, revision=self.commit, version='v0.9.1-beta.1', platform='linux/amd64',
                      provenance_verification=dict(index_digest='sha256:'+'a'*64,platform_digest='sha256:'+'b'*64,
                          statement_digest='sha256:'+'c'*64,commit=self.commit,version='v0.9.1-beta.1',
@@ -83,6 +98,61 @@ class ReleaseTests(unittest.TestCase):
                      for role in ('backend', 'frontend')})
         value['manifest_sha256'] = r.identity(value)
         return value
+
+    def test_qualification_fails_closed(self):
+        original = self.qualification()
+        mutations = [lambda q:q.update(status='BLOCKED'), lambda q:q.update(coverage='INCOMPLETE'),
+                     lambda q:q.pop('ci'),
+                     lambda q:q.update(source_commit='d'*40), lambda q:q['runtime'].pop('postgres'),
+                     lambda q:q['build'].pop('buildkit'), lambda q:q['environments'].pop('secrets'),
+                     lambda q:q['raw_bases'].pop('postgres'), lambda q:q.update(errors=['missing evidence']),
+                     lambda q:q['runtime']['backend'].update(gate='BLOCKED'),
+                     lambda q:q['runtime']['backend'].update(findings={'HIGH':1}),
+                     lambda q:q['environments']['backend']['scans']['rootfs'].update(findings={'CRITICAL':1})]
+        for mutate in mutations:
+            value=copy.deepcopy(original)
+            mutate(value)
+            with self.subTest(value=value), self.assertRaises((ValueError,KeyError)):
+                r.qualification(value,self.commit)
+
+    def test_published_platform_must_equal_qualified_platform(self):
+        value=self.manifest()
+        value['images']['backend']['provenance_verification']['platform_digest']='sha256:'+'f'*64
+        value['manifest_sha256']=r.identity(value)
+        with self.assertRaisesRegex(ValueError,'published/qualified'):
+            r.shape(value)
+
+    def test_qualified_archive_substitution_fails_before_publication(self):
+        from types import SimpleNamespace
+        qualified=self.root/'qualified.json'
+        qualified.write_text(json.dumps(self.qualification()))
+        proof=self.root/'proof.json'
+        proof_value=dict(index_digest='sha256:'+'a'*64, platform_digest='sha256:'+'b'*64,
+                         format='homecloud-provenance-dry-run-v1',status='OFFLINE_OCI_VERIFIED',
+                         ghcr_state='NOT_PUBLISHED_NOT_TESTED',commit=self.commit,repository='fixture',
+                         version='v0.9.1-beta.1',platform='linux/amd64',statement_digest='sha256:'+'c'*64,
+                         verified='DIGEST_SUBJECT_VCS_DOCKERFILE_ARGS_BASE_MATERIALS',signature='UNSIGNED')
+        proof.write_text(json.dumps(proof_value))
+        args=SimpleNamespace(qualification=str(qualified),commit=self.commit,tag='v0.9.1-beta.1',
+                             repository='owner/homecloud',backend_archive='backend.tar',frontend_archive='frontend.tar',
+                             run_id='1',attempt='1',
+                             backend_proof=str(proof),frontend_proof=str(proof))
+        for changed in ('archive', 'platform', 'config', 'provenance', None):
+            fake=SimpleNamespace(file_digest=lambda path:'sha256:'+('f' if changed=='archive' else 'b')*64,
+                                 identity=lambda path:('sha256:'+('f' if changed=='platform' else 'b')*64,
+                                                       dict(config=dict(digest='sha256:'+('f' if changed=='config' else 'b')*64)), {}))
+            spec=SimpleNamespace(loader=SimpleNamespace(exec_module=lambda module:None))
+            verified={**proof_value, 'platform_digest':'sha256:'+('f' if changed=='provenance' else 'b')*64}
+            with patch.object(r.importlib.util,'spec_from_file_location',return_value=spec), \
+                 patch.object(r.importlib.util,'module_from_spec',return_value=fake), \
+                 patch.object(r.provenance,'Archive'), patch.object(r.provenance,'verify',return_value=verified):
+                with self.subTest(changed=changed):
+                    if changed:
+                        with self.assertRaises(ValueError):
+                            r.verify_qualified(args)
+                    else:
+                        with contextlib.redirect_stdout(io.StringIO()):
+                            r.verify_qualified(args)
 
     def test_valid_candidate(self):
         r.shape(self.manifest())
@@ -133,7 +203,8 @@ class ReleaseTests(unittest.TestCase):
 
     def test_registry_verification_rejects_bad_labels_or_platform(self):
         args = type('Args', (), dict(tag='v0.9.1-beta.1', commit=self.commit, repository='owner/homecloud',
-                    backend='sha256:'+'a'*64, frontend='sha256:'+'b'*64, run_id='1', attempt='1', output=str(self.root/'lock.json')))()
+                    backend='sha256:'+'a'*64, frontend='sha256:'+'b'*64, run_id='1', attempt='1', qualification=str(self.root/'qualification.json'), output=str(self.root/'lock.json')))()
+        (self.root/'qualification.json').write_text(json.dumps(self.qualification()))
         for error in ('revision', 'platform', 'digest', 'pair', 'role'):
             def inspect(*command):
                 if command[:3] != ('docker', 'image', 'inspect'):

@@ -5,6 +5,10 @@ on:
   pull_request:
   workflow_call:
     inputs:
+      candidate_version:
+        type: string
+        default: dry-run
+        required: false
       source_sha:
         type: string
         required: true
@@ -16,7 +20,7 @@ concurrency:
 jobs:
   backend:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 50
     container: node:24.21.0-bookworm-slim@sha256:51b1100cc2a83d370c6a60952e3f2989c8a43159d0e38586e090f3b3326efefd
     services:
       postgres:
@@ -38,7 +42,7 @@ jobs:
           test "$(dpkg-query -W -f='${Version}' perl-base)" = 5.36.0-7+deb12u4
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ inputs.source_sha || github.sha }}
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - run: npm ci --no-audit
         working-directory: backend
@@ -47,6 +51,11 @@ jobs:
       - run: python3 scripts/ci/test-release.py
       - run: python3 scripts/ci/test-provenance.py
       - run: python3 scripts/ci/test-scan-evidence.py
+      - run: python3 scripts/ci/test-scan-policy.py
+      - run: python3 scripts/ci/test-environment-evidence.py
+      - run: python3 scripts/ci/test-oci-scan-binding.py
+      - run: python3 scripts/ci/test-policy-coverage.py
+      - run: python3 scripts/ci/test-stage-cache-proof.py
       - name: Retain actual CI toolchain inventory after apt changes
         run: dpkg-query -W -f='${binary:Package}\t${Version}\n' > ci-toolchain-packages.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -78,13 +87,25 @@ jobs:
           path: backend-tests.json
           if-no-files-found: error
           retention-days: 14
+      - name: Mandatory actual CI environment qualification
+        if: always()
+        run: |
+          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy"
+          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "backend" "backend" "environment-backend"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: environment-backend-${{ github.run_attempt }}
+          path: environment-backend
+          if-no-files-found: error
+          retention-days: 14
   frontend:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ inputs.source_sha || github.sha }}
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -99,13 +120,25 @@ jobs:
         working-directory: frontend
       - run: npm run build
         working-directory: frontend
+      - name: Mandatory actual CI environment qualification
+        if: always()
+        run: |
+          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy"
+          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "frontend" "frontend" "environment-frontend"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: environment-frontend-${{ github.run_attempt }}
+          path: environment-frontend
+          if-no-files-found: error
+          retention-days: 14
   configuration:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ inputs.source_sha || github.sha }}
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Pin normalized Compose API; preserve explicit false bind flags
         shell: bash
@@ -130,9 +163,21 @@ jobs:
       - run: python3 deploy/linux/test_preflight.py
         env:
           HOMECLOUD_TEST_ROOT: ${{ github.workspace }}
+      - name: Mandatory actual CI environment qualification
+        if: always()
+        run: |
+          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy"
+          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "configuration" "none" "environment-configuration"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: environment-configuration-${{ github.run_attempt }}
+          path: environment-configuration
+          if-no-files-found: error
+          retention-days: 14
   image-build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -140,7 +185,7 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ inputs.source_sha || github.sha }}
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - id: bases
         run: |
@@ -154,8 +199,9 @@ jobs:
       - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
         with:
           version: v0.38.0
-          driver-opts: image=moby/buildkit@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea
-      - id: runtime
+          driver-opts: image=moby/buildkit@sha256:98cc6a3fc46220d00f8224ae483f3274fc874e9be8d7dd1e2e2c5481209228b5
+      - name: Build offline OCI provenance candidate
+        id: offline
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         env:
           BUILDX_GIT_CHECK_DIRTY: 'false'
@@ -165,12 +211,42 @@ jobs:
           context: ./${{ matrix.component }}
           platforms: linux/amd64
           push: false
-          load: true
-          provenance: false
-          tags: homecloud-ci-${{ matrix.component }}:${{ github.sha }}
+          load: false
+          outputs: type=oci,dest=${{ runner.temp }}/${{ matrix.component }}.oci.tar
+          provenance: mode=max,version=v0.2
+          tags: ghcr.io/${{ steps.source.outputs.repository }}/${{ matrix.component }}:${{ inputs.candidate_version || 'dry-run' }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ steps.source.outputs.repository }}
+            org.opencontainers.image.revision=${{ steps.source.outputs.commit }}
+            org.opencontainers.image.version=${{ inputs.candidate_version || 'dry-run' }}
+            io.homecloud.role=${{ matrix.component }}
+            io.homecloud.pair=${{ steps.source.outputs.commit }}
           build-args: |
             NODE_IMAGE=${{ steps.bases.outputs.node }}
             NGINX_IMAGE=${{ steps.bases.outputs.nginx }}
+      - name: Verify offline OCI digest, source and attestation
+        env:
+          BUILD_METADATA: ${{ steps.offline.outputs.metadata }}
+          SOURCE_COMMIT: ${{ steps.source.outputs.commit }}
+          REPOSITORY: ${{ steps.source.outputs.repository }}
+        run: |
+          python3 -c 'import os; open("offline-${{ matrix.component }}-metadata.json", "w").write(os.environ["BUILD_METADATA"])'
+          python3 scripts/ci/provenance.py dry-run --archive "$RUNNER_TEMP/${{ matrix.component }}.oci.tar" --metadata "offline-${{ matrix.component }}-metadata.json" --component "${{ matrix.component }}" --version "${{ inputs.candidate_version || 'dry-run' }}" --commit "$SOURCE_COMMIT" --repository "$REPOSITORY" --output "offline-${{ matrix.component }}.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: offline-provenance-${{ matrix.component }}-${{ github.run_attempt }}
+          path: offline-${{ matrix.component }}*.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Load the exact OCI candidate for runtime smoke
+        id: runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends skopeo
+          skopeo copy --override-os linux --override-arch amd64 "oci-archive:$RUNNER_TEMP/${{ matrix.component }}.oci.tar" "docker-daemon:homecloud-ci-${{ matrix.component }}:${{ github.sha }}"
+          docker image inspect "homecloud-ci-${{ matrix.component }}:${{ github.sha }}" > "${{ matrix.component }}.loaded.inspect.json"
+          python3 scripts/ci/oci-scan-binding.py --archive "$RUNNER_TEMP/${{ matrix.component }}.oci.tar" --loaded-inspect "${{ matrix.component }}.loaded.inspect.json" --role "${{ matrix.component }}" --source "$(git rev-parse HEAD)" --output "${{ matrix.component }}.loaded.binding.json"
       - name: Backend production image native dependencies, without mounts or startup
         if: matrix.component == 'backend'
         env:
@@ -204,52 +280,13 @@ jobs:
         env:
           IMAGE: homecloud-ci-${{ matrix.component }}:${{ github.sha }}
         run: test "$(docker image inspect "$IMAGE" --format '{{.Os}}/{{.Architecture}}')" = linux/amd64
-      - name: Build offline OCI provenance candidate
-        id: offline
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
-        env:
-          BUILDX_GIT_CHECK_DIRTY: 'false'
-          BUILDX_GIT_INFO: 'true'
-          BUILDX_GIT_LABELS: 'false'
-        with:
-          context: ./${{ matrix.component }}
-          platforms: linux/amd64
-          push: false
-          load: false
-          outputs: type=oci,dest=${{ runner.temp }}/${{ matrix.component }}.oci.tar
-          provenance: mode=max,version=v0.2
-          tags: ghcr.io/${{ steps.source.outputs.repository }}/${{ matrix.component }}:dry-run
-          labels: |
-            org.opencontainers.image.source=https://github.com/${{ steps.source.outputs.repository }}
-            org.opencontainers.image.revision=${{ steps.source.outputs.commit }}
-            org.opencontainers.image.version=dry-run
-            io.homecloud.role=${{ matrix.component }}
-            io.homecloud.pair=${{ steps.source.outputs.commit }}
-          build-args: |
-            NODE_IMAGE=${{ steps.bases.outputs.node }}
-            NGINX_IMAGE=${{ steps.bases.outputs.nginx }}
-      - name: Verify offline OCI digest, source and attestation
-        env:
-          BUILD_METADATA: ${{ steps.offline.outputs.metadata }}
-          SOURCE_COMMIT: ${{ steps.source.outputs.commit }}
-          REPOSITORY: ${{ steps.source.outputs.repository }}
-        run: |
-          python3 -c 'import os; open("offline-${{ matrix.component }}-metadata.json", "w").write(os.environ["BUILD_METADATA"])'
-          python3 scripts/ci/provenance.py dry-run --archive "$RUNNER_TEMP/${{ matrix.component }}.oci.tar" --metadata "offline-${{ matrix.component }}-metadata.json" --component "${{ matrix.component }}" --commit "$SOURCE_COMMIT" --repository "$REPOSITORY" --output "offline-${{ matrix.component }}.json"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: always()
-        with:
-          name: offline-provenance-${{ matrix.component }}-${{ github.run_attempt }}
-          path: offline-${{ matrix.component }}*.json
-          if-no-files-found: error
-          retention-days: 14
       - name: Install checksum-pinned scanner
         id: scanner
         if: always() && steps.runtime.outcome == 'success'
         run: sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/homecloud-trivy"
-      - name: Scan actual runtime image, including unfixed vulnerabilities
+      - name: Scan the exact retained production OCI candidate, including unfixed vulnerabilities
         if: always() && steps.runtime.outcome == 'success' && steps.scanner.outcome == 'success'
-        run: sh scripts/ci/scan-image.sh "$RUNNER_TEMP/homecloud-trivy/trivy" docker "homecloud-ci-${{ matrix.component }}:${{ github.sha }}" "image-${{ matrix.component }}.json"
+        run: sh scripts/ci/scan-image.sh "$RUNNER_TEMP/homecloud-trivy/trivy" archive "$RUNNER_TEMP/${{ matrix.component }}.oci.tar" "image-${{ matrix.component }}.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
@@ -257,15 +294,60 @@ jobs:
           path: image-${{ matrix.component }}*.json
           if-no-files-found: error
           retention-days: 14
+      - name: Bind production scan to archive, manifest, config and source
+        if: always() && steps.offline.outcome == 'success'
+        run: |
+          python3 scripts/ci/oci-scan-binding.py --archive "$RUNNER_TEMP/${{ matrix.component }}.oci.tar" --report "image-${{ matrix.component }}.json" --role "${{ matrix.component }}" --source "$(git rev-parse HEAD)" --provenance "offline-${{ matrix.component }}.json" --output "${{ matrix.component }}.binding.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: production-binding-${{ matrix.component }}-${{ github.run_attempt }}
+          path: |
+            ${{ matrix.component }}.binding.json
+            ${{ matrix.component }}.loaded.binding.json
+            ${{ matrix.component }}.loaded.inspect.json
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always() && steps.offline.outcome == 'success'
+        with:
+          name: production-oci-${{ matrix.component }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/${{ matrix.component }}.oci.tar
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+      - name: Qualify actual cached dependency and builder stages
+        if: always() && steps.offline.outcome == 'success'
+        run: |
+          sh scripts/ci/qualify-stages.sh "$RUNNER_TEMP/homecloud-trivy/trivy" "${{ matrix.component }}" "$(git rev-parse HEAD)" "stages-${{ matrix.component }}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: stage-scans-${{ matrix.component }}-${{ github.run_attempt }}
+          path: stages-${{ matrix.component }}
+          if-no-files-found: error
+          retention-days: 14
+      - name: Mandatory actual CI environment qualification
+        if: always()
+        run: |
+          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy"
+          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "image-build-${{ matrix.component }}" "none" "environment-image-build-${{ matrix.component }}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: environment-image-build-${{ matrix.component }}-${{ github.run_attempt }}
+          path: environment-image-build-${{ matrix.component }}
+          if-no-files-found: error
+          retention-days: 14
   provenance-pair:
     if: always()
     needs: [image-build]
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ inputs.source_sha || github.sha }}
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
@@ -277,7 +359,7 @@ jobs:
           path: offline-frontend
       - name: Bind verified image pair to synthetic tag and dry-run manifest
         run: |
-          python3 scripts/ci/provenance-pair.py --backend offline-backend/offline-backend.json --frontend offline-frontend/offline-frontend.json --commit "$(git rev-parse HEAD)" --repository "${GITHUB_REPOSITORY,,}" --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --output provenance-dry-run.json
+          python3 scripts/ci/provenance-pair.py --backend offline-backend/offline-backend.json --frontend offline-frontend/offline-frontend.json --commit "$(git rev-parse HEAD)" --repository "${GITHUB_REPOSITORY,,}" --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --version "${{ inputs.candidate_version || 'dry-run' }}" --output provenance-dry-run.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
@@ -285,9 +367,21 @@ jobs:
           path: provenance-dry-run.json
           if-no-files-found: error
           retention-days: 14
+      - name: Mandatory actual CI environment qualification
+        if: always()
+        run: |
+          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy"
+          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "provenance-pair" "none" "environment-provenance-pair"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: environment-provenance-pair-${{ github.run_attempt }}
+          path: environment-provenance-pair
+          if-no-files-found: error
+          retention-days: 14
   base-image-scan:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 50
     strategy:
       fail-fast: false
       matrix:
@@ -295,7 +389,7 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ inputs.source_sha || github.sha }}
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Install checksum-pinned scanner
         run: sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/homecloud-trivy"
@@ -308,7 +402,7 @@ jobs:
           else
             IMAGE=$(python3 -c 'import json,os; print(json.load(open("scripts/ci/images.lock.json"))[os.environ["BASE"]])')
           fi
-          sh scripts/ci/scan-image.sh "$RUNNER_TEMP/homecloud-trivy/trivy" remote "$IMAGE" "image-base-$BASE.json"
+          sh scripts/ci/scan-image.sh "$RUNNER_TEMP/homecloud-trivy/trivy" remote "$IMAGE" "image-base-$BASE.json" diagnostic
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
@@ -316,9 +410,21 @@ jobs:
           path: image-base-${{ matrix.base }}*.json
           if-no-files-found: error
           retention-days: 14
+      - name: Mandatory actual CI environment qualification
+        if: always()
+        run: |
+          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy"
+          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "base-${{ matrix.base }}" "none" "environment-base-${{ matrix.base }}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: environment-base-${{ matrix.base }}-${{ github.run_attempt }}
+          path: environment-base-${{ matrix.base }}
+          if-no-files-found: error
+          retention-days: 14
   security:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 50
     strategy:
       fail-fast: false
       matrix:
@@ -326,7 +432,7 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ inputs.source_sha || github.sha }}
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -350,13 +456,25 @@ jobs:
           path: audit-${{ matrix.component }}.json
           if-no-files-found: error
           retention-days: 14
+      - name: Mandatory actual CI environment qualification
+        if: always()
+        run: |
+          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy"
+          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "security-${{ matrix.component }}" "${{ matrix.component }}" "environment-security-${{ matrix.component }}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: environment-security-${{ matrix.component }}-${{ github.run_attempt }}
+          path: environment-security-${{ matrix.component }}
+          if-no-files-found: error
+          retention-days: 14
   secrets:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ inputs.source_sha || github.sha }}
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - name: Pinned gitleaks; full reachable history, forbidden audit excluded before reading
@@ -366,9 +484,100 @@ jobs:
           echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  $RUNNER_TEMP/gitleaks.tar.gz" | sha256sum --check
           tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP" gitleaks
           "$RUNNER_TEMP/gitleaks" git --redact=100 --log-opts="--all -- . :(exclude)scripts/tests/PHASE-5.3.1-TEST-AUDIT.md" .
+      - name: Mandatory actual CI environment qualification
+        if: always()
+        run: |
+          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy"
+          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "secrets" "none" "environment-secrets"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: environment-secrets-${{ github.run_attempt }}
+          path: environment-secrets
+          if-no-files-found: error
+          retention-days: 14
+  support-images:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        role: [postgres, ingress, buildkit]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Export exact pinned amd64 artifact without registry writes
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends skopeo
+          IMAGE=$(python3 -c 'import json; print(json.load(open("scripts/ci/production-images.lock.json"))["${{ matrix.role }}"])')
+          skopeo copy --preserve-digests "docker://$IMAGE" "oci-archive:$RUNNER_TEMP/${{ matrix.role }}.oci.tar"
+      - name: Install checksum-pinned scanner
+        run: sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/homecloud-trivy"
+      - name: Mandatory actual production or build-worker scan
+        run: sh scripts/ci/scan-image.sh "$RUNNER_TEMP/homecloud-trivy/trivy" archive "$RUNNER_TEMP/${{ matrix.role }}.oci.tar" "${{ matrix.role }}.scan.json"
+      - name: Bind scan to exact locked platform digest
+        if: always()
+        run: |
+          EXPECTED=$(python3 -c 'import json; print(json.load(open("scripts/ci/production-images.lock.json"))["${{ matrix.role }}"].split("@")[1])')
+          python3 scripts/ci/oci-scan-binding.py --archive "$RUNNER_TEMP/${{ matrix.role }}.oci.tar" --report "${{ matrix.role }}.scan.json" --role "${{ matrix.role }}" --source "$(git rev-parse HEAD)" --expected "$EXPECTED" --output "${{ matrix.role }}.binding.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: support-image-${{ matrix.role }}-${{ github.run_attempt }}
+          path: |
+            ${{ matrix.role }}.scan*.json
+            ${{ matrix.role }}.binding.json
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: production-oci-${{ matrix.role }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/${{ matrix.role }}.oci.tar
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+      - name: Mandatory actual CI environment qualification
+        if: always()
+        run: |
+          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy"
+          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "support-${{ matrix.role }}" "none" "environment-support-${{ matrix.role }}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: environment-support-${{ matrix.role }}-${{ github.run_attempt }}
+          path: environment-support-${{ matrix.role }}
+          if-no-files-found: error
+          retention-days: 14
+  policy-coverage:
+    if: always()
+    needs: [backend, frontend, configuration, image-build, provenance-pair, base-image-scan, security, secrets, support-images]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: '{image-scan-*,production-binding-*,support-image-*,stage-scans-*,environment-*}'
+          path: coverage-input
+      - name: Require complete exact-artifact and actual-environment coverage
+        run: python3 scripts/ci/policy-coverage.py --directory coverage-input --source "$(git rev-parse HEAD)" --output production-qualification.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: production-qualification-${{ github.run_attempt }}
+          path: production-qualification.json
+          if-no-files-found: error
+          retention-days: 14
   gate:
     if: always()
-    needs: [backend, frontend, configuration, image-build, provenance-pair, base-image-scan, security, secrets]
+    needs: [backend, frontend, configuration, image-build, provenance-pair, base-image-scan, security, secrets, support-images, policy-coverage]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
