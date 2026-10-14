@@ -148,3 +148,71 @@ merge/tag/release/GHCR publish/deployment/mini-PC остаются запрещ�
 negative fixtures wrong/missing/duplicate material platform. Raw incident logs сохранены,
 новый реальный CI ещё требуется. Вердикт исправлений: **APPROVE / RELEASE BLOCKED**;
 MUST_FIX0 для просмотренного diff, image high/critical policy не ослаблена.
+
+## Фактический исправленный CI и dry-run — независимая сверка
+
+На source `9d33bd2a37a94989f61aafdf979bf30f4ca4621b` завершены
+[push38545909829](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38545909829)
+и [PR38545917909](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38545917909).
+Оба итогово **FAILURE**. Reviewer отдельно запросил фактический PR status через GitHub API:
+headSha совпадает, все jobs завершены, failed только четыре base-scan, два image-build с runtime scan
+и общий gate; backend/frontend/configuration/npm-security/secrets/provenance-pair имеют SUCCESS.
+Просмотренные push step results подтверждают отсутствие других failed steps: OCI build/verify,
+backend native smoke, nginx template smoke и architecture inspections действительно SUCCESS,
+failure image-build относится именно к последнему vulnerability scan.
+
+Из raw Jest artifact независимо подтверждены1148PASS,79suites,0FAIL,0SKIP,
+12PostgreSQL suites/154assertions; каждая PostgreSQL assertion действительно passed.
+Из фактического frontend push log —22files/278tests PASS. Raw CI npm audits подтверждают
+backend25moderate,frontend0,high/critical0. Production4moderate подтверждены отдельным local audit;
+не выдаются за отдельный CI production-audit job.
+
+Для [реального dry-run manifest](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38545909829/artifacts/11884496946) reviewer независимо пересчитал
+`manifest_sha256`, сверил оба proof records с [backend](./offline-backend.json) и
+[frontend](./offline-frontend.json), commit/run/attempt/role/platform и exact Dockerfile hashes.
+Все **42source hashes**, включая26migrations, проверены против `git show9d33bd2:path`.
+Перед чтением каждый путь сопоставлен с фиксированным16-file allowlist либо exact migration path,
+полученным только из `backend/src/migrations`; запрещённый файл никогда не входил в allowlist.
+Synthetic annotated-object SHA1 также пересчитан в памяти, без создания Git object/ref.
+
+BuildKit output metadata из скачанных CI artifacts содержит ровно те же index digests и materials,
+что proof records. Backend index `sha256:feed3f9229e18861bbdc806913d7f148eb7bb828fc310abfe64ccc5a44b3afb6`,
+frontend index `sha256:af7768e5575a787c4e9eb7a0c8d41f4fb13e98977d273bd55e6dc63535e19656`.
+Actual `provenance-pair` job SUCCESS и manifest checksum/source reconciliation **PASS**.
+OCI archives не сохранены artifacts, поэтому reviewer не заявляет локальное повторное чтение
+каждого OCI blob; их hash/subject/VCS/Dockerfile/material verification реально выполнил проверенный
+validator на GitHub runner и эта execution подтверждена step evidence. Registry digest readback,
+GHCR publication и real tag/release по-прежнему **NOT_RUN / NOT_TESTED**.
+
+Raw actual runtime reports независимо пересчитаны и byte-equivalent JSON сверены с durable evidence:
+
+| Собранный runtime | Critical | High | Medium | Low |
+| --- | ---: | ---: | ---: | ---: |
+| Backend linux/amd64 |0|8|14|1|
+| Frontend linux/amd64 |0|3|3|0|
+
+Четыре повторных CI base reports совпадают по counts с приведённой выше таблицей; все шесть
+scan artifacts действительно linux/amd64 и имеют HIGH/CRITICAL. Сборки/functional tests не делают
+эти images безопасными. Общий gate корректно FAILURE, exceptions не применены.
+
+Итог независимой сверки checkpoint9d33bd2: **IMPLEMENTATION APPROVE / RELEASE BLOCKED**.
+Реальный непубликуемый dry-run проверен; blockers — image findings, residual dependency acceptance
+и требуемый реальный GitHub approval. Production NO_GO и COMPLETE unset сохранены.
+Последующие documentation commits требуют отдельной фактической проверки их refs/CI;
+данное evidence относится к указанному source9d33bd2.
+
+### Упаковка evidence без исключений secret gate
+
+Gitleaks generic-api-key дал две false positives на filename+SHA256 строки source contract
+raw dry-run manifest. Эти конкретные значения независимо сопоставлены с Git source hashes,
+они не credentials. Raw manifest сохранён без изменения bytes в
+[workspace output](/Users/aleksejkozemakin/.codex/.chatgpt-projects/g-p-6aaa72ceff208191895b0fd466f3e892/outputs/d5-release-readiness-20261014/provenance-dry-run.json)
+и исходном GitHub artifact11884496946; reviewer отдельно подтвердил exact byte equality локальной
+копии с скачанным artifact. Из Git evidence удалён только собственный ранее untracked raw manifest.
+
+[Git summary](./provenance-dry-run-summary.json) имеет отдельный явный формат,
+`original_manifest_sha256`=`0c77218b366a2ef95f074cd1df2b81edd2810b4c2b2a9a4bf1d69228216d7add`,
+artifact permalink и source_file_count42. Reviewer проверил сохранение обоих proofs/states/base refs;
+summary не содержит full source map и не заявляет собственный checksum как identity исходного manifest.
+Original manifest остаётся authoritative и проверяемым. Это упаковка false-positive evidence,
+не security gate exception: `.gitleaksignore` и policy не менялись. Упаковка **APPROVE**.

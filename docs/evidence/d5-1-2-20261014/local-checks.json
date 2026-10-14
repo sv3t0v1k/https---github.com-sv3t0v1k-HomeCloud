@@ -13,5 +13,6 @@
   "startup_tests": 43,
   "preflight_tests": 76,
   "release_negative_tests": 16,
-  "provenance_negative_tests_pre_review": 4
+  "provenance_negative_tests_pre_review": 4,
+  "provenance_negative_tests_final": 8
 }

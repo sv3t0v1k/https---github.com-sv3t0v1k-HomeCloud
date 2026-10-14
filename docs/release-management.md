@@ -1,6 +1,6 @@
 # D5.1 — управление версиями и CI
 
-Статус: D5.1.2 Release Readiness BLOCKED по реальным image high/critical и непринятым residual risks; новый PR/push CI проверяется отдельно. Production NO_GO. [Evidence D5.1.2](./evidence/d5-1-2-20261014/report.md).
+Статус: D5.1.2 Release Readiness BLOCKED по реальным image high/critical и непринятым residual risks; PR/push CI source9d33bd2 FAILURE только image scans/gate, тесты и OCI dry-run PASS. Production NO_GO. [Evidence D5.1.2](./evidence/d5-1-2-20261014/report.md).
 Единственный roadmap — [ROADMAP.md](./ROADMAP.md). [Фактический аудит и проверки](./evidence/d5-1-20261013/report.md).
 
 ## Версии и границы

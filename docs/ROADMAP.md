@@ -1319,6 +1319,7 @@ SSE/dev sprintf остаются с предметным triage/owner/deadline, 
 Реальный Trivy scan всех4bases содержит high/critical; PR CI добавляет обязательный scan runtime images.
 Согласованные3GitHub rulesets применены: main protected + gate/review, immutable v* и admin-only creation.
 Независимое GitHub approval отсутствует (сейчас collaborator только владелец).
-Provenance unsigned OCI verifier/dry-run и adversarial tests подготовлены; результаты свежего
-PR/push CI и pair manifest фиксируются в [evidence](./evidence/d5-1-2-20261014/report.md).
+Provenance unsigned OCI verifier/dry-run и pair manifest PASS на9d33bd2, adversarial8PASS.
+Свежие PR/push CI FAILURE только по image scans/gate: backend1148/1148(12PG suites),frontend278/278,
+lint/build/config/audit/secrets/smokesPASS. Результаты в [evidence](./evidence/d5-1-2-20261014/report.md).
 GHCR/tag/release/merge/deployment не выполнялись; D5.2 NOT_STARTED.
