@@ -1,0 +1,159 @@
+#!/usr/bin/env python3
+"""Adversarial aggregate coverage tests; environment contract has its own suite."""
+from datetime import datetime, timedelta, timezone
+import importlib.util
+import json
+from pathlib import Path
+import tempfile
+import unittest
+from unittest.mock import patch
+
+spec = importlib.util.spec_from_file_location('coverage_policy', Path(__file__).with_name('policy-coverage.py'))
+coverage = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(coverage)
+
+
+class CoverageTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.source = 'a'*40
+        now = datetime.now(timezone.utc)
+        self.db = dict(Version=2, UpdatedAt=(now-timedelta(hours=1)).isoformat(),
+                       DownloadedAt=now.isoformat(), NextUpdate=(now+timedelta(hours=12)).isoformat())
+        self.lock = json.loads(Path(__file__).with_name('production-images.lock.json').read_text())
+
+    def write(self, name, value):
+        p = self.root/name
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(value))
+        return p
+
+    def report(self, name, image=True, high=False):
+        return dict(ArtifactName=name, ArtifactType='container_image' if image else 'filesystem',
+                    Trivy=dict(Version='0.75.0'),
+                    Metadata=dict(ImageID='sha256:'+'b'*64, ImageConfig=dict(os='linux', architecture='amd64')),
+                    Results=[dict(Class='os-pkgs', Packages=[dict(Name='libc', Version='1')],
+                                  Vulnerabilities=[dict(PkgName='libc', VulnerabilityID='CVE-TEST', Severity='HIGH')] if high else [])])
+
+    def test_missing_image_language_inventory_blocks(self):
+        self.fixture()
+        p = self.root/'image-backend.json'
+        report = json.loads(p.read_text())
+        report['Results'] = report['Results'][:1]
+        p.write_text(json.dumps(report))
+        binding = self.root/'backend.binding.json'
+        data = json.loads(binding.read_text())
+        data['scan_sha256'] = 'sha256:'+coverage.sha(p)
+        binding.write_text(json.dumps(data))
+        result = coverage.qualify(self.root, self.source)
+        self.assertEqual(result['status'], 'BLOCKED')
+        self.assertTrue(any('Missing installed Node' in error for error in result['errors']))
+
+    def fixture(self):
+        for role in (*coverage.RUNTIME, *coverage.STAGES, 'buildkit'):
+            name = 'image-'+role+'.json' if role in ('backend', 'frontend') else role+'.scan.json'
+            report = self.report('/tmp/'+role+'.tar')
+            if role == 'backend' or role in coverage.STAGES:
+                report['Results'].append(dict(Class='lang-pkgs', Type='npm', Packages=[dict(Name='npm', Version='11')]))
+            p = self.write(name, report)
+            self.write(str(p.relative_to(self.root).with_suffix('.evidence.json')),
+                       dict(evidence_status='PASS', source_kind='archive', vulnerability_db=self.db,
+                            requested_reference='/tmp/'+role+'.tar'))
+            platform = self.lock[role].split('@')[1] if role in self.lock else 'sha256:'+'c'*64
+            self.write(role+'.binding.json', dict(format='homecloud-qualified-artifact-v1', role=role,
+                       source_commit=self.source, platform='linux/amd64', binding='ARCHIVE_MANIFEST_CONFIG_SCAN_VERIFIED',
+                       platform_digest=platform, config_digest='sha256:'+'b'*64, archive_sha256='sha256:'+'d'*64,
+                       scan_sha256='sha256:'+coverage.sha(p)))
+            if role in ('backend', 'frontend'):
+                self.write(role+'.loaded.binding.json', dict(binding='LOADED_EXACT_OCI_CONFIG_AND_FILESYSTEM',
+                           role=role, source_commit=self.source, platform_digest=platform, config_digest='sha256:'+'b'*64))
+            if role in coverage.STAGES:
+                progress = self.write(role+'.progress.jsonl', {'fixture': 'cached'})
+                metadata = self.write(role+'.build.json', {'fixture': 'built'})
+                self.write(role+'.cache.json', dict(status='CACHED_RUNTIME_BUILD_OPERATIONS', role=role, source_commit=self.source,
+                           config_digest='sha256:'+'b'*64, runtime_platform_digest='sha256:'+'c'*64,
+                           progress_sha256=coverage.sha(progress), metadata_sha256=coverage.sha(metadata)))
+        for name in coverage.ENVIRONMENTS:
+            p = self.write('env-'+name+'/rootfs.json', self.report('/', image=False))
+            component = coverage.COMPONENTS.get(name, 'none')
+            reports = {'rootfs': coverage.sha(p)}
+            target = None
+            if component != 'none':
+                target = '/checkout/'+component
+                r = self.report(target, image=False)
+                r['Results'] = [dict(Class='lang-pkgs', Packages=[dict(Name='example', Version='1')], Vulnerabilities=[])]
+                cp = self.write('env-'+name+'/component.json', r)
+                reports['component'] = coverage.sha(cp)
+            self.write('env-'+name+'/environment.json', dict(environment_id=name, source_commit=self.source,
+                       evidence_status='PASS', report_sha256=reports, vulnerability_db=self.db,
+                       workspace='/checkout', component=component, component_target=target))
+        raw_lock = json.loads(Path(__file__).with_name('images.lock.json').read_text())
+        for role in ('node', 'nginx', 'postgres', 'node-ci'):
+            ref = ('node:24.21.0-bookworm-slim@sha256:51b1100cc2a83d370c6a60952e3f2989c8a43159d0e38586e090f3b3326efefd'
+                   if role == 'node-ci' else raw_lock[role])
+            p = self.write('image-base-'+role+'.json', self.report(ref, high=True))
+            self.write(str(p.relative_to(self.root).with_suffix('.evidence.json')),
+                       dict(evidence_status='PASS', source_kind='remote', vulnerability_db=self.db,
+                            requested_reference=ref))
+
+    def qualify(self):
+        # Only the independently tested environment capture contract is abstracted here.
+        with patch.object(coverage.environment, 'validate'):
+            return coverage.qualify(self.root, self.source)
+
+    def test_empty_coverage_cannot_pass(self):
+        r = self.qualify()
+        self.assertEqual(r['status'], 'BLOCKED')
+        self.assertEqual(r['coverage'], 'INCOMPLETE')
+
+    def test_raw_findings_remain_visible_and_diagnostic(self):
+        self.fixture()
+        r = self.qualify()
+        self.assertEqual(r['status'], 'PASS', r['errors'])
+        self.assertTrue(all(x['findings']['HIGH'] == 1 and x['gate'] == 'DIAGNOSTIC' for x in r['raw_bases'].values()))
+
+    def test_missing_environment_blocks(self):
+        self.fixture()
+        (self.root/'env-frontend/environment.json').unlink()
+        self.assertEqual(self.qualify()['coverage'], 'INCOMPLETE')
+
+    def test_component_cannot_be_silently_omitted(self):
+        self.fixture()
+        p = self.root/'env-backend/environment.json'
+        data = json.loads(p.read_text())
+        data.update(component='none', component_target=None)
+        data['report_sha256'].pop('component')
+        p.write_text(json.dumps(data))
+        self.assertEqual(self.qualify()['coverage'], 'INCOMPLETE')
+
+    def test_changed_scan_blocks_even_if_clean(self):
+        self.fixture()
+        p = self.root/'image-backend.json'
+        report = json.loads(p.read_text())
+        report['Metadata']['ImageID'] = 'sha256:'+'f'*64
+        p.write_text(json.dumps(report))
+        self.assertEqual(self.qualify()['coverage'], 'INCOMPLETE')
+
+    def test_actual_runtime_high_still_blocks(self):
+        self.fixture()
+        report = json.loads((self.root/'image-backend.json').read_text())
+        report['Results'][0]['Vulnerabilities'] = [dict(PkgName='libc', VulnerabilityID='CVE-TEST', Severity='HIGH')]
+        p = self.write('image-backend.json', report)
+        q = self.root/'backend.binding.json'
+        proof = json.loads(q.read_text())
+        proof['scan_sha256'] = 'sha256:'+coverage.sha(p)
+        q.write_text(json.dumps(proof))
+        r = self.qualify()
+        self.assertEqual(r['coverage'], 'COVERED')
+        self.assertEqual(r['status'], 'BLOCKED')
+
+    def test_rebuilt_stage_never_counts_as_runtime_build(self):
+        self.fixture()
+        self.write('backend-deps.cache.json', dict(status='BLOCKED', role='backend-deps', source_commit=self.source))
+        self.assertEqual(self.qualify()['coverage'], 'INCOMPLETE')
+
+
+if __name__ == '__main__':
+    unittest.main()
