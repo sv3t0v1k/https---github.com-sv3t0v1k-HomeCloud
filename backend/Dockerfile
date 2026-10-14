@@ -22,6 +22,10 @@ FROM base AS runner
 ENV NODE_ENV=production
 WORKDIR /app
 
+# Runtime запускает Node напрямую; global npm/npx и их зависимости здесь не нужны.
+# Удаляется только tooling базового образа, production node_modules сохраняются.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/native/secure-fs.node ./native/secure-fs.node
