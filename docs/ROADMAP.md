@@ -33,7 +33,7 @@
 | Failure & Security Testing — ненумерованный checkpoint | `COMPLETE` | [evidence и границы](./failure-security-checkpoint.md) |
 | Универсальное хранение и докачка — ненумерованный checkpoint | `COMPLETE` | [IAB/Safari functional evidence](./evidence/universal-storage-upload-ux-20261005/report.md) |
 | Единый локальный Docker baseline — ненумерованный checkpoint | `COMPLETE` | `bf97bef` / `f578030`; [runbook и preservation boundaries](./operations-runbook.md) |
-| D5.1 — Release Management & CI Foundation | `D5.1.1_REMEDIATED / REVIEWED / RELEASE_BLOCKED` | [Аудит, локальные проверки и границы](./evidence/d5-1-20261013/report.md) |
+| D5.1 — Release Management & CI Foundation | `D5.1.2_RELEASE_BLOCKED` | [Readiness, сканы и конкретные блокеры](./evidence/d5-1-2-20261014/report.md) |
 | Полный 50 ГиБ IAB Browser E2E — ненумерованный checkpoint | `PASS` | `167498d`; [scope/evidence](./evidence/browser-50gib-qualification-20261006/report.md); Safari 50 ГиБ UNQUALIFIED |
 
 ## Completed
@@ -1309,3 +1309,16 @@ real Date.now999ms vs1000ms (277PASS/1FAIL), gateFAIL сохранён в [incid
 SHA/session/publication не ослаблены; SSD13/fullfrontend278/lint/build и independentreview PASS.
 Production код не менялся. Финальный source HEAD проверяется новым PR/push CI; фактические checks
 на PR не подменяются прежним source2f671f1. D5.1 release acceptance остаётся открытым; D5.2 NOT_STARTED.
+
+### D5.1.2 — Release Readiness (2026-10-14)
+
+**BLOCKED; Production NO_GO; COMPLETE не установлен.** Исправлены достижимые ASF/ZIP
+в file-type21.3.2, uuid9 удалён через совместимые Nest10 adapters, Node24.21.0 LTS,
+pinned Node/nginx/Postgres bases и amd64 mapping. Audit30→25moderate full/9→4production;
+SSE/dev sprintf остаются с предметным triage/owner/deadline, acceptance pending, gate не ослаблен.
+Реальный Trivy scan всех4bases содержит high/critical; PR CI добавляет обязательный scan runtime images.
+Согласованные3GitHub rulesets применены: main protected + gate/review, immutable v* и admin-only creation.
+Независимое GitHub approval отсутствует (сейчас collaborator только владелец).
+Provenance unsigned OCI verifier/dry-run и adversarial tests подготовлены; результаты свежего
+PR/push CI и pair manifest фиксируются в [evidence](./evidence/d5-1-2-20261014/report.md).
+GHCR/tag/release/merge/deployment не выполнялись; D5.2 NOT_STARTED.

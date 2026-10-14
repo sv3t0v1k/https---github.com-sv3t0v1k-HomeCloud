@@ -1,0 +1,17 @@
+{
+  "node": "24.21.0",
+  "backend_full": {
+    "numPassedTests": 956,
+    "numFailedTests": 38,
+    "numPendingTests": 154,
+    "numPassedTestSuites": 63,
+    "numFailedTestSuites": 4
+  },
+  "backend_full_limitation": "macOS fail-closed Linux filesystem; PostgreSQL unavailable locally; real Linux CI required",
+  "frontend_tests": 278,
+  "compose_config_merges": 4,
+  "startup_tests": 43,
+  "preflight_tests": 76,
+  "release_negative_tests": 16,
+  "provenance_negative_tests_pre_review": 4
+}

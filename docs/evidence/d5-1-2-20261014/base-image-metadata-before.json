@@ -1,0 +1,41 @@
+{
+  "observed_at": "2026-10-14T09:33:19.642503+00:00",
+  "images": [
+    {
+      "image": "node",
+      "tag": "24.21.0-alpine",
+      "index_digest": "sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1",
+      "amd64_digest": "sha256:83f1c388c31fb2e51f7cbd4dea949b96260798c98f206e8e4696bc93bd964e3a",
+      "os": "linux",
+      "architecture": "amd64",
+      "created": "2026-09-17T21:47:27.838317214Z"
+    },
+    {
+      "image": "node",
+      "tag": "24.21.0-bookworm",
+      "index_digest": "sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0",
+      "amd64_digest": "sha256:9af606de2e947cfb3f276633b7c5130c4cd22365aa10f5a647b7675d5cfce0c0",
+      "os": "linux",
+      "architecture": "amd64",
+      "created": "2026-10-06T04:20:00.978793269Z"
+    },
+    {
+      "image": "nginx",
+      "tag": "1.28-alpine",
+      "index_digest": "sha256:a8b39bd9cf0f83869a2162827a0caf6137ddf759d50a171451b335cecc87d236",
+      "amd64_digest": "sha256:0dcc88822d45581e65ae329f8be769762bf628d3b2bb7d2a077d4aa5c98b30e3",
+      "os": "linux",
+      "architecture": "amd64",
+      "created": "2026-03-24T23:11:15.718500787Z"
+    },
+    {
+      "image": "postgres",
+      "tag": "16-alpine",
+      "index_digest": "sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea",
+      "amd64_digest": "sha256:1a66d744c1b459e13b05a8fca341da84cb63383e99ce262210efee5a319d4551",
+      "os": "linux",
+      "architecture": "amd64",
+      "created": "2026-09-17T21:31:24.32976807Z"
+    }
+  ]
+}

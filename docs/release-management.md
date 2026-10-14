@@ -1,6 +1,6 @@
 # D5.1 — управление версиями и CI
 
-Статус: PR/push CI и D5.1.1 high/critical remediation PASS; registry/release acceptance ещё не выполнен. Production NO_GO.
+Статус: D5.1.2 Release Readiness BLOCKED по реальным image high/critical и непринятым residual risks; новый PR/push CI проверяется отдельно. Production NO_GO. [Evidence D5.1.2](./evidence/d5-1-2-20261014/report.md).
 Единственный roadmap — [ROADMAP.md](./ROADMAP.md). [Фактический аудит и проверки](./evidence/d5-1-20261013/report.md).
 
 ## Версии и границы
@@ -64,8 +64,7 @@ Node20 сохранён ради scope/совместимости, но уже [
 
 `release.yml` запускается **только вручную на main**. Inputs — tag и полный SHA текущей main.
 Workflow требует protected main, annotated tag → exact HEAD, сохранённую D4 ancestry и отсутствие
-existing release (включая draft). Затем заново выполняет reusable CI для этого SHA. Существующее
-branch protection не настроено: его owner-approved настройка обязательна до release acceptance.
+existing release (включая draft). Затем заново выполняет reusable CI для этого SHA. Согласованные владельцем rulesets применены14октября: main protected=true; обязательный GitHub Actions gate15368, strict latest-base, один независимый review последнего push, разрешение review threads, без bypass/force/delete. Релизные v* запрещено менять/удалять без bypass; отдельный creation-only ruleset разрешает создание администратору. Фактические ответы API сохранены в D5.1.2 evidence. Единственный collaborator сейчас владелец: требуется отдельный reviewer с доступом; агентский review не является GitHub approval.
 Необходимо включить обязательный `gate`, review и запрет force push/deletion; исключения/bypass требуют
 отдельного owner decision. Workflow проверяет protection flag, но не доказывает состав GitHub rules.
 
@@ -110,7 +109,7 @@ gh run list --repo "$REPO" --workflow release.yml --limit 5
 gh release download "$RELEASE_TAG" --repo "$REPO" --pattern release-lock.json --dir /private/tmp/homecloud-release-review
 ```
 
-Сейчас эти команды release выполнять нельзя: high/critical advisories и реальные GitHub gates не закрыты.
+Сейчас эти команды release выполнять нельзя: реальные image scans содержат high/critical, остаточные npm риски не приняты и GitHub review required. Отдельное разрешение на tag/release/publish не дано.
 После push PR CI не публикует GHCR; вручную release workflow запускается отдельным действием.
 
 ## Reconciliation и deployment evidence
@@ -137,3 +136,32 @@ offline; их проверка и доверенная подпись/custody ev
 D5.2 начинается только отдельным разрешением: target preflight, backup/restore, approved digests,
 immutable deployment record, health/smoke и rollback с проверкой schema compatibility. Нет обновления
 mini-PC, общей Docker/DNS/mount/volume конфигурации в D5.1.
+
+## D5.1.2 — проверенная подготовка, 2026-10-14
+
+Node20 заменён Node24.21.0 LTS в CI/build/runtime; nginx1.30.5 и все bases pinned,
+index→amd64 mapping хранится в images.platforms.json. pin не означает безопасный образ:
+реальные Trivy0.75.0 scans Node/nginx/Postgres/CI Node содержат high/critical и блокируют gate.
+Новые обязательные jobs сканируют bases и фактически собранную пару images; нет ignore-unfixed,
+blanket exceptions или continue-on-error. Registry errors также fail-closed. Fresh published digests
+будущий release workflow сканирует перед draft; этот workflow сейчас не запускается.
+
+File-type direct/Nest copies21.3.2 закрывают ASF/ZIP. NestTypeORM11.0.3 + Terminus11.1.1
+явно поддерживают Nest10; vulnerable uuid9 удалён без framework migration. Audit25moderate full,
+4production; SSE и dev sprintf-js остаются в audit. Triage каждой из30исходных records
+имеет proposed maintainer owner, срок2026-11-13 и ACCEPTANCE_PENDING. Исключений в gate нет.
+
+Provenance verifier читает OCI metadata по digest и проверяет amd64 config/labels, attestation
+subject, VCS source/revision, mode=max Dockerfile, pinned build args и exact mapped base materials.
+При будущей публикации тот же verifier читает GHCR metadata fail-closed до создания candidate.
+Registry redirects не пересылают Authorization; source contract включает verifier/scanner/mapping.
+Unsigned builder claims не считаются криптографической аутентификацией source content.
+
+PR/push dry-run строит локальные OCI archives с attestation mode=max/v0.2, не публикует их.
+Общая пара создаёт отдельный homecloud-release-dry-run-v1: synthetic annotated object hash
+вычисляется в памяти, Git object/ref/tag не создаётся. Intended GHCR repository + offline digest
+не означает, что объект доступен в registry. GHCR reconciliation, реальный tag/release:
+NOT_PUBLISHED / NOT_TESTED / NOT_CREATED. Dry-run не подменяет release-lock или D1 manifest.
+
+[Итог и конкретные блокеры](./evidence/d5-1-2-20261014/report.md). Production NO_GO,
+D5.2 NOT_STARTED, COMPLETE не установлен.
