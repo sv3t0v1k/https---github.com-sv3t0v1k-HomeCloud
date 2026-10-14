@@ -22,7 +22,8 @@ SOURCE_PATHS = ('docker-compose.yml', 'docker-compose.production.yml', 'docker-c
                 'frontend/package-lock.json', 'scripts/ci/images.lock.json',
                 '.github/workflows/ci.yml', '.github/workflows/release.yml', 'scripts/ci/release.py',
                 'scripts/ci/provenance.py', 'scripts/ci/images.platforms.json',
-                'scripts/ci/install-trivy.sh', 'scripts/ci/scan-image.sh', 'scripts/ci/provenance-pair.py')
+                'scripts/ci/install-trivy.sh', 'scripts/ci/scan-image.sh', 'scripts/ci/scan-evidence.py',
+                'scripts/ci/provenance-pair.py')
 
 
 def run(*args):

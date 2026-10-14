@@ -5,11 +5,13 @@ source_kind=${2:?Specify remote or docker}
 reference=${3:?Specify immutable base reference or disposable local image}
 report=${4:?Specify JSON report destination}
 case "$source_kind" in remote|docker) ;; *) exit 1 ;; esac
+cache_dir="$(dirname "$scanner")/cache"
 # Include all severities and both OS/language packages in the retained report.
 # No ignore-unfixed, ignore file, policy exceptions, secret scan, or daemon mutation.
-"$scanner" image --image-src "$source_kind" --platform linux/amd64 \
+"$scanner" --cache-dir "$cache_dir" image --config /dev/null --image-src "$source_kind" --platform linux/amd64 \
   --scanners vuln --ignore-unfixed=false --ignorefile /dev/null --timeout 15m --no-progress \
   --format json --output "$report" "$reference"
+python3 "$(dirname "$0")/scan-evidence.py" "$report" "$cache_dir/db/metadata.json" "$source_kind" "$reference"
 python3 - "$report" <<'PY'
 import collections, json, sys
 report = json.load(open(sys.argv[1]))
