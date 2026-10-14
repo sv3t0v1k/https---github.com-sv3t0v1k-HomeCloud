@@ -1,6 +1,6 @@
 # D5.1.1 — Security Remediation, 2026-10-14
 
-Статус: **HIGH_CRITICAL_REMEDIATED / GITHUB_CI_PASS / RELEASE_BLOCKED**. Production **NO_GO**. Работа в отдельном Mac worktree `этап/d5-1-ci`, существующий [draft PR №1](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/pull/1). Baseline: `e0c5e00655067b052d2e105e6a27e939eb22eeff`.
+Статус: **HIGH_CRITICAL_REMEDIATED / REVIEWED / RELEASE_BLOCKED**. Production **NO_GO**. Работа в отдельном Mac worktree `этап/d5-1-ci`, существующий [draft PR №1](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/pull/1). Baseline: `e0c5e00655067b052d2e105e6a27e939eb22eeff`.
 
 ## Фактический аудит
 
@@ -77,3 +77,11 @@ Backend: **1148/1148 tests,79/79 suites,0FAIL,0SKIP**,12PostgreSQL suites/154tes
 Обе Linux/amd64 images собраны; musl secure-fs addon load и Sharp JPEG decoder PASS. Это локальные images disposable GitHub runner, **GHCR publish и release digest/provenance NOT_RUN**. Нативный smoke не заменяет target qualification. Runner сообщает deprecation pinned Actions Node20 runtime и принудительный runtimeNode24; app/test/buildNode20 EOL сохраняется отдельным blocker.
 
 Последующий коммит содержит только этот evidence/roadmap; его PR/push CI оценивается отдельно по GitHub checks. Raw evidence выше относится к указанному source head и не выдаётся за результат ещё не запущенного SHA.
+
+## Нестабильное измерение Retry-After в CI
+
+На documentation head864c55c [PR CI38482861251](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38482861251) PASS, [push CI38482857360](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38482857360) FAIL: frontend277PASS/1FAIL, реальный Date.now интервал999ms против>=1000ms. Lint/build этого frontend job не выполнялись после test failure; общий gateFAIL не скрыт. [Raw incident](./github-ci-timing-incident.json).
+
+Точечное изменение только frontend/src/files/ssdUpload.test.ts: fake Date/timers и window restub, на999ms нет следующего admission/session; на1000ms следующий запрос, оба интервалаexact1000. SHA256 реальных байтов, одна session/publication сохранены. finally dispose/clear/restore timers/window. Production source/Retry-After scheduling не изменены, threshold не снижен. Причина конкретного1ms отклонения не доказана; [Node timers](https://nodejs.org/api/timers.html#settimeoutcallback-delay-args) не гарантируют точный момент callback. Проверяется model scheduling contract, не абсолютная точность реальных часов.
+
+Одна локальная implementation iteration: SSD13/13, полныйfrontend278/278/22files, lint/build PASS. Независимое read-only review APPROVE и13/13SSD PASS; findings нет. Следующий source HEAD с этим test fix запускает полный PR/push CI; его фактический итог проверяется отдельно в PR checks и итоговом task evidence, а предыдущий PASS не подменяет новый запуск. Новых dependencies/business changes/gate exceptions нет.

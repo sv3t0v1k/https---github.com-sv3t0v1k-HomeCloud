@@ -33,7 +33,7 @@
 | Failure & Security Testing — ненумерованный checkpoint | `COMPLETE` | [evidence и границы](./failure-security-checkpoint.md) |
 | Универсальное хранение и докачка — ненумерованный checkpoint | `COMPLETE` | [IAB/Safari functional evidence](./evidence/universal-storage-upload-ux-20261005/report.md) |
 | Единый локальный Docker baseline — ненумерованный checkpoint | `COMPLETE` | `bf97bef` / `f578030`; [runbook и preservation boundaries](./operations-runbook.md) |
-| D5.1 — Release Management & CI Foundation | `D5.1.1_CI_PASS / RELEASE_BLOCKED` | [Аудит, локальные проверки и границы](./evidence/d5-1-20261013/report.md) |
+| D5.1 — Release Management & CI Foundation | `D5.1.1_REMEDIATED / REVIEWED / RELEASE_BLOCKED` | [Аудит, локальные проверки и границы](./evidence/d5-1-20261013/report.md) |
 | Полный 50 ГиБ IAB Browser E2E — ненумерованный checkpoint | `PASS` | `167498d`; [scope/evidence](./evidence/browser-50gib-qualification-20261006/report.md); Safari 50 ГиБ UNQUALIFIED |
 
 ## Completed
@@ -1289,7 +1289,7 @@ Security/release BLOCKED сохраняется; COMPLETE и D5.2 не меня�
 
 ### D5.1.1 — Security Remediation (2026-10-14)
 
-**HIGH_CRITICAL_REMEDIATED / GITHUB_CI_PASS; release BLOCKED; COMPLETE не установлен.**
+**HIGH_CRITICAL_REMEDIATED / REVIEWED; release BLOCKED; COMPLETE не установлен.**
 [Аудит всех 55 backend / 12 frontend записей, версии/пути и review](./evidence/d5-1-1-20261014/report.md).
 Backend full 55→30 moderate, production 17→9 moderate; frontend 12→0. High/critical/low backend 0,
 frontend всех severity 0; all-tree security gate не ослаблен. Scoped compatible patches, Multer2.4
@@ -1302,3 +1302,10 @@ frontend278; runtime7; Compose4/preflight76/startup43/release16; Linux-amd642ima
 Остаточные4leaf/5GHSA включают untrusted file-type ASF risk; Node20EOL/base CVE qualification,
 main/tag protection и registry/provenance/release acceptance открыты. Draft PR№1 обновлён,
 main/tags/release/GHCR/deployment/мини-ПК не меняются. Production NO_GO; D5.2 NOT_STARTED.
+
+На documentation head864c55c PR CI38482861251PASS, push CI38482857360FAIL: frontend Retry-After
+real Date.now999ms vs1000ms (277PASS/1FAIL), gateFAIL сохранён в [incident evidence](./evidence/d5-1-1-20261014/github-ci-timing-incident.json).
+Исправлен только тест: fake timers с отрицательными999ms/положительными1000ms assertions,
+SHA/session/publication не ослаблены; SSD13/fullfrontend278/lint/build и independentreview PASS.
+Production код не менялся. Финальный source HEAD проверяется новым PR/push CI; фактические checks
+на PR не подменяются прежним source2f671f1. D5.1 release acceptance остаётся открытым; D5.2 NOT_STARTED.

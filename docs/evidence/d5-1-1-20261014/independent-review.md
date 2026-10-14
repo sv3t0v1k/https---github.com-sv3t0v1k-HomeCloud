@@ -11,3 +11,5 @@
 Открытые границы: Linux native/PostgreSQL/full suite и musl production images впоследствии подтверждены свежим [GitHub CI](./github-ci.json); 30 backend moderate/9 production moderate и Node20 EOL остаются. Abort helper проверяет synthetic storage callback cleanup, не реальное физическое удаление. Browser probes используют synthetic DOM с production CSS/fonts, не полный application E2E; Firefox/старые браузеры не квалифицированы.
 
 Evidence также независимо проверен:55/12record coverage, версии/пути,55→30/prod17→9/frontend12→0 и40→5/9→0GHSA подтверждены raw snapshots. Уточнение Multer1→2 major внесено в отчёт.
+
+Отдельный timing test fix reviewed после push864c55c FAIL: независимый SSD13/13PASS, APPROVE. Оба999ms negative/1000ms next assertions и realSHA/session/publication сохранены; fake timers/window восстанавливаются finally; production не изменён. Это model scheduling proof, не абсолютная real clock гарантия.
