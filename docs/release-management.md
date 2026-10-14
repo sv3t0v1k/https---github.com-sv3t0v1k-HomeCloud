@@ -139,6 +139,21 @@ mini-PC, общей Docker/DNS/mount/volume конфигурации в D5.1.
 
 ## D5.1.2 — проверенная подготовка, 2026-10-14
 
+### D5.1.3 — адресное исправление runtime containers
+
+Финальный backend runtime больше не содержит global npm/npx: восемь high из bundled npm,
+включая CVE-2026-93748 без опубликованного fix, устраняются удалением уязвимого tooling.
+Build stages используют прежний npm; app lockfiles и классифицированные moderate не меняются.
+Штатный API startup запускает прежнюю миграцию напрямую через Node, с transaction all;
+ошибка миграции блокирует API. Операторские команды внутри нового runtime:
+`node ./node_modules/typeorm/cli.js migration:run -d dist/data-source.js --transaction all`
+и `node ./node_modules/typeorm/cli.js migration:revert -d dist/data-source.js`.
+Frontend адресно обновляет libexpat2.8.5-r0/pcre2 10.49-r0/tiff4.7.2-r0 в pinned nginx image.
+Upstream bases и CI image остаются прежними; известные high/critical блокируют их gates,
+даже если итоговые runtime scans чисты. Исключений нет, Production NO_GO.
+Фактические runtime scans/tests и независимый verdict фиксируются в PR1/GitHub CI;
+новый readiness report не создаётся. READY не заявляется до фактической проверки gates.
+
 Node20 заменён Node24.21.0 LTS в CI/build/runtime; nginx1.30.5 и все bases pinned,
 index→amd64 mapping хранится в images.platforms.json. pin не означает безопасный образ:
 реальные Trivy0.75.0 scans Node/nginx/Postgres/CI Node содержат high/critical и блокируют gate.

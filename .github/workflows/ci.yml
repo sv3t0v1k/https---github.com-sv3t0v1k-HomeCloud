@@ -112,6 +112,7 @@ jobs:
           test "$("$RUNNER_TEMP/homecloud-compose-bin/docker" compose version --short)" = 5.1.3
       - run: docker compose version && python3 scripts/ci/compose-check.py
       - run: python3 deploy/linux/test_startup_gate.py
+      - run: python3 scripts/ci/test-entrypoint.py
       - run: python3 deploy/linux/test_preflight.py
         env:
           HOMECLOUD_TEST_ROOT: ${{ github.workspace }}
@@ -163,8 +164,15 @@ jobs:
         run: |
           docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --entrypoint node "$IMAGE" -e '
           const assert=require("node:assert/strict");
+          const fs=require("node:fs");
+          const {spawnSync}=require("node:child_process");
           const sharp=require("sharp");
           assert.equal(process.getuid(),1001);
+          assert.equal(process.version,"v24.21.0");
+          for(const path of ["/usr/local/lib/node_modules/npm","/usr/local/bin/npm","/usr/local/bin/npx"]){assert.equal(fs.existsSync(path),false);}
+          for(const path of ["/storage","/storage/.tmp"]){const stat=fs.statSync(path);assert.equal(stat.uid,1001);assert.equal(stat.mode & 0o777,0o700);}
+          const cli=spawnSync(process.execPath,["./node_modules/typeorm/cli.js","migration:run","--help"],{encoding:"utf8",timeout:10000});
+          assert.ifError(cli.error);assert.equal(cli.status,0);assert.match(cli.stdout,/transaction/);
           assert.equal(sharp.versions.sharp,"0.35.5");
           require("./native/secure-fs.node");
           sharp({create:{width:20,height:10,channels:3,background:"#336699"}}).jpeg().toBuffer()
