@@ -94,6 +94,10 @@ class Tests(unittest.TestCase):
             store,sha = self.fixture(legacy=legacy)
             self.assertEqual(self.check(store,sha)['commit'],self.commit)
 
+    def test_known_parent_index_material_supported(self):
+        store,sha = self.fixture(lambda c,v:v['materials'][0]['digest'].update(sha256='a'*64))
+        self.assertEqual(self.check(store,sha)['commit'],self.commit)
+
     def test_corrupted_blob_rejected(self):
         store,sha = self.fixture()
         key = next(iter(store.blobs))
@@ -118,7 +122,10 @@ class Tests(unittest.TestCase):
                      lambda c,v:v.update(buildConfig={}),
                      lambda c,v:v['invocation']['parameters']['args'].update({'build-arg:NODE_IMAGE':'node:latest'}),
                      lambda c,v:v.update(materials=[]),
-                     lambda c,v:v['materials'][0]['digest'].update(sha256='d'*64)]
+                     lambda c,v:v['materials'][0]['digest'].update(sha256='d'*64),
+                     lambda c,v:v['materials'][0].update(uri='pkg:docker/node@fixture?platform=linux%2Farm64'),
+                     lambda c,v:v['materials'][0].update(uri='pkg:docker/node@fixture'),
+                     lambda c,v:v['materials'][0].update(uri='pkg:docker/node@fixture?platform=linux%2Famd64&platform=linux%2Farm64')]
         for mutation in mutations:
             with self.subTest(mutation=mutation):
                 store,sha = self.fixture(mutation)

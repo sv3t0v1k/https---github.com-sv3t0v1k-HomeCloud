@@ -34,3 +34,9 @@ CI offline archives/proof/pair manifest pending actual run. Synthetic tag object
 4. Новый полный CI/реальная OCI dry-run chain pending safe push; фактический итог будет ниже. GHCR availability/reconciliation не проверены в рамках запрета publish и не заявляются PASS.
 
 Mac runtime Compose/данные/другие Docker приложения не менялись, мини-ПК не опрашивался. Merge/tag/release/GHCR publish/deploy не выполнялись. Запрещённый audit-файл исключён до любого чтения diff/search/hash/stage; посторонние untracked сохранены.
+
+## Первый фактический CI и адресные corrections
+
+Source8a9add6: push38545262386/PR38545268447 — FAILURE. Configuration/frontend/security/secretsPASS. Backend checkout отказал по missing system CA в slim: apt добавляет ca-certificates, TLS verification не отключена. Nginx -t достиг valid syntax, затем runtime CHOWN probe отказал при capdropALL: только ephemeral check получает CHOWN, остальные ограничения сохраняются. Backend OCI действительно построен с attestation, но BuildKit material сообщает pinned parent index вместо resolved child: verifier теперь принимает только exact известный index или его exact verifiedamd64 child плюс platformlinuxamd64; произвольный materialSHA по-прежнему отвергается (8negative tests).
+
+Реальные runtime image scans выполнены несмотря на другие failures: backend8HIGH/14MEDIUM/1LOW, frontend3HIGH/3MEDIUM. Base scans повторили локальные counts. Все gate failures сохранены; provenance pair первого запускаFAIL из-за отсутствующих frontend proof/failed backend verification, не PASS. Raw statuses/metadata/runtime scans рядом, next reviewed commit выполняет новый CI без отмены high/critical gates.

@@ -1,0 +1,10 @@
+2026-10-14T19:41:32+10:00	INFO	[vuln] Vulnerability scanning is enabled
+2026-10-14T19:41:47+10:00	INFO	Detected OS	family="debian" version="12.15"
+2026-10-14T19:41:47+10:00	INFO	[debian] Detecting vulnerabilities...	os_version="12" pkg_num=88
+2026-10-14T19:41:47+10:00	INFO	Number of language-specific files	num=1
+2026-10-14T19:41:47+10:00	INFO	[node-pkg] Detecting vulnerabilities...
+2026-10-14T19:41:47+10:00	WARN	Using severities from other vendors for some vulnerabilities. Read https://trivy.dev/docs/v0.75/guide/scanner/vulnerability#severity-selection for details.
+{"artifact": "docker.io/library/node:24.21.0-bookworm-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20", "findings": {"CRITICAL": 4, "HIGH": 60, "LOW": 84, "MEDIUM": 113, "UNKNOWN": 1}, "gate": "BLOCKED"}
+Traceback (most recent call last):
+  File "<stdin>", line 10, in <module>
+AssertionError: Image contains high/critical vulnerabilities; report retained

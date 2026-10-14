@@ -176,7 +176,11 @@ def verify(store, index_digest, component, commit, repository, version):
         require(matches and all(re.fullmatch(r'[a-f0-9]{64}', m.get('digest', {}).get('sha256', '')) for m in matches), 'base materials missing: ' + role)
         mapping = platforms[role]
         require(mapping['index_digest'] == ref.split('@')[1], 'base mapping/lock mismatch: ' + role)
-        require(all('sha256:' + m['digest']['sha256'] == mapping['amd64_digest'] for m in matches), 'resolved base material mismatch: ' + role)
+        # BuildKit v0.38 reports the pinned index for multi-platform base inputs;
+        # older exporters can report its resolved platform manifest. Both are known digests.
+        known = {mapping['index_digest'], mapping['amd64_digest']}
+        require(all('sha256:' + m['digest']['sha256'] in known for m in matches), 'resolved base material mismatch: ' + role)
+        require(all(urllib.parse.parse_qs(urllib.parse.urlparse(m['uri']).query).get('platform') == ['linux/amd64'] for m in matches), 'base material platform mismatch: ' + role)
     return dict(index_digest=index_digest, platform_digest=image['digest'], statement_digest=statement_digest,
                 commit=commit, repository='ghcr.io/' + repository + '/' + component,
                 version=version, platform='linux/amd64', dockerfile_sha256=hashlib.sha256(expected).hexdigest(),

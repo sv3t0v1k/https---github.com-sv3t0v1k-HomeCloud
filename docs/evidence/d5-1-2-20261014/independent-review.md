@@ -123,3 +123,28 @@ agent review не заменяет GitHub approval и владелец не мо
 На момент этого review настоящий OCI dry-run, final PR/push CI и GHCR remote readback ещё не
 подтверждены. Присвоить READY нельзя. Дальнейшая проверка после safe push дополняет основной отчёт;
 merge/tag/release/GHCR publish/deployment/mini-PC остаются запрещены в этой задаче.
+
+## Повторное review после первого GitHub CI
+
+Просмотрен diff исправлений поверх source `8a9add6fab55298c3397ea01b65e4f2d7512b92c`.
+Первый [push run38545262386](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38545262386)
+и [PR run38545268447](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38545268447)
+обнаружили ошибки реализации CI помимо ожидаемых image vulnerability failures. Они не объявлены PASS.
+
+- Реальная backend build metadata содержит pinned **parent index** `ebfe2f90…`, URI
+  `pkg:docker/node@24.21.0-alpine?...&platform=linux%2Famd64`. Прежний verifier требовал только
+  child digest и отвергал валидный BuildKit output. Новая проверка принимает ровно два заранее
+  известных digest одного base — pinned index либо его проверенный linux/amd64 child — и дополнительно
+  требует единственный URI platformlinux/amd64. Произвольные SHA, arm64, missing/ambiguous platform
+  продолжают отвергаться. Это согласование фактического формата, не blanket exception.
+- Raw checkout incident подтверждает TLS error `CAfile: none`. В isolated Node slim runner явно
+  устанавливаются `ca-certificates`; TLS verification остаётся включена.
+- Raw nginx incident подтверждает successful syntax parse и последующий отказ
+  `chown(/var/cache/nginx/client_temp,101)` с EPERM. Только disposable `nginx -t` fixture получает
+  capabilityCHOWN поверх dropALL; networknone/no mounts/no-new-privileges сохранены. Production
+  Compose/service security не меняется.
+
+Независимо повторены provenance **8/8** и release **16/16** PASS, scoped whitespace PASS. Добавлены
+negative fixtures wrong/missing/duplicate material platform. Raw incident logs сохранены,
+новый реальный CI ещё требуется. Вердикт исправлений: **APPROVE / RELEASE BLOCKED**;
+MUST_FIX0 для просмотренного diff, image high/critical policy не ослаблена.
