@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import provenance
 
 ROOT = Path(__file__).resolve().parents[2]
 EXCLUDED = ':(top,exclude)scripts/tests/PHASE-5.3.1-TEST-AUDIT.md'
@@ -19,7 +20,9 @@ REPO = re.compile(r'^[a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9_.-]*$')
 SOURCE_PATHS = ('docker-compose.yml', 'docker-compose.production.yml', 'docker-compose.project-test.yml',
                 'backend/Dockerfile', 'frontend/Dockerfile', 'backend/package-lock.json',
                 'frontend/package-lock.json', 'scripts/ci/images.lock.json',
-                '.github/workflows/ci.yml', '.github/workflows/release.yml', 'scripts/ci/release.py')
+                '.github/workflows/ci.yml', '.github/workflows/release.yml', 'scripts/ci/release.py',
+                'scripts/ci/provenance.py', 'scripts/ci/images.platforms.json',
+                'scripts/ci/install-trivy.sh', 'scripts/ci/scan-image.sh', 'scripts/ci/provenance-pair.py')
 
 
 def run(*args):
@@ -74,6 +77,13 @@ def shape(value):
         require(bool(DIGEST.fullmatch(image['digest'])), 'immutable digest required')
         require(image['revision'] == value['commit'] and image['version'] == value['tag'], 'image/source mismatch')
         require(image['platform'] == 'linux/amd64', 'wrong platform')
+        proof = image['provenance_verification']
+        require(proof['index_digest'] == image['digest'], 'provenance index mismatch')
+        require(proof['commit'] == value['commit'] and proof['version'] == value['tag'], 'provenance source mismatch')
+        require(proof['repository'] == image['repository'], 'provenance repository mismatch')
+        require(proof['verified'] == 'DIGEST_SUBJECT_VCS_DOCKERFILE_ARGS_BASE_MATERIALS', 'unverified provenance')
+        require(proof['signature'] == 'UNSIGNED', 'unexpected signature claim')
+        require(all(DIGEST.fullmatch(proof[k]) for k in ('platform_digest', 'statement_digest')), 'invalid provenance digest')
     require(value['manifest_sha256'] == identity(value), 'manifest checksum mismatch')
 
 
@@ -98,8 +108,10 @@ def create(args):
                               'org.opencontainers.image.source': 'https://github.com/'+args.repository,
                               'io.homecloud.role': role, 'io.homecloud.pair': args.commit}.items():
             require(labels.get(key) == expected, 'registry label mismatch: '+key)
+        proof = provenance.verify(provenance.Registry(args.repository+'/'+role), digest, role,
+                                  args.commit, args.repository, args.tag)
         images[role] = dict(repository=repository, digest=digest, revision=args.commit,
-                            version=args.tag, platform='linux/amd64')
+                            version=args.tag, platform='linux/amd64', provenance_verification=proof)
     files = [ROOT/name for name in SOURCE_PATHS]
     files += sorted((ROOT/'backend/src/migrations').glob('*.ts'))
     migrations = [re.search(r'export class ([A-Za-z0-9]+)', p.read_text()).group(1)
@@ -111,7 +123,7 @@ def create(args):
                     schema_migrations=migrations,
                     ci=dict(status='success', run_id=args.run_id, attempt=args.attempt,
                             url='https://github.com/'+args.repository+'/actions/runs/'+args.run_id),
-                    provenance='BuildKit mode=max attached to registry index; unsigned',
+                    provenance='BuildKit mode=max v0.2 digest/subject/VCS/Dockerfile/base materials verified; unsigned',
                     deployment_status='NOT_DEPLOYED')
     manifest['manifest_sha256'] = identity(manifest)
     shape(manifest)

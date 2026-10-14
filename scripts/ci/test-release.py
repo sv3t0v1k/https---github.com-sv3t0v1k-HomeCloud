@@ -9,6 +9,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+import sys
 from unittest.mock import patch
 
 
@@ -19,6 +20,7 @@ def load(name, file):
     return module
 
 
+sys.path.insert(0, str(Path(__file__).parent))
 r = load('release', 'release.py')
 a = load('audit', 'audit-gate.py')
 
@@ -73,7 +75,11 @@ class ReleaseTests(unittest.TestCase):
                      source_files={**{name:'b'*64 for name in r.SOURCE_PATHS}, 'backend/src/migrations/520-Fixture.ts':'b'*64},
                      base_images={role:'docker.io/library/'+role+':fixture@sha256:'+'a'*64 for role in ('node','nginx','postgres')},
                      deployment_status='NOT_DEPLOYED', images={role:dict(repository='ghcr.io/owner/homecloud/'+role,
-                     digest='sha256:'+'a'*64, revision=self.commit, version='v0.9.1-beta.1', platform='linux/amd64')
+                     digest='sha256:'+'a'*64, revision=self.commit, version='v0.9.1-beta.1', platform='linux/amd64',
+                     provenance_verification=dict(index_digest='sha256:'+'a'*64,platform_digest='sha256:'+'b'*64,
+                         statement_digest='sha256:'+'c'*64,commit=self.commit,version='v0.9.1-beta.1',
+                         repository='ghcr.io/owner/homecloud/'+role,
+                         verified='DIGEST_SUBJECT_VCS_DOCKERFILE_ARGS_BASE_MATERIALS',signature='UNSIGNED'))
                      for role in ('backend', 'frontend')})
         value['manifest_sha256'] = r.identity(value)
         return value
@@ -97,7 +103,10 @@ class ReleaseTests(unittest.TestCase):
                      lambda x:x.update(deployment_status='DEPLOYED'),
                      lambda x:x['base_images'].update(node='node:latest'),
                      lambda x:x['source_files'].pop('scripts/ci/images.lock.json'),
-                     lambda x:x.pop('tag_object')]
+                     lambda x:x.pop('tag_object'),
+                     lambda x:x['images']['backend'].pop('provenance_verification'),
+                     lambda x:x['images']['backend']['provenance_verification'].update(commit='b'*40),
+                     lambda x:x['images']['frontend']['provenance_verification'].update(index_digest='sha256:'+'b'*64)]
         for mutate in mutations:
             value = copy.deepcopy(original)
             mutate(value)

@@ -17,7 +17,7 @@ jobs:
   backend:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
-    container: node:20-bookworm@sha256:8f693eaa7e0a8e71560c9a82b55fd54c2ae920a2ba5d2cde28bac7d1c01c9ba5
+    container: node:24.21.0-bookworm-slim@sha256:51b1100cc2a83d370c6a60952e3f2989c8a43159d0e38586e090f3b3326efefd
     services:
       postgres:
         image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
@@ -41,6 +41,7 @@ jobs:
       - run: sh native/build.sh
         working-directory: backend
       - run: python3 scripts/ci/test-release.py
+      - run: python3 scripts/ci/test-provenance.py
       - name: Full suite as unprivileged user
         run: |
           chown -R node:node "$GITHUB_WORKSPACE"
@@ -73,7 +74,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: '20.20.2'
+          node-version: '24.21.0'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci --no-audit
@@ -116,7 +117,7 @@ jobs:
           HOMECLOUD_TEST_ROOT: ${{ github.workspace }}
   image-build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -129,11 +130,22 @@ jobs:
       - id: bases
         run: |
           python3 -c 'import json,os; d=json.load(open("scripts/ci/images.lock.json")); f=open(os.environ["GITHUB_OUTPUT"],"a"); [f.write(k+"="+v+"\n") for k,v in d.items()]'
+      - id: source
+        run: |
+          git diff --quiet HEAD -- . ':(exclude)scripts/tests/PHASE-5.3.1-TEST-AUDIT.md'
+          test -z "$(git ls-files --others --exclude-standard -- backend frontend)"
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "repository=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
         with:
           version: v0.38.0
           driver-opts: image=moby/buildkit@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea
-      - uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+      - id: runtime
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        env:
+          BUILDX_GIT_CHECK_DIRTY: 'false'
+          BUILDX_GIT_INFO: 'true'
+          BUILDX_GIT_LABELS: 'false'
         with:
           context: ./${{ matrix.component }}
           platforms: linux/amd64
@@ -160,6 +172,128 @@ jobs:
           .then(output=>sharp(output).metadata())
           .then(meta=>{assert.equal(meta.width,10);assert.equal(meta.height,5);console.log("PASS: linux/amd64 musl native addon and image decoder");})
           .catch(error=>{console.error(error.message);process.exitCode=1;});'
+      - name: Frontend nginx template compatibility, without mounts or service startup
+        if: matrix.component == 'frontend'
+        env:
+          IMAGE: homecloud-ci-frontend:${{ github.sha }}
+        run: |
+          docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges --add-host backend:127.0.0.1 --env INGRESS_PROXY_IP=127.0.0.2 "$IMAGE" nginx -t
+      - name: Verify runtime image architecture
+        env:
+          IMAGE: homecloud-ci-${{ matrix.component }}:${{ github.sha }}
+        run: test "$(docker image inspect "$IMAGE" --format '{{.Os}}/{{.Architecture}}')" = linux/amd64
+      - name: Build offline OCI provenance candidate
+        id: offline
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        env:
+          BUILDX_GIT_CHECK_DIRTY: 'false'
+          BUILDX_GIT_INFO: 'true'
+          BUILDX_GIT_LABELS: 'false'
+        with:
+          context: ./${{ matrix.component }}
+          platforms: linux/amd64
+          push: false
+          load: false
+          outputs: type=oci,dest=${{ runner.temp }}/${{ matrix.component }}.oci.tar
+          provenance: mode=max,version=v0.2
+          tags: ghcr.io/${{ steps.source.outputs.repository }}/${{ matrix.component }}:dry-run
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ steps.source.outputs.repository }}
+            org.opencontainers.image.revision=${{ steps.source.outputs.commit }}
+            org.opencontainers.image.version=dry-run
+            io.homecloud.role=${{ matrix.component }}
+            io.homecloud.pair=${{ steps.source.outputs.commit }}
+          build-args: |
+            NODE_IMAGE=${{ steps.bases.outputs.node }}
+            NGINX_IMAGE=${{ steps.bases.outputs.nginx }}
+      - name: Verify offline OCI digest, source and attestation
+        env:
+          BUILD_METADATA: ${{ steps.offline.outputs.metadata }}
+          SOURCE_COMMIT: ${{ steps.source.outputs.commit }}
+          REPOSITORY: ${{ steps.source.outputs.repository }}
+        run: |
+          python3 -c 'import os; open("offline-${{ matrix.component }}-metadata.json", "w").write(os.environ["BUILD_METADATA"])'
+          python3 scripts/ci/provenance.py dry-run --archive "$RUNNER_TEMP/${{ matrix.component }}.oci.tar" --metadata "offline-${{ matrix.component }}-metadata.json" --component "${{ matrix.component }}" --commit "$SOURCE_COMMIT" --repository "$REPOSITORY" --output "offline-${{ matrix.component }}.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: offline-provenance-${{ matrix.component }}-${{ github.run_attempt }}
+          path: offline-${{ matrix.component }}*.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Install checksum-pinned scanner
+        id: scanner
+        if: always() && steps.runtime.outcome == 'success'
+        run: sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/homecloud-trivy"
+      - name: Scan actual runtime image, including unfixed vulnerabilities
+        if: always() && steps.runtime.outcome == 'success' && steps.scanner.outcome == 'success'
+        run: sh scripts/ci/scan-image.sh "$RUNNER_TEMP/homecloud-trivy/trivy" docker "homecloud-ci-${{ matrix.component }}:${{ github.sha }}" "image-${{ matrix.component }}.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: image-scan-${{ matrix.component }}-${{ github.run_attempt }}
+          path: image-${{ matrix.component }}.json
+          if-no-files-found: error
+          retention-days: 14
+  provenance-pair:
+    if: always()
+    needs: [image-build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: offline-provenance-backend-${{ github.run_attempt }}
+          path: offline-backend
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: offline-provenance-frontend-${{ github.run_attempt }}
+          path: offline-frontend
+      - name: Bind verified image pair to synthetic tag and dry-run manifest
+        run: |
+          python3 scripts/ci/provenance-pair.py --backend offline-backend/offline-backend.json --frontend offline-frontend/offline-frontend.json --commit "$(git rev-parse HEAD)" --repository "${GITHUB_REPOSITORY,,}" --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --output provenance-dry-run.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: provenance-dry-run-${{ github.run_attempt }}
+          path: provenance-dry-run.json
+          if-no-files-found: error
+          retention-days: 14
+  base-image-scan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        base: [node, nginx, postgres, node-ci]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
+          persist-credentials: false
+      - name: Install checksum-pinned scanner
+        run: sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/homecloud-trivy"
+      - name: Scan pinned linux/amd64 base, including unfixed vulnerabilities
+        env:
+          BASE: ${{ matrix.base }}
+        run: |
+          if [ "$BASE" = node-ci ]; then
+            IMAGE=node:24.21.0-bookworm-slim@sha256:51b1100cc2a83d370c6a60952e3f2989c8a43159d0e38586e090f3b3326efefd
+          else
+            IMAGE=$(python3 -c 'import json,os; print(json.load(open("scripts/ci/images.lock.json"))[os.environ["BASE"]])')
+          fi
+          sh scripts/ci/scan-image.sh "$RUNNER_TEMP/homecloud-trivy/trivy" remote "$IMAGE" "image-base-$BASE.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: image-scan-base-${{ matrix.base }}-${{ github.run_attempt }}
+          path: image-base-${{ matrix.base }}.json
+          if-no-files-found: error
+          retention-days: 14
   security:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -174,7 +308,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: '20.20.2'
+          node-version: '24.21.0'
       - run: npm ci --ignore-scripts --no-audit
         working-directory: ${{ matrix.component }}
       - name: Capture audit response, reject infrastructure errors
@@ -212,7 +346,7 @@ jobs:
           "$RUNNER_TEMP/gitleaks" git --redact=100 --log-opts="--all -- . :(exclude)scripts/tests/PHASE-5.3.1-TEST-AUDIT.md" .
   gate:
     if: always()
-    needs: [backend, frontend, configuration, image-build, security, secrets]
+    needs: [backend, frontend, configuration, image-build, provenance-pair, base-image-scan, security, secrets]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:

@@ -65,6 +65,10 @@ jobs:
       TAG: ${{ inputs.tag }}
       COMMIT: ${{ needs.validate.outputs.commit }}
       TAG_OBJECT: ${{ needs.validate.outputs.tag_object }}
+      # The explicit verify-tag pathspec enforces clean tracked source without reading excluded audit.
+      BUILDX_GIT_CHECK_DIRTY: 'false'
+      BUILDX_GIT_LABELS: 'false'
+      BUILDX_GIT_INFO: 'true'
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
@@ -97,7 +101,7 @@ jobs:
           context: ./backend
           platforms: linux/amd64
           push: true
-          provenance: mode=max
+          provenance: mode=max,version=v0.2
           build-args: NODE_IMAGE=${{ steps.names.outputs.node }}
           tags: ghcr.io/${{ steps.names.outputs.repository }}/backend:${{ inputs.tag }}-${{ github.run_id }}-${{ github.run_attempt }}
           labels: |
@@ -112,7 +116,7 @@ jobs:
           context: ./frontend
           platforms: linux/amd64
           push: true
-          provenance: mode=max
+          provenance: mode=max,version=v0.2
           build-args: |
             NODE_IMAGE=${{ steps.names.outputs.node }}
             NGINX_IMAGE=${{ steps.names.outputs.nginx }}
@@ -128,8 +132,30 @@ jobs:
           REPOSITORY: ${{ steps.names.outputs.repository }}
           BACKEND_DIGEST: ${{ steps.backend.outputs.digest }}
           FRONTEND_DIGEST: ${{ steps.frontend.outputs.digest }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           python3 scripts/ci/release.py create --tag "$TAG" --commit "$COMMIT" --repository "$REPOSITORY" --backend "$BACKEND_DIGEST" --frontend "$FRONTEND_DIGEST" --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --output release-lock.json
+      - name: Scan exact published digests before any draft is created
+        env:
+          REPOSITORY: ${{ steps.names.outputs.repository }}
+          BACKEND_DIGEST: ${{ steps.backend.outputs.digest }}
+          FRONTEND_DIGEST: ${{ steps.frontend.outputs.digest }}
+        run: |
+          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/homecloud-trivy"
+          set +e
+          sh scripts/ci/scan-image.sh "$RUNNER_TEMP/homecloud-trivy/trivy" docker "ghcr.io/$REPOSITORY/backend@$BACKEND_DIGEST" image-backend.json
+          backend_result=$?
+          sh scripts/ci/scan-image.sh "$RUNNER_TEMP/homecloud-trivy/trivy" docker "ghcr.io/$REPOSITORY/frontend@$FRONTEND_DIGEST" image-frontend.json
+          frontend_result=$?
+          set -e
+          test "$backend_result" -eq 0 && test "$frontend_result" -eq 0
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: release-image-scan-${{ github.run_attempt }}
+          path: image-*.json
+          if-no-files-found: error
+          retention-days: 90
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-lock-${{ github.run_attempt }}
@@ -169,7 +195,7 @@ jobs:
           Тесты, Compose, dependency и secret gates успешно выполнены в текущем CI run.
           Linux/amd64 backend/frontend опубликованы в GHCR и проверены по digest и OCI revision.
           Неизменяемые ссылки и source contract записаны в release-lock.json.
-          BuildKit provenance приложен к registry index; криптографическая подпись не заявляется.
+          BuildKit provenance проверен по index/subject, VCS, Dockerfile и базовым материалам; криптографическая подпись не заявляется.
 
           Статус: NOT_DEPLOYED. Mini-PC не обновлялся. Production NO_GO.
           Это кандидат CI, не квалифицированный D1 release-manifest и не доказательство target health/backup/rollback.
