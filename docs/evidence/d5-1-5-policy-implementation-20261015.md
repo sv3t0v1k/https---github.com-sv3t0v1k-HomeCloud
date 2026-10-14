@@ -23,8 +23,14 @@ Rootfs выполняется только на GitHub Linux amd64 runner. Check
 
 ## Проверки до GitHub CI
 
-78 targeted tests PASS: release 19, provenance 9, scan evidence 10, scan policy 7, environment evidence 16, OCI binding 6, aggregate coverage 8, stage cache 3. Shell syntax и actionlint двух workflows PASS. Независимое source security review: ранее обнаруженные gaps закрыты, конкретных оставшихся обходов не найдено; actual CI требуется для интеграционного подтверждения.
+80 targeted tests PASS: release 19, provenance 9, scan evidence 10, scan policy 7, environment evidence 18, OCI binding 6, aggregate coverage 8, stage cache 3. Shell syntax и actionlint двух workflows PASS. Независимое source security review: ранее обнаруженные gaps закрыты, конкретных оставшихся обходов не найдено; actual CI требуется для интеграционного подтверждения.
 
 ## Findings для решения владельца
 
 Предыдущие evidence D5.1.5 сохранены без повторного исследования: PostgreSQL gosu 1.19/Go1.24.6, CVE-2025-68121 — кандидат на индивидуальный not-affected disposition по фактическому бинарному анализу; disposition не принят. Ingress CVE-2026-31789 — кандидат по ELF64; nginx CVE-2026-49975 и остальные HIGH остаются unresolved. Эти выводы не подавляют scanner findings. Новые результаты обязательных artifact/environment scans фиксируются после одного интеграционного запуска CI. До его завершения полное фактическое покрытие не заявляется.
+
+## Ограниченная интеграционная корректировка
+
+Первый CI a03c5f2 обнаружил несовместимый --include-dev-deps у Trivy image/rootfs (флаг поддержан только filesystem), tag@digest у Skopeo и npm empty optional/alias inventory. Исправлен только CLI/нормализация; filesystem сохраняет dev scan, физические rootfs/image inventories включают установленные пакеты. Полнота OS/npm проверяется независимо. Skopeo получает тот же repository@digest, archive binding проверяет исходный locked platform digest.
+
+Secret gate выявил 61 sourcegraph-access-token finding в историческом raw govulncheck JSON. Все 61 строки — публичные go.googlesource.com/go/+/40hex ссылки. Исходный finding не скрыт, исключение не принято; evidence перечислено в d5-1-5-policy-secret-findings-20261015.json. Secret job остаётся BLOCKED.

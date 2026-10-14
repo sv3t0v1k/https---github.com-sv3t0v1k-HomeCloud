@@ -513,7 +513,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends skopeo
           IMAGE=$(python3 -c 'import json; print(json.load(open("scripts/ci/production-images.lock.json"))["${{ matrix.role }}"])')
-          skopeo copy --preserve-digests "docker://$IMAGE" "oci-archive:$RUNNER_TEMP/${{ matrix.role }}.oci.tar"
+          SOURCE=$(python3 -c 'import sys; name,digest=sys.argv[1].split("@"); tail=name.rsplit("/",1)[-1]; name=name.rsplit(":",1)[0] if ":" in tail else name; print(name+"@"+digest)' "$IMAGE")
+          skopeo copy --preserve-digests "docker://$SOURCE" "oci-archive:$RUNNER_TEMP/${{ matrix.role }}.oci.tar"
       - name: Install checksum-pinned scanner
         run: sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/homecloud-trivy"
       - name: Mandatory actual production or build-worker scan

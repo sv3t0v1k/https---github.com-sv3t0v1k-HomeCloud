@@ -28,7 +28,7 @@ python3 "$script_dir/environment-evidence.py" capture "$environment_id" "$compon
 status=0
 "$scanner" --cache-dir "$cache_dir" rootfs --config /dev/null \
   --skip-dirs "$skip_dirs" --scanners vuln --ignore-unfixed=false --ignorefile /dev/null \
-  --include-dev-deps --list-all-pkgs --timeout 20m --no-progress --format json \
+  --list-all-pkgs --timeout 20m --no-progress --format json \
   --output "$output/rootfs.json" / > "$output/rootfs.log" 2>&1 || status=1
 if [ "$component" != none ]; then
   "$scanner" --cache-dir "$cache_dir" filesystem --config /dev/null \

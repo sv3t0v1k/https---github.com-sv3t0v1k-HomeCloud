@@ -1,27 +1,27 @@
-# D5.1.4 — Image Security Policy & Base Qualification
+# Image Security Policy — D5.1.5
 
-Дата: 2026-10-14. **BLOCKED; Production NO_GO.** Это квалификация и предложение
-разделить ответственность проверок, не разрешение ослабить существующий gate.
-Merge/tag/release/GHCR/deployment и изменение реальных данных не выполнялись.
+Дата: 2026-10-15. **BLOCKED; Production NO_GO.** Владелец явно согласовал архитектуру и реализацию политики. Ни одного индивидуального CVE disposition/исключения не принято.
 
 ## Действующая блокировка
 
-Существующий общий gate требует успеха всех jobs, включая четыре raw base scans.
-Любые HIGH/CRITICAL, в том числе без fix, продолжают блокировать каждый image scan.
-Ни одно исключение, allowlist, ignore-unfixed или continue-on-error не добавлено.
-Новые проверки DB freshness только усиливают fail-closed поведение.
+Общий gate требует все существующие функциональные/dependency/secret проверки и полную квалификацию следующих контуров:
 
-| Контур | Что должно проверяться | Решение о релизе сейчас |
+| Контур | Обязательная проверка | Блокировка |
 |---|---|---|
-| Backend/frontend runtime | Фактическая собранная пара linux/amd64, затем exact published digests при отдельно разрешённой публикации | 0 HIGH/CRITICAL обязательно; medium видимы и требуют triage |
-| PostgreSQL | Exact digest реально выбранного PG16, server version и security advisories отдельно от OS/gosu | Обязательный runtime gate; текущие 1C/24H не сняты |
-| Build/deps | Node/npm, установленные компиляторы и build dependencies фактически исполняемых stages | Raw Node gate остаётся обязательным; дополнительно требуется квалификация stages |
-| CI execution | Exact container после apt-install и исполняемые инструменты | Raw CI base gate остаётся обязательным; inventory не заменяет scan |
-| Ingress и дополнительные сервисы | Exact production ingress; Redis отдельно при включении profile | Непокрытый ingress блокирует release qualification; Redis не квалифицирован для включения |
+| Production runtime | Exact linux/amd64 backend, frontend, PostgreSQL, ingress; OCI archive/manifest/config/source/scan binding; smoke того же app artifact | Любой HIGH/CRITICAL или неполное evidence |
+| Build execution | Фактические deps/builder stages обеих сборок и exact BuildKit worker | Любой HIGH/CRITICAL; rebuilt stage export не считается исходным окружением |
+| CI execution | Фактические job filesystems после установки инструментов, полные OS/global npm/application inventories | Любой HIGH/CRITICAL или пропущенный установленный пакет |
+| Raw upstream bases | Четыре pinned базовых образа с полным исходным findings report | Обязательная диагностика; неправильный target, stale DB или ошибка скана блокируют CI; severity оценивается в фактических обязательных контурах выше |
 
-Разделение контуров нужно для определения владельца исправления и пути эксплуатации.
-Оно не делает build/CI безопасными: они исполняют входные данные зависимостей и влияют
-на артефакты. Чистый финальный runtime не закрывает уязвимость build pipeline.
+Medium/low/unknown сохраняются в evidence для triage. Unfixed и dev dependencies включены. Blanket exceptions, скрытые подавления, ignore files и автоматическое принятие CVE риска запрещены. Индивидуальное исключение требует отдельного решения владельца по порядку в конце документа; текущая реализация не применяет исключений.
+
+Backend/frontend квалифицируются из однократно собранных OCI archives; будущая публикация должна использовать их же без пересборки и пройти отдельную строгую проверку publication environment. Qualification сохраняет source/run/attempt, четыре runtime, пять build артефактов, шестнадцать execution environments и четыре raw diagnostics. Collector/final gate проверяют evidence и не производят исполняемый release artifact. Полный список и ограничения: [реализация](./evidence/d5-1-5-policy-implementation-20261015.md).
+
+PostgreSQL/ingress закреплены точными amd64 child digests в production override. Это фиксация идентичности, а не устранение CVE. Redis выключен opt-in profile и не квалифицирован для включения. Mac Docker, mini-PC и реальные данные не затрагиваются.
+
+## Историческая квалификация D5.1.4
+
+Следующие данные сохранены как исходное evidence D5.1.4; упоминания прежнего raw-base gate и coverage gaps описывают прежнее состояние. Они не заменяют новые фактические сканы и не являются CVE dispositions. Бинарная квалификация D5.1.5 хранится отдельно в docs/evidence/d5-1-5-20261014/.
 
 ## Проверенные факты
 
@@ -149,7 +149,4 @@ primary advisory, проверенный путь эксплуатации ил�
 Действие возможно только после явного решения владельца; severity-wide исключения
 и скрытое подавление недопустимы.
 
-Менять обязательность raw base gate сейчас не предлагается: полное покрытие реально
-исполняемых build/CI/PG/ingress ещё не достигнуто. Возможная будущая замена raw-base
-блокировки на квалификацию производных images требует отдельного согласования,
-предварительной проверки exact images и индивидуального решения остаточных CVE.
+Изменение архитектуры raw diagnostics / strict actual runtime-build-CI явно согласовано владельцем в D5.1.5. Это согласование не принимает ни одну из перечисленных CVE. При оставшихся HIGH/CRITICAL обязательных проверок итог остаётся BLOCKED.

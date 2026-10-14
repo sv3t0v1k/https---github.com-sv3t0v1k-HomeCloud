@@ -68,6 +68,10 @@ def inventory_graph(record):
     result = set()
     def walk(node):
         for name, dependency in node.get('dependencies', {}).items():
+            # Successful npm ls emits {} for absent optional/peer dependency slots.
+            # They are not installed packages; every actual manifest remains mandatory.
+            if dependency == {}:
+                continue
             if dependency.get('missing') or dependency.get('invalid') or not dependency.get('version'):
                 raise ValueError('Incomplete installed npm dependency graph')
             result.add((name, dependency['version']))
@@ -121,6 +125,14 @@ def validate_os_inventory(report, inventory):
 def validate_installed(report, manifests, graph, target):
     expected_graph = inventory_graph(graph)
     actual = {(p['name'], p['version']) for p in manifests}
+    # npm graph keys may be installation aliases (string-width-cjs -> string-width).
+    # Coverage against Trivy still requires the manifest's canonical Name+Version+path.
+    for manifest in manifests:
+        directory = Path(manifest['path']).parent
+        install_name = directory.name
+        if directory.parent.name.startswith('@'):
+            install_name = directory.parent.name + '/' + install_name
+        actual.add((install_name, manifest['version']))
     if not manifests or not expected_graph.issubset(actual):
         raise ValueError('Installed manifest inventory does not cover npm graph')
     for manifest in manifests:

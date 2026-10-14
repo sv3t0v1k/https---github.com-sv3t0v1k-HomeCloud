@@ -96,6 +96,26 @@ class EvidenceTests(unittest.TestCase):
         self.reports['rootfs']['Results'][0]['Packages'][0]['Epoch'] = 0
         self.check()
 
+    def test_successful_npm_optional_empty_slots_are_not_installed(self):
+        inventory = dict(exit_code=0, stdout=json.dumps({'dependencies': {
+            'installed': {'version': '1', 'dependencies': {'optional': {}}}}}))
+        self.assertEqual(module.inventory_graph(inventory), {('installed', '1')})
+        inventory['stdout'] = json.dumps({'dependencies': {'bad': {'resolved': 'https://example.test'}}})
+        with self.assertRaisesRegex(ValueError, 'Incomplete'):
+            module.inventory_graph(inventory)
+        inventory['stdout'] = json.dumps({'dependencies': {'bad': {'missing': True}}})
+        with self.assertRaisesRegex(ValueError, 'Incomplete'):
+            module.inventory_graph(inventory)
+
+    def test_npm_alias_matches_manifest_canonical_identity(self):
+        manifests = [dict(name='canonical', version='1', path='/usr/lib/node_modules/alias/package.json')]
+        graph = dict(exit_code=0, stdout=json.dumps({'dependencies': {'alias': {'version': '1'}}}))
+        report = dict(Results=[dict(Target='Node.js', Packages=[dict(Name='canonical', Version='1', FilePath='usr/lib/node_modules/alias/package.json')])])
+        module.validate_installed(report, manifests, graph, '/')
+        report['Results'][0]['Packages'][0]['Name'] = 'alias'
+        with self.assertRaisesRegex(ValueError, 'absent'):
+            module.validate_installed(report, manifests, graph, '/')
+
     def test_global_inventory_command_failure_blocks(self):
         self.evidence['global_npm_inventory']['exit_code'] = 1
         with self.assertRaisesRegex(ValueError, 'command failed'):
