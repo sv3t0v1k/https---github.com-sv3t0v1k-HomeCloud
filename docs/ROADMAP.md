@@ -1343,3 +1343,6 @@ GHCR/tag/release/merge/deployment не выполнялись; D5.2 NOT_STARTED.
 Закреплён ingress nginx1.30.6 exact amd64; targeted remote scan0C/0H/1M.
 Trivy0.76 candidate0C/0H; Compose5.6 уменьшает49H→4H. Новый source требует CI qualification и независимого review.
 PostgreSQL1C/24H (gosu), build/CI и остаточные Compose findings остаются блокерами. D5.2 NOT_STARTED.
+
+D5.1.7: первый run38755110763 выявил frontend rootfs timeout45мин с Trivy0.76 и остановлен как INCOMPLETE.
+Разрешённый предел двух попыток: одна корректировка existing rootfs budget до60мин при неизменных gates, затем окончательная фиксация результата без третьего цикла.

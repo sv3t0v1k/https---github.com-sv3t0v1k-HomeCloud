@@ -189,7 +189,7 @@ def capture(environment_id, component, workspace, output, skip_dirs, scanner, re
                     github=dict(run_id=os.environ.get('GITHUB_RUN_ID'), run_attempt=os.environ.get('GITHUB_RUN_ATTEMPT'),
                                 sha=os.environ.get('GITHUB_SHA'), job=os.environ.get('GITHUB_JOB'),
                                 runner_environment=os.environ.get('RUNNER_ENVIRONMENT')),
-                    execution_policy=dict(observed_cpu_count=os.cpu_count(), trivy_parallel=0, rootfs_timeout_minutes=45, component_timeout_minutes=20, tools_timeout_minutes=15, analyzers_disabled=[]),
+                    execution_policy=dict(observed_cpu_count=os.cpu_count(), trivy_parallel=0, rootfs_timeout_minutes=60, component_timeout_minutes=20, tools_timeout_minutes=15, analyzers_disabled=[]),
                     evidence_status='BLOCKED', scope_limitations=[
                         'Pseudo filesystems and temporary directories excluded; installed system/toolcache directories included.',
                         'Checkout excluded before rootfs traversal; selected application scanned separately.',

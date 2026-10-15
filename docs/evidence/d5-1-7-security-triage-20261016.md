@@ -16,6 +16,8 @@ Targeted scans выполнены native Darwin Trivy0.76 в отдельном 
 
 Целевые проверки: **43 PASS** (scan-evidence10, environment23, coverage10), Compose5.6 normalizes четыре overlays PASS, shell syntax PASS. Полные app tests/build локально не повторялись: application code/dependencies не изменялись. Новый scanner меняет все квалификации, поэтому единственный итоговый CI необходим для проверки его совместимости; прежние101 PASS не выдаются за проверку нового HEAD.
 
+Первая проверка HEAD1208af0 выявила технический предел нового Trivy: frontend full rootfs не успел за45мин и не создал JSON; evidence корректно BLOCKED, не PASS. Run38755110763 остановлен после подтверждения timeout. Единственная корректирующая попытка повышает только существующий rootfs budget45→60мин и записывает фактический60 в metadata; scope/analyzers/ignore/severity неизменны. Целевые23 environment tests повторены после этой правки, PASS. Job budgets100/110 сохраняются; это запас, не гарантия. При повторной нехватке — INCOMPLETE и остановка, третьего CI цикла нет.
+
 ## Компактный реестр
 
 Подробный machine-readable реестр: `outputs/d5-1-7-20261016/risk-registry.json` в локальном mirror проекта. Он ссылается на immutable SHA256 исходного D5.1.6 index, покрывает **1722/1722 обязательных advisory/package/version/fixed tuples, 675 advisory IDs** и сохраняет связь с exact targets. Девять diagnostic-only tuples не смешиваются с обязательными. Buckets пересекаются по advisory; их числа нельзя суммировать как уникальные CVE. Все member dispositions **OPEN_NO_EXCEPTION**; отсутствие finding после замены артефакта подтверждается новым evidence, а не исключением.
