@@ -7,6 +7,8 @@ import json
 import os
 from pathlib import Path
 import platform
+import shutil
+import re
 import subprocess
 import sys
 
@@ -140,6 +142,8 @@ def validate_installed(report, manifests, graph, target):
         relative_path = str(Path(manifest['path']).relative_to(target)).lstrip('/')
         covered = False
         for result in report.get('Results', []):
+            if result.get('Class') != 'lang-pkgs' or result.get('Type') != 'node-pkg':
+                continue
             for package in result.get('Packages', []):
                 if (package.get('Name'), package.get('Version')) != (manifest['name'], manifest['version']):
                     continue
@@ -151,7 +155,18 @@ def validate_installed(report, manifests, graph, target):
             raise ValueError('Installed npm package absent from scan inventory: ' + manifest['path'])
 
 
-def capture(environment_id, component, workspace, output, skip_dirs):
+def stage_executed_binary(actual, target):
+    if not actual.is_file() or not actual.stat().st_mode & 0o111:
+        raise ValueError('Executed binary must have executable mode')
+    digest = hashlib.sha256(actual.read_bytes()).hexdigest()
+    # Preserve the mode actually used to execute this tool, as well as its bytes.
+    shutil.copy2(actual, target)
+    if not target.stat().st_mode & 0o111 or hashlib.sha256(target.read_bytes()).hexdigest() != digest:
+        raise ValueError('Executed binary copy changed bytes or executable mode')
+    return digest
+
+
+def capture(environment_id, component, workspace, output, skip_dirs, scanner, registry=None):
     root, selected = scopes(workspace, component)
     excluded = skip_dirs.split(',')
     if str(root) not in excluded:
@@ -168,12 +183,13 @@ def capture(environment_id, component, workspace, output, skip_dirs):
     evidence = dict(format='homecloud-environment-scan-evidence-v1', source_kind='actual-job-filesystem',
                     observed_at=datetime.now(timezone.utc).isoformat(), environment_id=environment_id,
                     platform=f'{platform.system().lower()}/{platform.machine()}', component=component,
-                    workspace=str(root), source_commit=subprocess.check_output(['git', '-c', 'safe.directory='+str(root), 'rev-parse', 'HEAD'], text=True).strip(), rootfs_target='/', rootfs_excluded_dirs=excluded,
-                    component_target=str(selected) if selected else None, tools=tools,
+                    workspace=str(root), runner_temp=os.environ['RUNNER_TEMP'], source_commit=subprocess.check_output(['git', '-c', 'safe.directory='+str(root), 'rev-parse', 'HEAD'], text=True).strip(), rootfs_target='/', rootfs_excluded_dirs=excluded,
+                    component_target=str(selected / 'node_modules') if selected else None, rootfs_artifact_name=Path('/etc/hostname').read_text().strip() or '/', scan_invocations={'rootfs': {'mode': 'rootfs', 'target': '/'}, 'component': {'mode':'rootfs', 'target': str(selected / 'node_modules') if selected else None}, 'tools': {'mode':'rootfs', 'target': str(Path(output, 'executed-tools'))}}, etc_hostname=Path('/etc/hostname').read_text().strip(), tools=tools,
                     os_release=Path('/etc/os-release').read_text(),
                     github=dict(run_id=os.environ.get('GITHUB_RUN_ID'), run_attempt=os.environ.get('GITHUB_RUN_ATTEMPT'),
                                 sha=os.environ.get('GITHUB_SHA'), job=os.environ.get('GITHUB_JOB'),
                                 runner_environment=os.environ.get('RUNNER_ENVIRONMENT')),
+                    execution_policy=dict(observed_cpu_count=os.cpu_count(), trivy_parallel=0, rootfs_timeout_minutes=45, component_timeout_minutes=20, tools_timeout_minutes=15, analyzers_disabled=[]),
                     evidence_status='BLOCKED', scope_limitations=[
                         'Pseudo filesystems and temporary directories excluded; installed system/toolcache directories included.',
                         'Checkout excluded before rootfs traversal; selected application scanned separately.',
@@ -188,6 +204,29 @@ def capture(environment_id, component, workspace, output, skip_dirs):
         evidence['lockfile_sha256'] = hashlib.sha256((selected / 'package-lock.json').read_bytes()).hexdigest()
         if not (selected / 'node_modules').is_dir():
             raise ValueError('Actual installed component dependencies are missing')
+    registrations = json.loads(Path(registry).read_text()) if registry else []
+    if not isinstance(registrations, list):
+        raise ValueError('Executed tool registry must be a list')
+    registrations.append(dict(id='trivy', path=scanner))
+    stage = Path(output, 'executed-tools')
+    stage.mkdir()
+    evidence['executed_tools_target'] = str(stage)
+    evidence['executed_tools'] = []
+    used = set()
+    for tool in registrations:
+        if not isinstance(tool, dict) or not re.fullmatch(r'[a-z0-9][a-z0-9-]*', tool.get('id', '')) or tool['id'] in used:
+            raise ValueError('Invalid or duplicate executed tool ID')
+        used.add(tool['id'])
+        original = Path(tool['path'])
+        actual = original.resolve(strict=True)
+        if root == actual or root in actual.parents or not actual.is_file():
+            raise ValueError('Executed binary must be a regular file outside checkout')
+        target = stage / tool['id']
+        digest = stage_executed_binary(actual, target)
+        version_args = tool.get('version_args', ['--version'])
+        if not isinstance(version_args, list) or not all(isinstance(arg, str) for arg in version_args):
+            raise ValueError('Invalid tool version arguments')
+        evidence['executed_tools'].append(dict(id=tool['id'], requested_path=str(original), real_path=str(actual), sha256=digest, scanned_path=str(target), version=command([str(actual), *version_args])))
     Path(output, 'environment.json').write_text(json.dumps(evidence, indent=2, sort_keys=True) + '\n')
 
 
@@ -218,9 +257,16 @@ def validate(evidence, reports, metadata, now, java_metadata=None):
     if evidence.get('component_target'):
         expected['component'] = evidence['component_target']
         validate_installed(reports['component'], evidence['component_npm_manifests'], evidence['component_npm_inventory'], evidence['component_target'])
+    expected['tools'] = evidence['executed_tools_target']
+    for tool in evidence['executed_tools']:
+        if tool.get('version', {}).get('exit_code') != 0 or not tool.get('version', {}).get('stdout', '').strip():
+            raise ValueError('Executed tool version command failed: ' + tool['id'])
+        if not any(r.get('Class') == 'lang-pkgs' and r.get('Type') == 'gobinary' and r.get('Packages') and r.get('Target') in (tool['id'], str(Path(evidence['executed_tools_target'], tool['id']))) for r in reports['tools'].get('Results', [])):
+            raise ValueError('Missing executed tool binary inventory: ' + tool['id'])
     for name, target in expected.items():
         report = reports[name]
-        if report.get('ArtifactType') not in ('filesystem', 'rootfs') or report.get('ArtifactName') != target:
+        expected_name = evidence['rootfs_artifact_name'] if name == 'rootfs' else target
+        if report.get('ArtifactType') not in ('filesystem', 'rootfs') or report.get('ArtifactName') != expected_name:
             raise ValueError(f'{name}: scan target does not match actual scope')
         if report.get('Trivy', {}).get('Version') != '0.75.0':
             raise ValueError('Unexpected scanner version')
@@ -251,12 +297,20 @@ def main():
     try:
         db = json.loads(db_path.read_text())
         evidence['vulnerability_db'] = db
-        reports = {'rootfs': json.loads((output / 'rootfs.json').read_text())}
+        reports = {name: json.loads((output / f'{name}.json').read_text()) for name in ('rootfs', 'tools')}
         if evidence.get('component_target'):
             reports['component'] = json.loads((output / 'component.json').read_text())
         java_path = db_path.parent.parent / 'java-db' / 'metadata.json'
         java_db = json.loads(java_path.read_text()) if java_path.is_file() else None
         evidence['java_db'] = java_db
+        for tool in evidence['executed_tools']:
+            # Recheck both source and staged bytes after every scan, before evidence PASS.
+            actual_digest = hashlib.sha256(Path(tool['real_path']).read_bytes()).hexdigest()
+            staged_digest = hashlib.sha256(Path(tool['scanned_path']).read_bytes()).hexdigest()
+            if actual_digest != tool['sha256'] or staged_digest != tool['sha256']:
+                raise ValueError('Executed tool bytes changed during scan: ' + tool['id'])
+            tool['postscan_real_sha256'] = actual_digest
+            tool['postscan_staged_sha256'] = staged_digest
         validate(evidence, reports, db, datetime.now(timezone.utc), java_db)
         evidence['report_sha256'] = {k: hashlib.sha256((output / f'{k}.json').read_bytes()).hexdigest() for k in reports}
         evidence['evidence_status'] = 'PASS'

@@ -5,6 +5,7 @@ scanner=${1:?Specify checksum-verified Trivy binary}
 environment_id=${2:?Specify environment ID}
 component=${3:?Specify backend, frontend, or none}
 output=${4:?Specify evidence directory}
+registry=${5:-}
 [ "${GITHUB_ACTIONS:-}" = true ] && [ "$(uname -s)" = Linux ] && [ "$(uname -m)" = x86_64 ] || {
   echo 'Environment scans require a GitHub Actions Linux amd64 job' >&2; exit 1;
 }
@@ -24,21 +25,26 @@ skip_dirs="/proc,/sys,/dev,/run,/tmp,/var/tmp,/var/lib/docker,/var/lib/container
 for excluded in "${GITHUB_WORKSPACE:-$workspace}" "${RUNNER_TEMP:-/tmp}"; do
   skip_dirs="$skip_dirs,$excluded,$(realpath "$excluded")"
 done
-python3 "$script_dir/environment-evidence.py" capture "$environment_id" "$component" "$workspace" "$output" "$skip_dirs"
+python3 "$script_dir/environment-evidence.py" capture "$environment_id" "$component" "$workspace" "$output" "$skip_dirs" "$scanner" "$registry"
 status=0
 "$scanner" --cache-dir "$cache_dir" rootfs --config /dev/null \
   --skip-dirs "$skip_dirs" --scanners vuln --ignore-unfixed=false --ignorefile /dev/null \
-  --list-all-pkgs --timeout 20m --no-progress --format json \
+  --list-all-pkgs --parallel 0 --timeout 45m --no-progress --format json \
   --output "$output/rootfs.json" / > "$output/rootfs.log" 2>&1 || status=1
 if [ "$component" != none ]; then
-  "$scanner" --cache-dir "$cache_dir" filesystem --config /dev/null \
+  "$scanner" --cache-dir "$cache_dir" rootfs --config /dev/null \
     --scanners vuln --ignore-unfixed=false --ignorefile /dev/null \
-    --include-dev-deps --list-all-pkgs --timeout 15m --no-progress --format json \
-    --output "$output/component.json" "$workspace/$component" > "$output/component.log" 2>&1 || status=1
+    --list-all-pkgs --parallel 0 --timeout 20m --no-progress --format json \
+    --output "$output/component.json" "$workspace/$component/node_modules" > "$output/component.log" 2>&1 || status=1
 fi
+"$scanner" --cache-dir "$cache_dir" rootfs --config /dev/null \
+  --scanners vuln --ignore-unfixed=false --ignorefile /dev/null \
+  --list-all-pkgs --parallel 0 --timeout 15m --no-progress --format json \
+  --output "$output/tools.json" "$output/executed-tools" > "$output/tools.log" 2>&1 || status=1
 # Always finish every required scan and retain evidence before enforcing severity.
 python3 "$script_dir/environment-evidence.py" validate "$output" "$cache_dir/db/metadata.json" || status=1
 python3 "$script_dir/scan-policy.py" "$output/rootfs.json" --environment || status=1
+python3 "$script_dir/scan-policy.py" "$output/tools.json" --component || status=1
 if [ "$component" != none ]; then
   python3 "$script_dir/scan-policy.py" "$output/component.json" --component || status=1
 fi

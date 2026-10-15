@@ -56,7 +56,7 @@ class CoverageTests(unittest.TestCase):
             name = 'image-'+role+'.json' if role in ('backend', 'frontend') else role+'.scan.json'
             report = self.report('/tmp/'+role+'.tar')
             if role == 'backend' or role in coverage.STAGES:
-                report['Results'].append(dict(Class='lang-pkgs', Type='npm', Packages=[dict(Name='npm', Version='11')]))
+                report['Results'].append(dict(Class='lang-pkgs', Type='node-pkg', Packages=[dict(Name='npm', Version='11')]))
             p = self.write(name, report)
             self.write(str(p.relative_to(self.root).with_suffix('.evidence.json')),
                        dict(evidence_status='PASS', source_kind='archive', vulnerability_db=self.db,
@@ -79,16 +79,29 @@ class CoverageTests(unittest.TestCase):
             p = self.write('env-'+name+'/rootfs.json', self.report('/', image=False))
             component = coverage.COMPONENTS.get(name, 'none')
             reports = {'rootfs': coverage.sha(p)}
+            tools_report = self.report('/evidence/executed-tools', image=False)
+            tools_report['Results'] = [dict(Class='lang-pkgs', Type='gobinary', Packages=[dict(Name='stdlib', Version='1')])]
+            tp = self.write('env-'+name+'/tools.json', tools_report)
+            reports['tools'] = coverage.sha(tp)
+            ids = ['trivy']
+            if name.startswith(('image-build-', 'base-', 'support-')):
+                ids.append('image-trivy')
+            if name == 'configuration':
+                ids.append('compose')
+            if name == 'secrets':
+                ids.append('gitleaks')
+            tool_paths = dict(trivy='/temp/environment-trivy/trivy', **{'image-trivy': '/temp/homecloud-trivy/trivy'}, compose='/temp/homecloud-compose-bin/docker-compose', gitleaks='/temp/gitleaks')
+            tools = [dict(id=key, requested_path=tool_paths[key]) for key in ids]
             target = None
             if component != 'none':
-                target = '/checkout/'+component
+                target = '/checkout/'+component+'/node_modules'
                 r = self.report(target, image=False)
                 r['Results'] = [dict(Class='lang-pkgs', Packages=[dict(Name='example', Version='1')], Vulnerabilities=[])]
                 cp = self.write('env-'+name+'/component.json', r)
                 reports['component'] = coverage.sha(cp)
             self.write('env-'+name+'/environment.json', dict(environment_id=name, source_commit=self.source,
                        evidence_status='PASS', report_sha256=reports, vulnerability_db=self.db,
-                       workspace='/checkout', component=component, component_target=target))
+                       workspace='/checkout', runner_temp='/temp', executed_tools=tools, component=component, component_target=target))
         raw_lock = json.loads(Path(__file__).with_name('images.lock.json').read_text())
         for role in ('node', 'nginx', 'postgres', 'node-ci'):
             ref = ('node:24.21.0-bookworm-slim@sha256:51b1100cc2a83d370c6a60952e3f2989c8a43159d0e38586e090f3b3326efefd'
@@ -102,6 +115,26 @@ class CoverageTests(unittest.TestCase):
         # Only the independently tested environment capture contract is abstracted here.
         with patch.object(coverage.environment, 'validate'):
             return coverage.qualify(self.root, self.source)
+
+    def test_lockfile_npm_cannot_replace_physical_inventory(self):
+        self.fixture()
+        p = self.root/'image-backend.json'
+        report = json.loads(p.read_text())
+        report['Results'][1]['Type'] = 'npm'
+        p.write_text(json.dumps(report))
+        binding = self.root/'backend.binding.json'
+        data = json.loads(binding.read_text())
+        data['scan_sha256'] = 'sha256:'+coverage.sha(p)
+        binding.write_text(json.dumps(data))
+        self.assertEqual(self.qualify()['coverage'], 'INCOMPLETE')
+
+    def test_executed_temporary_tool_cannot_be_omitted(self):
+        self.fixture()
+        p = self.root/'env-configuration/environment.json'
+        data = json.loads(p.read_text())
+        data['executed_tools'] = data['executed_tools'][:1]
+        p.write_text(json.dumps(data))
+        self.assertEqual(self.qualify()['coverage'], 'INCOMPLETE')
 
     def test_empty_coverage_cannot_pass(self):
         r = self.qualify()

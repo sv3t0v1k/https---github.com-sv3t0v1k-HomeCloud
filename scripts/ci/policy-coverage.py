@@ -68,7 +68,7 @@ def image(root, role, source, lock):
                       datetime.now(timezone.utc), source_kind='archive')
     if role == 'backend' or role in STAGES:
         packages = [package for result in report.get('Results', [])
-                    if result.get('Class') == 'lang-pkgs' and result.get('Type') == 'npm'
+                    if result.get('Class') == 'lang-pkgs' and result.get('Type') == 'node-pkg'
                     for package in result.get('Packages', [])]
         if not packages or not all(p.get('Name') and p.get('Version') for p in packages):
             raise ValueError('Missing installed Node package scan: '+role)
@@ -123,18 +123,30 @@ def qualify(root, source):
             if current.get('source_commit') != source or current.get('evidence_status') != 'PASS':
                 raise ValueError('Invalid actual environment/source: '+name)
             component = COMPONENTS.get(name, 'none')
-            expected_target = str(Path(current['workspace'])/component) if component != 'none' else None
+            expected_target = str(Path(current['workspace'])/component/'node_modules') if component != 'none' else None
             if current.get('component') != component or current.get('component_target') != expected_target:
                 raise ValueError('Required installed component coverage missing: '+name)
-            if set(current['report_sha256']) != ({'rootfs', 'component'} if expected_target else {'rootfs'}):
+            if set(current['report_sha256']) != ({'rootfs', 'component', 'tools'} if expected_target else {'rootfs', 'tools'}):
                 raise ValueError('Required environment report set missing: '+name)
+            temp = Path(current['runner_temp'])
+            required_tools = {'trivy': temp/'environment-trivy/trivy'}
+            if name.startswith(('image-build-', 'base-', 'support-')):
+                required_tools['image-trivy'] = temp/'homecloud-trivy/trivy'
+            if name == 'configuration':
+                required_tools['compose'] = temp/'homecloud-compose-bin/docker-compose'
+            if name == 'secrets':
+                required_tools['gitleaks'] = temp/'gitleaks'
+            tools = current['executed_tools']
+            if (len(tools) != len(required_tools)
+                    or {tool['id']: tool['requested_path'] for tool in tools} != {key: str(value) for key, value in required_tools.items()}):
+                raise ValueError('Required executed temporary tools missing or changed: '+name)
             reports = {role: read(path.with_name(role+'.json')) for role in current['report_sha256']}
             for role in reports:
                 if sha(path.with_name(role+'.json')) != current['report_sha256'][role]:
                     raise ValueError('Environment report changed: '+name)
             environment.validate(current, reports, current['vulnerability_db'],
                                  datetime.now(timezone.utc), current.get('java_db'))
-            summaries = {role: policy.evaluate_environment(report, component=role == 'component')
+            summaries = {role: policy.evaluate_environment(report, component=role in ('component', 'tools'))
                          for role, report in reports.items()}
             return dict(source_commit=source, scans=summaries,
                         gate='BLOCKED' if any(s['gate'] != 'PASS' for s in summaries.values()) else 'PASS')

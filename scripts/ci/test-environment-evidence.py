@@ -20,7 +20,7 @@ class EvidenceTests(unittest.TestCase):
                        DownloadedAt=self.now.isoformat(), NextUpdate=(self.now + timedelta(hours=4)).isoformat())
         self.evidence = dict(source_kind='actual-job-filesystem', platform='linux/x86_64',
                              workspace='/checkout', rootfs_excluded_dirs=['/proc', '/checkout'],
-                             component_target='/checkout/backend', source_commit='a' * 40,
+                             component_target='/checkout/backend/node_modules', rootfs_artifact_name='runner-host', executed_tools_target='/evidence/executed-tools', executed_tools=[dict(id='trivy', version=dict(exit_code=0, stdout='Version: 0.75.0'))], source_commit='a' * 40,
                              global_npm_manifests=[dict(name='npm', version='11.0.0', path='/usr/lib/node_modules/npm/package.json'), dict(name='bundled', version='1.0.0', path='/usr/lib/node_modules/npm/node_modules/bundled/package.json')],
                              global_npm_inventory=dict(exit_code=0, stdout=json.dumps({'dependencies': {'npm': {'version': '11.0.0'}}})),
                              component_npm_manifests=[dict(name='example', version='1.0.0', path='/checkout/backend/node_modules/example/package.json')],
@@ -28,16 +28,62 @@ class EvidenceTests(unittest.TestCase):
                              os_package_inventory={'exit_code': 0, 'stdout': 'libc\t1\tamd64\tinstalled'},
                              tools={'node': {'exit_code': 0}, 'npm': {'exit_code': 0}})
         self.reports = {
-            'rootfs': dict(ArtifactType='filesystem', ArtifactName='/', Trivy={'Version': '0.75.0'},
+            'tools': dict(ArtifactType='filesystem', ArtifactName='/evidence/executed-tools', Trivy={'Version':'0.75.0'}, Results=[dict(Class='lang-pkgs', Type='gobinary', Target='trivy', Packages=[dict(Name='github.com/aquasecurity/trivy', Version='v0.75.0')])]),
+            'rootfs': dict(ArtifactType='filesystem', ArtifactName='runner-host', Trivy={'Version': '0.75.0'},
                            Results=[dict(Class='os-pkgs', Packages=[{'Name': 'libc', 'Version': '1', 'Arch': 'amd64'}]),
                                     dict(Class='lang-pkgs', Type='node-pkg', Target='Node.js', Packages=[
                                         dict(Name='npm', Version='11.0.0', FilePath='usr/lib/node_modules/npm/package.json'),
                                         dict(Name='bundled', Version='1.0.0', FilePath='usr/lib/node_modules/npm/node_modules/bundled/package.json')])]),
-            'component': dict(ArtifactType='filesystem', ArtifactName='/checkout/backend', Trivy={'Version': '0.75.0'},
-                              Results=[dict(Class='lang-pkgs', Type='npm', Packages=[dict(Name='example', Version='1.0.0', FilePath='node_modules/example/package.json')])])}
+            'component': dict(ArtifactType='filesystem', ArtifactName='/checkout/backend/node_modules', Trivy={'Version': '0.75.0'},
+                              Results=[dict(Class='lang-pkgs', Type='node-pkg', Packages=[dict(Name='example', Version='1.0.0', FilePath='example/package.json')])])}
 
     def check(self):
         module.validate(self.evidence, self.reports, self.db, self.now)
+
+    def test_staged_binary_preserves_mode_bytes_and_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source, target = Path(directory) / 'source', Path(directory) / 'staged'
+            source.write_bytes(b'synthetic-executable-fixture')
+            source.chmod(0o751)
+            original = source.stat()
+            digest = module.stage_executed_binary(source, target)
+            self.assertEqual(source.read_bytes(), target.read_bytes())
+            self.assertEqual(source.stat().st_mode & 0o777, 0o751)
+            self.assertEqual(target.stat().st_mode & 0o777, 0o751)
+            self.assertEqual(source.stat().st_mtime_ns, original.st_mtime_ns)
+            self.assertEqual(len(digest), 64)
+            source.chmod(0o644)
+            with self.assertRaisesRegex(ValueError, 'executable mode'):
+                module.stage_executed_binary(source, target)
+
+    def test_executed_tool_version_failure_blocks(self):
+        self.evidence['executed_tools'][0]['version']['exit_code'] = 1
+        with self.assertRaisesRegex(ValueError, 'version command failed'):
+            self.check()
+        self.evidence['executed_tools'][0]['version'].update(exit_code=0, stdout='')
+        with self.assertRaisesRegex(ValueError, 'version command failed'):
+            self.check()
+
+    def test_wrong_binary_target_or_language_cannot_cover_tool(self):
+        tool = self.reports['tools']['Results'][0]
+        tool['Target'] = 'unrelated/trivy'
+        with self.assertRaisesRegex(ValueError, 'executed tool'):
+            self.check()
+        tool['Target'] = 'trivy'
+        tool['Type'] = 'npm'
+        with self.assertRaisesRegex(ValueError, 'executed tool'):
+            self.check()
+
+    def test_missing_executed_binary_inventory_blocks(self):
+        self.reports['tools']['Results'] = []
+        with self.assertRaisesRegex(ValueError, 'executed tool'):
+            self.check()
+
+    def test_rootfs_hostname_is_observed_identity(self):
+        self.check()
+        self.reports['rootfs']['ArtifactName'] = '/'
+        with self.assertRaisesRegex(ValueError, 'scope'):
+            self.check()
 
     def test_actual_environment(self):
         self.check()
@@ -110,7 +156,7 @@ class EvidenceTests(unittest.TestCase):
     def test_npm_alias_matches_manifest_canonical_identity(self):
         manifests = [dict(name='canonical', version='1', path='/usr/lib/node_modules/alias/package.json')]
         graph = dict(exit_code=0, stdout=json.dumps({'dependencies': {'alias': {'version': '1'}}}))
-        report = dict(Results=[dict(Target='Node.js', Packages=[dict(Name='canonical', Version='1', FilePath='usr/lib/node_modules/alias/package.json')])])
+        report = dict(Results=[dict(Class='lang-pkgs', Type='node-pkg', Target='Node.js', Packages=[dict(Name='canonical', Version='1', FilePath='usr/lib/node_modules/alias/package.json')])])
         module.validate_installed(report, manifests, graph, '/')
         report['Results'][0]['Packages'][0]['Name'] = 'alias'
         with self.assertRaisesRegex(ValueError, 'absent'):
