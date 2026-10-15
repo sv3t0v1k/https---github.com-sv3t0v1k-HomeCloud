@@ -268,7 +268,7 @@ def validate(evidence, reports, metadata, now, java_metadata=None):
         expected_name = evidence['rootfs_artifact_name'] if name == 'rootfs' else target
         if report.get('ArtifactType') not in ('filesystem', 'rootfs') or report.get('ArtifactName') != expected_name:
             raise ValueError(f'{name}: scan target does not match actual scope')
-        if report.get('Trivy', {}).get('Version') != '0.75.0':
+        if report.get('Trivy', {}).get('Version') != '0.76.0':
             raise ValueError('Unexpected scanner version')
         if any(r.get('Type') == 'jar' for r in report.get('Results', [])):
             if not java_metadata or java_metadata.get('Version') != 1:

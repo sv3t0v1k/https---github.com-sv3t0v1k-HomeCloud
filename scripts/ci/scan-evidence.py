@@ -35,7 +35,7 @@ def validate(report, metadata, reference, now, source_kind='remote'):
     config = report.get('Metadata', {}).get('ImageConfig', {})
     if (config.get('os'), config.get('architecture')) != ('linux', 'amd64'):
         raise ValueError('Expected scanned linux/amd64 image')
-    if report.get('Trivy', {}).get('Version') != '0.75.0':
+    if report.get('Trivy', {}).get('Version') != '0.76.0':
         raise ValueError('Unexpected scanner version')
 
 

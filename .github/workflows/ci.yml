@@ -145,8 +145,8 @@ jobs:
         shell: bash
         run: |
           mkdir -p "$RUNNER_TEMP/homecloud-compose-bin"
-          curl --fail --silent --show-error --location https://github.com/docker/compose/releases/download/v5.1.3/docker-compose-linux-x86_64 -o "$RUNNER_TEMP/homecloud-compose-bin/docker-compose"
-          echo "a0298760c9772d2c06888fc8703a487c94c3c3b0134adeef830742a2fc7647b4  $RUNNER_TEMP/homecloud-compose-bin/docker-compose" | sha256sum --check
+          curl --fail --silent --show-error --location https://github.com/docker/compose/releases/download/v5.6.0/docker-compose-linux-x86_64 -o "$RUNNER_TEMP/homecloud-compose-bin/docker-compose"
+          echo "40343e21ca777173e69cff5dbafeb37c6f81f3b0d57d9e597f036e95eb63e76a  $RUNNER_TEMP/homecloud-compose-bin/docker-compose" | sha256sum --check
           chmod +x "$RUNNER_TEMP/homecloud-compose-bin/docker-compose"
           cat > "$RUNNER_TEMP/homecloud-compose-bin/docker" <<'SHIM'
           #!/bin/sh
@@ -157,7 +157,7 @@ jobs:
           SHIM
           chmod +x "$RUNNER_TEMP/homecloud-compose-bin/docker"
           echo "$RUNNER_TEMP/homecloud-compose-bin" >> "$GITHUB_PATH"
-          test "$("$RUNNER_TEMP/homecloud-compose-bin/docker" compose version --short)" = 5.1.3
+          test "$("$RUNNER_TEMP/homecloud-compose-bin/docker" compose version --short)" = 5.6.0
       - run: docker compose version && python3 scripts/ci/compose-check.py
       - run: python3 deploy/linux/test_startup_gate.py
       - run: python3 scripts/ci/test-entrypoint.py
@@ -532,6 +532,23 @@ jobs:
           IMAGE=$(python3 -c 'import json; print(json.load(open("scripts/ci/production-images.lock.json"))["${{ matrix.role }}"])')
           SOURCE=$(python3 -c 'import sys; name,digest=sys.argv[1].split("@"); tail=name.rsplit("/",1)[-1]; name=name.rsplit(":",1)[0] if ":" in tail else name; print(name+"@"+digest)' "$IMAGE")
           skopeo copy --preserve-digests "docker://$SOURCE" "oci-archive:$RUNNER_TEMP/${{ matrix.role }}.oci.tar"
+      - name: Validate production ingress configuration on disposable CI runner
+        if: matrix.role == 'ingress'
+        shell: bash
+        run: |
+          fixture=$(mktemp -d "$RUNNER_TEMP/ingress-config.XXXXXX")
+          trap 'rm -rf "$fixture"' EXIT
+          mkdir -p "$fixture/tls/current" "$fixture/acme"
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=cloud.example.invalid \
+            -keyout "$fixture/tls/current/privkey.pem" -out "$fixture/tls/current/fullchain.pem"
+          IMAGE=$(python3 -c 'import json; print(json.load(open("scripts/ci/production-images.lock.json"))["ingress"])')
+          docker run --rm --network none --add-host frontend:127.0.0.1 --memory 128m \
+            -e PUBLIC_HOST=cloud.example.invalid -e 'NGINX_ENVSUBST_FILTER=^PUBLIC_HOST$' \
+            -v "$GITHUB_WORKSPACE/deploy/ingress/19-validate-public-host.sh:/docker-entrypoint.d/19-validate-public-host.sh:ro" \
+            -v "$GITHUB_WORKSPACE/deploy/ingress/default.conf.template:/etc/nginx/templates/default.conf.template:ro" \
+            -v "$GITHUB_WORKSPACE/deploy/ingress/upgrade.conf:/etc/nginx/conf.d/upgrade.conf:ro" \
+            -v "$fixture/tls:/etc/nginx/tls:ro" -v "$fixture/acme:/var/www/acme:ro" \
+            "$IMAGE" nginx -t
       - name: Install checksum-pinned scanner
         run: sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/homecloud-trivy"
       - name: Mandatory actual production or build-worker scan

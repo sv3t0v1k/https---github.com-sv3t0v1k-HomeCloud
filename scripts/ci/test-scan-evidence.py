@@ -26,7 +26,7 @@ class EvidenceTests(unittest.TestCase):
                              DownloadedAt=self.now.isoformat(),
                              NextUpdate=(self.now+timedelta(hours=12)).isoformat())
         self.report = dict(ArtifactName='fixture:ci', ArtifactType='container_image',
-                           Trivy=dict(Version='0.75.0'),
+                           Trivy=dict(Version='0.76.0'),
                            Metadata=dict(ImageID='sha256:fixture',
                                          ImageConfig=dict(os='linux', architecture='amd64')),
                            Results=[dict(Class='os-pkgs', Type='alpine', Vulnerabilities=[],
@@ -49,7 +49,7 @@ class EvidenceTests(unittest.TestCase):
                 evidence.validate(self.report, {**self.metadata, **changes}, 'fixture:ci', self.now)
 
     def test_wrong_target_platform_scanner(self):
-        for change in (dict(ArtifactName='other:ci'), dict(Trivy=dict(Version='unknown')),
+        for change in (dict(ArtifactName='other:ci'), dict(Trivy=dict(Version='unknown')), dict(Trivy=dict(Version='0.75.0')),
                        dict(Metadata=dict(ImageConfig=dict(os='linux', architecture='arm64')))):
             with self.subTest(change=change), self.assertRaises(ValueError):
                 evidence.validate({**self.report, **change}, self.metadata, 'fixture:ci', self.now)

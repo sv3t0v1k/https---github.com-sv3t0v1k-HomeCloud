@@ -20,7 +20,7 @@ class EvidenceTests(unittest.TestCase):
                        DownloadedAt=self.now.isoformat(), NextUpdate=(self.now + timedelta(hours=4)).isoformat())
         self.evidence = dict(source_kind='actual-job-filesystem', platform='linux/x86_64',
                              workspace='/checkout', rootfs_excluded_dirs=['/proc', '/checkout'],
-                             component_target='/checkout/backend/node_modules', rootfs_artifact_name='runner-host', executed_tools_target='/evidence/executed-tools', executed_tools=[dict(id='trivy', version=dict(exit_code=0, stdout='Version: 0.75.0'))], source_commit='a' * 40,
+                             component_target='/checkout/backend/node_modules', rootfs_artifact_name='runner-host', executed_tools_target='/evidence/executed-tools', executed_tools=[dict(id='trivy', version=dict(exit_code=0, stdout='Version: 0.76.0'))], source_commit='a' * 40,
                              global_npm_manifests=[dict(name='npm', version='11.0.0', path='/usr/lib/node_modules/npm/package.json'), dict(name='bundled', version='1.0.0', path='/usr/lib/node_modules/npm/node_modules/bundled/package.json')],
                              global_npm_inventory=dict(exit_code=0, stdout=json.dumps({'dependencies': {'npm': {'version': '11.0.0'}}})),
                              component_npm_manifests=[dict(name='example', version='1.0.0', path='/checkout/backend/node_modules/example/package.json')],
@@ -28,13 +28,13 @@ class EvidenceTests(unittest.TestCase):
                              os_package_inventory={'exit_code': 0, 'stdout': 'libc\t1\tamd64\tinstalled'},
                              tools={'node': {'exit_code': 0}, 'npm': {'exit_code': 0}})
         self.reports = {
-            'tools': dict(ArtifactType='filesystem', ArtifactName='/evidence/executed-tools', Trivy={'Version':'0.75.0'}, Results=[dict(Class='lang-pkgs', Type='gobinary', Target='trivy', Packages=[dict(Name='github.com/aquasecurity/trivy', Version='v0.75.0')])]),
-            'rootfs': dict(ArtifactType='filesystem', ArtifactName='runner-host', Trivy={'Version': '0.75.0'},
+            'tools': dict(ArtifactType='filesystem', ArtifactName='/evidence/executed-tools', Trivy={'Version':'0.76.0'}, Results=[dict(Class='lang-pkgs', Type='gobinary', Target='trivy', Packages=[dict(Name='github.com/aquasecurity/trivy', Version='v0.76.0')])]),
+            'rootfs': dict(ArtifactType='filesystem', ArtifactName='runner-host', Trivy={'Version': '0.76.0'},
                            Results=[dict(Class='os-pkgs', Packages=[{'Name': 'libc', 'Version': '1', 'Arch': 'amd64'}]),
                                     dict(Class='lang-pkgs', Type='node-pkg', Target='Node.js', Packages=[
                                         dict(Name='npm', Version='11.0.0', FilePath='usr/lib/node_modules/npm/package.json'),
                                         dict(Name='bundled', Version='1.0.0', FilePath='usr/lib/node_modules/npm/node_modules/bundled/package.json')])]),
-            'component': dict(ArtifactType='filesystem', ArtifactName='/checkout/backend/node_modules', Trivy={'Version': '0.75.0'},
+            'component': dict(ArtifactType='filesystem', ArtifactName='/checkout/backend/node_modules', Trivy={'Version': '0.76.0'},
                               Results=[dict(Class='lang-pkgs', Type='node-pkg', Packages=[dict(Name='example', Version='1.0.0', FilePath='example/package.json')])])}
 
     def check(self):

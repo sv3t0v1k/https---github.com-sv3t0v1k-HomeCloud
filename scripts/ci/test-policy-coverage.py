@@ -32,7 +32,7 @@ class CoverageTests(unittest.TestCase):
 
     def report(self, name, image=True, high=False):
         return dict(ArtifactName=name, ArtifactType='container_image' if image else 'filesystem',
-                    Trivy=dict(Version='0.75.0'),
+                    Trivy=dict(Version='0.76.0'),
                     Metadata=dict(ImageID='sha256:'+'b'*64, ImageConfig=dict(os='linux', architecture='amd64')),
                     Results=[dict(Class='os-pkgs', Packages=[dict(Name='libc', Version='1')],
                                   Vulnerabilities=[dict(PkgName='libc', VulnerabilityID='CVE-TEST', Severity='HIGH')] if high else [])])
