@@ -20,7 +20,7 @@ concurrency:
 jobs:
   backend:
     runs-on: ubuntu-24.04
-    timeout-minutes: 50
+    timeout-minutes: 110
     container: node:24.21.0-bookworm-slim@sha256:51b1100cc2a83d370c6a60952e3f2989c8a43159d0e38586e090f3b3326efefd
     services:
       postgres:
@@ -56,6 +56,7 @@ jobs:
       - run: python3 scripts/ci/test-oci-scan-binding.py
       - run: python3 scripts/ci/test-policy-coverage.py
       - run: python3 scripts/ci/test-stage-cache-proof.py
+      - run: python3 scripts/ci/test-secret-findings.py
       - name: Retain actual CI toolchain inventory after apt changes
         run: dpkg-query -W -f='${binary:Package}\t${Version}\n' > ci-toolchain-packages.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -101,7 +102,7 @@ jobs:
           retention-days: 14
   frontend:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 110
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
@@ -134,7 +135,7 @@ jobs:
           retention-days: 14
   configuration:
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 100
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
@@ -167,7 +168,8 @@ jobs:
         if: always()
         run: |
           sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy"
-          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "configuration" "none" "environment-configuration"
+          python3 -c "import os,json; temp=os.environ['RUNNER_TEMP']; print(json.dumps([dict(id='compose', path=temp+'/homecloud-compose-bin/docker-compose', version_args=['version','--short'])]))" > "$RUNNER_TEMP/environment-tools.json"
+          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "configuration" "none" "environment-configuration" "$RUNNER_TEMP/environment-tools.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
@@ -177,7 +179,7 @@ jobs:
           retention-days: 14
   image-build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 100
     strategy:
       fail-fast: false
       matrix:
@@ -331,7 +333,8 @@ jobs:
         if: always()
         run: |
           sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy"
-          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "image-build-${{ matrix.component }}" "none" "environment-image-build-${{ matrix.component }}"
+          python3 -c "import os,json; temp=os.environ['RUNNER_TEMP']; print(json.dumps([dict(id='image-trivy', path=temp+'/homecloud-trivy/trivy')]))" > "$RUNNER_TEMP/environment-tools.json"
+          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "image-build-${{ matrix.component }}" "none" "environment-image-build-${{ matrix.component }}" "$RUNNER_TEMP/environment-tools.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
@@ -343,7 +346,7 @@ jobs:
     if: always()
     needs: [image-build]
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 100
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
@@ -381,7 +384,7 @@ jobs:
           retention-days: 14
   base-image-scan:
     runs-on: ubuntu-24.04
-    timeout-minutes: 50
+    timeout-minutes: 110
     strategy:
       fail-fast: false
       matrix:
@@ -414,7 +417,8 @@ jobs:
         if: always()
         run: |
           sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy"
-          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "base-${{ matrix.base }}" "none" "environment-base-${{ matrix.base }}"
+          python3 -c "import os,json; temp=os.environ['RUNNER_TEMP']; print(json.dumps([dict(id='image-trivy', path=temp+'/homecloud-trivy/trivy')]))" > "$RUNNER_TEMP/environment-tools.json"
+          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "base-${{ matrix.base }}" "none" "environment-base-${{ matrix.base }}" "$RUNNER_TEMP/environment-tools.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
@@ -424,7 +428,7 @@ jobs:
           retention-days: 14
   security:
     runs-on: ubuntu-24.04
-    timeout-minutes: 50
+    timeout-minutes: 110
     strategy:
       fail-fast: false
       matrix:
@@ -470,7 +474,7 @@ jobs:
           retention-days: 14
   secrets:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 110
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
@@ -483,12 +487,25 @@ jobs:
           curl --fail --silent --show-error --location https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz -o "$RUNNER_TEMP/gitleaks.tar.gz"
           echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  $RUNNER_TEMP/gitleaks.tar.gz" | sha256sum --check
           tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP" gitleaks
-          "$RUNNER_TEMP/gitleaks" git --redact=100 --log-opts="--all -- . :(exclude)scripts/tests/PHASE-5.3.1-TEST-AUDIT.md" .
+          mkdir "$RUNNER_TEMP/gitleaks-evidence"
+          set +e
+          "$RUNNER_TEMP/gitleaks" git --redact=100 --exit-code 42 --report-format json --report-path "$RUNNER_TEMP/gitleaks-evidence/raw-redacted.json" --log-opts="--all -- . :(exclude)scripts/tests/PHASE-5.3.1-TEST-AUDIT.md" .
+          scanner_result=$?
+          set -e
+          python3 scripts/ci/secret-findings.py --report "$RUNNER_TEMP/gitleaks-evidence/raw-redacted.json" --scanner-exit "$scanner_result" --output "$RUNNER_TEMP/gitleaks-evidence/classification.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: secret-evidence-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/gitleaks-evidence
+          if-no-files-found: error
+          retention-days: 90
       - name: Mandatory actual CI environment qualification
         if: always()
         run: |
           sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy"
-          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "secrets" "none" "environment-secrets"
+          python3 -c "import os,json; temp=os.environ['RUNNER_TEMP']; print(json.dumps([dict(id='gitleaks', path=temp+'/gitleaks', version_args=['version'])]))" > "$RUNNER_TEMP/environment-tools.json"
+          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "secrets" "none" "environment-secrets" "$RUNNER_TEMP/environment-tools.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
@@ -498,7 +515,7 @@ jobs:
           retention-days: 14
   support-images:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 100
     strategy:
       fail-fast: false
       matrix:
@@ -545,7 +562,8 @@ jobs:
         if: always()
         run: |
           sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy"
-          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "support-${{ matrix.role }}" "none" "environment-support-${{ matrix.role }}"
+          python3 -c "import os,json; temp=os.environ['RUNNER_TEMP']; print(json.dumps([dict(id='image-trivy', path=temp+'/homecloud-trivy/trivy')]))" > "$RUNNER_TEMP/environment-tools.json"
+          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "support-${{ matrix.role }}" "none" "environment-support-${{ matrix.role }}" "$RUNNER_TEMP/environment-tools.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:

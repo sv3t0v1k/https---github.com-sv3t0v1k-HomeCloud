@@ -28,7 +28,7 @@ SOURCE_PATHS = ('docker-compose.yml', 'docker-compose.production.yml', 'docker-c
                 'scripts/ci/scan-environment.sh', 'scripts/ci/environment-evidence.py',
                 'scripts/ci/oci-scan-binding.py', 'scripts/ci/policy-coverage.py',
                 'scripts/ci/stage-cache-proof.py', 'scripts/ci/qualify-stages.sh',
-                'scripts/ci/production-images.lock.json')
+                'scripts/ci/production-images.lock.json', 'scripts/ci/secret-findings.py')
 RUNTIME = {'backend', 'frontend', 'postgres', 'ingress'}
 BUILD = {'backend-deps', 'backend-builder', 'frontend-deps', 'frontend-builder', 'buildkit'}
 ENVIRONMENTS = {'backend', 'frontend', 'configuration', 'image-build-backend', 'image-build-frontend',
