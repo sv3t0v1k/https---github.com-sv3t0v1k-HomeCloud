@@ -33,7 +33,7 @@
 | Failure & Security Testing — ненумерованный checkpoint | `COMPLETE` | [evidence и границы](./failure-security-checkpoint.md) |
 | Универсальное хранение и докачка — ненумерованный checkpoint | `COMPLETE` | [IAB/Safari functional evidence](./evidence/universal-storage-upload-ux-20261005/report.md) |
 | Единый локальный Docker baseline — ненумерованный checkpoint | `COMPLETE` | `bf97bef` / `f578030`; [runbook и preservation boundaries](./operations-runbook.md) |
-| D5.1 — Release Management & CI Foundation | `D5.1.4_RELEASE_BLOCKED` | [Квалификация баз и политика image scans](./image-security-policy.md) |
+| D5.1 — Release Management & CI Foundation | `D5.1.7_RELEASE_BLOCKED` | [Квалификация баз и политика image scans](./image-security-policy.md) |
 | Полный 50 ГиБ IAB Browser E2E — ненумерованный checkpoint | `PASS` | `167498d`; [scope/evidence](./evidence/browser-50gib-qualification-20261006/report.md); Safari 50 ГиБ UNQUALIFIED |
 
 ## Completed
@@ -1334,3 +1334,12 @@ Provenance unsigned OCI verifier/dry-run и pair manifest PASS на9d33bd2, adve
 Свежие PR/push CI FAILURE только по image scans/gate: backend1148/1148(12PG suites),frontend278/278,
 lint/build/config/audit/secrets/smokesPASS. Результаты в [evidence](./evidence/d5-1-2-20261014/report.md).
 GHCR/tag/release/merge/deployment не выполнялись; D5.2 NOT_STARTED.
+
+
+### D5.1.7 — Security Findings Triage & Release Decision (2026-10-16)
+
+**BLOCKED / Production NO_GO; COMPLETE не установлен.** [Реестр, evidence и точные решения владельца](./evidence/d5-1-7-security-triage-20261016.md).
+Сгруппированы production/build/CI findings D5.1.6; никаких CVE dispositions или изменений gates.
+Закреплён ingress nginx1.30.6 exact amd64; targeted remote scan0C/0H/1M.
+Trivy0.76 candidate0C/0H; Compose5.6 уменьшает49H→4H. Новый source требует CI qualification и независимого review.
+PostgreSQL1C/24H (gosu), build/CI и остаточные Compose findings остаются блокерами. D5.2 NOT_STARTED.
