@@ -44,6 +44,8 @@ jobs:
         with:
           ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Install checksum-pinned compatible npm before dependency commands
+        run: python3 scripts/ci/install-npm.py
       - run: npm ci --no-audit
         working-directory: backend
       - run: sh native/build.sh
@@ -59,6 +61,7 @@ jobs:
       - run: python3 scripts/ci/test-policy-coverage.py
       - run: python3 scripts/ci/test-stage-cache-proof.py
       - run: python3 scripts/ci/test-secret-findings.py
+      - run: python3 scripts/ci/test-install-npm.py
       - name: Retain actual CI toolchain inventory after apt changes
         run: dpkg-query -W -f='${binary:Package}\t${Version}\n' > ci-toolchain-packages.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -117,6 +120,8 @@ jobs:
           node-version: '24.21.0'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - name: Install checksum-pinned compatible npm before dependency commands
+        run: python3 scripts/ci/install-npm.py
       - run: npm ci --no-audit
         working-directory: frontend
       - run: npm test
@@ -455,6 +460,8 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24.21.0'
+      - name: Install checksum-pinned compatible npm before dependency commands
+        run: python3 scripts/ci/install-npm.py
       - run: npm ci --ignore-scripts --no-audit
         working-directory: ${{ matrix.component }}
       - name: Capture audit response, reject infrastructure errors
