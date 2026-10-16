@@ -60,8 +60,9 @@ def oci(name, image):
     archive = ROOT / (name + ".oci.tar")
     source = "docker://" + image.split("@")[0].rsplit(":", 1)[0] + "@" + image.split("@")[1] if name == "baseline" else "docker-daemon:" + image
     preserve = ["--preserve-digests"] if name == "baseline" else ["--format=v2s2", "--preserve-digests"]
-    run(["skopeo", "copy", "--override-os", "linux", "--override-arch", "amd64",
-         *preserve, source, "oci-archive:" + str(archive)])
+    if not archive.exists():
+        run(["skopeo", "copy", "--override-os", "linux", "--override-arch", "amd64",
+             *preserve, source, "oci-archive:" + str(archive)])
     with tarfile.open(archive) as t:
         index = json.load(t.extractfile("index.json"))
         digest = index["manifests"][0]["digest"]
@@ -80,9 +81,10 @@ def sql(container, statement, db="qualification"):
 
 def ready(container):
     for _ in range(40):
-        result = subprocess.run(["docker", "exec", container, "pg_isready", "-U", "qualifier",
-                                 "-d", "qualification"], capture_output=True, timeout=5)
-        if result.returncode == 0:
+        result = subprocess.run(["docker", "exec", "-e", "PGPASSWORD=disposable-experiment-only", container,
+                                 "psql", "-X", "-h", "127.0.0.1", "-U", "qualifier", "-d", "qualification",
+                                 "-Atc", "SELECT 1"], capture_output=True, timeout=5)
+        if result.returncode == 0 and result.stdout.strip() == b"1":
             return
         time.sleep(1)
     raise RuntimeError("PostgreSQL startup timeout")
@@ -163,11 +165,20 @@ try:
     base_inspect = inspect(BASE)
     write("baseline-docker-inspect.json", base_inspect)
     assert base_inspect["RepoDigests"] and base_inspect["Architecture"] == "amd64"
-    context = ROOT / "context"
-    context.mkdir()
-    shutil.copy2(ROOT / "gosu-1", context / "gosu")
-    (context / "Dockerfile").write_text(f"FROM {BASE}\nCOPY --chown=0:0 --chmod=0755 gosu /usr/local/bin/gosu\n")
-    docker("build", "--network=none", "--platform=linux/amd64", "-t", TAG, str(context))
+    resume_image = os.environ.get("D5110_IMAGE_RESUME")
+    if resume_image:
+        assert sha(resume_image) == "2cffc90fb5c5f3309c3c1e2e708de8267dabab60dc49f164f418f3e1e0581961"
+        shutil.copy2(resume_image, ROOT / "candidate.oci.tar")
+        run(["skopeo", "copy", "--preserve-digests", "oci-archive:" + str(ROOT / "candidate.oci.tar"), "docker-daemon:" + TAG])
+        assert inspect(TAG)["Id"] == "sha256:901736d0c387e32c7ddcdabf8491015a710bf99600688229a7b6435ea9aa9415"
+        write("reused-image.json", {"run_id": "38981697774", "source_head": "794c166909d9e6b1ac0282a536ac8560a99f2e6d",
+              "archive_sha256": sha(resume_image), "reason": "Resume exact config-bound artifact without rebuilding"})
+    else:
+        context = ROOT / "context"
+        context.mkdir()
+        shutil.copy2(ROOT / "gosu-1", context / "gosu")
+        (context / "Dockerfile").write_text(f"FROM {BASE}\nCOPY --chown=0:0 --chmod=0755 gosu /usr/local/bin/gosu\n")
+        docker("build", "--network=none", "--platform=linux/amd64", "-t", TAG, str(context))
     candidate_inspect = inspect(TAG)
     assert candidate_inspect["Config"] == base_inspect["Config"]
     assert candidate_inspect["RootFS"]["Layers"][:-1] == base_inspect["RootFS"]["Layers"]
@@ -179,6 +190,33 @@ try:
     for image, expected in [(BASE, "52c8749d0142edd234e9d6bd5237dff2d81e71f43537e2f4f66f75dd4b243dd0"), (TAG, builds[0]["binary_sha256"])]:
         got = docker("run", "--rm", "--network=none", "--entrypoint", "sha256sum", image, "/usr/local/bin/gosu").split()[0]
         assert got == expected
+    trivy = str(Path(os.environ["RUNNER_TEMP"]) / "d5110-trivy/trivy")
+    cache = ROOT / "trivy-cache"
+    run([trivy, "image", "--cache-dir", str(cache), "--download-db-only"])
+    db = cache / "db/trivy.db"
+    db_hash = sha(db)
+    db_meta = json.loads((cache / "db/metadata.json").read_text())
+    from datetime import datetime, timezone
+    assert (datetime.now(timezone.utc) - datetime.fromisoformat(db_meta["UpdatedAt"].replace("Z", "+00:00"))).total_seconds() < 86400
+    for name, artifact in [("baseline", base_oci), ("candidate", candidate_oci)]:
+        run([trivy, "image", "--cache-dir", str(cache), "--skip-db-update", "--offline-scan", "--scanners", "vuln",
+             "--list-all-pkgs", "--format", "json", "--output", str(E / (name + "-scan.json")), "--input", str(artifact[0])])
+        assert sha(db) == db_hash
+        run([trivy, "image", "--cache-dir", str(cache), "--skip-db-update", "--offline-scan", "--format", "cyclonedx",
+             "--output", str(E / (name + "-sbom.cdx.json")), "--input", str(artifact[0])])
+    write("scanner-db.json", {"sha256": db_hash, "metadata": db_meta, "same_db_both_scans": True})
+    def findings(name):
+        report = json.loads((E / (name + "-scan.json")).read_text())
+        results = report.get("Results", [])
+        assert any(r.get("Type") == "gobinary" and r.get("Target") == "usr/local/bin/gosu" and r.get("Packages") for r in results)
+        return [{"target": r["Target"], "package": v["PkgName"], "version": v["InstalledVersion"], "cve": v["VulnerabilityID"], "severity": v["Severity"], "fixed": v.get("FixedVersion")} for r in results for v in r.get("Vulnerabilities", [])]
+    before, after = findings("baseline"), findings("candidate")
+    key = lambda v: (v["target"], v["package"], v["cve"])
+    before_keys, after_keys = set(map(key, before)), set(map(key, after))
+    write("comparison.json", {"before": dict(collections.Counter(v["severity"] for v in before)), "after": dict(collections.Counter(v["severity"] for v in after)),
+          "fixed": [v for v in before if key(v) not in after_keys], "remaining": after,
+          "new": [v for v in after if key(v) not in before_keys], "no_disposition_applied": True})
+    assert not any(v["severity"] in ("HIGH", "CRITICAL") and v["target"] == "usr/local/bin/gosu" for v in after)
     for spec in ["postgres", "postgres:postgres", "70:70"]:
         uid = docker("run", "--rm", "--network=none", "--entrypoint", "gosu", TAG, spec, "id", "-u")
         assert uid == "70"
@@ -228,33 +266,6 @@ try:
           "checks": ["privilege drop named/numeric user", "root owned mode 0755", "PID1 postgres uid/gid70", "fresh init",
           "official-to-candidate same PGDATA", "shutdown exit0", "restart", "candidate-to-official same PGDATA",
           "real PostgreSQL suites without skips", "production migration chain fresh DB and idempotent rerun", "SQL backup/restore fixture"]})
-    trivy = str(Path(os.environ["RUNNER_TEMP"]) / "d5110-trivy/trivy")
-    cache = ROOT / "trivy-cache"
-    run([trivy, "image", "--cache-dir", str(cache), "--download-db-only"])
-    db = cache / "db/trivy.db"
-    db_hash = sha(db)
-    db_meta = json.loads((cache / "db/metadata.json").read_text())
-    from datetime import datetime, timezone
-    assert (datetime.now(timezone.utc) - datetime.fromisoformat(db_meta["UpdatedAt"].replace("Z", "+00:00"))).total_seconds() < 86400
-    for name, artifact in [("baseline", base_oci), ("candidate", candidate_oci)]:
-        run([trivy, "image", "--cache-dir", str(cache), "--skip-db-update", "--offline-scan", "--scanners", "vuln",
-             "--list-all-pkgs", "--format", "json", "--output", str(E / (name + "-scan.json")), "--input", str(artifact[0])])
-        assert sha(db) == db_hash
-        run([trivy, "image", "--cache-dir", str(cache), "--skip-db-update", "--offline-scan", "--format", "cyclonedx",
-             "--output", str(E / (name + "-sbom.cdx.json")), "--input", str(artifact[0])])
-    write("scanner-db.json", {"sha256": db_hash, "metadata": db_meta, "same_db_both_scans": True})
-    def findings(name):
-        report = json.loads((E / (name + "-scan.json")).read_text())
-        results = report.get("Results", [])
-        assert any(r.get("Type") == "gobinary" and r.get("Target") == "usr/local/bin/gosu" and r.get("Packages") for r in results)
-        return [{"target": r["Target"], "package": v["PkgName"], "version": v["InstalledVersion"], "cve": v["VulnerabilityID"], "severity": v["Severity"], "fixed": v.get("FixedVersion")} for r in results for v in r.get("Vulnerabilities", [])]
-    before, after = findings("baseline"), findings("candidate")
-    key = lambda v: (v["target"], v["package"], v["cve"])
-    before_keys, after_keys = set(map(key, before)), set(map(key, after))
-    write("comparison.json", {"before": dict(collections.Counter(v["severity"] for v in before)), "after": dict(collections.Counter(v["severity"] for v in after)),
-          "fixed": [v for v in before if key(v) not in after_keys], "remaining": after,
-          "new": [v for v in after if key(v) not in before_keys], "no_disposition_applied": True})
-    assert not any(v["severity"] in ("HIGH", "CRITICAL") and v["target"] == "usr/local/bin/gosu" for v in after)
     write("result.json", {"experimental_qualification": "PASS", "production": "NO_GO", "image": TAG,
           "image_digest": candidate_oci[1], "binary_sha256": builds[0]["binary_sha256"], "disposition_transferred": False})
 finally:
