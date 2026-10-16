@@ -1,14 +1,24 @@
 ARG NODE_IMAGE=docker.io/library/node:24.21.0-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
 ARG NGINX_IMAGE=docker.io/library/nginx:1.30.5-alpine@sha256:0985e772fb9f729e6fa0980da05fca5d9c468e870eed43071545afa9d2e27d94
-FROM scratch AS npm-package
-ADD --checksum=sha256:dd77c48eb845f4856c2cdba347cfb52bd877a2655a1ea48ff0c4796e3df9dd7b https://registry.npmjs.org/npm/-/npm-11.21.1.tgz /npm.tgz
-
 FROM ${NODE_IMAGE} AS npm-base
-# Точный архив проверяется BuildKit до запуска npm; install остаётся offline.
-RUN --mount=type=bind,from=npm-package,source=/npm.tgz,target=/tmp/npm.tgz \
-    npm install --global --ignore-scripts --no-audit --no-fund --offline --cache /tmp/npm-bootstrap-cache /tmp/npm.tgz \
-    && test "$(npm --version)" = 11.21.1 \
-    && rm -rf /tmp/npm-bootstrap-cache
+# SHA256 проверяется до запуска npm; установка из архива остаётся offline.
+RUN node --input-type=module -e ' \
+    import {mkdtempSync, writeFileSync, rmSync} from "node:fs"; \
+    import {join} from "node:path"; \
+    import {tmpdir} from "node:os"; \
+    import {createHash} from "node:crypto"; \
+    import {execFileSync} from "node:child_process"; \
+    const temporary = mkdtempSync(join(tmpdir(), "homecloud-npm-")); \
+    try { \
+      const response = await fetch("https://registry.npmjs.org/npm/-/npm-11.21.1.tgz", {signal: AbortSignal.timeout(60000)}); \
+      if (!response.ok) throw new Error("npm archive HTTP failure"); \
+      const bytes = Buffer.from(await response.arrayBuffer()); \
+      if (createHash("sha256").update(bytes).digest("hex") !== "dd77c48eb845f4856c2cdba347cfb52bd877a2655a1ea48ff0c4796e3df9dd7b") throw new Error("npm archive SHA256 mismatch"); \
+      const archive = join(temporary, "npm.tgz"); \
+      writeFileSync(archive, bytes); \
+      execFileSync("npm", ["install", "--global", "--ignore-scripts", "--no-audit", "--no-fund", "--offline", "--cache", join(temporary, "cache"), archive], {stdio: "inherit"}); \
+      if (execFileSync("npm", ["--version"], {encoding: "utf8"}).trim() !== "11.21.1") throw new Error("npm version mismatch"); \
+    } finally { rmSync(temporary, {recursive: true, force: true}); }'
 
 FROM npm-base AS deps
 RUN apk add --no-cache libc6-compat

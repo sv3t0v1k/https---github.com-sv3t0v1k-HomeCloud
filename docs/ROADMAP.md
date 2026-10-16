@@ -1379,3 +1379,11 @@ mandatory runner rootfs остаются BLOCKED без новых dispositions 
 Exact gosu/CVE-2025-68121 approval не расширен, expiry2026-11-15T00:00:00Z сохранена.
 Итоговые HEAD/CI/review и остаточные пакетные группы фиксируются в
 `outputs/d5-1-9-20261016/report.md` mirror проекта. D5.2 NOT_STARTED.
+
+
+D5.1.9: первый run38880466381 остановлен после точного отказа stage cache proof:
+remote ADD создал дополнительный некешированный transfer vertex; все actual RUN/COPY
+были cached, backend stagesnpm11.21.1/0C/0H, runtime smoke/provenance PASS.
+Единственная корректировка переносит загрузку+checksum+offline install в обычный RUN;
+strict cache gate не меняется. Разрешённый предел — одна исправляющая попытка,
+без третьего CI цикла; итоговые coverage/review остаются PENDING.
