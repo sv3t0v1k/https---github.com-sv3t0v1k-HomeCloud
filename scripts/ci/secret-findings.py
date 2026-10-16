@@ -11,8 +11,10 @@ import hashlib
 from functools import lru_cache
 from pathlib import Path, PurePosixPath
 import re
+import ssl
 import subprocess
 import sys
+import urllib.error
 import urllib.request
 
 SHA = re.compile(r'[a-f0-9]{40}')
@@ -116,17 +118,42 @@ def historical_context(finding,plan):
 
 def upstream(url, sha):
     # Fixed Gitiles host/project/path, no redirects or credential headers.
-    if not re.fullmatch(r'https://go\.googlesource\.com/(?:go|net)/\+/'+sha, url):
+    if not isinstance(sha,str) or not SHA.fullmatch(sha) or not re.fullmatch(r'https://go\.googlesource\.com/(?:go|net)/\+/'+sha, url):
         return False
     request = urllib.request.Request(url+'?format=JSON', headers={'Accept':'application/json'})
-    try:
-        with urllib.request.build_opener(NoRedirect()).open(request, timeout=15) as response:
-            payload = response.read(1024*1024+1)
+    opener = urllib.request.build_opener(NoRedirect())
+    # qualify deduplicates upstream plans. Each unique reference gets at most
+    # two requests; only transport failures and transient HTTP failures retry.
+    for attempt in range(2):
+        try:
+            with opener.open(request, timeout=15) as response:
+                payload = response.read(1024*1024+1)
+        except urllib.error.HTTPError as error:
+            transient = error.code in (408,429,500,502,503,504)
+            error.close()
+            if attempt == 0 and transient:
+                continue
+            return False
+        except urllib.error.URLError as error:
+            if attempt == 0 and not isinstance(error.reason,ssl.SSLError):
+                continue
+            return False
+        except ssl.SSLError:
+            return False
+        except OSError:
+            if attempt == 0:
+                continue
+            return False
+        # A received response must itself prove the exact object. Malformed,
+        # oversized or mismatched content never earns another request.
         if len(payload) > 1024*1024 or not payload.startswith(b")]}'\n"):
             return False
-        return json.loads(payload[5:]).get('commit') == sha
-    except (OSError, ValueError):
-        return False
+        try:
+            document = json.loads(payload[5:])
+        except (ValueError,UnicodeError):
+            return False
+        return isinstance(document,dict) and document.get('commit') == sha
+    return False
 
 
 def local_commit(sha,ancestor):
