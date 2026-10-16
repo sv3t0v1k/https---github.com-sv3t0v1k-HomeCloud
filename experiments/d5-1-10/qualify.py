@@ -120,7 +120,8 @@ try:
     builds = []
     for attempt in (1, 2):
         build_src = ROOT / f"source-{attempt}"
-        shutil.copytree(source, build_src)
+        shutil.copytree(source, build_src, symlinks=True)
+        assert run(["git", "status", "--porcelain"], cwd=build_src) == ""
         env = dict(os.environ, GOTOOLCHAIN="local", CGO_ENABLED="0", GOOS="linux", GOARCH="amd64",
                    GOAMD64="v1", GOPATH=str(ROOT / f"gopath-{attempt}"),
                    GOCACHE=str(ROOT / f"gocache-{attempt}"), GOFLAGS="-mod=readonly",
@@ -128,6 +129,7 @@ try:
         go = str(ROOT / "go/bin/go")
         run([go, "mod", "download"], cwd=build_src, env=env)
         run([go, "mod", "verify"], cwd=build_src, env=env)
+        assert run(["git", "status", "--porcelain"], cwd=build_src) == ""
         binary = ROOT / f"gosu-{attempt}"
         run([go, "build", "-trimpath", "-buildvcs=true", "-ldflags=-d -w", "-o", str(binary), "."], cwd=build_src, env=env)
         metadata = run([go, "version", "-m", str(binary)])
