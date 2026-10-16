@@ -58,9 +58,10 @@ def inspect(image):
 
 def oci(name, image):
     archive = ROOT / (name + ".oci.tar")
-    source = "docker://" + image if name == "baseline" else "docker-daemon:" + image
+    source = "docker://" + image.split("@")[0].rsplit(":", 1)[0] + "@" + image.split("@")[1] if name == "baseline" else "docker-daemon:" + image
+    preserve = ["--preserve-digests"] if name == "baseline" else []
     run(["skopeo", "copy", "--override-os", "linux", "--override-arch", "amd64",
-         source, "oci-archive:" + str(archive)])
+         *preserve, source, "oci-archive:" + str(archive)])
     with tarfile.open(archive) as t:
         index = json.load(t.extractfile("index.json"))
         digest = index["manifests"][0]["digest"]
@@ -138,6 +139,7 @@ try:
         assert metadata.startswith(str(binary) + ": ")
         builds.append({"binary_sha256": sha(binary), "metadata": metadata.removeprefix(str(binary) + ": ")})
     assert builds[0] == builds[1]
+    shutil.copy2(ROOT / "gosu-1", E / "gosu.experimental-linux-amd64")
     write("reproducibility.json", {"go_archive_sha256": GO_SHA, "source_commit": SOURCE, "builds": builds,
           "scope": "two independent source paths, module and compiler caches; same runner and verified toolchain"})
     docker("pull", "--platform=linux/amd64", BASE)

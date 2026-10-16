@@ -36,9 +36,9 @@ jobs:
           if-no-files-found: error
           retention-days: 30
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: success()
+        if: always()
         with:
           name: d5110-experimental-image-${{ github.run_attempt }}
           path: ${{ runner.temp }}/d5110/candidate.oci.tar
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 30
