@@ -20,6 +20,8 @@ jobs:
             backend
             scripts/ci/install-trivy.sh
             scripts/ci/install-npm.py
+            scripts/ci/oci-scan-binding.py
+            scripts/ci/provenance.py
           sparse-checkout-cone-mode: false
       - name: Подготовить одноразовый runner
         run: |

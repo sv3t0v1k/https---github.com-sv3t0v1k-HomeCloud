@@ -199,11 +199,16 @@ try:
     from datetime import datetime, timezone
     assert (datetime.now(timezone.utc) - datetime.fromisoformat(db_meta["UpdatedAt"].replace("Z", "+00:00"))).total_seconds() < 86400
     for name, artifact in [("baseline", base_oci), ("candidate", candidate_oci)]:
+        layout = run(["python3", "scripts/ci/oci-scan-binding.py", "--prepare-layout", "--archive", str(artifact[0])])
         run([trivy, "image", "--cache-dir", str(cache), "--skip-db-update", "--offline-scan", "--scanners", "vuln",
-             "--list-all-pkgs", "--format", "json", "--output", str(E / (name + "-scan.json")), "--input", str(artifact[0])])
+             "--config", "/dev/null", "--ignorefile", "/dev/null", "--ignore-unfixed=false", "--platform", "linux/amd64",
+             "--list-all-pkgs", "--format", "json", "--output", str(E / (name + "-scan.json")), "--input", layout])
+        run(["python3", "scripts/ci/oci-scan-binding.py", "--archive", str(artifact[0]), "--report", str(E / (name + "-scan.json")),
+             "--role", "postgres", "--source", os.environ["GITHUB_SHA"], "--expected", artifact[1], "--output", str(E / (name + "-scan-binding.json"))])
         assert sha(db) == db_hash
         run([trivy, "image", "--cache-dir", str(cache), "--skip-db-update", "--offline-scan", "--format", "cyclonedx",
-             "--output", str(E / (name + "-sbom.cdx.json")), "--input", str(artifact[0])])
+             "--config", "/dev/null", "--ignorefile", "/dev/null", "--platform", "linux/amd64",
+             "--output", str(E / (name + "-sbom.cdx.json")), "--input", layout])
     write("scanner-db.json", {"sha256": db_hash, "metadata": db_meta, "same_db_both_scans": True})
     def findings(name):
         report = json.loads((E / (name + "-scan.json")).read_text())
