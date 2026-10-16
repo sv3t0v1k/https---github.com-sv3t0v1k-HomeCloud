@@ -53,6 +53,8 @@ jobs:
       - run: python3 scripts/ci/test-scan-evidence.py
       - run: python3 scripts/ci/test-scan-policy.py
       - run: python3 scripts/ci/test-environment-evidence.py
+      - run: python3 scripts/ci/test-runner-minimization.py
+      - run: python3 scripts/ci/test-gosu-disposition.py
       - run: python3 scripts/ci/test-oci-scan-binding.py
       - run: python3 scripts/ci/test-policy-coverage.py
       - run: python3 scripts/ci/test-stage-cache-proof.py
@@ -108,6 +110,8 @@ jobs:
         with:
           ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Remove unused hosted .NET SDK before workload; retain evidence
+        run: python3 scripts/ci/minimize-runner.py
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24.21.0'
@@ -141,6 +145,8 @@ jobs:
         with:
           ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Remove unused hosted .NET SDK before workload; retain evidence
+        run: python3 scripts/ci/minimize-runner.py
       - name: Pin normalized Compose API; preserve explicit false bind flags
         shell: bash
         run: |
@@ -189,6 +195,8 @@ jobs:
         with:
           ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Remove unused hosted .NET SDK before workload; retain evidence
+        run: python3 scripts/ci/minimize-runner.py
       - id: bases
         run: |
           python3 -c 'import json,os; d=json.load(open("scripts/ci/images.lock.json")); f=open(os.environ["GITHUB_OUTPUT"],"a"); [f.write(k+"="+v+"\n") for k,v in d.items()]'
@@ -352,6 +360,8 @@ jobs:
         with:
           ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Remove unused hosted .NET SDK before workload; retain evidence
+        run: python3 scripts/ci/minimize-runner.py
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: offline-provenance-backend-${{ github.run_attempt }}
@@ -394,6 +404,8 @@ jobs:
         with:
           ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Remove unused hosted .NET SDK before workload; retain evidence
+        run: python3 scripts/ci/minimize-runner.py
       - name: Install checksum-pinned scanner
         run: sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/homecloud-trivy"
       - name: Scan pinned linux/amd64 base, including unfixed vulnerabilities
@@ -438,6 +450,8 @@ jobs:
         with:
           ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Remove unused hosted .NET SDK before workload; retain evidence
+        run: python3 scripts/ci/minimize-runner.py
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24.21.0'
@@ -481,6 +495,8 @@ jobs:
           ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Remove unused hosted .NET SDK before workload; retain evidence
+        run: python3 scripts/ci/minimize-runner.py
       - name: Pinned gitleaks; full reachable history, forbidden audit excluded before reading
         shell: bash
         run: |
@@ -525,6 +541,8 @@ jobs:
         with:
           ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Remove unused hosted .NET SDK before workload; retain evidence
+        run: python3 scripts/ci/minimize-runner.py
       - name: Export exact pinned amd64 artifact without registry writes
         run: |
           sudo apt-get update
@@ -558,6 +576,9 @@ jobs:
         run: |
           EXPECTED=$(python3 -c 'import json; print(json.load(open("scripts/ci/production-images.lock.json"))["${{ matrix.role }}"].split("@")[1])')
           python3 scripts/ci/oci-scan-binding.py --archive "$RUNNER_TEMP/${{ matrix.role }}.oci.tar" --report "${{ matrix.role }}.scan.json" --role "${{ matrix.role }}" --source "$(git rev-parse HEAD)" --expected "$EXPECTED" --output "${{ matrix.role }}.binding.json"
+      - name: Qualify owner-approved exact gosu binary disposition; preserve raw severity gate
+        if: always() && matrix.role == 'postgres'
+        run: python3 scripts/ci/gosu-disposition.py --archive "$RUNNER_TEMP/postgres.oci.tar" --source "$(git rev-parse HEAD)" --output postgres.disposition.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
@@ -565,6 +586,7 @@ jobs:
           path: |
             ${{ matrix.role }}.scan*.json
             ${{ matrix.role }}.binding.json
+            ${{ matrix.role }}.disposition.json
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

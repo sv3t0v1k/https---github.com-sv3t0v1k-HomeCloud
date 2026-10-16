@@ -1346,3 +1346,14 @@ PostgreSQL1C/24H (gosu), build/CI и остаточные Compose findings ос�
 
 D5.1.7: первый run38755110763 выявил frontend rootfs timeout45мин с Trivy0.76 и остановлен как INCOMPLETE.
 Разрешённый предел двух попыток: одна корректировка existing rootfs budget до60мин при неизменных gates, затем окончательная фиксация результата без третьего цикла.
+
+### D5.1.8 — CI Environment Minimization (2026-10-16)
+
+**BLOCKED / Production NO_GO; COMPLETE не установлен.**
+[Scope, evidence и условия проверки](./evidence/d5-1-8-ci-minimization-20261016.md).
+До workload удаляется только неиспользуемый hosted .NET SDK; полный host-rootfs
+scan и прежние16 окружений/gates сохранены, timeout60мин не увеличен.
+Единственный exact-binary gosu/CVE-2025-68121 qualifier проверяет фактический OCI,
+SHA256/evidence/expiry2026-11-15; raw findings и24H PostgreSQL не подавляются.
+52 целевых tests и actionlint PASS; итоговый CI/coverage/actual disposition PENDING.
+Остаточные инструменты/build/CI findings остаются блокирующими. D5.2 NOT_STARTED.

@@ -18,6 +18,21 @@ def command(argv):
     return {'argv': argv, 'exit_code': result.returncode, 'stdout': result.stdout, 'stderr': result.stderr}
 
 
+def minimization_module():
+    spec = importlib.util.spec_from_file_location('minimize_runner', Path(__file__).with_name('minimize-runner.py'))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def validate_minimization(evidence):
+    # Backend already runs in the locked Node container. Every other actual
+    # workload keeps the hosted host rootfs, including provider tools/daemon.
+    if evidence.get('environment_id') and evidence['environment_id'] != 'backend':
+        minimization_module().validate(evidence.get('runner_minimization', {}),
+                                       evidence['source_commit'], evidence['github'])
+
+
 def scopes(workspace, component):
     root = Path(workspace).resolve()
     if root == Path('/') or component not in ('backend', 'frontend', 'none'):
@@ -194,6 +209,11 @@ def capture(environment_id, component, workspace, output, skip_dirs, scanner, re
                         'Pseudo filesystems and temporary directories excluded; installed system/toolcache directories included.',
                         'Checkout excluded before rootfs traversal; selected application scanned separately.',
                         'Environment is observed at this job step; this is not container image provenance.'])
+    if environment_id != 'backend':
+        evidence['runner_minimization'] = json.loads(Path(os.environ['RUNNER_TEMP'], 'homecloud-runner-minimization.json').read_text())
+        if Path(minimization_module().TARGET).exists():
+            raise ValueError('Unused SDK reappeared before environment scan')
+        validate_minimization(evidence)
     evidence['global_npm_inventory'] = command(['npm', 'list', '--global', '--all', '--json'])
     evidence['global_npm_root'] = global_root_record
     evidence['global_npm_manifests'] = installed_manifests(global_root, root)
@@ -231,6 +251,7 @@ def capture(environment_id, component, workspace, output, skip_dirs, scanner, re
 
 
 def validate(evidence, reports, metadata, now, java_metadata=None):
+    validate_minimization(evidence)
     spec = importlib.util.spec_from_file_location('scan_evidence', Path(__file__).with_name('scan-evidence.py'))
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -303,6 +324,10 @@ def main():
         java_path = db_path.parent.parent / 'java-db' / 'metadata.json'
         java_db = json.loads(java_path.read_text()) if java_path.is_file() else None
         evidence['java_db'] = java_db
+        if evidence.get('environment_id') != 'backend':
+            retained = json.loads(Path(evidence['runner_temp'], 'homecloud-runner-minimization.json').read_text())
+            if retained != evidence['runner_minimization'] or Path(minimization_module().TARGET).exists():
+                raise ValueError('Runner minimization changed during environment scan')
         for tool in evidence['executed_tools']:
             # Recheck both source and staged bytes after every scan, before evidence PASS.
             actual_digest = hashlib.sha256(Path(tool['real_path']).read_bytes()).hexdigest()
