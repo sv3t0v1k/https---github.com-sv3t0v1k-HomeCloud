@@ -190,33 +190,53 @@ try:
     for image, expected in [(BASE, "52c8749d0142edd234e9d6bd5237dff2d81e71f43537e2f4f66f75dd4b243dd0"), (TAG, builds[0]["binary_sha256"])]:
         got = docker("run", "--rm", "--network=none", "--entrypoint", "sha256sum", image, "/usr/local/bin/gosu").split()[0]
         assert got == expected
-    trivy = str(Path(os.environ["RUNNER_TEMP"]) / "d5110-trivy/trivy")
-    cache = ROOT / "trivy-cache"
-    run([trivy, "image", "--cache-dir", str(cache), "--download-db-only"])
-    db = cache / "db/trivy.db"
-    db_hash = sha(db)
-    db_meta = json.loads((cache / "db/metadata.json").read_text())
-    from datetime import datetime, timezone
-    assert (datetime.now(timezone.utc) - datetime.fromisoformat(db_meta["UpdatedAt"].replace("Z", "+00:00"))).total_seconds() < 86400
-    for name, artifact in [("baseline", base_oci), ("candidate", candidate_oci)]:
-        layout = run(["python3", "scripts/ci/oci-scan-binding.py", "--prepare-layout", "--archive", str(artifact[0])])
-        run([trivy, "image", "--cache-dir", str(cache), "--skip-db-update", "--offline-scan", "--scanners", "vuln",
-             "--config", "/dev/null", "--ignorefile", "/dev/null", "--ignore-unfixed=false", "--platform", "linux/amd64",
-             "--list-all-pkgs", "--format", "json", "--output", str(E / (name + "-scan.json")), "--input", layout])
-        run(["python3", "scripts/ci/oci-scan-binding.py", "--archive", str(artifact[0]), "--report", str(E / (name + "-scan.json")),
-             "--role", "postgres", "--source", os.environ["GITHUB_SHA"], "--expected", artifact[1], "--output", str(E / (name + "-scan-binding.json"))])
-        assert sha(db) == db_hash
-        run([trivy, "image", "--cache-dir", str(cache), "--skip-db-update", "--offline-scan", "--format", "cyclonedx",
-             "--config", "/dev/null", "--ignorefile", "/dev/null", "--platform", "linux/amd64",
-             "--output", str(E / (name + "-sbom.cdx.json")), "--input", layout])
-    write("scanner-db.json", {"sha256": db_hash, "metadata": db_meta, "same_db_both_scans": True})
+    qualified_resume = os.environ.get("D5110_QUAL_RESUME")
+    if qualified_resume:
+        previous = Path(qualified_resume)
+        assert sha(previous / "evidence-hashes.json") == "16abf6ac24fba150a43ab578aaab667437fb0a0a0c0be302af774b1dcbb33434"
+        hashes = json.loads((previous / "evidence-hashes.json").read_text())
+        assert run(["git", "rev-parse", "HEAD:backend"]) == "40a517d2267ccf8b753972bd54f0901f957b46f7"
+        names = ["baseline-scan.json", "candidate-scan.json", "baseline-scan-binding.json", "candidate-scan-binding.json",
+                 "baseline-sbom.cdx.json", "candidate-sbom.cdx.json", "scanner-db.json", "comparison.json", "postgres-tests.json"]
+        for name in names:
+            assert sha(previous / name) == hashes[name]
+            shutil.copy2(previous / name, E / name)
+        for name, artifact in [("baseline", base_oci), ("candidate", candidate_oci)]:
+            binding = json.loads((E / (name + "-scan-binding.json")).read_text())
+            assert binding["platform_digest"] == artifact[1] and binding["config_digest"] == artifact[2]["config"]["digest"]
+        from datetime import datetime, timezone
+        db_meta = json.loads((E / "scanner-db.json").read_text())["metadata"]
+        assert (datetime.now(timezone.utc) - datetime.fromisoformat(db_meta["UpdatedAt"].replace("Z", "+00:00"))).total_seconds() < 86400
+        write("reused-qualification.json", {"run_id": "38982205796", "source_head": "da9fd684e270369968a2f4d45a15e06dbb1fcadf",
+              "backend_tree": "40a517d2267ccf8b753972bd54f0901f957b46f7", "reason": "Retain successful exact-image pair scans and 154 PostgreSQL tests without rerunning"})
+    else:
+        trivy = str(Path(os.environ["RUNNER_TEMP"]) / "d5110-trivy/trivy")
+        cache = ROOT / "trivy-cache"
+        run([trivy, "image", "--cache-dir", str(cache), "--download-db-only"])
+        db = cache / "db/trivy.db"
+        db_hash = sha(db)
+        db_meta = json.loads((cache / "db/metadata.json").read_text())
+        from datetime import datetime, timezone
+        assert (datetime.now(timezone.utc) - datetime.fromisoformat(db_meta["UpdatedAt"].replace("Z", "+00:00"))).total_seconds() < 86400
+        for name, artifact in [("baseline", base_oci), ("candidate", candidate_oci)]:
+            layout = run(["python3", "scripts/ci/oci-scan-binding.py", "--prepare-layout", "--archive", str(artifact[0])])
+            run([trivy, "image", "--cache-dir", str(cache), "--skip-db-update", "--offline-scan", "--scanners", "vuln",
+                 "--config", "/dev/null", "--ignorefile", "/dev/null", "--ignore-unfixed=false", "--platform", "linux/amd64",
+                 "--list-all-pkgs", "--format", "json", "--output", str(E / (name + "-scan.json")), "--input", layout])
+            run(["python3", "scripts/ci/oci-scan-binding.py", "--archive", str(artifact[0]), "--report", str(E / (name + "-scan.json")),
+                 "--role", "postgres", "--source", os.environ["GITHUB_SHA"], "--expected", artifact[1], "--output", str(E / (name + "-scan-binding.json"))])
+            assert sha(db) == db_hash
+            run([trivy, "image", "--cache-dir", str(cache), "--skip-db-update", "--offline-scan", "--format", "cyclonedx",
+                 "--config", "/dev/null", "--ignorefile", "/dev/null", "--platform", "linux/amd64",
+                 "--output", str(E / (name + "-sbom.cdx.json")), "--input", layout])
+        write("scanner-db.json", {"sha256": db_hash, "metadata": db_meta, "same_db_both_scans": True})
     def findings(name):
         report = json.loads((E / (name + "-scan.json")).read_text())
         results = report.get("Results", [])
         assert any(r.get("Type") == "gobinary" and r.get("Target") == "usr/local/bin/gosu" and r.get("Packages") for r in results)
-        return [{"target": r["Target"], "package": v["PkgName"], "version": v["InstalledVersion"], "cve": v["VulnerabilityID"], "severity": v["Severity"], "fixed": v.get("FixedVersion")} for r in results for v in r.get("Vulnerabilities", [])]
+        return [{"target": r["Target"], "target_key": "os:" + r["Type"] if r.get("Class") == "os-pkgs" else r["Target"], "package": v["PkgName"], "version": v["InstalledVersion"], "cve": v["VulnerabilityID"], "severity": v["Severity"], "fixed": v.get("FixedVersion")} for r in results for v in r.get("Vulnerabilities", [])]
     before, after = findings("baseline"), findings("candidate")
-    key = lambda v: (v["target"], v["package"], v["cve"])
+    key = lambda v: (v["target_key"], v["package"], v["cve"])
     before_keys, after_keys = set(map(key, before)), set(map(key, after))
     write("comparison.json", {"before": dict(collections.Counter(v["severity"] for v in before)), "after": dict(collections.Counter(v["severity"] for v in after)),
           "fixed": [v for v in before if key(v) not in after_keys], "remaining": after,
@@ -244,19 +264,26 @@ try:
     run(["npm", "ci", "--no-audit"], cwd=backend)
     run(["sh", "native/build.sh"], cwd=backend)
     env = dict(os.environ, HOMECLOUD_TEST_DATABASE_URL="postgres://qualifier:disposable-experiment-only@127.0.0.1:55432/qualification")
-    run(["npm", "test", "--", "--runInBand", "--testPathPatterns=\\.postgres\\.spec\\.ts$", "--json", "--outputFile=" + str(E / "postgres-tests.json")], cwd=backend, env=env)
+    if not qualified_resume:
+        run(["npm", "test", "--", "--runInBand", "--testPathPatterns=\\.postgres\\.spec\\.ts$", "--json", "--outputFile=" + str(E / "postgres-tests.json")], cwd=backend, env=env)
     tests = json.loads((E / "postgres-tests.json").read_text())
     assert tests["numFailedTests"] == 0 and tests["numPendingTests"] == 0 and tests["numPassedTestSuites"] == 12 and tests["numPassedTests"] > 0
     # Дополнительно запускаем реальную production migration chain на пустой БД.
     sql(containers[1], "CREATE DATABASE migration_qualification")
     run(["npm", "run", "build"], cwd=backend)
-    migration_env = dict(os.environ, DATABASE_URL="postgres://qualifier:disposable-experiment-only@127.0.0.1:55432/migration_qualification")
+    fixture_storage = ROOT / "migration-storage"
+    (fixture_storage / ".tmp").mkdir(parents=True)
+    migration_env = dict(os.environ, STORAGE_PATH=str(fixture_storage), DATABASE_URL="postgres://qualifier:disposable-experiment-only@127.0.0.1:55432/migration_qualification")
     run(["npm", "run", "migration:run"], cwd=backend, env=migration_env)
     run(["npm", "run", "migration:run"], cwd=backend, env=migration_env)
-    dump = docker("exec", containers[1], "pg_dump", "-U", "qualifier", "-d", "qualification", "--no-owner", "--no-acl")
+    migrated_count = sql(containers[1], 'SELECT count(*) FROM migrations', db="migration_qualification")
+    assert int(migrated_count) > 0
+    sql(containers[1], "CREATE TABLE qualification_marker(id integer PRIMARY KEY, value text); INSERT INTO qualification_marker VALUES(1,'isolated-d5110');", db="migration_qualification")
+    dump = docker("exec", containers[1], "pg_dump", "-U", "qualifier", "-d", "migration_qualification", "--no-owner", "--no-acl")
     (E / "fixture.sql").write_text(dump + "\n")
     start(containers[2], TAG, volumes[1])
     sql(containers[2], dump)
+    assert sql(containers[2], "SELECT count(*) FROM migrations") == migrated_count
     assert sql(containers[2], "SELECT value FROM qualification_marker") == "isolated-d5110"
     docker("stop", "-t", "30", containers[1])
     assert json.loads(docker("inspect", containers[1]))[0]["State"]["ExitCode"] == 0
@@ -267,7 +294,8 @@ try:
     start(containers[3], BASE, volumes[0])
     assert sql(containers[3], "SELECT value FROM qualification_marker") == "isolated-d5110"
     write("compatibility.json", {"status": "PASS", "postgres": "16.15", "data_format": "16",
-          "tests": tests["numPassedTests"], "suites": tests["numPassedTestSuites"],
+          "tests": tests["numPassedTests"], "suites": tests["numPassedTestSuites"], "migrations": int(migrated_count),
+          "tests_reused_from": "38982205796" if qualified_resume else None,
           "checks": ["privilege drop named/numeric user", "root owned mode 0755", "PID1 postgres uid/gid70", "fresh init",
           "official-to-candidate same PGDATA", "shutdown exit0", "restart", "candidate-to-official same PGDATA",
           "real PostgreSQL suites without skips", "production migration chain fresh DB and idempotent rerun", "SQL backup/restore fixture"]})
