@@ -6,6 +6,7 @@ on:
       - '.github/workflows/pg-gosu-experiment.yml'
 permissions:
   contents: read
+  actions: read
 jobs:
   qualification:
     runs-on: ubuntu-24.04
@@ -26,7 +27,13 @@ jobs:
           sudo apt-get install -y --no-install-recommends skopeo
           sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/d5110-trivy"
           python3 scripts/ci/install-npm.py
+      - name: Получить уже проверенный бинарник из точного предыдущего запуска
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download 38981422399 --repo "$GITHUB_REPOSITORY" -n d5110-evidence-1 -D "$RUNNER_TEMP/d5110-resume"
       - name: Собрать и квалифицировать только эксперимент
+        env:
+          D5110_RESUME: ${{ runner.temp }}/d5110-resume
         run: python3 experiments/d5-1-10/qualify.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()

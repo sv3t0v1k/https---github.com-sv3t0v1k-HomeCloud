@@ -59,7 +59,7 @@ def inspect(image):
 def oci(name, image):
     archive = ROOT / (name + ".oci.tar")
     source = "docker://" + image.split("@")[0].rsplit(":", 1)[0] + "@" + image.split("@")[1] if name == "baseline" else "docker-daemon:" + image
-    preserve = ["--preserve-digests"] if name == "baseline" else []
+    preserve = ["--preserve-digests"] if name == "baseline" else ["--format=v2s2", "--preserve-digests"]
     run(["skopeo", "copy", "--override-os", "linux", "--override-arch", "amd64",
          *preserve, source, "oci-archive:" + str(archive)])
     with tarfile.open(archive) as t:
@@ -107,41 +107,58 @@ try:
     write("scope.json", {"source": os.environ["GITHUB_SHA"], "baseline_source": "1c7d2424140fa3a8dfc49295edb56c9a471e9857",
           "run_id": os.environ["GITHUB_RUN_ID"], "base": BASE, "production": "NO_GO",
           "policy_changed": False, "new_disposition": False, "gosu_disposition_transferred": False})
-    go_archive = ROOT / "go.tar.gz"
-    urllib.request.urlretrieve("https://go.dev/dl/go1.26.9.linux-amd64.tar.gz", go_archive)
-    assert sha(go_archive) == GO_SHA
-    run(["tar", "-xzf", str(go_archive), "-C", str(ROOT)])
-    source = ROOT / "source"
-    run(["git", "init", str(source)])
-    run(["git", "-C", str(source), "fetch", "--depth=1", "https://github.com/tianon/gosu.git", SOURCE])
-    run(["git", "-C", str(source), "checkout", "--detach", "FETCH_HEAD"])
-    assert run(["git", "-C", str(source), "rev-parse", "HEAD"]) == SOURCE
-    for name in ["go.mod", "go.sum", "version.go", "SECURITY.md"]:
-        shutil.copy2(source / name, E / ("gosu-" + name))
-    builds = []
-    for attempt in (1, 2):
-        build_src = ROOT / f"source-{attempt}"
-        shutil.copytree(source, build_src, symlinks=True)
-        assert run(["git", "status", "--porcelain"], cwd=build_src) == ""
-        env = dict(os.environ, GOTOOLCHAIN="local", CGO_ENABLED="0", GOOS="linux", GOARCH="amd64",
-                   GOAMD64="v1", GOPATH=str(ROOT / f"gopath-{attempt}"),
-                   GOCACHE=str(ROOT / f"gocache-{attempt}"), GOFLAGS="-mod=readonly",
-                   GOSUMDB="sum.golang.org", GOPROXY="https://proxy.golang.org")
-        go = str(ROOT / "go/bin/go")
-        run([go, "mod", "download"], cwd=build_src, env=env)
-        run([go, "mod", "verify"], cwd=build_src, env=env)
-        assert run(["git", "status", "--porcelain"], cwd=build_src) == ""
-        binary = ROOT / f"gosu-{attempt}"
-        run([go, "build", "-trimpath", "-buildvcs=true", "-ldflags=-d -w", "-o", str(binary), "."], cwd=build_src, env=env)
-        metadata = run([go, "version", "-m", str(binary)])
-        (E / f"gosu-build-{attempt}-metadata.txt").write_text(metadata + "\n")
-        assert "go1.26.9" in metadata and "vcs.revision=" + SOURCE in metadata and "vcs.modified=false" in metadata
-        assert metadata.startswith(str(binary) + ": ")
-        builds.append({"binary_sha256": sha(binary), "metadata": metadata.removeprefix(str(binary) + ": ")})
-    assert builds[0] == builds[1]
-    shutil.copy2(ROOT / "gosu-1", E / "gosu.experimental-linux-amd64")
-    write("reproducibility.json", {"go_archive_sha256": GO_SHA, "source_commit": SOURCE, "builds": builds,
-          "scope": "two independent source paths, module and compiler caches; same runner and verified toolchain"})
+    resume = os.environ.get("D5110_RESUME")
+    if resume:
+        previous = Path(resume)
+        expected_proof = "fb8fc1ae84cdbde69093927ca6c1fc1eb0b0b0009dddc9c5c56f8289228a3e54"
+        assert sha(previous / "reproducibility.json") == expected_proof
+        proof = json.loads((previous / "reproducibility.json").read_text())
+        assert proof["source_commit"] == SOURCE and proof["go_archive_sha256"] == GO_SHA
+        builds = proof["builds"]
+        assert builds[0] == builds[1]
+        assert sha(previous / "gosu.experimental-linux-amd64") == builds[0]["binary_sha256"] == "3d0088b3cfedd7fa76869768b140db58dd6e52b30343c54000fa9fd92a904085"
+        for name in ["reproducibility.json", "gosu-go.mod", "gosu-go.sum", "gosu-version.go", "gosu-SECURITY.md",
+                     "gosu-build-1-metadata.txt", "gosu-build-2-metadata.txt", "gosu.experimental-linux-amd64"]:
+            shutil.copy2(previous / name, E / name)
+        shutil.copy2(previous / "gosu.experimental-linux-amd64", ROOT / "gosu-1")
+        write("reused-build.json", {"run_id": "38981422399", "source_head": "a73a6db586ff5b82f327a7e4d230e29de5a7055b", "proof_sha256": expected_proof,
+              "reason": "Reuse successful reproducible build; only image export/runtime/scans remain"})
+    else:
+        go_archive = ROOT / "go.tar.gz"
+        urllib.request.urlretrieve("https://go.dev/dl/go1.26.9.linux-amd64.tar.gz", go_archive)
+        assert sha(go_archive) == GO_SHA
+        run(["tar", "-xzf", str(go_archive), "-C", str(ROOT)])
+        source = ROOT / "source"
+        run(["git", "init", str(source)])
+        run(["git", "-C", str(source), "fetch", "--depth=1", "https://github.com/tianon/gosu.git", SOURCE])
+        run(["git", "-C", str(source), "checkout", "--detach", "FETCH_HEAD"])
+        assert run(["git", "-C", str(source), "rev-parse", "HEAD"]) == SOURCE
+        for name in ["go.mod", "go.sum", "version.go", "SECURITY.md"]:
+            shutil.copy2(source / name, E / ("gosu-" + name))
+        builds = []
+        for attempt in (1, 2):
+            build_src = ROOT / f"source-{attempt}"
+            shutil.copytree(source, build_src, symlinks=True)
+            assert run(["git", "status", "--porcelain"], cwd=build_src) == ""
+            env = dict(os.environ, GOTOOLCHAIN="local", CGO_ENABLED="0", GOOS="linux", GOARCH="amd64",
+                       GOAMD64="v1", GOPATH=str(ROOT / f"gopath-{attempt}"),
+                       GOCACHE=str(ROOT / f"gocache-{attempt}"), GOFLAGS="-mod=readonly",
+                       GOSUMDB="sum.golang.org", GOPROXY="https://proxy.golang.org")
+            go = str(ROOT / "go/bin/go")
+            run([go, "mod", "download"], cwd=build_src, env=env)
+            run([go, "mod", "verify"], cwd=build_src, env=env)
+            assert run(["git", "status", "--porcelain"], cwd=build_src) == ""
+            binary = ROOT / f"gosu-{attempt}"
+            run([go, "build", "-trimpath", "-buildvcs=true", "-ldflags=-d -w", "-o", str(binary), "."], cwd=build_src, env=env)
+            metadata = run([go, "version", "-m", str(binary)])
+            (E / f"gosu-build-{attempt}-metadata.txt").write_text(metadata + "\n")
+            assert "go1.26.9" in metadata and "vcs.revision=" + SOURCE in metadata and "vcs.modified=false" in metadata
+            assert metadata.startswith(str(binary) + ": ")
+            builds.append({"binary_sha256": sha(binary), "metadata": metadata.removeprefix(str(binary) + ": ")})
+        assert builds[0] == builds[1]
+        shutil.copy2(ROOT / "gosu-1", E / "gosu.experimental-linux-amd64")
+        write("reproducibility.json", {"go_archive_sha256": GO_SHA, "source_commit": SOURCE, "builds": builds,
+              "scope": "two independent source paths, module and compiler caches; same runner and verified toolchain"})
     docker("pull", "--platform=linux/amd64", BASE)
     base_inspect = inspect(BASE)
     write("baseline-docker-inspect.json", base_inspect)
