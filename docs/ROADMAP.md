@@ -33,7 +33,7 @@
 | Failure & Security Testing — ненумерованный checkpoint | `COMPLETE` | [evidence и границы](./failure-security-checkpoint.md) |
 | Универсальное хранение и докачка — ненумерованный checkpoint | `COMPLETE` | [IAB/Safari functional evidence](./evidence/universal-storage-upload-ux-20261005/report.md) |
 | Единый локальный Docker baseline — ненумерованный checkpoint | `COMPLETE` | `bf97bef` / `f578030`; [runbook и preservation boundaries](./operations-runbook.md) |
-| D5.1 — Release Management & CI Foundation | `D5.1.7_RELEASE_BLOCKED` | [Квалификация баз и политика image scans](./image-security-policy.md) |
+| D5.1 — Release Management & CI Foundation | `D5.1.10_RELEASE_BLOCKED` | [Экспериментальная квалификация PostgreSQL/gosu](./evidence/d5-1-10-postgres-gosu-20261017.md) |
 | Полный 50 ГиБ IAB Browser E2E — ненумерованный checkpoint | `PASS` | `167498d`; [scope/evidence](./evidence/browser-50gib-qualification-20261006/report.md); Safari 50 ГиБ UNQUALIFIED |
 
 ## Completed
@@ -1387,3 +1387,17 @@ remote ADD создал дополнительный некешированны�
 Единственная корректировка переносит загрузку+checksum+offline install в обычный RUN;
 strict cache gate не меняется. Разрешённый предел — одна исправляющая попытка,
 без третьего CI цикла; итоговые coverage/review остаются PENDING.
+
+### D5.1.10 — экспериментальная квалификация PostgreSQL/gosu (2026-10-17)
+
+**Эксперимент PASS; Release BLOCKED / Production NO_GO; COMPLETE не установлен.**
+От подтверждённого `1c7d242` отдельно квалифицирован exact PostgreSQL16.15/linux-amd64
+с gosu1.19 на исправленном Go1.26.9. Только experimental manifest
+`sha256:fd2e86b5b1a2d9381d6e6018feacda382e6b669dda0a519dbc4744aa46980f95`:
+парные raw scans на одной свежей БД дают1C/24H→0C/0H, остаток2M/1UNKNOWN без исключений.
+154/154 PostgreSQL tests,26 migrations+повторный no-op, SQL backup/restore мигрированной
+fixture-схемы, startup/shutdown/restart и official↔candidate на disposable PGDATA PASS.
+Независимый security review APPROVE только эксперименту. Production image/Compose/locks
+сохранены; прежняя disposition не переносилась на новый SHA. Остальные build/CI/rootfs
+блокеры D5.1.9 сохраняются. D5.2 NOT_STARTED.
+[Точные identities, evidence, ограничения и одно решение владельца](./evidence/d5-1-10-postgres-gosu-20261017.md).
