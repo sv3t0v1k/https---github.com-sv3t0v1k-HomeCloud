@@ -1357,3 +1357,25 @@ scan и прежние16 окружений/gates сохранены, timeout60�
 SHA256/evidence/expiry2026-11-15; raw findings и24H PostgreSQL не подавляются.
 52 целевых tests и actionlint PASS; итоговый CI/coverage/actual disposition PENDING.
 Остаточные инструменты/build/CI findings остаются блокирующими. D5.2 NOT_STARTED.
+
+
+### D5.1.9 — Security Remediation & Gate Closure (2026-10-16)
+
+**BLOCKED / Production NO_GO; COMPLETE не установлен.** Исходный checkpoint
+`372bb1d`, CI38873878408:16/16 COVERED,9/9 образов,27/27 tools.
+Узкое восстановление проверки публичных Go FIX references: максимум две сетевые
+попытки на уникальный exact reference только при временном сбое; source/span,
+исторический FIX context, TLS и точное commit equality остаются обязательными.
+На сохранённых122 raw findings новый classifier122/122 PASS; прежний CI120/122 FAIL
+не переписывается. Регрессии на реальные/соседние credentials и fail-closed сохранены.
+
+Подготовлено совместимое обновление global npm11.19.0→11.21.1 только в build/CI,
+без изменения app dependencies. Immutable official bundle закреплён SHA256,
+проверен до установки; candidate scan144packages/0findings со свежей БД.
+Фактические стадии, installed inventory и полные16 окружений нового source
+требуют единственного итогового CI; candidate scan не заменяет их квалификацию.
+PostgreSQL24H(gosu), Gitleaks1C/35H, Compose4H, esbuild1C/24H, BuildKit107H и
+mandatory runner rootfs остаются BLOCKED без новых dispositions или suppressions.
+Exact gosu/CVE-2025-68121 approval не расширен, expiry2026-11-15T00:00:00Z сохранена.
+Итоговые HEAD/CI/review и остаточные пакетные группы фиксируются в
+`outputs/d5-1-9-20261016/report.md` mirror проекта. D5.2 NOT_STARTED.
