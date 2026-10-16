@@ -1,0 +1,44 @@
+name: Эксперимент PostgreSQL gosu D5.1.10
+on:
+  push:
+    paths:
+      - 'experiments/d5-1-10/**'
+      - '.github/workflows/pg-gosu-experiment.yml'
+permissions:
+  contents: read
+jobs:
+  qualification:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            experiments/d5-1-10
+            backend
+            scripts/ci/install-trivy.sh
+            scripts/ci/install-npm.py
+          sparse-checkout-cone-mode: false
+      - name: Подготовить одноразовый runner
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends skopeo
+          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/d5110-trivy"
+          python3 scripts/ci/install-npm.py
+      - name: Собрать и квалифицировать только эксперимент
+        run: python3 experiments/d5-1-10/qualify.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: d5110-evidence-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/d5110/evidence
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: success()
+        with:
+          name: d5110-experimental-image-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/d5110/candidate.oci.tar
+          if-no-files-found: error
+          retention-days: 30
