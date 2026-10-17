@@ -287,7 +287,9 @@ try:
         assert sbom["metadata"]["component"]["name"] == layout
         properties = sbom["metadata"]["component"]["properties"]
         assert [p["value"] for p in properties if p["name"] == "aquasecurity:trivy:ImageID"] == [ident[1]["config"]["digest"]]
-        assert [p["value"] for p in properties if p["name"] == "aquasecurity:trivy:DiffID"] == ident[2]["rootfs"]["diff_ids"]
+        # CycloneDX properties are sorted, not an OCI layer-order declaration.
+        # Preserve multiplicity; exact rootfs order stays bound by config digest.
+        assert collections.Counter(p["value"] for p in properties if p["name"] == "aquasecurity:trivy:DiffID") == collections.Counter(ident[2]["rootfs"]["diff_ids"])
         components = {(c.get("name"), c.get("version")) for c in sbom["components"]}
         expected_packages = before_packages if name == "previous" else after_packages
         assert all((package, version) in components for package, version in expected_packages.items())
