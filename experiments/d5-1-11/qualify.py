@@ -1,4 +1,4 @@
-"""Узкий эксперимент zlib r1; gosu побайтово сохранён после отказа moby/user tests."""
+"""Квалификация сохранённого exact OCI zlib r1 без пересборки."""
 import collections
 from datetime import datetime, timezone
 import hashlib
@@ -12,11 +12,11 @@ import shutil
 import subprocess
 import tarfile
 import time
-import urllib.request
 
 assert os.environ.get("GITHUB_ACTIONS") == "true"
 assert os.environ.get("RUNNER_ENVIRONMENT") == "github-hosted"
 assert os.uname().machine == "x86_64"
+assert os.environ.get("D5111_CANDIDATE_RESUME"), "existing exact OCI required; rebuild forbidden"
 ROOT = Path(os.environ["RUNNER_TEMP"]) / "d5111"
 ROOT.mkdir(exist_ok=False)
 E = ROOT / "evidence"
@@ -28,8 +28,8 @@ OLD_ARCHIVE = "2cffc90fb5c5f3309c3c1e2e708de8267dabab60dc49f164f418f3e1e0581961"
 GOSU_SHA = "3d0088b3cfedd7fa76869768b140db58dd6e52b30343c54000fa9fd92a904085"
 APK_SHA = "63aeea03c15a2f9018f81805cfc8aa926bdf5cd68921f22149c2fbb5d0ee9f47"
 events = []
-containers = ["d5111-old", "d5111-new", "d5111-restore", "d5111-return"]
-volumes = ["d5111-data", "d5111-restore"]
+containers = ["d5111-old", "d5111-new", "d5111-restore", "d5111-return", "d5111-migrations"]
+volumes = ["d5111-data", "d5111-restore", "d5111-migrations"]
 
 
 def sha(path):
@@ -60,15 +60,8 @@ def inspect(image):
     return json.loads(docker("image", "inspect", image))[0]
 
 
-def fetch(url, name, expected):
-    dest = ROOT / name
-    urllib.request.urlretrieve(url, dest)
-    assert sha(dest) == expected, name
-    return dest
-
-
-def sql(name, query):
-    return docker("exec", "-i", name, "psql", "-U", "qualifier", "-d", "qualification",
+def sql(name, query, db="qualification"):
+    return docker("exec", "-i", name, "psql", "-U", "qualifier", "-d", db,
                   "-v", "ON_ERROR_STOP=1", "-At", data=query + "\n")
 
 
@@ -82,8 +75,9 @@ def ready(name):
     raise RuntimeError("PostgreSQL TCP readiness timeout")
 
 
-def start(name, image, volume):
-    docker("run", "-d", "--name", name, "--network=none", "-e", "POSTGRES_USER=qualifier",
+def start(name, image, volume, migration=False):
+    network = ["--network=bridge", "-p", "127.0.0.1:55432:5432"] if migration else ["--network=none"]
+    docker("run", "-d", "--name", name, *network, "-e", "POSTGRES_USER=qualifier",
            "-e", "POSTGRES_PASSWORD=disposable-experiment-only", "-e", "POSTGRES_DB=qualification",
            "--mount", f"type=volume,src={volume},dst=/var/lib/postgresql/data", image)
     ready(name)
@@ -116,26 +110,24 @@ try:
           moby_update="REJECTED: upstream tests fail in run39015161422; no bypass",
           reproducibility="historical D5.1.10 binary only; no new binary or OCI reproducibility claim"))
 
-    context = ROOT / "context"
-    context.mkdir()
     dockerfile = f"FROM {OLD}\nCOPY zlib.apk /tmp/d5111-zlib.apk\nRUN apk add --no-network /tmp/d5111-zlib.apk && rm /tmp/d5111-zlib.apk\n"
-    (context / "Dockerfile").write_text(dockerfile)
     (E / "Dockerfile").write_text(dockerfile)
-    resume = os.environ.get("D5111_CANDIDATE_RESUME")
-    if resume:
-        assert sha(resume) == "392dfe5ab7ce5fdfd77b4c32884ab8700a72124d783fd20b244cba6135d5c645"
-        resumed = helper.identity(resume)
-        assert resumed[0] == "sha256:83b8b00eca9cb7e77dc6c6bbb3fd4bef197853afa0c2cd104991d7a9673abbe8"
-        assert resumed[1]["config"]["digest"] == "sha256:e8f72c13539571329d433e4d0ea475dc42a6407b36f9332cfe3fd790fe81a7d2"
-        shutil.copy2(resume, ROOT / "candidate.oci.tar")
-        run(["skopeo", "copy", "--preserve-digests", "oci-archive:" + str(ROOT / "candidate.oci.tar"), "docker-daemon:" + NEW])
-        write("reused-image.json", dict(run_id="39015752148", build_head="d3770c4e49c9d45572f7c0dc70daf3021d8055bd",
-              qualification_head=os.environ["GITHUB_SHA"], archive_sha256=sha(resume), rebuilt=False,
-              reason="retain exact successful image build; correct scripts archive check and continue qualification"))
-    else:
-        apk = fetch("https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/zlib-1.3.2-r1.apk", "zlib.apk", APK_SHA)
-        shutil.copy2(apk, context / "zlib.apk")
-        docker("build", "--network=none", "--platform=linux/amd64", "-t", NEW, str(context))
+    resume = Path(os.environ["D5111_CANDIDATE_RESUME"])
+    assert sha(resume) == "392dfe5ab7ce5fdfd77b4c32884ab8700a72124d783fd20b244cba6135d5c645"
+    resumed = helper.identity(resume)
+    assert resumed[0] == "sha256:83b8b00eca9cb7e77dc6c6bbb3fd4bef197853afa0c2cd104991d7a9673abbe8"
+    assert resumed[1]["config"]["digest"] == "sha256:e8f72c13539571329d433e4d0ea475dc42a6407b36f9332cfe3fd790fe81a7d2"
+    shutil.copy2(resume, ROOT / "candidate.oci.tar")
+    run(["skopeo", "copy", "--preserve-digests", "oci-archive:" + str(ROOT / "candidate.oci.tar"), "docker-daemon:" + NEW])
+    provenance = json.loads((Path(os.environ["D5111_CANDIDATE_METADATA"]) / "provenance.json").read_text())
+    assert provenance["build_run"]["head_sha"] == "d3770c4e49c9d45572f7c0dc70daf3021d8055bd"
+    assert provenance["artifact"]["id"] == 12095095760
+    assert provenance["archive_sha256"] == sha(resume)
+    provenance.update(qualification_head=os.environ["GITHUB_SHA"], rebuilt=False,
+                      manifest=resumed[0], config=resumed[1]["config"]["digest"],
+                      signature="UNSIGNED: GitHub API origin and byte binding; no signed attestation claimed")
+    write("provenance.json", provenance)
+    write("reused-image.json", provenance)
     new = inspect(NEW)
     old = inspect(OLD)
     assert new["Config"] == old["Config"]
@@ -155,8 +147,7 @@ try:
     write("package-inventory.json", dict(previous=before_packages, candidate=after_packages, changed_only=["zlib"]))
     assert docker("run", "--rm", "--network=none", "--entrypoint", "sha256sum", NEW, "/usr/local/bin/gosu").split()[0] == builds[0]
     new_archive = ROOT / "candidate.oci.tar"
-    if not new_archive.exists():
-        run(["skopeo", "copy", "--format=v2s2", "--preserve-digests", "docker-daemon:" + NEW, "oci-archive:" + str(new_archive)])
+    assert new_archive.is_file() and sha(new_archive) == sha(resume)
     identity = helper.identity(new_archive)
     assert identity[1]["config"]["digest"] == new["Id"]
     write("identity.json", dict(manifest=identity[0], config=new["Id"], archive_sha256=sha(new_archive),
@@ -179,22 +170,20 @@ try:
           identical=previous_scripts == candidate_scripts))
     assert previous_scripts == candidate_scripts
 
-    # Все новые layers: только zlib и bookkeeping apk. Временный apk допустим
-    # лишь в нижнем COPY-layer, затем whiteout; его bytes сохраняются в OCI.
-    layer_members = []
-    with tarfile.open(new_archive) as store:
-        for layer in identity[1]["layers"][len(old_artifact[1]["layers"]):]:
-            with tarfile.open(fileobj=store.extractfile("blobs/sha256/" + layer["digest"][7:]), mode="r|*") as stream:
-                for member in stream:
-                    name = member.name.removeprefix("./").rstrip("/")
-                    if member.isdir():
-                        continue
-                    allowed = {"usr/lib/libz.so.1", "usr/lib/libz.so.1.3.2",
-                               "etc/apk/world", "lib/apk/db/installed", "lib/apk/db/scripts.tar.gz",
-                               "lib/apk/db/triggers", "lib/apk/db/lock", "tmp/d5111-zlib.apk", "tmp/.wh.d5111-zlib.apk"}
-                    assert name in allowed, name
-                    layer_members.append(dict(layer=layer["digest"], path=name, mode=oct(member.mode), uid=member.uid, gid=member.gid))
+    # Exact reviewed members, bytes AND metadata, including all directories.
+    # apk.log must be the prior bytes plus the sole known zlib transaction.
+    spec = importlib.util.spec_from_file_location("layer_inventory", Path(__file__).with_name("layer-inventory.py"))
+    layer_inventory = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(layer_inventory)
+    lock = json.loads(Path(__file__).with_name("layer-allowlist.json").read_text())
+    assert identity[0] == lock["manifest"]
+    assert identity[1]["layers"][:len(old_artifact[1]["layers"])] == old_artifact[1]["layers"]
+    previous_log = base64.b64decode(docker("run", "--rm", "--network=none", "--entrypoint", "base64", OLD, "/var/log/apk.log"))
+    layer_members = layer_inventory.verify(new_archive, identity[1]["layers"][len(old_artifact[1]["layers"]):], lock, previous_log)
     write("layer-members.json", layer_members)
+    write("apk-log-check.json", dict(previous_sha256=lock["apk_log_previous_sha256"],
+          append=lock["apk_log_append"], full_inventory_match=True, directory_permissions_unchanged=True,
+          reviewed_manifest=lock["manifest"]))
 
     trivy = str(Path(os.environ["RUNNER_TEMP"]) / "d5111-trivy/trivy")
     cache = ROOT / "trivy-cache"
@@ -211,8 +200,26 @@ try:
                   "--ignorefile", "/dev/null", "--ignore-unfixed=false", "--platform", "linux/amd64", "--input", layout]
         run(common + ["--scanners", "vuln", "--list-all-pkgs", "--format", "json", "--output", str(E / (name + "-scan.json"))])
         report = json.loads((E / (name + "-scan.json")).read_text())
-        write(name + "-binding.json", helper.bind(arc, report, "postgres", os.environ["GITHUB_SHA"], ident[0]))
+        binding = helper.bind(arc, report, "postgres", os.environ["GITHUB_SHA"], ident[0])
+        binding["scan_sha256"] = "sha256:" + sha(E / (name + "-scan.json"))
+        binding["source_commit_role"] = "qualification harness; build origin recorded separately in provenance.json"
+        write(name + "-binding.json", binding)
         run(common + ["--format", "cyclonedx", "--output", str(E / (name + "-sbom.cdx.json"))])
+        sbom = json.loads((E / (name + "-sbom.cdx.json")).read_text())
+        assert sbom["bomFormat"] == "CycloneDX"
+        assert sbom["metadata"]["component"]["name"] == layout
+        properties = sbom["metadata"]["component"]["properties"]
+        assert [p["value"] for p in properties if p["name"] == "aquasecurity:trivy:ImageID"] == [ident[1]["config"]["digest"]]
+        assert [p["value"] for p in properties if p["name"] == "aquasecurity:trivy:DiffID"] == ident[2]["rootfs"]["diff_ids"]
+        components = {(c.get("name"), c.get("version")) for c in sbom["components"]}
+        expected_packages = before_packages if name == "previous" else after_packages
+        assert all((package, version) in components for package, version in expected_packages.items())
+        assert ("github.com/moby/sys/user", "v0.1.0") in components
+        assert ("golang.org/x/sys", "v0.1.0") in components
+        write(name + "-sbom-binding.json", dict(manifest=ident[0], config=ident[1]["config"]["digest"],
+              archive_sha256=sha(arc), sbom_sha256=sha(E / (name + "-sbom.cdx.json")),
+              scan_layout=str(helper.verify_layout(arc, layout)), packages_verified=len(expected_packages),
+              source_commit_role="qualification harness", signature="UNSIGNED"))
         assert sha(db) == db_hash
         assert any(r.get("Target") == "usr/local/bin/gosu" and r.get("Packages") for r in report["Results"])
         findings[name] = [{"target": "os:" + r["Type"] if r.get("Class") == "os-pkgs" else r["Target"],
@@ -258,10 +265,40 @@ try:
     docker("stop", "-t", "30", containers[1])
     start(containers[3], OLD, volumes[0])
     assert sql(containers[3], digest_query) == data_hash
+    # Только disposable БД/хранилище на hosted runner; loopback порт не публикуется наружу.
+    start(containers[4], NEW, volumes[2], migration=True)
+    backend = Path(os.environ["GITHUB_WORKSPACE"]) / "backend"
+    run(["npm", "ci", "--no-audit"], cwd=backend)
+    run(["npm", "run", "build"], cwd=backend)
+    fixture_storage = ROOT / "migration-storage"
+    (fixture_storage / ".tmp").mkdir(parents=True)
+    migration_env = dict(os.environ, STORAGE_PATH=str(fixture_storage),
+                         DATABASE_URL="postgres://qualifier:disposable-experiment-only@127.0.0.1:55432/qualification")
+    run(["npm", "run", "migration:run"], cwd=backend, env=migration_env)
+    migrated = sql(containers[4], 'SELECT id, timestamp, name FROM migrations ORDER BY id')
+    assert sql(containers[4], 'SELECT count(*) FROM migrations') == "26"
+    run(["npm", "run", "migration:run"], cwd=backend, env=migration_env)
+    assert sql(containers[4], 'SELECT id, timestamp, name FROM migrations ORDER BY id') == migrated
+    sql(containers[4], "CREATE TABLE qualification_marker AS SELECT g id, repeat(md5(g::text),100) payload FROM generate_series(1,1000) g")
+    migration_hash_query = "SELECT md5(string_agg(payload,'' ORDER BY id)) FROM qualification_marker"
+    migration_hash = sql(containers[4], migration_hash_query)
+    migration_schema = docker("exec", containers[4], "pg_dump", "-U", "qualifier", "-d", "qualification", "--schema-only", "--no-owner", "--no-acl")
+    docker("exec", containers[4], "pg_dump", "-U", "qualifier", "-d", "qualification", "-Fc", "-Z6", "-f", "/tmp/migrated.dump")
+    sql(containers[4], "CREATE DATABASE restored_migrations")
+    docker("exec", containers[4], "pg_restore", "-U", "qualifier", "-d", "restored_migrations", "--exit-on-error", "/tmp/migrated.dump")
+    assert sql(containers[4], 'SELECT id, timestamp, name FROM migrations ORDER BY id', db="restored_migrations") == migrated
+    assert sql(containers[4], migration_hash_query, db="restored_migrations") == migration_hash
+    restored_schema = docker("exec", containers[4], "pg_dump", "-U", "qualifier", "-d", "restored_migrations", "--schema-only", "--no-owner", "--no-acl")
+    # PostgreSQL dump restrict nonce is random per invocation; SQL statements must match.
+    normalize = lambda text: "\n".join(line for line in text.splitlines() if not line.startswith(("\\restrict ", "\\unrestrict ")))
+    assert normalize(migration_schema) == normalize(restored_schema)
+    write("migrations.json", dict(status="PASS", count=26, rerun="NO_OP", migration_rows=migrated,
+          compressed_restore="PASS", marker_rows=1000, marker_hash=migration_hash,
+          schema_sha256=hashlib.sha256(normalize(migration_schema).encode()).hexdigest(), manifest=identity[0]))
     write("compatibility.json", dict(status="PASS", postgres="16.15", fixture_rows=1000, payload_hash=data_hash,
           checks=["named/numeric UID/GID/groups/HOME", "fresh init", "previous-to-new PGDATA", "PID1 UID/GID70",
                   "compressed pg_dump/pg_restore", "clean shutdown", "restart", "new-to-previous PGDATA"],
-          prior_154_tests="not rerun; historical D5.1.10 exact previous image only", prior_26_migrations="not rerun; no backend/migration changes"))
+          prior_154_tests="not rerun; unchanged backend, targeted 26 migrations and restore on this exact OCI", migrations="26 + no-op + compressed schema/fixture restore"))
     write("result.json", dict(experiment="PASS", production="NO_GO", manifest=identity[0], binary_sha256=builds[0],
           disposition_transferred=False, new_exceptions=False, policy_changed=False))
 finally:

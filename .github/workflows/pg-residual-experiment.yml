@@ -17,6 +17,8 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             experiments/d5-1-11
+            backend
+            scripts/ci/install-npm.py
             scripts/ci/install-trivy.sh
             scripts/ci/oci-scan-binding.py
             scripts/ci/provenance.py
@@ -26,6 +28,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends skopeo
           sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/d5111-trivy"
+          python3 scripts/ci/install-npm.py
       - name: Получить закреплённый предыдущий OCI artifact
         env:
           GH_TOKEN: ${{ github.token }}
@@ -33,11 +36,12 @@ jobs:
       - name: Получить уже собранный exact zlib-only OCI
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh run download 39015752148 --repo "$GITHUB_REPOSITORY" -n d5111-experimental-image-1 -D "$RUNNER_TEMP/d5111-candidate"
+        run: python3 experiments/d5-1-11/fetch-existing.py
       - name: Квалифицировать минимальное обновление
         env:
           D5111_PREVIOUS_ARCHIVE: ${{ runner.temp }}/d5111-previous/candidate.oci.tar
           D5111_CANDIDATE_RESUME: ${{ runner.temp }}/d5111-candidate/candidate.oci.tar
+          D5111_CANDIDATE_METADATA: ${{ runner.temp }}/d5111-candidate
         run: python3 experiments/d5-1-11/qualify.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
