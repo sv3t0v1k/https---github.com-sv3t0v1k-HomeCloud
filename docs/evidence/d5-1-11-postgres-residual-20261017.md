@@ -12,7 +12,7 @@ Raw evidence находятся в локальном mirror `outputs/d5-1-11-20
 archive SHA256 `2cffc90fb5c5f3309c3c1e2e708de8267dabab60dc49f164f418f3e1e0581961`.
 Raw scan SHA256 `f1cba39185a85f6297f16d5929024bd5c19f83f648ac77ecdae952b6351964b8`
 и binary SHA256 `3d0088b3cfedd7fa76869768b140db58dd6e52b30343c54000fa9fd92a904085`
-повторно сверены локально. Все три записи сохранены в `outputs/d5-1-11-20261017/initial-findings.json`.
+повторно сверены локально. Все три записи сохранены в `initial-findings.json`.
 Trivy 0.76.0, Alpine 3.24.2; исходная DB SHA256
 `bf1f1b29d76cae9ff085d418cb4bfdb3906b6069f837abdef06558b8102dd1db`.
 Это историческая квалификация конкретного образа, не новый скан.
@@ -69,22 +69,40 @@ UNKNOWN означает отсутствие пригодной оценки т
 Решение: x/sys0.1.0 оставить, raw UNKNOWN сохранить; это аналитическая квалификация применимости,
 не CVE-исключение, VEX suppression или новая hash-bound disposition.
 
-## Границы целевой квалификации
+## Фактический результат целевой квалификации
 
-После отказа moby новый hosted-only qualifier сохраняет прежний gosu побайтово:
-его SHA проверяется в предыдущем и новом образе; пересборки бинарника нет.
-Проверяются permissions и named/numeric UID/GID/groups/HOME.
-Проверяются exact предыдущий OCI, новый manifest/config/rootfs/binary и allowlist новых layer entries.
-Сканы предыдущего и нового образа выполняются одной свежей DB без ignore/config/disposition,
-с inventory и SBOM. Новые findings или C/H не принимаются автоматически.
-Runtime: fresh init, previous→new PGDATA, PostgreSQL16.15/PID1 UID70, compressed pg_dump/restore
-1000 синтетических строк, clean shutdown, restart и new→previous PGDATA.
-Локальная статическая сверка старой и vendor r1 libz подтверждает одинаковый SONAME
-`libz.so.1` и все111 exported defined dynamic-symbol names (`zlib-static-abi.json`);
-это ограниченная проверка интерфейса, не доказательство полной ABI/runtime безопасности.
-154/154 tests и 26 migrations D5.1.10 не запускаются qualifier повторно и не выдаются за проверки нового образа:
-backend/migrations и gosu неизменны, новая проверка адресована zlib и границам образа.
-Возврат к официальному образу доказан ранее только для D5.1.10; новый тест возвращает к D5.1.10.
+**INCOMPLETE. Новый OCI не принят; scan/runtime PASS отсутствует.**
+[Последний run39016144800 FAILURE](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/39016144800),
+qualification HEAD `85ec55e70a374209706bf5ffeeb09b9920fdcdcb`.
+Raw `resume-final/`: все11 hashes из evidence-hashes.json сверены локально.
+
+- Только zlib обновлён 1.3.2-r0→1.3.2-r1; все прочие44 package versions сохранены.
+- Gosu exact SHA3d0088… сохранён old/new; бинарник не пересобирался. Runtime Config/entrypoint/CMD/env сохранены; old rootfs prefix сохранён.
+- Подписанный vendor APK, offline install и image build прошли в run39015752148, build HEAD `d3770c4e49c9d45572f7c0dc70daf3021d8055bd`.
+- Последний run возобновил exact тот же archive/manifest/config, без пересборки; source build HEAD и qualification HEAD записаны в `resume-final/reused-image.json`.
+- Все10 внутренних apk package scripts имеют одинаковые names/type/link targets/mode/UID/GID/file bytes. Подтверждено `resume-final/apk-scripts-comparison.json`.
+- Локальная статическая сверка старой и vendor r1 libz: SONAME `libz.so.1`, все111 exported defined dynamic-symbol names сохранены (`zlib-static-abi.json`). Это ограниченная проверка интерфейса, не полная ABI/runtime qualification.
+- Следующий слой содержит `var/log/apk.log`, не включённый в строгий allowlist. Это второй отказ одной проверки допустимых filesystem mutations; третьей попытки нет. Наличие обычного служебного лога не доказывает опасность пакета, но не даёт права объявить непройденную проверку успешной.
+- **До fresh scans/SBOM, smoke/init/PID1/restart, PGDATA return и compressed backup/restore выполнение не дошло.** Их результатов нет. Raw scan D5.1.10 не переносится на новый digest; новый count0C/0H/1M/1U не заявляется.
+- Qualifier не повторял154 tests/26 migrations. Они относятся только к прежнему D5.1.10, backend/migrations неизменны. Возврат к официальному образу не объявлен доказанным для нового OCI.
+
+Новый experimental manifest:
+`sha256:83b8b00eca9cb7e77dc6c6bbb3fd4bef197853afa0c2cd104991d7a9673abbe8`.
+Config `sha256:e8f72c13539571329d433e4d0ea475dc42a6407b36f9332cfe3fd790fe81a7d2`;
+archive SHA256 `392dfe5ab7ce5fdfd77b4c32884ab8700a72124d783fd20b244cba6135d5c645`.
+[Сохранённый GitHub artifact12095095760](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/39015752148/artifacts/12095095760),
+30-дневный retention. Его bytes проверялись hosted helper при resume. Полная локальная копия
+не получена после двух сетевых попыток; `image/artifact.zip.partial` не является OCI или proof.
+Третья загрузка не выполнялась; `image/download-status.json` фиксирует ограничение.
+Независимый review ограничен raw execution evidence, без локальной независимой проверки нового OCI bytes.
+
+| Проблема | Попытки и граница |
+|---|---|
+| Moby/user update | 39015161422: upstream tests FAIL; одна попытка, update отклонён без обхода. |
+| apk version display | 39015313560: info -v вернул описание; одна коррекция на installed DB, 39015752148 version/inventory PASS. |
+| Filesystem mutation allowlist | 39015752148: scripts.tar.gz отсутствовал; одна коррекция с equality всех inner scripts, 39016144800: var/log/apk.log отсутствовал → остановка, без третьей попытки. |
+| Local OCI download | Две сетевые попытки; нет полного локального OCI, remote artifact сохранён. |
+| Разрешённые новые CI cancel | По одному cancel и force-cancel на каждый из двух явно разрешённых IDs, без третьей попытки. |
 
 ## Поддержание собственного образа до любого решения о внедрении
 
@@ -95,55 +113,39 @@ backend/migrations и gosu неизменны, новая проверка ад�
 5. Проверять account parser, entrypoint/init, PostgreSQL major/data format, extensions и compressed backup/restore. Полные app tests/migrations повторять при затронутых изменениях или перед решением о внедрении; результаты привязывать к exact digest.
 6. Сохранять предыдущий проверенный OCI и backup; репетировать возврат на disposable PGDATA. Перед любым будущим production переключением отдельно проверить полноценное восстановление БД и файлов/расширений, определить окно и критерии возврата. Это не разрешение deployment.
 
-## Ранее отменённые CI
+## Ранее отменённые CI и побочные автозапуски
 
-Read-only API подтвердил: `38983088302` и `38983084953` — `completed/cancelled`,
+Read-only API подтвердил исходные `38983088302` и `38983084953` — `completed/cancelled`,
 updated_at соответственно `2026-10-16T23:50:47Z` и `23:50:49Z`.
-Никаких cancel/force-cancel/rerun в этом этапе над ними не выполнялось.
-Snapshot — `cancelled-ci-readonly.json`. Обычные CI, автоматически создаваемые push,
-не являются evidence этой узкой квалификации и не подменяют прежние release blockers.
-Отдельно владелец явно разрешил отменить только новые обычные CI `39015161242` и `39015163447`
-от отклонённого HEAD9951d5e. По одному cancel и force-cancel на каждый, без третьей попытки;
-согласование и состояние — `owner-authorized-ci-cancel.json`; поздний API snapshot подтвердил completed/cancelled обоих.
+Cancel/force-cancel/rerun над ними в этом этапе не выполнялись (`cancelled-ci-readonly.json`).
 
-## Итог: квалификация нового образа не завершена
+Владелец отдельно разрешил отменить новые обычные CI `39015161242` и `39015163447`
+от отклонённого HEAD9951d5e. После одного cancel и одного force-cancel на каждый
+поздний API snapshot подтвердил completed/cancelled обоих (`owner-authorized-ci-cancel.json`).
+Обычные автозапуски не являются evidence этой узкой квалификации и не закрывают release blockers.
 
-**INCOMPLETE, не PASS.** Подтверждены точные ID/версии/источники и применимость остатка.
-Сборка zlib-only и package/binary/config checks прошли; новый образ пока не квалифицирован.
-Продолжение run39016144800 ожидает runner. Scan/smoke/init/backup-restore нового образа
-ещё не выполнены и не подменены историческими154/26. Независимый review пока только
-preflight/сужение scope, финального APPROVE образу нет.
+Запрос на дополнительные четыре обычных CI `39015752147,39015755250,39016144784,39016147540`
+был отозван после самостоятельного назначения runner квалификации; отмены не выполнялись.
+API показывал13 выполняющихся jobs, но исчерпание runner capacity оставалось гипотезой.
+Эта очередь больше не является блокером: последний experiment run завершился FAILURE.
 
-**Конкретное решение владельцу:** разрешить отменить оставшиеся обычные автозапуски
-39015752147,39015755250,39016144784,39016147540, чтобы предоставить runner уже подготовленной
-проверке exact OCI; не менять образ и не запускать новые сборки. Предыдущие два новых CI
-от9951d5e отменялись только после явного согласия. Запрос на следующие четыре открыт;
-отсутствие ответа не трактуется как разрешение. API показал13 выполняющихся jobs
-mandatory environment qualification у39015752147. Исчерпание runner capacity — гипотеза,
-назначенные runner ID и точная причина очереди этим snapshot не подтверждены.
+## Итог и одно решение владельцу
 
+**Остановлено в установленном лимите: INCOMPLETE; Release BLOCKED / Production NO_GO.**
+Квалификация исходных2M/1UNKNOWN документирована; ни один finding не принят и не подавлен.
+Доступный vendor fix zlib не равен прошедшему квалификацию HomeCloud image.
+Moby/user update не доказан безопасным в этом scope; x/sys Windows-only не требует обновления
+ради нуля счётчика. Остаточный риск не изменён в production.
 
-Первая zlib-only попытка `39015313560` (HEAD65cad36) выполнила offline signed upgrade r0→r1,
-но harness ожидал строку версии от `apk info -v`, получив описание пакета. До сканов/runtime не дошло.
-Сохранён raw `attempt-2/commands.json`; один корректирующий commit заменил display-команду
-на точную installed DB P/V inventory с проверкой неизменности всех прочих пакетов.
-Preflight independent security review этой корректировки APPROVE.
-Второй zlib-only run `39015752148` (build HEADd3770c4) подтвердил inventory45packages,
-неизменность gosu/config/rootfs prefix и сохранил новый exact OCI, но остановился на
-неучтённом в harness пути `lib/apk/db/scripts.tar.gz` (ожидался scripts.tar).
-Это штатный путь уже в исходном Alpine; следующая единственная коррекция этой отдельной
-проблемы разрешает только .tar.gz и сравнивает полный набор внутренних member names,
-types/link targets/mode/UID/GID/file bytes до/после. При отличии — FAIL.
-Дальнейшая квалификация использует exact сохранённый OCI run39015752148 без пересборки:
-archive SHA392dfe5ab7ce5fdfd77b4c32884ab8700a72124d783fd20b244cba6135d5c645,
-manifest83b8b00eca9cb7e77dc6c6bbb3fd4bef197853afa0c2cd104991d7a9673abbe8,
-confige8f72c13539571329d433e4d0ea475dc42a6407b36f9332cfe3fd790fe81a7d2.
-Qualifier запишет build HEAD отдельно от qualification HEAD в reused-image.json; этот raw ещё не получен, run ожидает runner. Прежний FAIL не выдан за PASS.
-Новый OCI artifact [12095095760](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/39015752148/artifacts/12095095760)
-доступен в GitHub с30-дневным retention. Полная локальная копия не получена после двух
-сетевых попыток; `image/artifact.zip.partial` не является OCI или доказательством integrity.
-`image/download-status.json` фиксирует ограничение, третья загрузка не выполняется.
-Возможный итоговый review ограничен raw hosted execution evidence, без независимой
-локальной перепроверки нового OCI bytes. Перед истечением retention нужна сохраняемая копия.
-Лимит — до двух попыток на каждую отдельную проблему, а не произвольные повторные сборки.
-Production NO_GO сохраняется. Gates/production Compose/policy/dispositions не менялись.
+**Рекомендация владельцу:** текущий новый OCI не внедрять; если продолжение нужно,
+отдельно разрешить новую ограниченную квалификацию уже сохранённого exact OCI с полным
+учётом служебных изменений apk, fresh scans/SBOM и runtime checks, без пересборки и исключений.
+В текущем эксперименте лимит проверки filesystem mutations исчерпан; новых попыток нет.
+Это предложение будущего решения, не объявление следующего этапа запущенным.
+
+Независимый review одобряет остановку/отчёт INCOMPLETE и ограничения evidence;
+итогового APPROVE новому image нет. Подписанная attestation, image reproducibility,
+локальная независимая проверка OCI и полноценное восстановление реальных данных не доказаны.
+Production Compose/gates/policy/dispositions не менялись. GHCR/merge/tag/release/deploy,
+Mac Docker/mini-PC/реальные данные не затронуты. Запрещённый audit file не читался,
+не искался, не хешировался и не staged; посторонние untracked сохранены.

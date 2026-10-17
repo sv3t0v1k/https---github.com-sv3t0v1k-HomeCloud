@@ -1407,13 +1407,13 @@ fixture-схемы, startup/shutdown/restart и official↔candidate на dispos
 
 **INCOMPLETE; Release BLOCKED / Production NO_GO; COMPLETE не установлен.**
 Подтверждены zlib/CVE-2026-85091 (Trivy Medium, CNA High), moby/user/CVE-2026-61801
-(Medium) и x/sys/CVE-2026-39824 (UNKNOWN без severity, Windows-only, неприменим
-к Linux gosu; raw finding сохранён без исключения). Moby/user0.4.1 отклонён:
-upstream parser tests FAIL, обходов/skip нет. Собран только zlib1.3.2-r1, gosu
-побайтово прежний. Manifest `sha256:83b8b00eca9cb7e77dc6c6bbb3fd4bef197853afa0c2cd104991d7a9673abbe8`
-пока не квалифицирован: version-format harness исправлен, scripts archive check
-корректируется на том же exact OCI без пересборки; run39016144800 ожидает runner.
-Новых scan/runtime PASS нет; прежние154/26 не переносились на новый image.
-Independent review пока preflight, финальное одобрение image отсутствует.
-Production Compose/gates/dispositions не изменены; D5.2 NOT_STARTED.
-[Квалификация, raw evidence, ограничения и решение владельцу](./evidence/d5-1-11-postgres-residual-20261017.md).
+(Medium) и x/sys/CVE-2026-39824 (UNKNOWN без severity, Windows-only; raw finding сохранён).
+Moby/user0.4.1 отклонён: upstream parser tests FAIL, обходов нет. Собран только
+zlib1.3.2-r1, gosu побайтово прежний; все прочие44packageversions/config сохранены.
+Manifest `sha256:83b8b00eca9cb7e77dc6c6bbb3fd4bef197853afa0c2cd104991d7a9673abbe8`
+не квалифицирован. Exact-image resume39016144800 подтвердил неизменность10apk scripts,
+но второй отказ filesystem allowlist наvar/log/apk.log завершил эксперимент в лимите.
+Третьей попытки нет. Новые scans/SBOM/runtime не выполнены;154/26 не переносились.
+Review одобряет отчёт INCOMPLETE, итогового APPROVE image нет. Production не менялся;
+dispositions/exceptions/gates не расширены. D5.2 NOT_STARTED.
+[Квалификация, evidence, ограничения и решение владельцу](./evidence/d5-1-11-postgres-residual-20261017.md).
