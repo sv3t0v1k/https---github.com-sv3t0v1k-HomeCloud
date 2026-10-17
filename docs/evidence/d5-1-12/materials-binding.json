@@ -1,0 +1,16 @@
+{
+  "archive_sha256": "392dfe5ab7ce5fdfd77b4c32884ab8700a72124d783fd20b244cba6135d5c645",
+  "materials": {
+    "gosu": {
+      "sha256": "3d0088b3cfedd7fa76869768b140db58dd6e52b30343c54000fa9fd92a904085",
+      "source_layer": "sha256:f9c14674f26a3734aaaabe65d0aaf3d0ff12f61fce2cb0ddf09a38c54a3b7d3d",
+      "member": "usr/local/bin/gosu"
+    },
+    "zlib.apk": {
+      "sha256": "63aeea03c15a2f9018f81805cfc8aa926bdf5cd68921f22149c2fbb5d0ee9f47",
+      "source_layer": "sha256:d6d54ba37f02c3c993d14528ab4158c5fc5039a77d7353d4a094df83182ae537",
+      "member": "tmp/d5111-zlib.apk"
+    }
+  },
+  "executed": false
+}
