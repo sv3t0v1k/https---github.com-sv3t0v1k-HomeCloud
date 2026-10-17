@@ -241,13 +241,20 @@ try:
     assert sql(containers[4], 'SELECT id, timestamp, name FROM migrations ORDER BY id', db="restored_migrations") == migrated
     assert sql(containers[4], migration_hash_query, db="restored_migrations") == migration_hash
     restored_schema = docker("exec", containers[4], "pg_dump", "-U", "qualifier", "-d", "restored_migrations", "--schema-only", "--no-owner", "--no-acl")
-    # PostgreSQL dump restrict nonce is random per invocation; SQL statements must match.
-    normalize = lambda text: "\n".join(line for line in text.splitlines() if not line.startswith(("\\restrict ", "\\unrestrict ")))
-    assert normalize(migration_schema) == normalize(restored_schema)
-    write("migrations.json", dict(status="PASS", count=26, rerun="NO_OP", migration_rows=migrated,
+    (E / "migration-before.sql").write_text(migration_schema + "\n")
+    (E / "migration-restored.sql").write_text(restored_schema + "\n")
+    spec = importlib.util.spec_from_file_location("schema_compare", Path(__file__).with_name("schema-compare.py"))
+    schema_compare = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(schema_compare)
+    casts = json.loads(Path(__file__).with_name("schema-casts.json").read_text())
+    canonical_before = schema_compare.canonical(migration_schema, casts)
+    canonical_after = schema_compare.canonical(restored_schema, casts)
+    schema_equal = canonical_before == canonical_after
+    write("migrations.json", dict(status="PASS" if schema_equal else "FAIL_SCHEMA_COMPARE", count=26, rerun="NO_OP", migration_rows=migrated,
           compressed_restore="PASS", marker_rows=1000, marker_hash=migration_hash,
-          schema_sha256=hashlib.sha256(normalize(migration_schema).encode()).hexdigest(), manifest=identity[0]))
-    write("compatibility.json", dict(status="PASS", postgres="16.15", fixture_rows=1000, payload_hash=data_hash,
+          schema_equal=schema_equal, schema_sha256=hashlib.sha256(canonical_before.encode()).hexdigest(),
+          restored_schema_sha256=hashlib.sha256(canonical_after.encode()).hexdigest(), manifest=identity[0]))
+    write("compatibility.json", dict(status="PASS" if schema_equal else "INCOMPLETE", postgres="16.15", fixture_rows=1000, payload_hash=data_hash,
           checks=["named/numeric UID/GID/groups/HOME", "fresh init", "previous-to-new PGDATA", "PID1 UID/GID70",
                   "compressed pg_dump/pg_restore", "clean shutdown", "restart", "new-to-previous PGDATA"],
           prior_154_tests="not rerun; unchanged backend, targeted 26 migrations and restore on this exact OCI", migrations="26 + no-op + compressed schema/fixture restore"))
@@ -303,6 +310,7 @@ try:
     assert not delta
     assert not any(v["cve"] == "CVE-2026-85091" or v["severity"] in ("CRITICAL", "HIGH") for v in findings["candidate"])
 
+    assert schema_equal, "restored schema SQL differs beyond the three reviewed array cast serializations"
     write("result.json", dict(experiment="PASS", production="NO_GO", manifest=identity[0], binary_sha256=builds[0],
           disposition_transferred=False, new_exceptions=False, policy_changed=False))
 finally:
