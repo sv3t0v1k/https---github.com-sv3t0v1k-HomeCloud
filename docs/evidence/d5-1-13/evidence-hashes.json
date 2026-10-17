@@ -1,0 +1,11 @@
+{
+  "format": "homecloud-d513-evidence-hashes-v1",
+  "status": "BLOCKED_ENVIRONMENT",
+  "sha256": {
+    "docs/evidence/d5-1-13/report.md": "abc0688dfcf0e99828a45b5b336e59858898df80cb7809eabbcb4ef807432849",
+    "docs/evidence/d5-1-13/preflight.json": "e9470130070c8f2913f2d310bb3bca6bb2632609fc09768050dc0f964a14d15c",
+    "docs/evidence/d5-1-13/pr-readonly.json": "cdddad497c1cca0d9ff76c47dec4ef6a5523db64054a1f61de35669892d4134e",
+    "docs/evidence/d5-1-13/independent-review.md": "527207f37e86aa3b05ca90915bca5226258cd42db47fc9c3f702195c1f327287",
+    "docs/ROADMAP.md": "1c73fffac8740256c92bdd39a985f5d3d9d0360a957e76453a4c5cf6fe770028"
+  }
+}

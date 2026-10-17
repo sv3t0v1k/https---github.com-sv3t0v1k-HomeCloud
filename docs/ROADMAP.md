@@ -1436,3 +1436,17 @@ official ещё UNQUALIFIED. Runbook различает возврат обра�
 Medium/UNKNOWN не приняты; Gitleaks/Compose/esbuild/BuildKit/CI rootfs blockers
 сохраняются. Production Compose/locks/deployed images не менялись, D5.2 NOT_STARTED.
 [Пакет подготовки, проверки и решение владельцу](./evidence/d5-1-12/report.md).
+
+### D5.1.13 — PostgreSQL Integration & Recovery Drill (2026-10-18)
+
+**BLOCKED_ENVIRONMENT до первого runtime-теста; Release BLOCKED / Production NO_GO;
+COMPLETE не установлен.** Исходный HEAD `9c550be`, ahead5/behind0; PR№1 draft
+подтверждён read-only API. Четыре hashes preparation inputs совпали с D5.1.12 review.
+Доступный host Darwin/arm64; отдельный gate-compliant Linux/amd64 runner с доказанной
+изоляцией не установлен. Mac Docker/mini-PC/реальные данные не использованы,
+production Compose не затронут; containers/volumes/network не создавались.
+Exact OCI↔official, startup gate и DB+HDD recovery **NOT_RUN**, RPO/RTO
+**NOT_MEASURED**. Старые tests/scans не повторялись; push/CI/publish/deploy отсутствуют.
+Medium/UNKNOWN не приняты, OCI reproducibility UNPROVEN, прежние security/tooling
+блокеры сохранены. Нужен одноразовый изолированный Linux/amd64 runner; до этого
+drill не запускать. [Evidence, матрица и решение владельцу](./evidence/d5-1-13/report.md).
