@@ -30,9 +30,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh run download 38981697774 --repo "$GITHUB_REPOSITORY" -n d5110-experimental-image-1 -D "$RUNNER_TEMP/d5111-previous"
+      - name: Получить уже собранный exact zlib-only OCI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download 39015752148 --repo "$GITHUB_REPOSITORY" -n d5111-experimental-image-1 -D "$RUNNER_TEMP/d5111-candidate"
       - name: Квалифицировать минимальное обновление
         env:
           D5111_PREVIOUS_ARCHIVE: ${{ runner.temp }}/d5111-previous/candidate.oci.tar
+          D5111_CANDIDATE_RESUME: ${{ runner.temp }}/d5111-candidate/candidate.oci.tar
         run: python3 experiments/d5-1-11/qualify.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()

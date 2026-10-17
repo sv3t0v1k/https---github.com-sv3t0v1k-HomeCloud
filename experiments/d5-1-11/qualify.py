@@ -2,6 +2,8 @@
 import collections
 from datetime import datetime, timezone
 import hashlib
+import base64
+import io
 import importlib.util
 import json
 import os
@@ -116,12 +118,24 @@ try:
 
     context = ROOT / "context"
     context.mkdir()
-    apk = fetch("https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/zlib-1.3.2-r1.apk", "zlib.apk", APK_SHA)
-    shutil.copy2(apk, context / "zlib.apk")
     dockerfile = f"FROM {OLD}\nCOPY zlib.apk /tmp/d5111-zlib.apk\nRUN apk add --no-network /tmp/d5111-zlib.apk && rm /tmp/d5111-zlib.apk\n"
     (context / "Dockerfile").write_text(dockerfile)
     (E / "Dockerfile").write_text(dockerfile)
-    docker("build", "--network=none", "--platform=linux/amd64", "-t", NEW, str(context))
+    resume = os.environ.get("D5111_CANDIDATE_RESUME")
+    if resume:
+        assert sha(resume) == "392dfe5ab7ce5fdfd77b4c32884ab8700a72124d783fd20b244cba6135d5c645"
+        resumed = helper.identity(resume)
+        assert resumed[0] == "sha256:83b8b00eca9cb7e77dc6c6bbb3fd4bef197853afa0c2cd104991d7a9673abbe8"
+        assert resumed[1]["config"]["digest"] == "sha256:e8f72c13539571329d433e4d0ea475dc42a6407b36f9332cfe3fd790fe81a7d2"
+        shutil.copy2(resume, ROOT / "candidate.oci.tar")
+        run(["skopeo", "copy", "--preserve-digests", "oci-archive:" + str(ROOT / "candidate.oci.tar"), "docker-daemon:" + NEW])
+        write("reused-image.json", dict(run_id="39015752148", build_head="d3770c4e49c9d45572f7c0dc70daf3021d8055bd",
+              qualification_head=os.environ["GITHUB_SHA"], archive_sha256=sha(resume), rebuilt=False,
+              reason="retain exact successful image build; correct scripts archive check and continue qualification"))
+    else:
+        apk = fetch("https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/zlib-1.3.2-r1.apk", "zlib.apk", APK_SHA)
+        shutil.copy2(apk, context / "zlib.apk")
+        docker("build", "--network=none", "--platform=linux/amd64", "-t", NEW, str(context))
     new = inspect(NEW)
     old = inspect(OLD)
     assert new["Config"] == old["Config"]
@@ -141,11 +155,29 @@ try:
     write("package-inventory.json", dict(previous=before_packages, candidate=after_packages, changed_only=["zlib"]))
     assert docker("run", "--rm", "--network=none", "--entrypoint", "sha256sum", NEW, "/usr/local/bin/gosu").split()[0] == builds[0]
     new_archive = ROOT / "candidate.oci.tar"
-    run(["skopeo", "copy", "--format=v2s2", "--preserve-digests", "docker-daemon:" + NEW, "oci-archive:" + str(new_archive)])
+    if not new_archive.exists():
+        run(["skopeo", "copy", "--format=v2s2", "--preserve-digests", "docker-daemon:" + NEW, "oci-archive:" + str(new_archive)])
     identity = helper.identity(new_archive)
     assert identity[1]["config"]["digest"] == new["Id"]
     write("identity.json", dict(manifest=identity[0], config=new["Id"], archive_sha256=sha(new_archive),
           previous_manifest=OLD_MANIFEST, previous_archive_sha256=OLD_ARCHIVE, binary_sha256=builds[0], apk_sha256=APK_SHA))
+
+    # Архив package scripts может перезаписываться apk, но ни один внутренний
+    # member или его bytes/metadata не должен измениться при zlib-only upgrade.
+    def scripts(image):
+        raw = base64.b64decode(docker("run", "--rm", "--network=none", "--entrypoint", "base64", image, "/lib/apk/db/scripts.tar.gz"))
+        entries = {}
+        with tarfile.open(fileobj=io.BytesIO(raw), mode="r:*") as archive:
+            for member in archive:
+                assert member.name not in entries
+                entries[member.name] = dict(type=member.type.decode(), linkname=member.linkname,
+                    mode=member.mode, uid=member.uid, gid=member.gid,
+                    sha256=hashlib.sha256(archive.extractfile(member).read()).hexdigest() if member.isfile() else None)
+        return entries
+    previous_scripts, candidate_scripts = scripts(OLD), scripts(NEW)
+    write("apk-scripts-comparison.json", dict(previous=previous_scripts, candidate=candidate_scripts,
+          identical=previous_scripts == candidate_scripts))
+    assert previous_scripts == candidate_scripts
 
     # Все новые layers: только zlib и bookkeeping apk. Временный apk допустим
     # лишь в нижнем COPY-layer, затем whiteout; его bytes сохраняются в OCI.
@@ -158,7 +190,7 @@ try:
                     if member.isdir():
                         continue
                     allowed = {"usr/lib/libz.so.1", "usr/lib/libz.so.1.3.2",
-                               "etc/apk/world", "lib/apk/db/installed", "lib/apk/db/scripts.tar",
+                               "etc/apk/world", "lib/apk/db/installed", "lib/apk/db/scripts.tar.gz",
                                "lib/apk/db/triggers", "lib/apk/db/lock", "tmp/d5111-zlib.apk", "tmp/.wh.d5111-zlib.apk"}
                     assert name in allowed, name
                     layer_members.append(dict(layer=layer["digest"], path=name, mode=oct(member.mode), uid=member.uid, gid=member.gid))
