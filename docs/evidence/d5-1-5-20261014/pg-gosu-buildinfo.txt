@@ -1,0 +1,17 @@
+/private/tmp/homecloud-d515-pg/gosu-linux-amd64: go1.24.6
+	path	github.com/tianon/gosu
+	mod	github.com/tianon/gosu	v1.19.0	
+	dep	github.com/moby/sys/user	v0.1.0	h1:WmZ93f5Ux6het5iituh9x2zAG7NFY9Aqi49jjE1PaQg=
+	dep	golang.org/x/sys	v0.1.0	h1:kunALQeHf1/185U1i0GOB/fy1IPRDDpuoOOqRReG57U=
+	build	-buildmode=exe
+	build	-compiler=gc
+	build	-trimpath=true
+	build	DefaultGODEBUG=asynctimerchan=1,gotestjsonbuildtext=1,gotypesalias=0,httplaxcontentlength=1,httpmuxgo121=1,httpservecontentkeepheaders=1,multipathtcp=0,panicnil=1,randseednop=0,rsa1024min=0,tls10server=1,tls3des=1,tlsmlkem=0,tlsrsakex=1,tlsunsafeekm=1,winreadlinkvolume=0,winsymlink=0,x509keypairleaf=0,x509negativeserial=1,x509rsacrt=0,x509usepolicies=0
+	build	CGO_ENABLED=0
+	build	GOARCH=amd64
+	build	GOOS=linux
+	build	GOAMD64=v1
+	build	vcs=git
+	build	vcs.revision=1.19
+	build	vcs.time=1970-01-01T00:00:00Z
+	build	vcs.modified=false

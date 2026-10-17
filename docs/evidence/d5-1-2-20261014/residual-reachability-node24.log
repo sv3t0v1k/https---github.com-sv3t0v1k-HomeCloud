@@ -1,0 +1,6 @@
+{
+  "node": "v24.21.0",
+  "yamlConfigLoaded": true,
+  "argparseOrSprintfLoaded": [],
+  "conclusion": "YAML API probe does not execute argparse CLI; dev graph finding persists"
+}

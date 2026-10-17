@@ -1,0 +1,122 @@
+{
+  "alpine-secdb-nginx-openssl.json": {
+    "bytes": 7036,
+    "sha256": "ff5d604d871233c799c415f331716b62417096b32ce43d2e991a0fbbd37643a3"
+  },
+  "archive-path-review.json": {
+    "bytes": 8788,
+    "sha256": "77d4475197c2a8a97c99c5bb0443255b02db121c8411dced0fe6e690a6962c9d"
+  },
+  "build-ci-qualification.md": {
+    "bytes": 9326,
+    "sha256": "3a6e793be5d4bc56014ad517a0a9ef5a41adce64df94315b1339c7deab7b51e6"
+  },
+  "independent-review.md": {
+    "bytes": 5143,
+    "sha256": "7c9110ac558939aad2adc369a2230745b995f9d433d1efff97efb32cee09a6b6"
+  },
+  "ingress-apk-installed.txt": {
+    "bytes": 105114,
+    "sha256": "63f197a7b64ea2fbfe65dc1e189a5db9a73fa7e331533fe5b2da034c1d8ce787"
+  },
+  "ingress-content-verification.json": {
+    "bytes": 8761,
+    "sha256": "6ea3c1d71c7c11998255d0a189e7a15fd27a36988d6df2600a48a11cd29ab777"
+  },
+  "ingress-image-config.json": {
+    "bytes": 12285,
+    "sha256": "dc73b49f5124cf2ee538dfbdfbd121f0b4ccdcb20fea30f3a81bd477c02e2bb5"
+  },
+  "ingress-index.json": {
+    "bytes": 10317,
+    "sha256": "a8b39bd9cf0f83869a2162827a0caf6137ddf759d50a171451b335cecc87d236"
+  },
+  "ingress-manifest.json": {
+    "bytes": 2493,
+    "sha256": "0dcc88822d45581e65ae329f8be769762bf628d3b2bb7d2a077d4aa5c98b30e3"
+  },
+  "ingress-scan.evidence.json": {
+    "bytes": 948,
+    "sha256": "28510d2e19174641dc79288bdcc20054bc4ebfb43c186ca89822a5cc86b6b699"
+  },
+  "ingress-scan.json": {
+    "bytes": 1054533,
+    "sha256": "f1f030bdf19e71a58533c4bacdffd60d6346d7938c0ed44d6fdb28a2aacc49fb"
+  },
+  "pg-METHOD.md": {
+    "bytes": 7201,
+    "sha256": "d1d0624532c1c4e551e66d37f923293fecded176d0d424f3ff50938b5535d481"
+  },
+  "pg-amd64-manifest.json": {
+    "bytes": 3054,
+    "sha256": "1a66d744c1b459e13b05a8fca341da84cb63383e99ce262210efee5a319d4551"
+  },
+  "pg-extracted-symbols.txt": {
+    "bytes": 133137,
+    "sha256": "aabf87b37f2571aea1b4b5ae0fb471ff7ccdb6de8fc790ca20cca49ad244e593"
+  },
+  "pg-extraction-evidence.json": {
+    "bytes": 1128,
+    "sha256": "83aae46f824d1c735708ae4b2113ac003e8c666fb33526827b9da9d22936b3fa"
+  },
+  "pg-gosu-buildinfo.txt": {
+    "bytes": 892,
+    "sha256": "a15dcb0ff1d54613ae3215e4b50017473d59cd0a15e20fa9d9363cac033aa40b"
+  },
+  "pg-govulncheck-buildinfo.txt": {
+    "bytes": 796,
+    "sha256": "2bcb2712a5269eb94fbe6dd7f58713ab89bfcabc8a913bfd86591bdc929c47ac"
+  },
+  "pg-govulncheck-output.txt": {
+    "bytes": 14117,
+    "sha256": "c669aa99004a0d354756d2bacd16b7afeaae39fba51e47abed57f779443b9e04"
+  },
+  "pg-govulncheck-summary.json": {
+    "bytes": 16021,
+    "sha256": "2b5272fdedde4e3b7151169966e08a352c299d835da3e6af1d523b89ca8a2bdd"
+  },
+  "pg-govulncheck.json": {
+    "bytes": 587695,
+    "sha256": "0d60de75490fbd9ba2f2ef0e1327e4fd9e2e4fa4bb1de5159d6e7575aa6c7d7b"
+  },
+  "pg-image-config.json": {
+    "bytes": 9065,
+    "sha256": "81bd698b4594e751a3269e4dcd3e03a4a0ec0daf7b72e7aa1abd43cce9887542"
+  },
+  "pg-per-cve-binary-evidence.json": {
+    "bytes": 34702,
+    "sha256": "07dc1d87b24e4175b4fb989a7bad41e59d450208f092b5cf28d0cb4e79ba2f0b"
+  },
+  "pg-symbol-checks.json": {
+    "bytes": 599,
+    "sha256": "2e9bf8fba3bd9922f6aff0394289daa4ba82b30e955b1c1b08ef765db7fc79fa"
+  },
+  "pg-tool-provenance.json": {
+    "bytes": 296,
+    "sha256": "225dcad6abc59d13f1b7c664a46360369d2d6a6bdb3a2ced1c556bd08093a4b1"
+  },
+  "prior-offline-backend.json": {
+    "bytes": 1318,
+    "sha256": "5d77a7cfef6a389c930d9f6b8f4cec504d1fc2b005e2f6d2a1d13d935c2e0e54"
+  },
+  "prior-offline-frontend.json": {
+    "bytes": 1592,
+    "sha256": "05599dceea623318a7801774c163230bfbb398b580d556810d6dcab946b2f81d"
+  },
+  "production-images.json": {
+    "bytes": 3715,
+    "sha256": "6dd26cc60a9022bbc273711d11edc3c559ebf052659568175be30df4b07de5f9"
+  },
+  "report.md": {
+    "bytes": 13399,
+    "sha256": "edaab2b29df181122b47b2e8dc64ad7c0a8e0fc7a2a72e654ef3a3eac5909e25"
+  },
+  "retained-runtime-packages.json": {
+    "bytes": 134886,
+    "sha256": "3ded883d21bb3209ae342b3a81607f32dde5722d8ca0eb1a584de5cd6892dd9b"
+  },
+  "verification.json": {
+    "bytes": 989,
+    "sha256": "98c682837d12169295bbf6eddcb29ae40ebf9294db5fd8dfa3317e77c31804f0"
+  }
+}

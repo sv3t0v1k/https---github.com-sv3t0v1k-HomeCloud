@@ -37,6 +37,8 @@ logs/
 *.log
 
 # Runtime data
+/.runtime/
+/data/
 pids/
 *.pid
 *.seed
@@ -60,3 +62,6 @@ backups/
 
 # Native addon is produced inside the Linux Docker build.
 backend/native/*.node
+
+# Python fixture and CI helper outputs
+__pycache__/

@@ -33,6 +33,7 @@
 | Failure & Security Testing — ненумерованный checkpoint | `COMPLETE` | [evidence и границы](./failure-security-checkpoint.md) |
 | Универсальное хранение и докачка — ненумерованный checkpoint | `COMPLETE` | [IAB/Safari functional evidence](./evidence/universal-storage-upload-ux-20261005/report.md) |
 | Единый локальный Docker baseline — ненумерованный checkpoint | `COMPLETE` | `bf97bef` / `f578030`; [runbook и preservation boundaries](./operations-runbook.md) |
+| D5.1 — Release Management & CI Foundation | `D5.1.10_RELEASE_BLOCKED` | [Экспериментальная квалификация PostgreSQL/gosu](./evidence/d5-1-10-postgres-gosu-20261017.md) |
 | Полный 50 ГиБ IAB Browser E2E — ненумерованный checkpoint | `PASS` | `167498d`; [scope/evidence](./evidence/browser-50gib-qualification-20261006/report.md); Safari 50 ГиБ UNQUALIFIED |
 
 ## Completed
@@ -1219,3 +1220,200 @@ Mini-PC не подключали; actual Linux UUID/udev/proc/mount/reboot/fail
 на HDD до reviewed SSD forward enrollment; SSD uploads OFF/manual/mapping absent.
 **COMPLETE не установлен; production NOT_READY / NO_GO.** Работа остановлена после
 этой коррекции, последующие этапы автоматически не начинать.
+
+## D4 — сохранённая версия испытаний mini-PC (отчёт 2026-10-13)
+
+Исходная Mac main `b5c954f35b7ea9d81ffc4aa41d78e56fc7fc8ec4`; отдельная история
+`испытания/d4-проект`: `e6551678a219f1f08bce563c1a338ae97a6ef2ce` →
+`48fb9c0e8982f23dea835cf1a2e36f83d4e38f3b`. По переданному отчёту последняя ревизия — source export
+работающего тестового mini-PC, migration520, четыре healthy контейнера и smoke/restart проверки.
+В D5.1 сервер не опрашивался: это **REPORTED**, не новое подтверждение live health/полной квалификации.
+[Источник и границы evidence](./evidence/d5-1-20261013/report.md). Production NO_GO сохранён.
+
+## D5.1 — Release Management & CI Foundation (2026-10-13)
+
+**IMPLEMENTED_LOCALLY / GITHUB_ACCEPTANCE_PENDING; release BLOCKED; COMPLETE не установлен.**
+
+Согласованный этап: аудит Mac/GitHub refs, сохранение D4 ancestry, SemVer beta candidates, PR/push CI,
+Linux/amd64 GHCR build/publish только после gates и manual approved tag+SHA, draft prerelease provenance,
+immutable image locks и offline reconciliation. [Политика и release команды](./release-management.md),
+[фактические проверки и blockers](./evidence/d5-1-20261013/report.md).
+
+Mac main и GitHub main проверены на b5c954f; D4 впереди на 2 коммита, remote D4 отсутствует.
+Работа подготовлена в отдельной ветке `этап/d5-1-ci` от 48fb9c0; исходный Mac checkout/Compose/данные
+и посторонние untracked сохранены. Действующие refs не переписывались, force push отсутствует.
+
+Локально: release negative tests 16, actionlint, четыре Compose config merges, startup 43 / preflight 72,
+frontend 278 tests, оба lint/build и compiled file-type PASS. Backend Mac full suite **FAIL**:
+956 PASS / 38 FAIL / 154 SKIP; native Linux/PG CI и Docker image/registry runtime **NOT_RUN**.
+Нельзя считать эти gates успешными до реального GitHub evidence. Backend lint имеет 15 existing warnings.
+
+Security: 17 backend production advisories; 55 backend full; 12 frontend. High/critical hard-block release,
+нет uncontrolled upgrades или silent exceptions. Historical secret findings independently classified;
+38 exact fingerprints для 48 findings, новых broad exclusions нет. Node20 EOL/base image CVE qualification
+остаётся открытым риском. GitHub main пока unprotected, CI runs ещё отсутствуют, GHCR writes не проверены.
+
+Acceptance pending: owner-approved public push/PR, реальные CI runs, advisory remediation/review,
+настройка protected main, утверждённый tag/SHA, remote build→digest→candidate manifest→draft prerelease.
+Связь обязательна для успешно завершённых этапов: **этап → commit → CI → release → image digests →
+deployment evidence**. Release candidate и deployment имеют отдельные статусы; draft/CI green не даёт
+DEPLOYED или Production GO. D1 qualification manifests не подменяются CI candidate.
+
+### D5.2 — CD & Safe Deployment — NOT_STARTED
+
+Только отдельное разрешение после D5.1 gates: approved deployment manifest/digests, target preflight,
+backup/restore evidence, scoped update, health/smoke и rollback с учётом schema compatibility.
+В D5.1 нет SSH к mini-PC, автоматического CD, изменений общих Docker/DNS/mounts/volumes/data.
+
+
+### D5.1 — публикация на review и исправление CI (2026-10-13)
+
+По отдельному разрешению опубликована ветка `этап/d5-1-ci`, создан
+[draft PR №1](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/pull/1). Main/tags не менялись.
+Первый Linux CI: native compile и12PostgreSQL suites выполнялись; полный backend1121PASS/27FAIL/0SKIP
+из-за корректного отказа root. Frontend/secrets PASS; security BLOCKED по high/critical; preflight2errors
+воспроизводятся перестановкой serialized mounts. [Факты](./evidence/d5-1-20261013/github-ci-initial.json).
+
+Подготовлены reviewed corrections: backend CI tests под unprivileged node; preflight exact6unique
+mount targets с сохранением всех safety checks,4новых regression tests. Локально76preflight и16release
+negative tests PASS; actionlint PASS. Новый CI результат pending; failures не объявлены исправленными
+до фактического выполнения. COMPLETE не установлен, GHCR/новый release не выполнялись. D5.2 NOT_STARTED.
+
+
+D5.1 второй PR CI на b0a8439: Linux backend1148/1148tests,79/79suites,0SKIP;12PostgreSQL suites,
+lint/compiled build PASS; frontend/secrets PASS. Configuration остаётся FAIL из-за Compose2.38.2
+omitempty false bind flag, причина воспроизведена отдельно. CI pin Compose5.1.3/checksum подготовлен;
+production false flag gate не ослаблен. [Evidence](./evidence/d5-1-20261013/github-ci-backend-pass.json).
+Security/release BLOCKED сохраняется; COMPLETE и D5.2 не меняются.
+
+
+### D5.1.1 — Security Remediation (2026-10-14)
+
+**HIGH_CRITICAL_REMEDIATED / REVIEWED; release BLOCKED; COMPLETE не установлен.**
+[Аудит всех 55 backend / 12 frontend записей, версии/пути и review](./evidence/d5-1-1-20261014/report.md).
+Backend full 55→30 moderate, production 17→9 moderate; frontend 12→0. High/critical/low backend 0,
+frontend всех severity 0; all-tree security gate не ослаблен. Scoped compatible patches, Multer2.4
+inclusive bounds, Sharp0.35.5, dev-only CLI11/Vitest4 и удаление неиспользуемого Tailwind compiler.
+Авторский CSS сохранён; 279-node parity / 4 Chromium-WebKit probes PASS. Independent security review APPROVE.
+Локально runtime7/targeted61/frontend278/build/lint/actionlint, release16/preflight76/startup43 и4Compose PASS.
+Свежий [PR CI38482225216](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38482225216) и [push CI38482221084](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38482221084) на2f671f1: все9jobs PASS; backend1148/1148,79suites,0FAIL/0SKIP,12PG/154tests;
+frontend278; runtime7; Compose4/preflight76/startup43/release16; Linux-amd642images/musl-native smoke PASS.
+[Точные source/merge refs и raw results](./evidence/d5-1-1-20261014/github-ci.json).
+Остаточные4leaf/5GHSA включают untrusted file-type ASF risk; Node20EOL/base CVE qualification,
+main/tag protection и registry/provenance/release acceptance открыты. Draft PR№1 обновлён,
+main/tags/release/GHCR/deployment/мини-ПК не меняются. Production NO_GO; D5.2 NOT_STARTED.
+
+На documentation head864c55c PR CI38482861251PASS, push CI38482857360FAIL: frontend Retry-After
+real Date.now999ms vs1000ms (277PASS/1FAIL), gateFAIL сохранён в [incident evidence](./evidence/d5-1-1-20261014/github-ci-timing-incident.json).
+Исправлен только тест: fake timers с отрицательными999ms/положительными1000ms assertions,
+SHA/session/publication не ослаблены; SSD13/fullfrontend278/lint/build и independentreview PASS.
+Production код не менялся. Финальный source HEAD проверяется новым PR/push CI; фактические checks
+на PR не подменяются прежним source2f671f1. D5.1 release acceptance остаётся открытым; D5.2 NOT_STARTED.
+
+### D5.1.4 — Image Security Policy & Base Qualification (2026-10-14)
+
+**BLOCKED; Production NO_GO.** [Политика и CVE](./image-security-policy.md).
+Runtime D5.1.3 backend/frontend0H/0C; base PostgreSQL1C/24H — Go stdlib в gosu,
+source-inferred недостижимость не является разрешённым исключением. Node8H/nginx3H/
+CI Node4C60H остаются блокерами. Совместимые теги сохранили прежние digests;
+PG16Bookworm4C87H и Node24Trixie0C51H не приняты. CI Perl обновляется адресно,
+scan DB freshness/identity сохраняются отдельно; raw severity gate не ослаблен.
+Production floating PostgreSQL/ingress и post-install build/CI coverage не закрыты.
+COMPLETE/Production GO не установлены; D5.2 NOT_STARTED.
+
+### D5.1.2 — Release Readiness (2026-10-14)
+
+**BLOCKED; Production NO_GO; COMPLETE не установлен.** Исправлены достижимые ASF/ZIP
+в file-type21.3.2, uuid9 удалён через совместимые Nest10 adapters, Node24.21.0 LTS,
+pinned Node/nginx/Postgres bases и amd64 mapping. Audit30→25moderate full/9→4production;
+SSE/dev sprintf остаются с предметным triage/owner/deadline, acceptance pending, gate не ослаблен.
+Реальный Trivy scan всех4bases содержит high/critical; PR CI добавляет обязательный scan runtime images.
+Согласованные3GitHub rulesets применены: main protected + gate/review, immutable v* и admin-only creation.
+Независимое GitHub approval отсутствует (сейчас collaborator только владелец).
+Provenance unsigned OCI verifier/dry-run и pair manifest PASS на9d33bd2, adversarial8PASS.
+Свежие PR/push CI FAILURE только по image scans/gate: backend1148/1148(12PG suites),frontend278/278,
+lint/build/config/audit/secrets/smokesPASS. Результаты в [evidence](./evidence/d5-1-2-20261014/report.md).
+GHCR/tag/release/merge/deployment не выполнялись; D5.2 NOT_STARTED.
+
+
+### D5.1.7 — Security Findings Triage & Release Decision (2026-10-16)
+
+**BLOCKED / Production NO_GO; COMPLETE не установлен.** [Реестр, evidence и точные решения владельца](./evidence/d5-1-7-security-triage-20261016.md).
+Сгруппированы production/build/CI findings D5.1.6; никаких CVE dispositions или изменений gates.
+Закреплён ingress nginx1.30.6 exact amd64; targeted remote scan0C/0H/1M.
+Trivy0.76 candidate0C/0H; Compose5.6 уменьшает49H→4H. Новый source требует CI qualification и независимого review.
+PostgreSQL1C/24H (gosu), build/CI и остаточные Compose findings остаются блокерами. D5.2 NOT_STARTED.
+
+D5.1.7: первый run38755110763 выявил frontend rootfs timeout45мин с Trivy0.76 и остановлен как INCOMPLETE.
+Разрешённый предел двух попыток: одна корректировка existing rootfs budget до60мин при неизменных gates, затем окончательная фиксация результата без третьего цикла.
+
+### D5.1.8 — CI Environment Minimization (2026-10-16)
+
+**BLOCKED / Production NO_GO; COMPLETE не установлен.**
+[Scope, evidence и условия проверки](./evidence/d5-1-8-ci-minimization-20261016.md).
+До workload удаляется только неиспользуемый hosted .NET SDK; полный host-rootfs
+scan и прежние16 окружений/gates сохранены, timeout60мин не увеличен.
+Единственный exact-binary gosu/CVE-2025-68121 qualifier проверяет фактический OCI,
+SHA256/evidence/expiry2026-11-15; raw findings и24H PostgreSQL не подавляются.
+52 целевых tests и actionlint PASS; итоговый CI/coverage/actual disposition PENDING.
+Остаточные инструменты/build/CI findings остаются блокирующими. D5.2 NOT_STARTED.
+
+
+### D5.1.9 — Security Remediation & Gate Closure (2026-10-16)
+
+**BLOCKED / Production NO_GO; COMPLETE не установлен.** Исходный checkpoint
+`372bb1d`, CI38873878408:16/16 COVERED,9/9 образов,27/27 tools.
+Узкое восстановление проверки публичных Go FIX references: максимум две сетевые
+попытки на уникальный exact reference только при временном сбое; source/span,
+исторический FIX context, TLS и точное commit equality остаются обязательными.
+На сохранённых122 raw findings новый classifier122/122 PASS; прежний CI120/122 FAIL
+не переписывается. Регрессии на реальные/соседние credentials и fail-closed сохранены.
+
+Подготовлено совместимое обновление global npm11.19.0→11.21.1 только в build/CI,
+без изменения app dependencies. Immutable official bundle закреплён SHA256,
+проверен до установки; candidate scan144packages/0findings со свежей БД.
+Фактические стадии, installed inventory и полные16 окружений нового source
+требуют единственного итогового CI; candidate scan не заменяет их квалификацию.
+PostgreSQL24H(gosu), Gitleaks1C/35H, Compose4H, esbuild1C/24H, BuildKit107H и
+mandatory runner rootfs остаются BLOCKED без новых dispositions или suppressions.
+Exact gosu/CVE-2025-68121 approval не расширен, expiry2026-11-15T00:00:00Z сохранена.
+Итоговые HEAD/CI/review и остаточные пакетные группы фиксируются в
+`outputs/d5-1-9-20261016/report.md` mirror проекта. D5.2 NOT_STARTED.
+
+
+D5.1.9: первый run38880466381 остановлен после точного отказа stage cache proof:
+remote ADD создал дополнительный некешированный transfer vertex; все actual RUN/COPY
+были cached, backend stagesnpm11.21.1/0C/0H, runtime smoke/provenance PASS.
+Единственная корректировка переносит загрузку+checksum+offline install в обычный RUN;
+strict cache gate не меняется. Разрешённый предел — одна исправляющая попытка,
+без третьего CI цикла; итоговые coverage/review остаются PENDING.
+
+### D5.1.10 — экспериментальная квалификация PostgreSQL/gosu (2026-10-17)
+
+**Эксперимент PASS; Release BLOCKED / Production NO_GO; COMPLETE не установлен.**
+От подтверждённого `1c7d242` отдельно квалифицирован exact PostgreSQL16.15/linux-amd64
+с gosu1.19 на исправленном Go1.26.9. Только experimental manifest
+`sha256:fd2e86b5b1a2d9381d6e6018feacda382e6b669dda0a519dbc4744aa46980f95`:
+парные raw scans на одной свежей БД дают1C/24H→0C/0H, остаток2M/1UNKNOWN без исключений.
+154/154 PostgreSQL tests,26 migrations+повторный no-op, SQL backup/restore мигрированной
+fixture-схемы, startup/shutdown/restart и official↔candidate на disposable PGDATA PASS.
+Независимый security review APPROVE только эксперименту. Production image/Compose/locks
+сохранены; прежняя disposition не переносилась на новый SHA. Остальные build/CI/rootfs
+блокеры D5.1.9 сохраняются. D5.2 NOT_STARTED.
+[Точные identities, evidence, ограничения и одно решение владельца](./evidence/d5-1-10-postgres-gosu-20261017.md).
+
+
+### D5.1.11 — узкая квалификация остаточных PostgreSQL findings (2026-10-17)
+
+**INCOMPLETE; Release BLOCKED / Production NO_GO; COMPLETE не установлен.**
+Подтверждены zlib/CVE-2026-85091 (Trivy Medium, CNA High), moby/user/CVE-2026-61801
+(Medium) и x/sys/CVE-2026-39824 (UNKNOWN без severity, Windows-only; raw finding сохранён).
+Moby/user0.4.1 отклонён: upstream parser tests FAIL, обходов нет. Собран только
+zlib1.3.2-r1, gosu побайтово прежний; все прочие44packageversions/config сохранены.
+Manifest `sha256:83b8b00eca9cb7e77dc6c6bbb3fd4bef197853afa0c2cd104991d7a9673abbe8`
+не квалифицирован. Exact-image resume39016144800 подтвердил неизменность10apk scripts,
+но второй отказ filesystem allowlist наvar/log/apk.log завершил эксперимент в лимите.
+Третьей попытки нет. Новые scans/SBOM/runtime не выполнены;154/26 не переносились.
+Review одобряет отчёт INCOMPLETE, итогового APPROVE image нет. Production не менялся;
+dispositions/exceptions/gates не расширены. D5.2 NOT_STARTED.
+[Квалификация, evidence, ограничения и решение владельцу](./evidence/d5-1-11-postgres-residual-20261017.md).

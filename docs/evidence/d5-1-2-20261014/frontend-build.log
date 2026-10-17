@@ -1,0 +1,23 @@
+
+> homecloud-frontend@0.0.0 build
+> tsc -b && vite build
+
+vite v6.4.3 building for production...
+transforming...
+✓ 124 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                                     0.39 kB │ gzip:   0.27 kB
+dist/assets/jetbrains-mono-vietnamese-wght-normal-Bt-aOZkq.woff2    7.50 kB
+dist/assets/manrope-vietnamese-wght-normal-usUDDRr7.woff2           8.52 kB
+dist/assets/jetbrains-mono-greek-wght-normal-Bw9x6K1M.woff2         9.00 kB
+dist/assets/manrope-greek-wght-normal-DL7QRZyv.woff2                9.44 kB
+dist/assets/jetbrains-mono-cyrillic-wght-normal-D73BlboJ.woff2     12.11 kB
+dist/assets/manrope-cyrillic-wght-normal-Dvxsihut.woff2            14.50 kB
+dist/assets/manrope-latin-ext-wght-normal-Ch3YOpNY.woff2           15.12 kB
+dist/assets/jetbrains-mono-latin-ext-wght-normal-DBQx-q_a.woff2    15.20 kB
+dist/assets/manrope-latin-wght-normal-DHIcAJRg.woff2               24.84 kB
+dist/assets/jetbrains-mono-latin-wght-normal-B9CIFXIH.woff2        40.40 kB
+dist/assets/index-C2Ud9Nx0.css                                     41.33 kB │ gzip:  13.85 kB
+dist/assets/index-B6wmoXcj.js                                     338.63 kB │ gzip: 108.89 kB
+✓ built in 728ms

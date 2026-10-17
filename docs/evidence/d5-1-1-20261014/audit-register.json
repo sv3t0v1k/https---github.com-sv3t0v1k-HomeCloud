@@ -1,0 +1,4370 @@
+{
+  "baseline": "e0c5e00655067b052d2e105e6a27e939eb22eeff",
+  "date": "2026-10-14",
+  "counts": {
+    "backend": {
+      "before": {
+        "info": 0,
+        "low": 4,
+        "moderate": 36,
+        "high": 13,
+        "critical": 2,
+        "total": 55
+      },
+      "after": {
+        "info": 0,
+        "low": 0,
+        "moderate": 30,
+        "high": 0,
+        "critical": 0,
+        "total": 30
+      }
+    },
+    "frontend": {
+      "before": {
+        "info": 0,
+        "low": 0,
+        "moderate": 3,
+        "high": 7,
+        "critical": 2,
+        "total": 12
+      },
+      "after": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      }
+    }
+  },
+  "components": {
+    "backend": [
+      {
+        "package": "@angular-devkit/core",
+        "severityBefore": "high",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/@angular-devkit/core",
+            "before": "17.3.11",
+            "afterAtSamePath": "19.2.23",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@angular-devkit/core"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@angular-devkit/schematics",
+                "node_modules/@angular-devkit/core"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@angular-devkit/schematics-cli",
+                "node_modules/@angular-devkit/core"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@nestjs/schematics",
+                "node_modules/@angular-devkit/core"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@angular-devkit/schematics-cli",
+                "node_modules/@angular-devkit/schematics",
+                "node_modules/@angular-devkit/core"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@nestjs/schematics",
+                "node_modules/@angular-devkit/schematics",
+                "node_modules/@angular-devkit/core"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "ajv",
+          "chokidar",
+          "picomatch"
+        ],
+        "npmSuggestedFix": {
+          "name": "@nestjs/cli",
+          "version": "12.0.8",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "@angular-devkit/schematics",
+        "severityBefore": "moderate",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/@angular-devkit/schematics",
+            "before": "17.3.11",
+            "afterAtSamePath": "19.2.23",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@angular-devkit/schematics"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@angular-devkit/schematics-cli",
+                "node_modules/@angular-devkit/schematics"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@nestjs/schematics",
+                "node_modules/@angular-devkit/schematics"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "@angular-devkit/core"
+        ],
+        "npmSuggestedFix": true
+      },
+      {
+        "package": "@angular-devkit/schematics-cli",
+        "severityBefore": "moderate",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/@angular-devkit/schematics-cli",
+            "before": "17.3.11",
+            "afterAtSamePath": "19.2.23",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@angular-devkit/schematics-cli"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "@angular-devkit/core",
+          "@angular-devkit/schematics",
+          "inquirer"
+        ],
+        "npmSuggestedFix": true
+      },
+      {
+        "package": "@istanbuljs/load-nyc-config",
+        "severityBefore": "moderate",
+        "remainingSeverity": "moderate",
+        "paths": [
+          {
+            "path": "node_modules/@istanbuljs/load-nyc-config",
+            "before": "1.1.0",
+            "afterAtSamePath": "1.1.0",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/@jest/reporters",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-runner",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-runtime",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-snapshot",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/babel-jest",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/jest-config",
+                "node_modules/babel-jest",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/@jest/reporters",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/babel-jest",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/jest-config",
+                "node_modules/babel-jest",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/jest-runner",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "js-yaml"
+        ],
+        "npmSuggestedFix": {
+          "name": "ts-jest",
+          "version": "27.0.3",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "@jest/core",
+        "severityBefore": "moderate",
+        "remainingSeverity": "moderate",
+        "paths": [
+          {
+            "path": "node_modules/@jest/core",
+            "before": "30.5.1",
+            "afterAtSamePath": "30.5.1",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "@jest/reporters",
+          "@jest/transform",
+          "jest-config",
+          "jest-resolve-dependencies",
+          "jest-runner",
+          "jest-runtime",
+          "jest-snapshot"
+        ],
+        "npmSuggestedFix": {
+          "name": "jest",
+          "version": "25.0.0",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "@jest/expect",
+        "severityBefore": "moderate",
+        "remainingSeverity": "moderate",
+        "paths": [
+          {
+            "path": "node_modules/@jest/expect",
+            "before": "30.5.1",
+            "afterAtSamePath": "30.5.1",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-runtime",
+                "node_modules/@jest/globals",
+                "node_modules/@jest/expect"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/jest-circus",
+                "node_modules/@jest/expect"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/jest-config",
+                "node_modules/jest-circus",
+                "node_modules/@jest/expect"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/jest-runtime",
+                "node_modules/@jest/globals",
+                "node_modules/@jest/expect"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-runner",
+                "node_modules/jest-runtime",
+                "node_modules/@jest/globals",
+                "node_modules/@jest/expect"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/jest-circus",
+                "node_modules/@jest/expect"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/jest-circus",
+                "node_modules/jest-runtime",
+                "node_modules/@jest/globals",
+                "node_modules/@jest/expect"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/jest-config",
+                "node_modules/jest-circus",
+                "node_modules/jest-runtime",
+                "node_modules/@jest/globals",
+                "node_modules/@jest/expect"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/jest-runner",
+                "node_modules/jest-runtime",
+                "node_modules/@jest/globals",
+                "node_modules/@jest/expect"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/jest-runner",
+                "node_modules/jest-runtime",
+                "node_modules/@jest/globals",
+                "node_modules/@jest/expect"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/jest-config",
+                "node_modules/jest-runner",
+                "node_modules/jest-runtime",
+                "node_modules/@jest/globals",
+                "node_modules/@jest/expect"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/jest-circus",
+                "node_modules/jest-runtime",
+                "node_modules/@jest/globals",
+                "node_modules/@jest/expect"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "jest-snapshot"
+        ],
+        "npmSuggestedFix": true
+      },
+      {
+        "package": "@jest/globals",
+        "severityBefore": "moderate",
+        "remainingSeverity": "moderate",
+        "paths": [
+          {
+            "path": "node_modules/@jest/globals",
+            "before": "30.5.1",
+            "afterAtSamePath": "30.5.1",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-runtime",
+                "node_modules/@jest/globals"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/jest-runtime",
+                "node_modules/@jest/globals"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-runner",
+                "node_modules/jest-runtime",
+                "node_modules/@jest/globals"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/jest-circus",
+                "node_modules/jest-runtime",
+                "node_modules/@jest/globals"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/jest-config",
+                "node_modules/jest-circus",
+                "node_modules/jest-runtime",
+                "node_modules/@jest/globals"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/jest-runner",
+                "node_modules/jest-runtime",
+                "node_modules/@jest/globals"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/jest-runner",
+                "node_modules/jest-runtime",
+                "node_modules/@jest/globals"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/jest-config",
+                "node_modules/jest-runner",
+                "node_modules/jest-runtime",
+                "node_modules/@jest/globals"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/jest-circus",
+                "node_modules/jest-runtime",
+                "node_modules/@jest/globals"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/jest-runner",
+                "node_modules/jest-runtime",
+                "node_modules/@jest/globals"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "@jest/expect"
+        ],
+        "npmSuggestedFix": true
+      },
+      {
+        "package": "@jest/reporters",
+        "severityBefore": "moderate",
+        "remainingSeverity": "moderate",
+        "paths": [
+          {
+            "path": "node_modules/@jest/reporters",
+            "before": "30.5.1",
+            "afterAtSamePath": "30.5.1",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/@jest/reporters"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/@jest/reporters"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "@jest/transform"
+        ],
+        "npmSuggestedFix": true
+      },
+      {
+        "package": "@jest/transform",
+        "severityBefore": "moderate",
+        "remainingSeverity": "moderate",
+        "paths": [
+          {
+            "path": "node_modules/@jest/transform",
+            "before": "30.5.1",
+            "afterAtSamePath": "30.5.1",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/@jest/transform"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/@jest/transform"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/@jest/reporters",
+                "node_modules/@jest/transform"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-runner",
+                "node_modules/@jest/transform"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-runtime",
+                "node_modules/@jest/transform"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-snapshot",
+                "node_modules/@jest/transform"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/@jest/reporters",
+                "node_modules/@jest/transform"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/babel-jest",
+                "node_modules/@jest/transform"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/jest-config",
+                "node_modules/babel-jest",
+                "node_modules/@jest/transform"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/jest-runner",
+                "node_modules/@jest/transform"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/jest-runner",
+                "node_modules/@jest/transform"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/jest-config",
+                "node_modules/jest-runner",
+                "node_modules/@jest/transform"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "babel-plugin-istanbul"
+        ],
+        "npmSuggestedFix": {
+          "name": "ts-jest",
+          "version": "27.0.3",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "@nestjs/cli",
+        "severityBefore": "high",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/@nestjs/cli",
+            "before": "10.4.9",
+            "afterAtSamePath": "11.0.18",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "@angular-devkit/core",
+          "@angular-devkit/schematics",
+          "@angular-devkit/schematics-cli",
+          "@nestjs/schematics",
+          "chokidar",
+          "fork-ts-checker-webpack-plugin",
+          "glob",
+          "inquirer",
+          "webpack"
+        ],
+        "npmSuggestedFix": {
+          "name": "@nestjs/cli",
+          "version": "12.0.8",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "@nestjs/common",
+        "severityBefore": "moderate",
+        "remainingSeverity": "moderate",
+        "paths": [
+          {
+            "path": "node_modules/@nestjs/common",
+            "before": "10.4.22",
+            "afterAtSamePath": "10.4.22",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/common"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "file-type"
+        ],
+        "npmSuggestedFix": true
+      },
+      {
+        "package": "@nestjs/config",
+        "severityBefore": "moderate",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/@nestjs/config",
+            "before": "3.3.0",
+            "afterAtSamePath": "3.3.0",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/config"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "lodash"
+        ],
+        "npmSuggestedFix": {
+          "name": "@nestjs/config",
+          "version": "12.0.1",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "@nestjs/core",
+        "severityBefore": "moderate",
+        "remainingSeverity": "moderate",
+        "paths": [
+          {
+            "path": "node_modules/@nestjs/core",
+            "before": "10.4.22",
+            "afterAtSamePath": "10.4.22",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/core"
+              ]
+            ]
+          }
+        ],
+        "advisories": [
+          {
+            "source": 1117063,
+            "name": "@nestjs/core",
+            "dependency": "@nestjs/core",
+            "title": "@nestjs/core Improperly Neutralizes Special Elements in Output Used by a Downstream Component ('Injection')",
+            "url": "https://github.com/advisories/GHSA-36xv-jgw5-4q75",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-74"
+            ],
+            "cvss": {
+              "score": 6.1,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:N/A:L"
+            },
+            "range": "<=11.1.17"
+          }
+        ],
+        "inheritedFrom": [
+          "@nestjs/platform-express",
+          "@nestjs/websockets"
+        ],
+        "npmSuggestedFix": {
+          "name": "@nestjs/core",
+          "version": "12.1.3",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "@nestjs/platform-express",
+        "severityBefore": "high",
+        "remainingSeverity": "moderate",
+        "paths": [
+          {
+            "path": "node_modules/@nestjs/platform-express",
+            "before": "10.4.22",
+            "afterAtSamePath": "10.4.22",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/platform-express"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "@nestjs/core",
+          "body-parser",
+          "multer"
+        ],
+        "npmSuggestedFix": {
+          "name": "@nestjs/platform-express",
+          "version": "12.1.3",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "@nestjs/platform-socket.io",
+        "severityBefore": "moderate",
+        "remainingSeverity": "moderate",
+        "paths": [
+          {
+            "path": "node_modules/@nestjs/platform-socket.io",
+            "before": "10.4.22",
+            "afterAtSamePath": "10.4.22",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/platform-socket.io"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "@nestjs/websockets"
+        ],
+        "npmSuggestedFix": {
+          "name": "@nestjs/platform-socket.io",
+          "version": "12.1.3",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "@nestjs/schematics",
+        "severityBefore": "moderate",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/@nestjs/schematics",
+            "before": "10.2.3",
+            "afterAtSamePath": "11.1.0",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@nestjs/schematics"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "@angular-devkit/core",
+          "@angular-devkit/schematics"
+        ],
+        "npmSuggestedFix": {
+          "name": "@nestjs/cli",
+          "version": "12.0.8",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "@nestjs/terminus",
+        "severityBefore": "moderate",
+        "remainingSeverity": "moderate",
+        "paths": [
+          {
+            "path": "node_modules/@nestjs/terminus",
+            "before": "10.3.0",
+            "afterAtSamePath": "10.3.0",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/terminus"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "@nestjs/core",
+          "@nestjs/typeorm"
+        ],
+        "npmSuggestedFix": {
+          "name": "@nestjs/terminus",
+          "version": "12.1.0",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "@nestjs/testing",
+        "severityBefore": "moderate",
+        "remainingSeverity": "moderate",
+        "paths": [
+          {
+            "path": "node_modules/@nestjs/testing",
+            "before": "10.4.22",
+            "afterAtSamePath": "10.4.22",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/testing"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "@nestjs/core",
+          "@nestjs/platform-express"
+        ],
+        "npmSuggestedFix": {
+          "name": "@nestjs/testing",
+          "version": "12.1.3",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "@nestjs/typeorm",
+        "severityBefore": "moderate",
+        "remainingSeverity": "moderate",
+        "paths": [
+          {
+            "path": "node_modules/@nestjs/typeorm",
+            "before": "10.0.2",
+            "afterAtSamePath": "10.0.2",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/typeorm"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "@nestjs/core",
+          "uuid"
+        ],
+        "npmSuggestedFix": {
+          "name": "@nestjs/typeorm",
+          "version": "12.0.2",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "@nestjs/websockets",
+        "severityBefore": "moderate",
+        "remainingSeverity": "moderate",
+        "paths": [
+          {
+            "path": "node_modules/@nestjs/websockets",
+            "before": "10.4.22",
+            "afterAtSamePath": "10.4.22",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/websockets"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "@nestjs/core",
+          "@nestjs/platform-socket.io"
+        ],
+        "npmSuggestedFix": {
+          "name": "@nestjs/websockets",
+          "version": "12.1.3",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "ajv",
+        "severityBefore": "moderate",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/@angular-devkit/core/node_modules/ajv",
+            "before": "8.12.0",
+            "afterAtSamePath": "8.18.0",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@angular-devkit/core",
+                "node_modules/@angular-devkit/core/node_modules/ajv"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@angular-devkit/schematics",
+                "node_modules/@angular-devkit/core",
+                "node_modules/@angular-devkit/core/node_modules/ajv"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@angular-devkit/schematics-cli",
+                "node_modules/@angular-devkit/core",
+                "node_modules/@angular-devkit/core/node_modules/ajv"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@nestjs/schematics",
+                "node_modules/@angular-devkit/core",
+                "node_modules/@angular-devkit/core/node_modules/ajv"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@angular-devkit/schematics-cli",
+                "node_modules/@angular-devkit/schematics",
+                "node_modules/@angular-devkit/core",
+                "node_modules/@angular-devkit/core/node_modules/ajv"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@nestjs/schematics",
+                "node_modules/@angular-devkit/schematics",
+                "node_modules/@angular-devkit/core",
+                "node_modules/@angular-devkit/core/node_modules/ajv"
+              ]
+            ]
+          }
+        ],
+        "advisories": [
+          {
+            "source": 1113715,
+            "name": "ajv",
+            "dependency": "ajv",
+            "title": "ajv has ReDoS when using `$data` option",
+            "url": "https://github.com/advisories/GHSA-2g4f-4pwh-qvx6",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-400",
+              "CWE-1333"
+            ],
+            "cvss": {
+              "score": 0,
+              "vectorString": null
+            },
+            "range": ">=7.0.0-alpha.0 <8.18.0"
+          }
+        ],
+        "inheritedFrom": [],
+        "npmSuggestedFix": {
+          "name": "@nestjs/cli",
+          "version": "12.0.8",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "argparse",
+        "severityBefore": "moderate",
+        "remainingSeverity": "moderate",
+        "paths": [
+          {
+            "path": "node_modules/@istanbuljs/load-nyc-config/node_modules/argparse",
+            "before": "1.0.10",
+            "afterAtSamePath": "1.0.10",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config",
+                "node_modules/@istanbuljs/load-nyc-config/node_modules/js-yaml",
+                "node_modules/@istanbuljs/load-nyc-config/node_modules/argparse"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config",
+                "node_modules/@istanbuljs/load-nyc-config/node_modules/js-yaml",
+                "node_modules/@istanbuljs/load-nyc-config/node_modules/argparse"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/@jest/reporters",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config",
+                "node_modules/@istanbuljs/load-nyc-config/node_modules/js-yaml",
+                "node_modules/@istanbuljs/load-nyc-config/node_modules/argparse"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-runner",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config",
+                "node_modules/@istanbuljs/load-nyc-config/node_modules/js-yaml",
+                "node_modules/@istanbuljs/load-nyc-config/node_modules/argparse"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-runtime",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config",
+                "node_modules/@istanbuljs/load-nyc-config/node_modules/js-yaml",
+                "node_modules/@istanbuljs/load-nyc-config/node_modules/argparse"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-snapshot",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config",
+                "node_modules/@istanbuljs/load-nyc-config/node_modules/js-yaml",
+                "node_modules/@istanbuljs/load-nyc-config/node_modules/argparse"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/babel-jest",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config",
+                "node_modules/@istanbuljs/load-nyc-config/node_modules/js-yaml",
+                "node_modules/@istanbuljs/load-nyc-config/node_modules/argparse"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/jest-config",
+                "node_modules/babel-jest",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config",
+                "node_modules/@istanbuljs/load-nyc-config/node_modules/js-yaml",
+                "node_modules/@istanbuljs/load-nyc-config/node_modules/argparse"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "sprintf-js"
+        ],
+        "npmSuggestedFix": {
+          "name": "ts-jest",
+          "version": "27.0.3",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "babel-jest",
+        "severityBefore": "moderate",
+        "remainingSeverity": "moderate",
+        "paths": [
+          {
+            "path": "node_modules/babel-jest",
+            "before": "30.5.1",
+            "afterAtSamePath": "30.5.1",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/babel-jest"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/jest-config",
+                "node_modules/babel-jest"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/babel-jest"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "@jest/transform",
+          "babel-plugin-istanbul"
+        ],
+        "npmSuggestedFix": {
+          "name": "ts-jest",
+          "version": "27.0.3",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "babel-plugin-istanbul",
+        "severityBefore": "moderate",
+        "remainingSeverity": "moderate",
+        "paths": [
+          {
+            "path": "node_modules/babel-plugin-istanbul",
+            "before": "8.0.0",
+            "afterAtSamePath": "8.0.0",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/@jest/reporters",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-runner",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-runtime",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-snapshot",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/babel-jest",
+                "node_modules/babel-plugin-istanbul"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/jest-config",
+                "node_modules/babel-jest",
+                "node_modules/babel-plugin-istanbul"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/@jest/reporters",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/babel-jest",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/jest-config",
+                "node_modules/babel-jest",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/jest-runner",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "@istanbuljs/load-nyc-config"
+        ],
+        "npmSuggestedFix": {
+          "name": "ts-jest",
+          "version": "27.0.3",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "body-parser",
+        "severityBefore": "low",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/body-parser",
+            "before": "1.20.4",
+            "afterAtSamePath": "1.20.8",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/platform-express",
+                "node_modules/body-parser"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/platform-express",
+                "node_modules/express",
+                "node_modules/body-parser"
+              ]
+            ]
+          }
+        ],
+        "advisories": [
+          {
+            "source": 1123977,
+            "name": "body-parser",
+            "dependency": "body-parser",
+            "title": "body-parser vulnerable to denial of service when invalid limit value silently disables size enforcement",
+            "url": "https://github.com/advisories/GHSA-v422-hmwv-36x6",
+            "severity": "low",
+            "cwe": [
+              "CWE-770"
+            ],
+            "cvss": {
+              "score": 3.7,
+              "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:L"
+            },
+            "range": "<1.20.6"
+          }
+        ],
+        "inheritedFrom": [],
+        "npmSuggestedFix": {
+          "name": "@nestjs/platform-express",
+          "version": "12.1.3",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "brace-expansion",
+        "severityBefore": "high",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/@eslint/config-array/node_modules/brace-expansion",
+            "before": "1.1.18",
+            "afterAtSamePath": "1.1.21",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/eslint",
+                "node_modules/@eslint/config-array",
+                "node_modules/@eslint/config-array/node_modules/minimatch",
+                "node_modules/@eslint/config-array/node_modules/brace-expansion"
+              ]
+            ]
+          },
+          {
+            "path": "node_modules/@eslint/eslintrc/node_modules/brace-expansion",
+            "before": "1.1.18",
+            "afterAtSamePath": "1.1.21",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/eslint",
+                "node_modules/@eslint/eslintrc",
+                "node_modules/@eslint/eslintrc/node_modules/minimatch",
+                "node_modules/@eslint/eslintrc/node_modules/brace-expansion"
+              ]
+            ]
+          },
+          {
+            "path": "node_modules/brace-expansion",
+            "before": "5.0.9",
+            "afterAtSamePath": "5.0.12",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@typescript-eslint/parser",
+                "node_modules/@typescript-eslint/typescript-estree",
+                "node_modules/minimatch",
+                "node_modules/brace-expansion"
+              ],
+              [
+                "<backend>",
+                "node_modules/@typescript-eslint/eslint-plugin",
+                "node_modules/@typescript-eslint/type-utils",
+                "node_modules/@typescript-eslint/typescript-estree",
+                "node_modules/minimatch",
+                "node_modules/brace-expansion"
+              ],
+              [
+                "<backend>",
+                "node_modules/@typescript-eslint/eslint-plugin",
+                "node_modules/@typescript-eslint/utils",
+                "node_modules/@typescript-eslint/typescript-estree",
+                "node_modules/minimatch",
+                "node_modules/brace-expansion"
+              ],
+              [
+                "<backend>",
+                "node_modules/eslint-plugin-jest",
+                "node_modules/@typescript-eslint/utils",
+                "node_modules/@typescript-eslint/typescript-estree",
+                "node_modules/minimatch",
+                "node_modules/brace-expansion"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/@jest/reporters",
+                "node_modules/@jest/reporters/node_modules/glob",
+                "node_modules/minimatch",
+                "node_modules/brace-expansion"
+              ],
+              [
+                "<backend>",
+                "node_modules/@typescript-eslint/eslint-plugin",
+                "node_modules/@typescript-eslint/type-utils",
+                "node_modules/@typescript-eslint/utils",
+                "node_modules/@typescript-eslint/typescript-estree",
+                "node_modules/minimatch",
+                "node_modules/brace-expansion"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/jest-config/node_modules/glob",
+                "node_modules/minimatch",
+                "node_modules/brace-expansion"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/jest-config",
+                "node_modules/jest-config/node_modules/glob",
+                "node_modules/minimatch",
+                "node_modules/brace-expansion"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-runtime",
+                "node_modules/jest-runtime/node_modules/glob",
+                "node_modules/minimatch",
+                "node_modules/brace-expansion"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/@jest/reporters",
+                "node_modules/@jest/reporters/node_modules/glob",
+                "node_modules/minimatch",
+                "node_modules/brace-expansion"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/jest-config/node_modules/glob",
+                "node_modules/minimatch",
+                "node_modules/brace-expansion"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/jest-runtime",
+                "node_modules/jest-runtime/node_modules/glob",
+                "node_modules/minimatch",
+                "node_modules/brace-expansion"
+              ]
+            ]
+          },
+          {
+            "path": "node_modules/eslint/node_modules/brace-expansion",
+            "before": "1.1.18",
+            "afterAtSamePath": "1.1.21",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/eslint",
+                "node_modules/eslint/node_modules/minimatch",
+                "node_modules/eslint/node_modules/brace-expansion"
+              ]
+            ]
+          },
+          {
+            "path": "node_modules/fork-ts-checker-webpack-plugin/node_modules/brace-expansion",
+            "before": "1.1.18",
+            "afterAtSamePath": "1.1.21",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/fork-ts-checker-webpack-plugin",
+                "node_modules/fork-ts-checker-webpack-plugin/node_modules/minimatch",
+                "node_modules/fork-ts-checker-webpack-plugin/node_modules/brace-expansion"
+              ]
+            ]
+          },
+          {
+            "path": "node_modules/glob/node_modules/brace-expansion",
+            "before": "2.1.4",
+            "afterAtSamePath": "2.1.7",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/glob",
+                "node_modules/glob/node_modules/minimatch",
+                "node_modules/glob/node_modules/brace-expansion"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/test-exclude",
+                "node_modules/glob",
+                "node_modules/glob/node_modules/minimatch",
+                "node_modules/glob/node_modules/brace-expansion"
+              ]
+            ]
+          },
+          {
+            "path": "node_modules/typeorm/node_modules/brace-expansion",
+            "before": "2.1.4",
+            "afterAtSamePath": null,
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/typeorm",
+                "node_modules/typeorm/node_modules/glob",
+                "node_modules/typeorm/node_modules/minimatch",
+                "node_modules/typeorm/node_modules/brace-expansion"
+              ]
+            ]
+          }
+        ],
+        "advisories": [
+          {
+            "source": 1240100,
+            "name": "brace-expansion",
+            "dependency": "brace-expansion",
+            "title": "brace-expansion: Quadratic-time expansion of the `{a},b}` rewrite causes CPU denial of service",
+            "url": "https://github.com/advisories/GHSA-q2hr-2g5m-vwhr",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-400",
+              "CWE-407"
+            ],
+            "cvss": {
+              "score": 5.3,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"
+            },
+            "range": "<1.1.21"
+          },
+          {
+            "source": 1240101,
+            "name": "brace-expansion",
+            "dependency": "brace-expansion",
+            "title": "brace-expansion: Quadratic-time expansion of the `{a},b}` rewrite causes CPU denial of service",
+            "url": "https://github.com/advisories/GHSA-q2hr-2g5m-vwhr",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-400",
+              "CWE-407"
+            ],
+            "cvss": {
+              "score": 5.3,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"
+            },
+            "range": ">=2.0.0 <2.1.7"
+          },
+          {
+            "source": 1240103,
+            "name": "brace-expansion",
+            "dependency": "brace-expansion",
+            "title": "brace-expansion: Quadratic-time expansion of the `{a},b}` rewrite causes CPU denial of service",
+            "url": "https://github.com/advisories/GHSA-q2hr-2g5m-vwhr",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-400",
+              "CWE-407"
+            ],
+            "cvss": {
+              "score": 5.3,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"
+            },
+            "range": ">=4.0.0 <5.0.12"
+          },
+          {
+            "source": 1240104,
+            "name": "brace-expansion",
+            "dependency": "brace-expansion",
+            "title": "brace-expansion: DoS via uncontrolled recursion on nested brace groups causing stack exhaustion",
+            "url": "https://github.com/advisories/GHSA-qhr7-859c-m2p7",
+            "severity": "high",
+            "cwe": [
+              "CWE-400",
+              "CWE-674"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+            },
+            "range": "<1.1.20"
+          },
+          {
+            "source": 1240105,
+            "name": "brace-expansion",
+            "dependency": "brace-expansion",
+            "title": "brace-expansion: DoS via uncontrolled recursion on nested brace groups causing stack exhaustion",
+            "url": "https://github.com/advisories/GHSA-qhr7-859c-m2p7",
+            "severity": "high",
+            "cwe": [
+              "CWE-400",
+              "CWE-674"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+            },
+            "range": ">=2.0.0 <2.1.6"
+          },
+          {
+            "source": 1240107,
+            "name": "brace-expansion",
+            "dependency": "brace-expansion",
+            "title": "brace-expansion: DoS via uncontrolled recursion on nested brace groups causing stack exhaustion",
+            "url": "https://github.com/advisories/GHSA-qhr7-859c-m2p7",
+            "severity": "high",
+            "cwe": [
+              "CWE-400",
+              "CWE-674"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+            },
+            "range": ">=4.0.0 <5.0.11"
+          },
+          {
+            "source": 1240108,
+            "name": "brace-expansion",
+            "dependency": "brace-expansion",
+            "title": "brace-expansion: DoS via uncontrolled recursion in parseCommaParts causing stack exhaustion",
+            "url": "https://github.com/advisories/GHSA-6j4f-fj2g-mc7p",
+            "severity": "high",
+            "cwe": [
+              "CWE-400",
+              "CWE-674"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+            },
+            "range": "<1.1.19"
+          },
+          {
+            "source": 1240109,
+            "name": "brace-expansion",
+            "dependency": "brace-expansion",
+            "title": "brace-expansion: DoS via uncontrolled recursion in parseCommaParts causing stack exhaustion",
+            "url": "https://github.com/advisories/GHSA-6j4f-fj2g-mc7p",
+            "severity": "high",
+            "cwe": [
+              "CWE-400",
+              "CWE-674"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+            },
+            "range": ">=2.0.0 <2.1.5"
+          },
+          {
+            "source": 1240111,
+            "name": "brace-expansion",
+            "dependency": "brace-expansion",
+            "title": "brace-expansion: DoS via uncontrolled recursion in parseCommaParts causing stack exhaustion",
+            "url": "https://github.com/advisories/GHSA-6j4f-fj2g-mc7p",
+            "severity": "high",
+            "cwe": [
+              "CWE-400",
+              "CWE-674"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+            },
+            "range": ">=4.0.0 <5.0.10"
+          }
+        ],
+        "inheritedFrom": [],
+        "npmSuggestedFix": true
+      },
+      {
+        "package": "braces",
+        "severityBefore": "high",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/braces",
+            "before": "3.0.3",
+            "afterAtSamePath": null,
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/chokidar",
+                "node_modules/braces"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/fork-ts-checker-webpack-plugin",
+                "node_modules/chokidar",
+                "node_modules/braces"
+              ]
+            ]
+          }
+        ],
+        "advisories": [
+          {
+            "source": 1240992,
+            "name": "braces",
+            "dependency": "braces",
+            "title": "braces vulnerable to stack-exhaustion denial of service through deeply nested patterns",
+            "url": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+            "severity": "high",
+            "cwe": [
+              "CWE-674"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+            },
+            "range": "<=3.0.3"
+          }
+        ],
+        "inheritedFrom": [],
+        "npmSuggestedFix": {
+          "name": "@nestjs/cli",
+          "version": "12.0.8",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "chokidar",
+        "severityBefore": "high",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/chokidar",
+            "before": "3.6.0",
+            "afterAtSamePath": "4.0.3",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/chokidar"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/fork-ts-checker-webpack-plugin",
+                "node_modules/chokidar"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "braces"
+        ],
+        "npmSuggestedFix": {
+          "name": "@nestjs/cli",
+          "version": "12.0.8",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "external-editor",
+        "severityBefore": "low",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/external-editor",
+            "before": "3.1.0",
+            "afterAtSamePath": null,
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/inquirer",
+                "node_modules/external-editor"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@angular-devkit/schematics-cli",
+                "node_modules/@angular-devkit/schematics-cli/node_modules/inquirer",
+                "node_modules/external-editor"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "tmp"
+        ],
+        "npmSuggestedFix": {
+          "name": "@nestjs/cli",
+          "version": "12.0.8",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "fast-uri",
+        "severityBefore": "moderate",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/fast-uri",
+            "before": "3.1.7",
+            "afterAtSamePath": "3.1.8",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@angular-devkit/core",
+                "node_modules/ajv-formats",
+                "node_modules/ajv-formats/node_modules/ajv",
+                "node_modules/fast-uri"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@angular-devkit/schematics",
+                "node_modules/@angular-devkit/core",
+                "node_modules/ajv-formats",
+                "node_modules/ajv-formats/node_modules/ajv",
+                "node_modules/fast-uri"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@angular-devkit/schematics-cli",
+                "node_modules/@angular-devkit/core",
+                "node_modules/ajv-formats",
+                "node_modules/ajv-formats/node_modules/ajv",
+                "node_modules/fast-uri"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@nestjs/schematics",
+                "node_modules/@angular-devkit/core",
+                "node_modules/ajv-formats",
+                "node_modules/ajv-formats/node_modules/ajv",
+                "node_modules/fast-uri"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/webpack",
+                "node_modules/terser-webpack-plugin",
+                "node_modules/terser-webpack-plugin/node_modules/schema-utils",
+                "node_modules/terser-webpack-plugin/node_modules/ajv",
+                "node_modules/fast-uri"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@angular-devkit/schematics-cli",
+                "node_modules/@angular-devkit/schematics",
+                "node_modules/@angular-devkit/core",
+                "node_modules/ajv-formats",
+                "node_modules/ajv-formats/node_modules/ajv",
+                "node_modules/fast-uri"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@nestjs/schematics",
+                "node_modules/@angular-devkit/schematics",
+                "node_modules/@angular-devkit/core",
+                "node_modules/ajv-formats",
+                "node_modules/ajv-formats/node_modules/ajv",
+                "node_modules/fast-uri"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/webpack",
+                "node_modules/terser-webpack-plugin",
+                "node_modules/terser-webpack-plugin/node_modules/schema-utils",
+                "node_modules/ajv-formats",
+                "node_modules/ajv-formats/node_modules/ajv",
+                "node_modules/fast-uri"
+              ]
+            ]
+          }
+        ],
+        "advisories": [
+          {
+            "source": 1240091,
+            "name": "fast-uri",
+            "dependency": "fast-uri",
+            "title": "fast-uri vulnerable to inconsistent host case normalization via percent-encoded octets",
+            "url": "https://github.com/advisories/GHSA-hrr3-gc8f-f4qj",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-178"
+            ],
+            "cvss": {
+              "score": 4.8,
+              "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:L/A:N"
+            },
+            "range": ">=3.0.0 <3.1.8"
+          }
+        ],
+        "inheritedFrom": [],
+        "npmSuggestedFix": true
+      },
+      {
+        "package": "file-type",
+        "severityBefore": "moderate",
+        "remainingSeverity": "moderate",
+        "paths": [
+          {
+            "path": "node_modules/@nestjs/common/node_modules/file-type",
+            "before": "20.4.1",
+            "afterAtSamePath": "20.4.1",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/common",
+                "node_modules/@nestjs/common/node_modules/file-type"
+              ]
+            ]
+          },
+          {
+            "path": "node_modules/file-type",
+            "before": "19.6.0",
+            "afterAtSamePath": "19.6.0",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/file-type"
+              ]
+            ]
+          }
+        ],
+        "advisories": [
+          {
+            "source": 1114301,
+            "name": "file-type",
+            "dependency": "file-type",
+            "title": "file-type affected by infinite loop in ASF parser on malformed input with zero-size sub-header",
+            "url": "https://github.com/advisories/GHSA-5v7r-6r5c-r473",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-835"
+            ],
+            "cvss": {
+              "score": 5.3,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"
+            },
+            "range": ">=13.0.0 <21.3.1"
+          },
+          {
+            "source": 1114726,
+            "name": "file-type",
+            "dependency": "file-type",
+            "title": "file-type: ZIP Decompression Bomb DoS via [Content_Types].xml entry",
+            "url": "https://github.com/advisories/GHSA-j47w-4g3g-c36v",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-400",
+              "CWE-409"
+            ],
+            "cvss": {
+              "score": 5.3,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"
+            },
+            "range": ">=20.0.0 <=21.3.1"
+          }
+        ],
+        "inheritedFrom": [],
+        "npmSuggestedFix": {
+          "name": "file-type",
+          "version": "21.3.4",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "fork-ts-checker-webpack-plugin",
+        "severityBefore": "high",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/fork-ts-checker-webpack-plugin",
+            "before": "9.0.2",
+            "afterAtSamePath": "9.1.0",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/fork-ts-checker-webpack-plugin"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "chokidar"
+        ],
+        "npmSuggestedFix": {
+          "name": "@nestjs/cli",
+          "version": "12.0.8",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "glob",
+        "severityBefore": "high",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/glob",
+            "before": "10.4.5",
+            "afterAtSamePath": "10.5.0",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/glob"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/test-exclude",
+                "node_modules/glob"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/test-exclude",
+                "node_modules/glob"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/@jest/reporters",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/test-exclude",
+                "node_modules/glob"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-runner",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/test-exclude",
+                "node_modules/glob"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-runtime",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/test-exclude",
+                "node_modules/glob"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-snapshot",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/test-exclude",
+                "node_modules/glob"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/babel-jest",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/test-exclude",
+                "node_modules/glob"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/jest-config",
+                "node_modules/babel-jest",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/test-exclude",
+                "node_modules/glob"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/@jest/reporters",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/test-exclude",
+                "node_modules/glob"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/babel-jest",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/test-exclude",
+                "node_modules/glob"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/jest-config",
+                "node_modules/babel-jest",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/test-exclude",
+                "node_modules/glob"
+              ]
+            ]
+          }
+        ],
+        "advisories": [
+          {
+            "source": 1109842,
+            "name": "glob",
+            "dependency": "glob",
+            "title": "glob CLI: Command injection via -c/--cmd executes matches with shell:true",
+            "url": "https://github.com/advisories/GHSA-5j98-mcp5-4vw2",
+            "severity": "high",
+            "cwe": [
+              "CWE-78"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:U/C:H/I:H/A:H"
+            },
+            "range": ">=10.2.0 <10.5.0"
+          }
+        ],
+        "inheritedFrom": [],
+        "npmSuggestedFix": {
+          "name": "@nestjs/cli",
+          "version": "12.0.8",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "handlebars",
+        "severityBefore": "critical",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/handlebars",
+            "before": "4.7.9",
+            "afterAtSamePath": "4.7.10",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/ts-jest",
+                "node_modules/handlebars"
+              ]
+            ]
+          }
+        ],
+        "advisories": [
+          {
+            "source": 1241676,
+            "name": "handlebars",
+            "dependency": "handlebars",
+            "title": "Handlebars: JavaScript Injection via Unsafe Inline Embedding of Precompiled Templates",
+            "url": "https://github.com/advisories/GHSA-xw65-4hp5-5hc7",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-116"
+            ],
+            "cvss": {
+              "score": 4.7,
+              "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:C/C:L/I:L/A:N"
+            },
+            "range": ">=4.0.0 <=4.7.9"
+          },
+          {
+            "source": 1241677,
+            "name": "handlebars",
+            "dependency": "handlebars",
+            "title": "Handlebars: JavaScript Injection via AST Type Confusion in compile (bypass of CVE-2026-33937)",
+            "url": "https://github.com/advisories/GHSA-8r5x-fm3f-whwj",
+            "severity": "critical",
+            "cwe": [
+              "CWE-94",
+              "CWE-843"
+            ],
+            "cvss": {
+              "score": 9.8,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+            },
+            "range": ">=4.0.0 <=4.7.9"
+          },
+          {
+            "source": 1242173,
+            "name": "handlebars",
+            "dependency": "handlebars",
+            "title": "Handlebars: JavaScript Injection via Own Property Check Bypass",
+            "url": "https://github.com/advisories/GHSA-p8wg-vrv2-v86f",
+            "severity": "critical",
+            "cwe": [
+              "CWE-184",
+              "CWE-1289"
+            ],
+            "cvss": {
+              "score": 0,
+              "vectorString": null
+            },
+            "range": ">=3.0.0 <=4.7.9"
+          }
+        ],
+        "inheritedFrom": [],
+        "npmSuggestedFix": true
+      },
+      {
+        "package": "inquirer",
+        "severityBefore": "low",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/@angular-devkit/schematics-cli/node_modules/inquirer",
+            "before": "9.2.15",
+            "afterAtSamePath": null,
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@angular-devkit/schematics-cli",
+                "node_modules/@angular-devkit/schematics-cli/node_modules/inquirer"
+              ]
+            ]
+          },
+          {
+            "path": "node_modules/inquirer",
+            "before": "8.2.6",
+            "afterAtSamePath": null,
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/inquirer"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "external-editor"
+        ],
+        "npmSuggestedFix": {
+          "name": "@nestjs/cli",
+          "version": "12.0.8",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "jest",
+        "severityBefore": "moderate",
+        "remainingSeverity": "moderate",
+        "paths": [
+          {
+            "path": "node_modules/jest",
+            "before": "30.5.1",
+            "afterAtSamePath": "30.5.1",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/jest"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "@jest/core",
+          "jest-cli"
+        ],
+        "npmSuggestedFix": {
+          "name": "jest",
+          "version": "25.0.0",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "jest-circus",
+        "severityBefore": "moderate",
+        "remainingSeverity": "moderate",
+        "paths": [
+          {
+            "path": "node_modules/jest-circus",
+            "before": "30.5.1",
+            "afterAtSamePath": "30.5.1",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/jest-circus"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/jest-config",
+                "node_modules/jest-circus"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/jest-circus"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "@jest/expect",
+          "jest-runtime",
+          "jest-snapshot"
+        ],
+        "npmSuggestedFix": true
+      },
+      {
+        "package": "jest-cli",
+        "severityBefore": "moderate",
+        "remainingSeverity": "moderate",
+        "paths": [
+          {
+            "path": "node_modules/jest-cli",
+            "before": "30.5.1",
+            "afterAtSamePath": "30.5.1",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "@jest/core",
+          "jest-config"
+        ],
+        "npmSuggestedFix": true
+      },
+      {
+        "package": "jest-config",
+        "severityBefore": "moderate",
+        "remainingSeverity": "moderate",
+        "paths": [
+          {
+            "path": "node_modules/jest-config",
+            "before": "30.5.1",
+            "afterAtSamePath": "30.5.1",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-config"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/jest-config"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/jest-config"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "babel-jest",
+          "jest-circus",
+          "jest-runner"
+        ],
+        "npmSuggestedFix": true
+      },
+      {
+        "package": "jest-resolve-dependencies",
+        "severityBefore": "moderate",
+        "remainingSeverity": "moderate",
+        "paths": [
+          {
+            "path": "node_modules/jest-resolve-dependencies",
+            "before": "30.5.1",
+            "afterAtSamePath": "30.5.1",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-resolve-dependencies"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/jest-resolve-dependencies"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "jest-snapshot"
+        ],
+        "npmSuggestedFix": true
+      },
+      {
+        "package": "jest-runner",
+        "severityBefore": "moderate",
+        "remainingSeverity": "moderate",
+        "paths": [
+          {
+            "path": "node_modules/jest-runner",
+            "before": "30.5.1",
+            "afterAtSamePath": "30.5.1",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-runner"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/jest-runner"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/jest-runner"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/jest-config",
+                "node_modules/jest-runner"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/jest-runner"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "@jest/transform",
+          "jest-runtime"
+        ],
+        "npmSuggestedFix": true
+      },
+      {
+        "package": "jest-runtime",
+        "severityBefore": "moderate",
+        "remainingSeverity": "moderate",
+        "paths": [
+          {
+            "path": "node_modules/jest-runtime",
+            "before": "30.5.1",
+            "afterAtSamePath": "30.5.1",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-runtime"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/jest-runtime"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-runner",
+                "node_modules/jest-runtime"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/jest-circus",
+                "node_modules/jest-runtime"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/jest-config",
+                "node_modules/jest-circus",
+                "node_modules/jest-runtime"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/jest-runner",
+                "node_modules/jest-runtime"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/jest-runner",
+                "node_modules/jest-runtime"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/jest-config",
+                "node_modules/jest-runner",
+                "node_modules/jest-runtime"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/jest-circus",
+                "node_modules/jest-runtime"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/jest-runner",
+                "node_modules/jest-runtime"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "@jest/globals",
+          "@jest/transform",
+          "jest-snapshot"
+        ],
+        "npmSuggestedFix": true
+      },
+      {
+        "package": "jest-snapshot",
+        "severityBefore": "moderate",
+        "remainingSeverity": "moderate",
+        "paths": [
+          {
+            "path": "node_modules/jest-snapshot",
+            "before": "30.5.1",
+            "afterAtSamePath": "30.5.1",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-snapshot"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/jest-snapshot"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-resolve-dependencies",
+                "node_modules/jest-snapshot"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-runtime",
+                "node_modules/jest-snapshot"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/jest-circus",
+                "node_modules/jest-snapshot"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/jest-config",
+                "node_modules/jest-circus",
+                "node_modules/jest-snapshot"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/jest-resolve-dependencies",
+                "node_modules/jest-snapshot"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/jest-runtime",
+                "node_modules/jest-snapshot"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-runner",
+                "node_modules/jest-runtime",
+                "node_modules/jest-snapshot"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-runtime",
+                "node_modules/@jest/globals",
+                "node_modules/@jest/expect",
+                "node_modules/jest-snapshot"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/jest-circus",
+                "node_modules/@jest/expect",
+                "node_modules/jest-snapshot"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/jest-config",
+                "node_modules/jest-circus",
+                "node_modules/@jest/expect",
+                "node_modules/jest-snapshot"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "@jest/transform"
+        ],
+        "npmSuggestedFix": {
+          "name": "jest",
+          "version": "25.0.0",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "js-yaml",
+        "severityBefore": "moderate",
+        "remainingSeverity": "moderate",
+        "paths": [
+          {
+            "path": "node_modules/@istanbuljs/load-nyc-config/node_modules/js-yaml",
+            "before": "3.15.2",
+            "afterAtSamePath": "3.15.2",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config",
+                "node_modules/@istanbuljs/load-nyc-config/node_modules/js-yaml"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config",
+                "node_modules/@istanbuljs/load-nyc-config/node_modules/js-yaml"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/@jest/reporters",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config",
+                "node_modules/@istanbuljs/load-nyc-config/node_modules/js-yaml"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-runner",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config",
+                "node_modules/@istanbuljs/load-nyc-config/node_modules/js-yaml"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-runtime",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config",
+                "node_modules/@istanbuljs/load-nyc-config/node_modules/js-yaml"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-snapshot",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config",
+                "node_modules/@istanbuljs/load-nyc-config/node_modules/js-yaml"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/babel-jest",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config",
+                "node_modules/@istanbuljs/load-nyc-config/node_modules/js-yaml"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/jest-config",
+                "node_modules/babel-jest",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config",
+                "node_modules/@istanbuljs/load-nyc-config/node_modules/js-yaml"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/@jest/reporters",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config",
+                "node_modules/@istanbuljs/load-nyc-config/node_modules/js-yaml"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/jest-config",
+                "node_modules/babel-jest",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config",
+                "node_modules/@istanbuljs/load-nyc-config/node_modules/js-yaml"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/jest-config",
+                "node_modules/babel-jest",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config",
+                "node_modules/@istanbuljs/load-nyc-config/node_modules/js-yaml"
+              ],
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/jest-cli",
+                "node_modules/@jest/core",
+                "node_modules/jest-runner",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config",
+                "node_modules/@istanbuljs/load-nyc-config/node_modules/js-yaml"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "argparse"
+        ],
+        "npmSuggestedFix": {
+          "name": "ts-jest",
+          "version": "27.0.3",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "lodash",
+        "severityBefore": "high",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/lodash",
+            "before": "4.17.21",
+            "afterAtSamePath": "4.18.1",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/config",
+                "node_modules/lodash"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/inquirer",
+                "node_modules/lodash"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/node-emoji",
+                "node_modules/lodash"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@angular-devkit/schematics-cli",
+                "node_modules/@angular-devkit/schematics-cli/node_modules/inquirer",
+                "node_modules/lodash"
+              ]
+            ]
+          }
+        ],
+        "advisories": [
+          {
+            "source": 1115806,
+            "name": "lodash",
+            "dependency": "lodash",
+            "title": "lodash vulnerable to Code Injection via `_.template` imports key names",
+            "url": "https://github.com/advisories/GHSA-r5fr-rjxr-66jc",
+            "severity": "high",
+            "cwe": [
+              "CWE-94"
+            ],
+            "cvss": {
+              "score": 8.1,
+              "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H"
+            },
+            "range": ">=4.0.0 <=4.17.23"
+          },
+          {
+            "source": 1115810,
+            "name": "lodash",
+            "dependency": "lodash",
+            "title": "lodash vulnerable to Prototype Pollution via array path bypass in `_.unset` and `_.omit`",
+            "url": "https://github.com/advisories/GHSA-f23m-r3pf-42rh",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-1321"
+            ],
+            "cvss": {
+              "score": 6.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:L"
+            },
+            "range": "<=4.17.23"
+          },
+          {
+            "source": 1120370,
+            "name": "lodash",
+            "dependency": "lodash",
+            "title": "Lodash has Prototype Pollution Vulnerability in `_.unset` and `_.omit` functions",
+            "url": "https://github.com/advisories/GHSA-xxjr-mmjv-4gpg",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-1321"
+            ],
+            "cvss": {
+              "score": 6.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:L"
+            },
+            "range": ">=4.0.0 <=4.17.22"
+          }
+        ],
+        "inheritedFrom": [],
+        "npmSuggestedFix": {
+          "name": "@nestjs/config",
+          "version": "12.0.1",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "multer",
+        "severityBefore": "high",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/@nestjs/platform-express/node_modules/multer",
+            "before": "2.0.2",
+            "afterAtSamePath": null,
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/platform-express",
+                "node_modules/@nestjs/platform-express/node_modules/multer"
+              ]
+            ]
+          },
+          {
+            "path": "node_modules/multer",
+            "before": "1.4.5-lts.2",
+            "afterAtSamePath": "2.4.0",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/multer"
+              ]
+            ]
+          }
+        ],
+        "advisories": [
+          {
+            "source": 1113635,
+            "name": "multer",
+            "dependency": "multer",
+            "title": "Multer vulnerable to Denial of Service via incomplete cleanup",
+            "url": "https://github.com/advisories/GHSA-xf7r-hgr6-v32p",
+            "severity": "high",
+            "cwe": [
+              "CWE-459"
+            ],
+            "cvss": {
+              "score": 0,
+              "vectorString": null
+            },
+            "range": "<2.1.0"
+          },
+          {
+            "source": 1113636,
+            "name": "multer",
+            "dependency": "multer",
+            "title": "Multer vulnerable to Denial of Service via resource exhaustion",
+            "url": "https://github.com/advisories/GHSA-v52c-386h-88mc",
+            "severity": "high",
+            "cwe": [
+              "CWE-772"
+            ],
+            "cvss": {
+              "score": 0,
+              "vectorString": null
+            },
+            "range": "<2.1.0"
+          },
+          {
+            "source": 1113996,
+            "name": "multer",
+            "dependency": "multer",
+            "title": "Multer Vulnerable to Denial of Service via Uncontrolled Recursion",
+            "url": "https://github.com/advisories/GHSA-5528-5vmv-3xc2",
+            "severity": "high",
+            "cwe": [
+              "CWE-674"
+            ],
+            "cvss": {
+              "score": 0,
+              "vectorString": null
+            },
+            "range": "<2.1.1"
+          },
+          {
+            "source": 1121089,
+            "name": "multer",
+            "dependency": "multer",
+            "title": "Multer vulnerable to Denial of Service via deeply nested field names",
+            "url": "https://github.com/advisories/GHSA-72gw-mp4g-v24j",
+            "severity": "high",
+            "cwe": [
+              "CWE-400"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+            },
+            "range": ">=1.0.0 <2.2.0"
+          },
+          {
+            "source": 1121091,
+            "name": "multer",
+            "dependency": "multer",
+            "title": "Multer vulnerable to Denial of Service via incomplete cleanup of aborted uploads",
+            "url": "https://github.com/advisories/GHSA-3p4h-7m6x-2hcm",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-459"
+            ],
+            "cvss": {
+              "score": 5.3,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"
+            },
+            "range": ">=2.0.0-alpha.1 <2.2.0"
+          },
+          {
+            "source": 1193790,
+            "name": "multer",
+            "dependency": "multer",
+            "title": "multer vulnerable to Denial of Service via crafted multipart field names",
+            "url": "https://github.com/advisories/GHSA-wc9g-mqfw-jrwm",
+            "severity": "high",
+            "cwe": [
+              "CWE-248"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+            },
+            "range": "<2.3.0"
+          },
+          {
+            "source": 1193792,
+            "name": "multer",
+            "dependency": "multer",
+            "title": "multer vulnerable to file size limit bypass via async fileFilter race condition",
+            "url": "https://github.com/advisories/GHSA-qvfw-j98x-7q72",
+            "severity": "low",
+            "cwe": [
+              "CWE-362"
+            ],
+            "cvss": {
+              "score": 3.7,
+              "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:L/A:N"
+            },
+            "range": "<2.3.0"
+          },
+          {
+            "source": 1193793,
+            "name": "multer",
+            "dependency": "multer",
+            "title": "multer vulnerable to Denial of Service via oversized array index in field names",
+            "url": "https://github.com/advisories/GHSA-535w-7cp7-47q4",
+            "severity": "high",
+            "cwe": [
+              "CWE-400"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+            },
+            "range": "<2.3.0"
+          }
+        ],
+        "inheritedFrom": [],
+        "npmSuggestedFix": {
+          "name": "multer",
+          "version": "2.4.0",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "picomatch",
+        "severityBefore": "high",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/picomatch",
+            "before": "4.0.1",
+            "afterAtSamePath": "4.0.4",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@angular-devkit/core",
+                "node_modules/picomatch"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@angular-devkit/schematics",
+                "node_modules/@angular-devkit/core",
+                "node_modules/picomatch"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@angular-devkit/schematics-cli",
+                "node_modules/@angular-devkit/core",
+                "node_modules/picomatch"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@nestjs/schematics",
+                "node_modules/@angular-devkit/core",
+                "node_modules/picomatch"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@angular-devkit/schematics-cli",
+                "node_modules/@angular-devkit/schematics",
+                "node_modules/@angular-devkit/core",
+                "node_modules/picomatch"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@nestjs/schematics",
+                "node_modules/@angular-devkit/schematics",
+                "node_modules/@angular-devkit/core",
+                "node_modules/picomatch"
+              ]
+            ]
+          }
+        ],
+        "advisories": [
+          {
+            "source": 1115551,
+            "name": "picomatch",
+            "dependency": "picomatch",
+            "title": "Picomatch: Method Injection in POSIX Character Classes causes incorrect Glob Matching",
+            "url": "https://github.com/advisories/GHSA-3v7f-55p6-f55p",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-1321"
+            ],
+            "cvss": {
+              "score": 5.3,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:N"
+            },
+            "range": ">=4.0.0 <4.0.4"
+          },
+          {
+            "source": 1115554,
+            "name": "picomatch",
+            "dependency": "picomatch",
+            "title": "Picomatch has a ReDoS vulnerability via extglob quantifiers",
+            "url": "https://github.com/advisories/GHSA-c2c7-rcm5-vvqj",
+            "severity": "high",
+            "cwe": [
+              "CWE-1333"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+            },
+            "range": ">=4.0.0 <4.0.4"
+          }
+        ],
+        "inheritedFrom": [],
+        "npmSuggestedFix": {
+          "name": "@nestjs/cli",
+          "version": "12.0.8",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "proxy-addr",
+        "severityBefore": "critical",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/proxy-addr",
+            "before": "2.0.7",
+            "afterAtSamePath": "2.0.8",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/platform-express",
+                "node_modules/express",
+                "node_modules/proxy-addr"
+              ]
+            ]
+          }
+        ],
+        "advisories": [
+          {
+            "source": 1241210,
+            "name": "proxy-addr",
+            "dependency": "proxy-addr",
+            "title": "proxy-addr vulnerable to IP spoofing via IPv4-mapped IPv6 trust subnet",
+            "url": "https://github.com/advisories/GHSA-jqcg-44mw-7w3h",
+            "severity": "critical",
+            "cwe": [
+              "CWE-290",
+              "CWE-348",
+              "CWE-697"
+            ],
+            "cvss": {
+              "score": 9.1,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+            },
+            "range": ">=1.1.0 <2.0.8"
+          }
+        ],
+        "inheritedFrom": [],
+        "npmSuggestedFix": true
+      },
+      {
+        "package": "qs",
+        "severityBefore": "moderate",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/qs",
+            "before": "6.14.2",
+            "afterAtSamePath": "6.16.0",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/platform-express",
+                "node_modules/body-parser",
+                "node_modules/qs"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/platform-express",
+                "node_modules/express",
+                "node_modules/qs"
+              ],
+              [
+                "<backend>",
+                "node_modules/supertest",
+                "node_modules/superagent",
+                "node_modules/qs"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/platform-express",
+                "node_modules/express",
+                "node_modules/body-parser",
+                "node_modules/qs"
+              ]
+            ]
+          }
+        ],
+        "advisories": [
+          {
+            "source": 1119502,
+            "name": "qs",
+            "dependency": "qs",
+            "title": "qs has a remotely triggerable DoS: qs.stringify crashes with TypeError on null/undefined entries in comma-format arrays when encodeValuesOnly is set",
+            "url": "https://github.com/advisories/GHSA-q8mj-m7cp-5q26",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-476"
+            ],
+            "cvss": {
+              "score": 5.3,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"
+            },
+            "range": ">=6.11.1 <=6.15.1"
+          },
+          {
+            "source": 1158506,
+            "name": "qs",
+            "dependency": "qs",
+            "title": "qs array-limit bypass via bracket-key comma parsing",
+            "url": "https://github.com/advisories/GHSA-x5fp-wj9c-mxmx",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-770"
+            ],
+            "cvss": {
+              "score": 3.7,
+              "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:L"
+            },
+            "range": ">=6.14.2 <=6.15.3"
+          },
+          {
+            "source": 1158507,
+            "name": "qs",
+            "dependency": "qs",
+            "title": "qs: Denial of Service via Attacker Controlled isBuffer",
+            "url": "https://github.com/advisories/GHSA-4mjr-xmp4-gh2g",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-248",
+              "CWE-703"
+            ],
+            "cvss": {
+              "score": 5.3,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"
+            },
+            "range": ">=2.2.5 <6.16.0"
+          }
+        ],
+        "inheritedFrom": [],
+        "npmSuggestedFix": true
+      },
+      {
+        "package": "sharp",
+        "severityBefore": "high",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/sharp",
+            "before": "0.33.5",
+            "afterAtSamePath": "0.35.5",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/sharp"
+              ]
+            ]
+          }
+        ],
+        "advisories": [
+          {
+            "source": 1124066,
+            "name": "sharp",
+            "dependency": "sharp",
+            "title": "sharp inherited vulnerabilities in libvips: CVE-2026-33327, CVE-2026-33328, CVE-2026-35590, CVE-2026-35591",
+            "url": "https://github.com/advisories/GHSA-f88m-g3jw-g9cj",
+            "severity": "high",
+            "cwe": [
+              "CWE-1395"
+            ],
+            "cvss": {
+              "score": 0,
+              "vectorString": null
+            },
+            "range": "<0.35.0"
+          },
+          {
+            "source": 1193725,
+            "name": "sharp",
+            "dependency": "sharp",
+            "title": "sharp: Vulnerabilities in libheif: GHSA-g89c-p67h-r497 and GHSA-2jg2-4ch7-h545",
+            "url": "https://github.com/advisories/GHSA-rgj7-g3m4-5g8c",
+            "severity": "high",
+            "cwe": [
+              "CWE-122"
+            ],
+            "cvss": {
+              "score": 0,
+              "vectorString": null
+            },
+            "range": "<0.35.4"
+          },
+          {
+            "source": 1241331,
+            "name": "sharp",
+            "dependency": "sharp",
+            "title": "sharp : Vulnerability in librsvg dependency CVE-2026-96889",
+            "url": "https://github.com/advisories/GHSA-wq5f-xc86-pv6w",
+            "severity": "high",
+            "cwe": [
+              "CWE-416",
+              "CWE-1395"
+            ],
+            "cvss": {
+              "score": 0,
+              "vectorString": null
+            },
+            "range": "<0.35.5"
+          }
+        ],
+        "inheritedFrom": [],
+        "npmSuggestedFix": {
+          "name": "sharp",
+          "version": "0.35.5",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "sprintf-js",
+        "severityBefore": "moderate",
+        "remainingSeverity": "moderate",
+        "paths": [
+          {
+            "path": "node_modules/sprintf-js",
+            "before": "1.0.3",
+            "afterAtSamePath": "1.0.3",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/jest",
+                "node_modules/@jest/core",
+                "node_modules/@jest/transform",
+                "node_modules/babel-plugin-istanbul",
+                "node_modules/@istanbuljs/load-nyc-config",
+                "node_modules/@istanbuljs/load-nyc-config/node_modules/js-yaml",
+                "node_modules/@istanbuljs/load-nyc-config/node_modules/argparse",
+                "node_modules/sprintf-js"
+              ]
+            ]
+          }
+        ],
+        "advisories": [
+          {
+            "source": 1241202,
+            "name": "sprintf-js",
+            "dependency": "sprintf-js",
+            "title": "sprintf-js vulnerable to denial of service through unbounded precision specifiers",
+            "url": "https://github.com/advisories/GHSA-hp3w-g68c-fv3c",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-1284"
+            ],
+            "cvss": {
+              "score": 5.3,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"
+            },
+            "range": "<=1.1.3"
+          }
+        ],
+        "inheritedFrom": [],
+        "npmSuggestedFix": {
+          "name": "ts-jest",
+          "version": "27.0.3",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "tmp",
+        "severityBefore": "high",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/tmp",
+            "before": "0.0.33",
+            "afterAtSamePath": null,
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/inquirer",
+                "node_modules/external-editor",
+                "node_modules/tmp"
+              ],
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/@angular-devkit/schematics-cli",
+                "node_modules/@angular-devkit/schematics-cli/node_modules/inquirer",
+                "node_modules/external-editor",
+                "node_modules/tmp"
+              ]
+            ]
+          }
+        ],
+        "advisories": [
+          {
+            "source": 1109537,
+            "name": "tmp",
+            "dependency": "tmp",
+            "title": "tmp allows arbitrary temporary file / directory write via symbolic link `dir` parameter",
+            "url": "https://github.com/advisories/GHSA-52f5-9888-hmc6",
+            "severity": "low",
+            "cwe": [
+              "CWE-59"
+            ],
+            "cvss": {
+              "score": 2.5,
+              "vectorString": "CVSS:3.1/AV:L/AC:H/PR:L/UI:N/S:U/C:N/I:L/A:N"
+            },
+            "range": "<=0.2.3"
+          },
+          {
+            "source": 1120654,
+            "name": "tmp",
+            "dependency": "tmp",
+            "title": "tmp has Path Traversal via unsanitized prefix/postfix that enables directory escape",
+            "url": "https://github.com/advisories/GHSA-ph9p-34f9-6g65",
+            "severity": "high",
+            "cwe": [
+              "CWE-22"
+            ],
+            "cvss": {
+              "score": 0,
+              "vectorString": null
+            },
+            "range": "<0.2.6"
+          }
+        ],
+        "inheritedFrom": [],
+        "npmSuggestedFix": {
+          "name": "@nestjs/cli",
+          "version": "12.0.8",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "ts-jest",
+        "severityBefore": "moderate",
+        "remainingSeverity": "moderate",
+        "paths": [
+          {
+            "path": "node_modules/ts-jest",
+            "before": "29.4.12",
+            "afterAtSamePath": "29.4.12",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/ts-jest"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "@jest/transform",
+          "babel-jest",
+          "jest"
+        ],
+        "npmSuggestedFix": {
+          "name": "ts-jest",
+          "version": "27.0.3",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "uuid",
+        "severityBefore": "moderate",
+        "remainingSeverity": "moderate",
+        "paths": [
+          {
+            "path": "node_modules/@nestjs/typeorm/node_modules/uuid",
+            "before": "9.0.1",
+            "afterAtSamePath": "9.0.1",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/typeorm",
+                "node_modules/@nestjs/typeorm/node_modules/uuid"
+              ]
+            ]
+          }
+        ],
+        "advisories": [
+          {
+            "source": 1119441,
+            "name": "uuid",
+            "dependency": "uuid",
+            "title": "uuid: Missing buffer bounds check in v3/v5/v6 when buf is provided",
+            "url": "https://github.com/advisories/GHSA-w5hq-g745-h8pq",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-787",
+              "CWE-1285"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N"
+            },
+            "range": "<11.1.1"
+          }
+        ],
+        "inheritedFrom": [],
+        "npmSuggestedFix": {
+          "name": "@nestjs/typeorm",
+          "version": "12.0.2",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "webpack",
+        "severityBefore": "low",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/webpack",
+            "before": "5.97.1",
+            "afterAtSamePath": "5.105.4",
+            "baselineChains": [
+              [
+                "<backend>",
+                "node_modules/@nestjs/cli",
+                "node_modules/webpack"
+              ]
+            ]
+          }
+        ],
+        "advisories": [
+          {
+            "source": 1113041,
+            "name": "webpack",
+            "dependency": "webpack",
+            "title": "webpack buildHttp: allowedUris allow-list bypass via URL userinfo (@) leading to build-time SSRF behavior",
+            "url": "https://github.com/advisories/GHSA-8fgc-7cc6-rx7x",
+            "severity": "low",
+            "cwe": [
+              "CWE-918"
+            ],
+            "cvss": {
+              "score": 3.7,
+              "vectorString": "CVSS:3.1/AV:N/AC:H/PR:L/UI:R/S:U/C:L/I:L/A:N"
+            },
+            "range": ">=5.49.0 <=5.104.0"
+          },
+          {
+            "source": 1113042,
+            "name": "webpack",
+            "dependency": "webpack",
+            "title": "webpack buildHttp HttpUriPlugin allowedUris bypass via HTTP redirects → SSRF + cache persistence",
+            "url": "https://github.com/advisories/GHSA-38r7-794h-5758",
+            "severity": "low",
+            "cwe": [
+              "CWE-918"
+            ],
+            "cvss": {
+              "score": 3.7,
+              "vectorString": "CVSS:3.1/AV:N/AC:H/PR:L/UI:R/S:U/C:L/I:L/A:N"
+            },
+            "range": ">=5.49.0 <5.104.0"
+          }
+        ],
+        "inheritedFrom": [],
+        "npmSuggestedFix": {
+          "name": "@nestjs/cli",
+          "version": "12.0.8",
+          "isSemVerMajor": true
+        }
+      }
+    ],
+    "frontend": [
+      {
+        "package": "@vitest/mocker",
+        "severityBefore": "moderate",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/@vitest/mocker",
+            "before": "3.2.7",
+            "afterAtSamePath": "4.1.11",
+            "baselineChains": [
+              [
+                "node_modules/vitest",
+                "node_modules/@vitest/mocker"
+              ]
+            ]
+          }
+        ],
+        "advisories": [
+          {
+            "source": 1193684,
+            "name": "@vitest/mocker",
+            "dependency": "@vitest/mocker",
+            "title": "Vitest: Path Traversal / Arbitrary File Read via @vitest/mocker Redirect Mock",
+            "url": "https://github.com/advisories/GHSA-82fw-gwwq-j7x9",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-22"
+            ],
+            "cvss": {
+              "score": 5.9,
+              "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:N/A:N"
+            },
+            "range": ">=2.1.0 <4.1.11"
+          }
+        ],
+        "inheritedFrom": [],
+        "npmSuggestedFix": {
+          "name": "vitest",
+          "version": "4.1.11",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "brace-expansion",
+        "severityBefore": "high",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/@typescript-eslint/typescript-estree/node_modules/brace-expansion",
+            "before": "5.0.9",
+            "afterAtSamePath": "5.0.12",
+            "baselineChains": [
+              [
+                "node_modules/typescript-eslint",
+                "node_modules/@typescript-eslint/typescript-estree",
+                "node_modules/@typescript-eslint/typescript-estree/node_modules/minimatch",
+                "node_modules/@typescript-eslint/typescript-estree/node_modules/brace-expansion"
+              ]
+            ]
+          },
+          {
+            "path": "node_modules/brace-expansion",
+            "before": "1.1.18",
+            "afterAtSamePath": "1.1.21",
+            "baselineChains": [
+              [
+                "node_modules/eslint",
+                "node_modules/minimatch",
+                "node_modules/brace-expansion"
+              ]
+            ]
+          }
+        ],
+        "advisories": [
+          {
+            "source": 1240100,
+            "name": "brace-expansion",
+            "dependency": "brace-expansion",
+            "title": "brace-expansion: Quadratic-time expansion of the `{a},b}` rewrite causes CPU denial of service",
+            "url": "https://github.com/advisories/GHSA-q2hr-2g5m-vwhr",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-400",
+              "CWE-407"
+            ],
+            "cvss": {
+              "score": 5.3,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"
+            },
+            "range": "<1.1.21"
+          },
+          {
+            "source": 1240103,
+            "name": "brace-expansion",
+            "dependency": "brace-expansion",
+            "title": "brace-expansion: Quadratic-time expansion of the `{a},b}` rewrite causes CPU denial of service",
+            "url": "https://github.com/advisories/GHSA-q2hr-2g5m-vwhr",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-400",
+              "CWE-407"
+            ],
+            "cvss": {
+              "score": 5.3,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"
+            },
+            "range": ">=4.0.0 <5.0.12"
+          },
+          {
+            "source": 1240104,
+            "name": "brace-expansion",
+            "dependency": "brace-expansion",
+            "title": "brace-expansion: DoS via uncontrolled recursion on nested brace groups causing stack exhaustion",
+            "url": "https://github.com/advisories/GHSA-qhr7-859c-m2p7",
+            "severity": "high",
+            "cwe": [
+              "CWE-400",
+              "CWE-674"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+            },
+            "range": "<1.1.20"
+          },
+          {
+            "source": 1240107,
+            "name": "brace-expansion",
+            "dependency": "brace-expansion",
+            "title": "brace-expansion: DoS via uncontrolled recursion on nested brace groups causing stack exhaustion",
+            "url": "https://github.com/advisories/GHSA-qhr7-859c-m2p7",
+            "severity": "high",
+            "cwe": [
+              "CWE-400",
+              "CWE-674"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+            },
+            "range": ">=4.0.0 <5.0.11"
+          },
+          {
+            "source": 1240108,
+            "name": "brace-expansion",
+            "dependency": "brace-expansion",
+            "title": "brace-expansion: DoS via uncontrolled recursion in parseCommaParts causing stack exhaustion",
+            "url": "https://github.com/advisories/GHSA-6j4f-fj2g-mc7p",
+            "severity": "high",
+            "cwe": [
+              "CWE-400",
+              "CWE-674"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+            },
+            "range": "<1.1.19"
+          },
+          {
+            "source": 1240111,
+            "name": "brace-expansion",
+            "dependency": "brace-expansion",
+            "title": "brace-expansion: DoS via uncontrolled recursion in parseCommaParts causing stack exhaustion",
+            "url": "https://github.com/advisories/GHSA-6j4f-fj2g-mc7p",
+            "severity": "high",
+            "cwe": [
+              "CWE-400",
+              "CWE-674"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+            },
+            "range": ">=4.0.0 <5.0.10"
+          }
+        ],
+        "inheritedFrom": [],
+        "npmSuggestedFix": true
+      },
+      {
+        "package": "braces",
+        "severityBefore": "high",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/braces",
+            "before": "3.0.3",
+            "afterAtSamePath": null,
+            "baselineChains": [
+              [
+                "node_modules/tailwindcss",
+                "node_modules/chokidar",
+                "node_modules/braces"
+              ]
+            ]
+          }
+        ],
+        "advisories": [
+          {
+            "source": 1240992,
+            "name": "braces",
+            "dependency": "braces",
+            "title": "braces vulnerable to stack-exhaustion denial of service through deeply nested patterns",
+            "url": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+            "severity": "high",
+            "cwe": [
+              "CWE-674"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+            },
+            "range": "<=3.0.3"
+          }
+        ],
+        "inheritedFrom": [],
+        "npmSuggestedFix": {
+          "name": "tailwindcss",
+          "version": "4.3.3",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "chokidar",
+        "severityBefore": "high",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/chokidar",
+            "before": "3.6.0",
+            "afterAtSamePath": null,
+            "baselineChains": [
+              [
+                "node_modules/tailwindcss",
+                "node_modules/chokidar"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "braces"
+        ],
+        "npmSuggestedFix": {
+          "name": "tailwindcss",
+          "version": "4.3.3",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "fast-glob",
+        "severityBefore": "high",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/fast-glob",
+            "before": "3.3.3",
+            "afterAtSamePath": null,
+            "baselineChains": [
+              [
+                "node_modules/tailwindcss",
+                "node_modules/fast-glob"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "micromatch"
+        ],
+        "npmSuggestedFix": true
+      },
+      {
+        "package": "micromatch",
+        "severityBefore": "high",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/micromatch",
+            "before": "4.0.8",
+            "afterAtSamePath": null,
+            "baselineChains": [
+              [
+                "node_modules/tailwindcss",
+                "node_modules/micromatch"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "braces"
+        ],
+        "npmSuggestedFix": {
+          "name": "tailwindcss",
+          "version": "4.3.3",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "postcss-nested",
+        "severityBefore": "moderate",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/postcss-nested",
+            "before": "6.2.0",
+            "afterAtSamePath": null,
+            "baselineChains": [
+              [
+                "node_modules/tailwindcss",
+                "node_modules/postcss-nested"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "postcss-selector-parser"
+        ],
+        "npmSuggestedFix": true
+      },
+      {
+        "package": "postcss-selector-parser",
+        "severityBefore": "moderate",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/postcss-selector-parser",
+            "before": "6.1.4",
+            "afterAtSamePath": null,
+            "baselineChains": [
+              [
+                "node_modules/tailwindcss",
+                "node_modules/postcss-selector-parser"
+              ]
+            ]
+          }
+        ],
+        "advisories": [
+          {
+            "source": 1241232,
+            "name": "postcss-selector-parser",
+            "dependency": "postcss-selector-parser",
+            "title": "PostCSS: Quadratic complexity in flat selector parsing allows CPU exhaustion",
+            "url": "https://github.com/advisories/GHSA-rj75-hqrm-r3gf",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-400",
+              "CWE-407"
+            ],
+            "cvss": {
+              "score": 5.9,
+              "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:H"
+            },
+            "range": "<7.1.6"
+          }
+        ],
+        "inheritedFrom": [],
+        "npmSuggestedFix": {
+          "name": "tailwindcss",
+          "version": "4.3.3",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "source-map-js",
+        "severityBefore": "high",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/source-map-js",
+            "before": "1.2.1",
+            "afterAtSamePath": "1.2.2",
+            "baselineChains": [
+              [
+                "node_modules/postcss",
+                "node_modules/source-map-js"
+              ]
+            ]
+          }
+        ],
+        "advisories": [
+          {
+            "source": 1241209,
+            "name": "source-map-js",
+            "dependency": "source-map-js",
+            "title": "source-map-js allows event-loop denial of service through indexed source-map section offsets",
+            "url": "https://github.com/advisories/GHSA-68fv-2mgg-jv7q",
+            "severity": "high",
+            "cwe": [
+              "CWE-1284"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+            },
+            "range": ">=1.0.0 <1.2.2"
+          }
+        ],
+        "inheritedFrom": [],
+        "npmSuggestedFix": true
+      },
+      {
+        "package": "tailwindcss",
+        "severityBefore": "high",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/tailwindcss",
+            "before": "3.4.19",
+            "afterAtSamePath": null,
+            "baselineChains": [
+              [
+                "node_modules/tailwindcss"
+              ]
+            ]
+          }
+        ],
+        "advisories": [],
+        "inheritedFrom": [
+          "chokidar",
+          "fast-glob",
+          "micromatch",
+          "postcss-nested",
+          "postcss-selector-parser"
+        ],
+        "npmSuggestedFix": {
+          "name": "tailwindcss",
+          "version": "4.3.3",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "tinypool",
+        "severityBefore": "critical",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/tinypool",
+            "before": "1.1.1",
+            "afterAtSamePath": null,
+            "baselineChains": [
+              [
+                "node_modules/vitest",
+                "node_modules/tinypool"
+              ]
+            ]
+          }
+        ],
+        "advisories": [
+          {
+            "source": 1241260,
+            "name": "tinypool",
+            "dependency": "tinypool",
+            "title": "Tinypool: Prototype Pollution gadget in worker options leads to Remote Code Execution",
+            "url": "https://github.com/advisories/GHSA-5gmw-xhrv-c9v3",
+            "severity": "critical",
+            "cwe": [
+              "CWE-1321"
+            ],
+            "cvss": {
+              "score": 0,
+              "vectorString": null
+            },
+            "range": "<=2.1.0"
+          },
+          {
+            "source": 1241261,
+            "name": "tinypool",
+            "dependency": "tinypool",
+            "title": "Tinypool: Prototype Pollution Gadget to RCE in run() options",
+            "url": "https://github.com/advisories/GHSA-85c8-ppgw-ccpr",
+            "severity": "critical",
+            "cwe": [
+              "CWE-94",
+              "CWE-1321"
+            ],
+            "cvss": {
+              "score": 0,
+              "vectorString": null
+            },
+            "range": "<2.1.2"
+          }
+        ],
+        "inheritedFrom": [],
+        "npmSuggestedFix": {
+          "name": "vitest",
+          "version": "4.1.11",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "vitest",
+        "severityBefore": "critical",
+        "remainingSeverity": null,
+        "paths": [
+          {
+            "path": "node_modules/vitest",
+            "before": "3.2.7",
+            "afterAtSamePath": "4.1.11",
+            "baselineChains": [
+              [
+                "node_modules/vitest"
+              ]
+            ]
+          }
+        ],
+        "advisories": [
+          {
+            "source": 1193683,
+            "name": "vitest",
+            "dependency": "vitest",
+            "title": "Vitest: Path Traversal / Arbitrary File Read via @vitest/mocker Redirect Mock",
+            "url": "https://github.com/advisories/GHSA-82fw-gwwq-j7x9",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-22"
+            ],
+            "cvss": {
+              "score": 5.9,
+              "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:N/A:N"
+            },
+            "range": ">=2.1.0 <4.1.11"
+          }
+        ],
+        "inheritedFrom": [
+          "@vitest/mocker",
+          "tinypool"
+        ],
+        "npmSuggestedFix": {
+          "name": "vitest",
+          "version": "4.1.11",
+          "isSemVerMajor": true
+        }
+      }
+    ]
+  }
+}

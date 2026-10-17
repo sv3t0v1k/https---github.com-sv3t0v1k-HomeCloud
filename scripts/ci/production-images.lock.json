@@ -1,0 +1,7 @@
+{
+  "format": "homecloud-production-candidates-v1",
+  "platform": "linux/amd64",
+  "postgres": "docker.io/library/postgres:16.15-alpine@sha256:1a66d744c1b459e13b05a8fca341da84cb63383e99ce262210efee5a319d4551",
+  "ingress": "docker.io/library/nginx:1.30.6-alpine@sha256:959ae6b898852db82e5b29b929388e59914f42be0a8f4d44c89a4c1f53b49208",
+  "buildkit": "docker.io/moby/buildkit@sha256:98cc6a3fc46220d00f8224ae483f3274fc874e9be8d7dd1e2e2c5481209228b5"
+}

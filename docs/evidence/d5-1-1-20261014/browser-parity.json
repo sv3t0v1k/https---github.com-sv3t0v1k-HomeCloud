@@ -1,0 +1,54 @@
+{
+  "scope": "Synthetic DOM with actual built CSS and fonts; no API/DB/live containers",
+  "css": "index-BHWCFx1F.css",
+  "results": [
+    {
+      "engine": "chromium",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "computed_styles": "IDENTICAL",
+      "focused_form_controls": "IDENTICAL",
+      "sr_only": "1x1 clipped accessible",
+      "pixel_screenshot_sha256": "73993d3ff42f25305c4f2ec458123a537ae9861d2e2e9e0538b9ecced351e121",
+      "status": "PASS"
+    },
+    {
+      "engine": "chromium",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "computed_styles": "IDENTICAL",
+      "focused_form_controls": "IDENTICAL",
+      "sr_only": "1x1 clipped accessible",
+      "pixel_screenshot_sha256": "da8519ef26f2f5ec9709d516f60fed6d9fc1ccc2bbc28e717bd81d55fe640f8e",
+      "status": "PASS"
+    },
+    {
+      "engine": "webkit",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "computed_styles": "IDENTICAL",
+      "focused_form_controls": "IDENTICAL",
+      "sr_only": "1x1 clipped accessible",
+      "pixel_screenshot_sha256": "0a12c3fee5e6225d47fdee42d330b51bd5070b7ff4fd3104e7104524635a54d1",
+      "status": "PASS"
+    },
+    {
+      "engine": "webkit",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "computed_styles": "IDENTICAL",
+      "focused_form_controls": "IDENTICAL",
+      "sr_only": "1x1 clipped accessible",
+      "pixel_screenshot_sha256": "945fb2d65575294e645ee015fc0ff0f30e854eee26caaa3f7d23aa057a3ba2c6",
+      "status": "PASS"
+    }
+  ]
+}

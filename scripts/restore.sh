@@ -362,7 +362,7 @@ lines.on("line",line=>{
   try { fs.ftruncateSync(fd,entry.size); } finally { fs.closeSync(fd); }
 });
 lines.on("close",()=>{
-  const result=cp.spawnSync("npm",["run","migration:run"],{stdio:"inherit"});
+  const result=cp.spawnSync(process.execPath,["./node_modules/typeorm/cli.js","migration:run","-d","dist/data-source.js","--transaction","all"],{stdio:"inherit"});
   process.exit(result.status===null ? 1 : result.status);
 });' >/dev/null; then
 import json,sys,tarfile
@@ -1042,7 +1042,7 @@ recovery_storage_check || die "Storage/image identity changed before migration"
 RESTORE_MIGRATION_CONTAINER="homecloud-restore-migration-$RESTORE_TOKEN"
 docker compose run --rm --no-deps --pull never \
   --name "$RESTORE_MIGRATION_CONTAINER" --label "homecloud.restore.migration=$RESTORE_TOKEN" \
-  -T backend npm run migration:run
+  -T backend node ./node_modules/typeorm/cli.js migration:run -d dist/data-source.js --transaction all
 MIGRATION_RC=$?
 set -e
 if [ "$MIGRATION_RC" -ne 0 ]; then

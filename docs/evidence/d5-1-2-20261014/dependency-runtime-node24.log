@@ -1,0 +1,15 @@
+✔ Nest and direct imports use the same patched Multer (0.658667ms)
+✔ compiled production limit accepts N bytes and rejects N + 1 (19.503625ms)
+✔ inclusive parts limit rejects a third part (2.033583ms)
+✔ crafted multipart field names produce an error, then normal traffic succeeds (2.799ms)
+✔ aborted request cleans a custom storage write that completes after abort (0.946625ms)
+✔ Sharp native decoder preserves thumbnail behavior and rejects malformed bytes (8.48575ms)
+✔ proxy-addr rejects IPv4 spoofing through short mapped IPv6 CIDR (1.204958ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1043.781209

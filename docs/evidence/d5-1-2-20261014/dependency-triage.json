@@ -1,0 +1,738 @@
+{
+  "source_head": "79f8e4b72883b775d6fa2fac8f1209da26843f9f",
+  "counts_before": {
+    "info": 0,
+    "low": 0,
+    "moderate": 30,
+    "high": 0,
+    "critical": 0,
+    "total": 30
+  },
+  "counts_after": {
+    "info": 0,
+    "low": 0,
+    "moderate": 25,
+    "high": 0,
+    "critical": 0,
+    "total": 25
+  },
+  "production_after": {
+    "info": 0,
+    "low": 0,
+    "moderate": 4,
+    "high": 0,
+    "critical": 0,
+    "total": 4
+  },
+  "exception_approval": "PENDING; no audit exceptions/gate weakening applied",
+  "records": [
+    {
+      "package": "@istanbuljs/load-nyc-config",
+      "before_versions": [
+        "1.1.0"
+      ],
+      "before_nodes": [
+        "node_modules/@istanbuljs/load-nyc-config"
+      ],
+      "direct_advisories": [],
+      "inherited_via": [
+        "js-yaml"
+      ],
+      "group": "sprintf-js",
+      "remaining": true,
+      "after_nodes": [
+        "node_modules/@istanbuljs/load-nyc-config"
+      ],
+      "production_after": false,
+      "reachability": "Dev-only Jest→Istanbul→load-nyc-config1.1.0→js-yaml3.15.2→argparse1.0.10→sprintf1.0.3. js-yaml API не импортирует CLI; реальный YAML probe не загрузил argparse/sprintf. Application input path не найден; PR controlled repository config/code способен исполнять код и без этой advisory.",
+      "decision": "Предлагаемое временное исключение только GHSA-hp3w-g68c-fv3c для dev chain; patch отсутствует, current parent уже1.1.0. Без parser-major override/toolchain rewrite. ACCEPTANCE_PENDING.",
+      "deadline": "2026-11-13 или при появлении patch, что раньше",
+      "owner": "HomeCloud maintainer (предложенная роль; назначение/acceptance pending)"
+    },
+    {
+      "package": "@jest/core",
+      "before_versions": [
+        "30.5.1"
+      ],
+      "before_nodes": [
+        "node_modules/@jest/core"
+      ],
+      "direct_advisories": [],
+      "inherited_via": [
+        "@jest/reporters",
+        "@jest/transform",
+        "jest-config",
+        "jest-resolve-dependencies",
+        "jest-runner",
+        "jest-runtime",
+        "jest-snapshot"
+      ],
+      "group": "sprintf-js",
+      "remaining": true,
+      "after_nodes": [
+        "node_modules/@jest/core"
+      ],
+      "production_after": false,
+      "reachability": "Dev-only Jest→Istanbul→load-nyc-config1.1.0→js-yaml3.15.2→argparse1.0.10→sprintf1.0.3. js-yaml API не импортирует CLI; реальный YAML probe не загрузил argparse/sprintf. Application input path не найден; PR controlled repository config/code способен исполнять код и без этой advisory.",
+      "decision": "Предлагаемое временное исключение только GHSA-hp3w-g68c-fv3c для dev chain; patch отсутствует, current parent уже1.1.0. Без parser-major override/toolchain rewrite. ACCEPTANCE_PENDING.",
+      "deadline": "2026-11-13 или при появлении patch, что раньше",
+      "owner": "HomeCloud maintainer (предложенная роль; назначение/acceptance pending)"
+    },
+    {
+      "package": "@jest/expect",
+      "before_versions": [
+        "30.5.1"
+      ],
+      "before_nodes": [
+        "node_modules/@jest/expect"
+      ],
+      "direct_advisories": [],
+      "inherited_via": [
+        "jest-snapshot"
+      ],
+      "group": "sprintf-js",
+      "remaining": true,
+      "after_nodes": [
+        "node_modules/@jest/expect"
+      ],
+      "production_after": false,
+      "reachability": "Dev-only Jest→Istanbul→load-nyc-config1.1.0→js-yaml3.15.2→argparse1.0.10→sprintf1.0.3. js-yaml API не импортирует CLI; реальный YAML probe не загрузил argparse/sprintf. Application input path не найден; PR controlled repository config/code способен исполнять код и без этой advisory.",
+      "decision": "Предлагаемое временное исключение только GHSA-hp3w-g68c-fv3c для dev chain; patch отсутствует, current parent уже1.1.0. Без parser-major override/toolchain rewrite. ACCEPTANCE_PENDING.",
+      "deadline": "2026-11-13 или при появлении patch, что раньше",
+      "owner": "HomeCloud maintainer (предложенная роль; назначение/acceptance pending)"
+    },
+    {
+      "package": "@jest/globals",
+      "before_versions": [
+        "30.5.1"
+      ],
+      "before_nodes": [
+        "node_modules/@jest/globals"
+      ],
+      "direct_advisories": [],
+      "inherited_via": [
+        "@jest/expect"
+      ],
+      "group": "sprintf-js",
+      "remaining": true,
+      "after_nodes": [
+        "node_modules/@jest/globals"
+      ],
+      "production_after": false,
+      "reachability": "Dev-only Jest→Istanbul→load-nyc-config1.1.0→js-yaml3.15.2→argparse1.0.10→sprintf1.0.3. js-yaml API не импортирует CLI; реальный YAML probe не загрузил argparse/sprintf. Application input path не найден; PR controlled repository config/code способен исполнять код и без этой advisory.",
+      "decision": "Предлагаемое временное исключение только GHSA-hp3w-g68c-fv3c для dev chain; patch отсутствует, current parent уже1.1.0. Без parser-major override/toolchain rewrite. ACCEPTANCE_PENDING.",
+      "deadline": "2026-11-13 или при появлении patch, что раньше",
+      "owner": "HomeCloud maintainer (предложенная роль; назначение/acceptance pending)"
+    },
+    {
+      "package": "@jest/reporters",
+      "before_versions": [
+        "30.5.1"
+      ],
+      "before_nodes": [
+        "node_modules/@jest/reporters"
+      ],
+      "direct_advisories": [],
+      "inherited_via": [
+        "@jest/transform"
+      ],
+      "group": "sprintf-js",
+      "remaining": true,
+      "after_nodes": [
+        "node_modules/@jest/reporters"
+      ],
+      "production_after": false,
+      "reachability": "Dev-only Jest→Istanbul→load-nyc-config1.1.0→js-yaml3.15.2→argparse1.0.10→sprintf1.0.3. js-yaml API не импортирует CLI; реальный YAML probe не загрузил argparse/sprintf. Application input path не найден; PR controlled repository config/code способен исполнять код и без этой advisory.",
+      "decision": "Предлагаемое временное исключение только GHSA-hp3w-g68c-fv3c для dev chain; patch отсутствует, current parent уже1.1.0. Без parser-major override/toolchain rewrite. ACCEPTANCE_PENDING.",
+      "deadline": "2026-11-13 или при появлении patch, что раньше",
+      "owner": "HomeCloud maintainer (предложенная роль; назначение/acceptance pending)"
+    },
+    {
+      "package": "@jest/transform",
+      "before_versions": [
+        "30.5.1"
+      ],
+      "before_nodes": [
+        "node_modules/@jest/transform"
+      ],
+      "direct_advisories": [],
+      "inherited_via": [
+        "babel-plugin-istanbul"
+      ],
+      "group": "sprintf-js",
+      "remaining": true,
+      "after_nodes": [
+        "node_modules/@jest/transform"
+      ],
+      "production_after": false,
+      "reachability": "Dev-only Jest→Istanbul→load-nyc-config1.1.0→js-yaml3.15.2→argparse1.0.10→sprintf1.0.3. js-yaml API не импортирует CLI; реальный YAML probe не загрузил argparse/sprintf. Application input path не найден; PR controlled repository config/code способен исполнять код и без этой advisory.",
+      "decision": "Предлагаемое временное исключение только GHSA-hp3w-g68c-fv3c для dev chain; patch отсутствует, current parent уже1.1.0. Без parser-major override/toolchain rewrite. ACCEPTANCE_PENDING.",
+      "deadline": "2026-11-13 или при появлении patch, что раньше",
+      "owner": "HomeCloud maintainer (предложенная роль; назначение/acceptance pending)"
+    },
+    {
+      "package": "@nestjs/common",
+      "before_versions": [
+        "10.4.22"
+      ],
+      "before_nodes": [
+        "node_modules/@nestjs/common"
+      ],
+      "direct_advisories": [],
+      "inherited_via": [
+        "file-type"
+      ],
+      "group": "file-type",
+      "remaining": false,
+      "after_nodes": [],
+      "production_after": false,
+      "reachability": "Прямой detector: untrusted upload header <=4100 B, ASF payload 55 B достижим; Nest FileTypeValidator не используется приложением, но nested copy устранена.",
+      "decision": "Исправлено: direct и scoped Nest dependency21.3.2; реальный compiled runtime.",
+      "deadline": "2026-10-14",
+      "owner": "Исполнитель D5.1.2; независимый review отдельно"
+    },
+    {
+      "package": "@nestjs/core",
+      "before_versions": [
+        "10.4.22"
+      ],
+      "before_nodes": [
+        "node_modules/@nestjs/core"
+      ],
+      "direct_advisories": [
+        "https://github.com/advisories/GHSA-36xv-jgw5-4q75"
+      ],
+      "inherited_via": [
+        "@nestjs/platform-express",
+        "@nestjs/websockets"
+      ],
+      "group": "Nest SSE",
+      "remaining": true,
+      "after_nodes": [
+        "node_modules/@nestjs/core"
+      ],
+      "production_after": true,
+      "reachability": "В production source отсутствуют @Sse, SseStream и .sse() consumer. Уязвимый framework serializer installed; отсутствие текущего маршрута не исправляет пакет.",
+      "decision": "Предлагаемое временное исключение только GHSA-36xv-jgw5-4q75; runtime Nest11 migration отдельно, запрет нового SSE до remediation. ACCEPTANCE_PENDING.",
+      "deadline": "2026-11-13 или до добавления SSE/выпуска, что раньше",
+      "owner": "HomeCloud maintainer (предложенная роль; назначение/acceptance pending)"
+    },
+    {
+      "package": "@nestjs/platform-express",
+      "before_versions": [
+        "10.4.22"
+      ],
+      "before_nodes": [
+        "node_modules/@nestjs/platform-express"
+      ],
+      "direct_advisories": [],
+      "inherited_via": [
+        "@nestjs/core"
+      ],
+      "group": "Nest SSE",
+      "remaining": true,
+      "after_nodes": [
+        "node_modules/@nestjs/platform-express"
+      ],
+      "production_after": true,
+      "reachability": "В production source отсутствуют @Sse, SseStream и .sse() consumer. Уязвимый framework serializer installed; отсутствие текущего маршрута не исправляет пакет.",
+      "decision": "Предлагаемое временное исключение только GHSA-36xv-jgw5-4q75; runtime Nest11 migration отдельно, запрет нового SSE до remediation. ACCEPTANCE_PENDING.",
+      "deadline": "2026-11-13 или до добавления SSE/выпуска, что раньше",
+      "owner": "HomeCloud maintainer (предложенная роль; назначение/acceptance pending)"
+    },
+    {
+      "package": "@nestjs/platform-socket.io",
+      "before_versions": [
+        "10.4.22"
+      ],
+      "before_nodes": [
+        "node_modules/@nestjs/platform-socket.io"
+      ],
+      "direct_advisories": [],
+      "inherited_via": [
+        "@nestjs/websockets"
+      ],
+      "group": "Nest SSE",
+      "remaining": true,
+      "after_nodes": [
+        "node_modules/@nestjs/platform-socket.io"
+      ],
+      "production_after": true,
+      "reachability": "В production source отсутствуют @Sse, SseStream и .sse() consumer. Уязвимый framework serializer installed; отсутствие текущего маршрута не исправляет пакет.",
+      "decision": "Предлагаемое временное исключение только GHSA-36xv-jgw5-4q75; runtime Nest11 migration отдельно, запрет нового SSE до remediation. ACCEPTANCE_PENDING.",
+      "deadline": "2026-11-13 или до добавления SSE/выпуска, что раньше",
+      "owner": "HomeCloud maintainer (предложенная роль; назначение/acceptance pending)"
+    },
+    {
+      "package": "@nestjs/terminus",
+      "before_versions": [
+        "10.3.0"
+      ],
+      "before_nodes": [
+        "node_modules/@nestjs/terminus"
+      ],
+      "direct_advisories": [],
+      "inherited_via": [
+        "@nestjs/core",
+        "@nestjs/typeorm"
+      ],
+      "group": "uuid",
+      "remaining": false,
+      "after_nodes": [],
+      "production_after": false,
+      "reachability": "Nested uuid9 API consumed only as v4() by TypeORM adapter; vulnerable v3/v5/v6+buffer не найден. Из tree удалён, не исключён из audit.",
+      "decision": "Исправлено удалением uuid9: поддерживаемый Nest10 adapter11.0.3 + peer-compatible Terminus11.1.1.",
+      "deadline": "2026-10-14",
+      "owner": "Исполнитель D5.1.2; независимый review отдельно"
+    },
+    {
+      "package": "@nestjs/testing",
+      "before_versions": [
+        "10.4.22"
+      ],
+      "before_nodes": [
+        "node_modules/@nestjs/testing"
+      ],
+      "direct_advisories": [],
+      "inherited_via": [
+        "@nestjs/core",
+        "@nestjs/platform-express"
+      ],
+      "group": "Nest SSE",
+      "remaining": true,
+      "after_nodes": [
+        "node_modules/@nestjs/testing"
+      ],
+      "production_after": false,
+      "reachability": "В production source отсутствуют @Sse, SseStream и .sse() consumer. Уязвимый framework serializer installed; отсутствие текущего маршрута не исправляет пакет.",
+      "decision": "Предлагаемое временное исключение только GHSA-36xv-jgw5-4q75; runtime Nest11 migration отдельно, запрет нового SSE до remediation. ACCEPTANCE_PENDING.",
+      "deadline": "2026-11-13 или до добавления SSE/выпуска, что раньше",
+      "owner": "HomeCloud maintainer (предложенная роль; назначение/acceptance pending)"
+    },
+    {
+      "package": "@nestjs/typeorm",
+      "before_versions": [
+        "10.0.2"
+      ],
+      "before_nodes": [
+        "node_modules/@nestjs/typeorm"
+      ],
+      "direct_advisories": [],
+      "inherited_via": [
+        "@nestjs/core",
+        "uuid"
+      ],
+      "group": "uuid",
+      "remaining": false,
+      "after_nodes": [],
+      "production_after": false,
+      "reachability": "Nested uuid9 API consumed only as v4() by TypeORM adapter; vulnerable v3/v5/v6+buffer не найден. Из tree удалён, не исключён из audit.",
+      "decision": "Исправлено удалением uuid9: поддерживаемый Nest10 adapter11.0.3 + peer-compatible Terminus11.1.1.",
+      "deadline": "2026-10-14",
+      "owner": "Исполнитель D5.1.2; независимый review отдельно"
+    },
+    {
+      "package": "@nestjs/websockets",
+      "before_versions": [
+        "10.4.22"
+      ],
+      "before_nodes": [
+        "node_modules/@nestjs/websockets"
+      ],
+      "direct_advisories": [],
+      "inherited_via": [
+        "@nestjs/core",
+        "@nestjs/platform-socket.io"
+      ],
+      "group": "Nest SSE",
+      "remaining": true,
+      "after_nodes": [
+        "node_modules/@nestjs/websockets"
+      ],
+      "production_after": true,
+      "reachability": "В production source отсутствуют @Sse, SseStream и .sse() consumer. Уязвимый framework serializer installed; отсутствие текущего маршрута не исправляет пакет.",
+      "decision": "Предлагаемое временное исключение только GHSA-36xv-jgw5-4q75; runtime Nest11 migration отдельно, запрет нового SSE до remediation. ACCEPTANCE_PENDING.",
+      "deadline": "2026-11-13 или до добавления SSE/выпуска, что раньше",
+      "owner": "HomeCloud maintainer (предложенная роль; назначение/acceptance pending)"
+    },
+    {
+      "package": "argparse",
+      "before_versions": [
+        "1.0.10"
+      ],
+      "before_nodes": [
+        "node_modules/@istanbuljs/load-nyc-config/node_modules/argparse"
+      ],
+      "direct_advisories": [],
+      "inherited_via": [
+        "sprintf-js"
+      ],
+      "group": "sprintf-js",
+      "remaining": true,
+      "after_nodes": [
+        "node_modules/@istanbuljs/load-nyc-config/node_modules/argparse"
+      ],
+      "production_after": false,
+      "reachability": "Dev-only Jest→Istanbul→load-nyc-config1.1.0→js-yaml3.15.2→argparse1.0.10→sprintf1.0.3. js-yaml API не импортирует CLI; реальный YAML probe не загрузил argparse/sprintf. Application input path не найден; PR controlled repository config/code способен исполнять код и без этой advisory.",
+      "decision": "Предлагаемое временное исключение только GHSA-hp3w-g68c-fv3c для dev chain; patch отсутствует, current parent уже1.1.0. Без parser-major override/toolchain rewrite. ACCEPTANCE_PENDING.",
+      "deadline": "2026-11-13 или при появлении patch, что раньше",
+      "owner": "HomeCloud maintainer (предложенная роль; назначение/acceptance pending)"
+    },
+    {
+      "package": "babel-jest",
+      "before_versions": [
+        "30.5.1"
+      ],
+      "before_nodes": [
+        "node_modules/babel-jest"
+      ],
+      "direct_advisories": [],
+      "inherited_via": [
+        "@jest/transform",
+        "babel-plugin-istanbul"
+      ],
+      "group": "sprintf-js",
+      "remaining": true,
+      "after_nodes": [
+        "node_modules/babel-jest"
+      ],
+      "production_after": false,
+      "reachability": "Dev-only Jest→Istanbul→load-nyc-config1.1.0→js-yaml3.15.2→argparse1.0.10→sprintf1.0.3. js-yaml API не импортирует CLI; реальный YAML probe не загрузил argparse/sprintf. Application input path не найден; PR controlled repository config/code способен исполнять код и без этой advisory.",
+      "decision": "Предлагаемое временное исключение только GHSA-hp3w-g68c-fv3c для dev chain; patch отсутствует, current parent уже1.1.0. Без parser-major override/toolchain rewrite. ACCEPTANCE_PENDING.",
+      "deadline": "2026-11-13 или при появлении patch, что раньше",
+      "owner": "HomeCloud maintainer (предложенная роль; назначение/acceptance pending)"
+    },
+    {
+      "package": "babel-plugin-istanbul",
+      "before_versions": [
+        "8.0.0"
+      ],
+      "before_nodes": [
+        "node_modules/babel-plugin-istanbul"
+      ],
+      "direct_advisories": [],
+      "inherited_via": [
+        "@istanbuljs/load-nyc-config"
+      ],
+      "group": "sprintf-js",
+      "remaining": true,
+      "after_nodes": [
+        "node_modules/babel-plugin-istanbul"
+      ],
+      "production_after": false,
+      "reachability": "Dev-only Jest→Istanbul→load-nyc-config1.1.0→js-yaml3.15.2→argparse1.0.10→sprintf1.0.3. js-yaml API не импортирует CLI; реальный YAML probe не загрузил argparse/sprintf. Application input path не найден; PR controlled repository config/code способен исполнять код и без этой advisory.",
+      "decision": "Предлагаемое временное исключение только GHSA-hp3w-g68c-fv3c для dev chain; patch отсутствует, current parent уже1.1.0. Без parser-major override/toolchain rewrite. ACCEPTANCE_PENDING.",
+      "deadline": "2026-11-13 или при появлении patch, что раньше",
+      "owner": "HomeCloud maintainer (предложенная роль; назначение/acceptance pending)"
+    },
+    {
+      "package": "file-type",
+      "before_versions": [
+        "19.6.0",
+        "20.4.1"
+      ],
+      "before_nodes": [
+        "node_modules/@nestjs/common/node_modules/file-type",
+        "node_modules/file-type"
+      ],
+      "direct_advisories": [
+        "https://github.com/advisories/GHSA-5v7r-6r5c-r473",
+        "https://github.com/advisories/GHSA-j47w-4g3g-c36v"
+      ],
+      "inherited_via": [],
+      "group": "file-type",
+      "remaining": false,
+      "after_nodes": [],
+      "production_after": false,
+      "reachability": "Прямой detector: untrusted upload header <=4100 B, ASF payload 55 B достижим; Nest FileTypeValidator не используется приложением, но nested copy устранена.",
+      "decision": "Исправлено: direct и scoped Nest dependency21.3.2; реальный compiled runtime.",
+      "deadline": "2026-10-14",
+      "owner": "Исполнитель D5.1.2; независимый review отдельно"
+    },
+    {
+      "package": "jest",
+      "before_versions": [
+        "30.5.1"
+      ],
+      "before_nodes": [
+        "node_modules/jest"
+      ],
+      "direct_advisories": [],
+      "inherited_via": [
+        "@jest/core",
+        "jest-cli"
+      ],
+      "group": "sprintf-js",
+      "remaining": true,
+      "after_nodes": [
+        "node_modules/jest"
+      ],
+      "production_after": false,
+      "reachability": "Dev-only Jest→Istanbul→load-nyc-config1.1.0→js-yaml3.15.2→argparse1.0.10→sprintf1.0.3. js-yaml API не импортирует CLI; реальный YAML probe не загрузил argparse/sprintf. Application input path не найден; PR controlled repository config/code способен исполнять код и без этой advisory.",
+      "decision": "Предлагаемое временное исключение только GHSA-hp3w-g68c-fv3c для dev chain; patch отсутствует, current parent уже1.1.0. Без parser-major override/toolchain rewrite. ACCEPTANCE_PENDING.",
+      "deadline": "2026-11-13 или при появлении patch, что раньше",
+      "owner": "HomeCloud maintainer (предложенная роль; назначение/acceptance pending)"
+    },
+    {
+      "package": "jest-circus",
+      "before_versions": [
+        "30.5.1"
+      ],
+      "before_nodes": [
+        "node_modules/jest-circus"
+      ],
+      "direct_advisories": [],
+      "inherited_via": [
+        "@jest/expect",
+        "jest-runtime",
+        "jest-snapshot"
+      ],
+      "group": "sprintf-js",
+      "remaining": true,
+      "after_nodes": [
+        "node_modules/jest-circus"
+      ],
+      "production_after": false,
+      "reachability": "Dev-only Jest→Istanbul→load-nyc-config1.1.0→js-yaml3.15.2→argparse1.0.10→sprintf1.0.3. js-yaml API не импортирует CLI; реальный YAML probe не загрузил argparse/sprintf. Application input path не найден; PR controlled repository config/code способен исполнять код и без этой advisory.",
+      "decision": "Предлагаемое временное исключение только GHSA-hp3w-g68c-fv3c для dev chain; patch отсутствует, current parent уже1.1.0. Без parser-major override/toolchain rewrite. ACCEPTANCE_PENDING.",
+      "deadline": "2026-11-13 или при появлении patch, что раньше",
+      "owner": "HomeCloud maintainer (предложенная роль; назначение/acceptance pending)"
+    },
+    {
+      "package": "jest-cli",
+      "before_versions": [
+        "30.5.1"
+      ],
+      "before_nodes": [
+        "node_modules/jest-cli"
+      ],
+      "direct_advisories": [],
+      "inherited_via": [
+        "@jest/core",
+        "jest-config"
+      ],
+      "group": "sprintf-js",
+      "remaining": true,
+      "after_nodes": [
+        "node_modules/jest-cli"
+      ],
+      "production_after": false,
+      "reachability": "Dev-only Jest→Istanbul→load-nyc-config1.1.0→js-yaml3.15.2→argparse1.0.10→sprintf1.0.3. js-yaml API не импортирует CLI; реальный YAML probe не загрузил argparse/sprintf. Application input path не найден; PR controlled repository config/code способен исполнять код и без этой advisory.",
+      "decision": "Предлагаемое временное исключение только GHSA-hp3w-g68c-fv3c для dev chain; patch отсутствует, current parent уже1.1.0. Без parser-major override/toolchain rewrite. ACCEPTANCE_PENDING.",
+      "deadline": "2026-11-13 или при появлении patch, что раньше",
+      "owner": "HomeCloud maintainer (предложенная роль; назначение/acceptance pending)"
+    },
+    {
+      "package": "jest-config",
+      "before_versions": [
+        "30.5.1"
+      ],
+      "before_nodes": [
+        "node_modules/jest-config"
+      ],
+      "direct_advisories": [],
+      "inherited_via": [
+        "babel-jest",
+        "jest-circus",
+        "jest-runner"
+      ],
+      "group": "sprintf-js",
+      "remaining": true,
+      "after_nodes": [
+        "node_modules/jest-config"
+      ],
+      "production_after": false,
+      "reachability": "Dev-only Jest→Istanbul→load-nyc-config1.1.0→js-yaml3.15.2→argparse1.0.10→sprintf1.0.3. js-yaml API не импортирует CLI; реальный YAML probe не загрузил argparse/sprintf. Application input path не найден; PR controlled repository config/code способен исполнять код и без этой advisory.",
+      "decision": "Предлагаемое временное исключение только GHSA-hp3w-g68c-fv3c для dev chain; patch отсутствует, current parent уже1.1.0. Без parser-major override/toolchain rewrite. ACCEPTANCE_PENDING.",
+      "deadline": "2026-11-13 или при появлении patch, что раньше",
+      "owner": "HomeCloud maintainer (предложенная роль; назначение/acceptance pending)"
+    },
+    {
+      "package": "jest-resolve-dependencies",
+      "before_versions": [
+        "30.5.1"
+      ],
+      "before_nodes": [
+        "node_modules/jest-resolve-dependencies"
+      ],
+      "direct_advisories": [],
+      "inherited_via": [
+        "jest-snapshot"
+      ],
+      "group": "sprintf-js",
+      "remaining": true,
+      "after_nodes": [
+        "node_modules/jest-resolve-dependencies"
+      ],
+      "production_after": false,
+      "reachability": "Dev-only Jest→Istanbul→load-nyc-config1.1.0→js-yaml3.15.2→argparse1.0.10→sprintf1.0.3. js-yaml API не импортирует CLI; реальный YAML probe не загрузил argparse/sprintf. Application input path не найден; PR controlled repository config/code способен исполнять код и без этой advisory.",
+      "decision": "Предлагаемое временное исключение только GHSA-hp3w-g68c-fv3c для dev chain; patch отсутствует, current parent уже1.1.0. Без parser-major override/toolchain rewrite. ACCEPTANCE_PENDING.",
+      "deadline": "2026-11-13 или при появлении patch, что раньше",
+      "owner": "HomeCloud maintainer (предложенная роль; назначение/acceptance pending)"
+    },
+    {
+      "package": "jest-runner",
+      "before_versions": [
+        "30.5.1"
+      ],
+      "before_nodes": [
+        "node_modules/jest-runner"
+      ],
+      "direct_advisories": [],
+      "inherited_via": [
+        "@jest/transform",
+        "jest-runtime"
+      ],
+      "group": "sprintf-js",
+      "remaining": true,
+      "after_nodes": [
+        "node_modules/jest-runner"
+      ],
+      "production_after": false,
+      "reachability": "Dev-only Jest→Istanbul→load-nyc-config1.1.0→js-yaml3.15.2→argparse1.0.10→sprintf1.0.3. js-yaml API не импортирует CLI; реальный YAML probe не загрузил argparse/sprintf. Application input path не найден; PR controlled repository config/code способен исполнять код и без этой advisory.",
+      "decision": "Предлагаемое временное исключение только GHSA-hp3w-g68c-fv3c для dev chain; patch отсутствует, current parent уже1.1.0. Без parser-major override/toolchain rewrite. ACCEPTANCE_PENDING.",
+      "deadline": "2026-11-13 или при появлении patch, что раньше",
+      "owner": "HomeCloud maintainer (предложенная роль; назначение/acceptance pending)"
+    },
+    {
+      "package": "jest-runtime",
+      "before_versions": [
+        "30.5.1"
+      ],
+      "before_nodes": [
+        "node_modules/jest-runtime"
+      ],
+      "direct_advisories": [],
+      "inherited_via": [
+        "@jest/globals",
+        "@jest/transform",
+        "jest-snapshot"
+      ],
+      "group": "sprintf-js",
+      "remaining": true,
+      "after_nodes": [
+        "node_modules/jest-runtime"
+      ],
+      "production_after": false,
+      "reachability": "Dev-only Jest→Istanbul→load-nyc-config1.1.0→js-yaml3.15.2→argparse1.0.10→sprintf1.0.3. js-yaml API не импортирует CLI; реальный YAML probe не загрузил argparse/sprintf. Application input path не найден; PR controlled repository config/code способен исполнять код и без этой advisory.",
+      "decision": "Предлагаемое временное исключение только GHSA-hp3w-g68c-fv3c для dev chain; patch отсутствует, current parent уже1.1.0. Без parser-major override/toolchain rewrite. ACCEPTANCE_PENDING.",
+      "deadline": "2026-11-13 или при появлении patch, что раньше",
+      "owner": "HomeCloud maintainer (предложенная роль; назначение/acceptance pending)"
+    },
+    {
+      "package": "jest-snapshot",
+      "before_versions": [
+        "30.5.1"
+      ],
+      "before_nodes": [
+        "node_modules/jest-snapshot"
+      ],
+      "direct_advisories": [],
+      "inherited_via": [
+        "@jest/transform"
+      ],
+      "group": "sprintf-js",
+      "remaining": true,
+      "after_nodes": [
+        "node_modules/jest-snapshot"
+      ],
+      "production_after": false,
+      "reachability": "Dev-only Jest→Istanbul→load-nyc-config1.1.0→js-yaml3.15.2→argparse1.0.10→sprintf1.0.3. js-yaml API не импортирует CLI; реальный YAML probe не загрузил argparse/sprintf. Application input path не найден; PR controlled repository config/code способен исполнять код и без этой advisory.",
+      "decision": "Предлагаемое временное исключение только GHSA-hp3w-g68c-fv3c для dev chain; patch отсутствует, current parent уже1.1.0. Без parser-major override/toolchain rewrite. ACCEPTANCE_PENDING.",
+      "deadline": "2026-11-13 или при появлении patch, что раньше",
+      "owner": "HomeCloud maintainer (предложенная роль; назначение/acceptance pending)"
+    },
+    {
+      "package": "js-yaml",
+      "before_versions": [
+        "3.15.2"
+      ],
+      "before_nodes": [
+        "node_modules/@istanbuljs/load-nyc-config/node_modules/js-yaml"
+      ],
+      "direct_advisories": [],
+      "inherited_via": [
+        "argparse"
+      ],
+      "group": "sprintf-js",
+      "remaining": true,
+      "after_nodes": [
+        "node_modules/@istanbuljs/load-nyc-config/node_modules/js-yaml"
+      ],
+      "production_after": false,
+      "reachability": "Dev-only Jest→Istanbul→load-nyc-config1.1.0→js-yaml3.15.2→argparse1.0.10→sprintf1.0.3. js-yaml API не импортирует CLI; реальный YAML probe не загрузил argparse/sprintf. Application input path не найден; PR controlled repository config/code способен исполнять код и без этой advisory.",
+      "decision": "Предлагаемое временное исключение только GHSA-hp3w-g68c-fv3c для dev chain; patch отсутствует, current parent уже1.1.0. Без parser-major override/toolchain rewrite. ACCEPTANCE_PENDING.",
+      "deadline": "2026-11-13 или при появлении patch, что раньше",
+      "owner": "HomeCloud maintainer (предложенная роль; назначение/acceptance pending)"
+    },
+    {
+      "package": "sprintf-js",
+      "before_versions": [
+        "1.0.3"
+      ],
+      "before_nodes": [
+        "node_modules/sprintf-js"
+      ],
+      "direct_advisories": [
+        "https://github.com/advisories/GHSA-hp3w-g68c-fv3c"
+      ],
+      "inherited_via": [],
+      "group": "sprintf-js",
+      "remaining": true,
+      "after_nodes": [
+        "node_modules/sprintf-js"
+      ],
+      "production_after": false,
+      "reachability": "Dev-only Jest→Istanbul→load-nyc-config1.1.0→js-yaml3.15.2→argparse1.0.10→sprintf1.0.3. js-yaml API не импортирует CLI; реальный YAML probe не загрузил argparse/sprintf. Application input path не найден; PR controlled repository config/code способен исполнять код и без этой advisory.",
+      "decision": "Предлагаемое временное исключение только GHSA-hp3w-g68c-fv3c для dev chain; patch отсутствует, current parent уже1.1.0. Без parser-major override/toolchain rewrite. ACCEPTANCE_PENDING.",
+      "deadline": "2026-11-13 или при появлении patch, что раньше",
+      "owner": "HomeCloud maintainer (предложенная роль; назначение/acceptance pending)"
+    },
+    {
+      "package": "ts-jest",
+      "before_versions": [
+        "29.4.12"
+      ],
+      "before_nodes": [
+        "node_modules/ts-jest"
+      ],
+      "direct_advisories": [],
+      "inherited_via": [
+        "@jest/transform",
+        "babel-jest",
+        "jest"
+      ],
+      "group": "sprintf-js",
+      "remaining": true,
+      "after_nodes": [
+        "node_modules/ts-jest"
+      ],
+      "production_after": false,
+      "reachability": "Dev-only Jest→Istanbul→load-nyc-config1.1.0→js-yaml3.15.2→argparse1.0.10→sprintf1.0.3. js-yaml API не импортирует CLI; реальный YAML probe не загрузил argparse/sprintf. Application input path не найден; PR controlled repository config/code способен исполнять код и без этой advisory.",
+      "decision": "Предлагаемое временное исключение только GHSA-hp3w-g68c-fv3c для dev chain; patch отсутствует, current parent уже1.1.0. Без parser-major override/toolchain rewrite. ACCEPTANCE_PENDING.",
+      "deadline": "2026-11-13 или при появлении patch, что раньше",
+      "owner": "HomeCloud maintainer (предложенная роль; назначение/acceptance pending)"
+    },
+    {
+      "package": "uuid",
+      "before_versions": [
+        "9.0.1"
+      ],
+      "before_nodes": [
+        "node_modules/@nestjs/typeorm/node_modules/uuid"
+      ],
+      "direct_advisories": [
+        "https://github.com/advisories/GHSA-w5hq-g745-h8pq"
+      ],
+      "inherited_via": [],
+      "group": "uuid",
+      "remaining": false,
+      "after_nodes": [],
+      "production_after": false,
+      "reachability": "Nested uuid9 API consumed only as v4() by TypeORM adapter; vulnerable v3/v5/v6+buffer не найден. Из tree удалён, не исключён из audit.",
+      "decision": "Исправлено удалением uuid9: поддерживаемый Nest10 adapter11.0.3 + peer-compatible Terminus11.1.1.",
+      "deadline": "2026-10-14",
+      "owner": "Исполнитель D5.1.2; независимый review отдельно"
+    }
+  ]
+}

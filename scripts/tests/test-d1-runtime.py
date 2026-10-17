@@ -245,7 +245,7 @@ class Fixture:
             time.sleep(1)
         else: raise FixtureError('fixture PostgreSQL readiness timeout')
         self.compose(['exec','-T','backend','sh','-c','mkdir -p /storage/.tmp /storage/fixture'.replace('/storage',self.target)])
-        self.compose(['run','--rm','--no-deps','-T','backend','npm','run','migration:run'])
+        self.compose(['run','--rm','--no-deps','-T','backend','node','./node_modules/typeorm/cli.js','migration:run','-d','dist/data-source.js','--transaction','all'])
         tables=self.sql("SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'")
         require(tables=='13','actual current migrations did not produce 13 tables: '+tables)
         self.record['table_count']=13

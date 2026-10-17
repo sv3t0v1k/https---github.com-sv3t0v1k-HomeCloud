@@ -1,0 +1,80 @@
+# Третий override: base + production + project-test. Только Linux mini-PC test.
+# Системный SSD/LVM разрешает лишь explicit identity_mode=system-root-lvm в inventory.
+# Все host data/config paths задаются внутри canonical project_root.
+services:
+  db:
+    mem_limit: 512m
+    volumes: !override
+      - type: bind
+        source: ${SSD_DB_DIR:?Укажите project data/postgres на SSD}
+        target: /var/lib/postgresql/data
+        bind: {create_host_path: false}
+      - type: bind
+        source: ./deploy/linux/startup-gate.sh
+        target: /run/homecloud/startup-gate.sh
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ./.runtime/startup-db.gate
+        target: /run/homecloud/startup.gate
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: /proc/1/mountinfo
+        target: /run/homecloud/host-mountinfo
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: /dev
+        target: /run/homecloud/dev
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${SSD_DB_DIR}/../.homecloud-db
+        target: /run/homecloud/volume-marker
+        read_only: true
+        bind: {create_host_path: false}
+  backend:
+    mem_limit: 1g
+    environment:
+      NODE_OPTIONS: --max-old-space-size=512
+      # Малые initial tests: 256 MiB/file, 2 GiB total. Один upload за раз.
+      MAX_FILE_SIZE: "268435456"
+      MAX_TOTAL_SIZE: "2147483648"
+    volumes: !override
+      - type: bind
+        source: ${HDD_STORAGE_DIR:?Укажите project HDD bind storage}
+        target: /storage
+        bind: {create_host_path: false}
+      - type: bind
+        source: ./deploy/linux/startup-gate.sh
+        target: /run/homecloud/startup-gate.sh
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ./.runtime/startup-backend.gate
+        target: /run/homecloud/startup.gate
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: /proc/1/mountinfo
+        target: /run/homecloud/host-mountinfo
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: /dev
+        target: /run/homecloud/dev
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${HDD_STORAGE_DIR}/../.homecloud-backend
+        target: /run/homecloud/volume-marker
+        read_only: true
+        bind: {create_host_path: false}
+  frontend:
+    mem_limit: 128m
+  ingress:
+    mem_limit: 128m
+    # Production HTTP redirect ведёт на 443 другого приложения. Test только HTTPS.
+    ports: !override
+      - "${PUBLIC_BIND_IP:?Укажите адрес mini-PC}:${PUBLIC_HTTPS_PORT:?Укажите свободный HTTPS port HomeCloud}:443"

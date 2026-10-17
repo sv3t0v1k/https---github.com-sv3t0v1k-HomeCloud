@@ -1,0 +1,29 @@
+{
+  "manifest_sha256": "1a66d744c1b459e13b05a8fca341da84cb63383e99ce262210efee5a319d4551",
+  "config_digest": "sha256:81bd698b4594e751a3269e4dcd3e03a4a0ec0daf7b72e7aa1abd43cce9887542",
+  "architecture": "amd64",
+  "os": "linux",
+  "env": [
+    "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "GOSU_VERSION=1.19",
+    "LANG=en_US.utf8",
+    "PG_MAJOR=16",
+    "PG_VERSION=16.15",
+    "PG_SHA256=c1575341fa7bd40f5274ea465b34390f4dc64cdd0770af327005caaeb9f6b7ed",
+    "DOCKER_PG_LLVM_DEPS=llvm21-dev \t\tclang21",
+    "PGDATA=/var/lib/postgresql/data"
+  ],
+  "gosu_final_sha256": "52c8749d0142edd234e9d6bd5237dff2d81e71f43537e2f4f66f75dd4b243dd0",
+  "size": 1769900,
+  "layer_events": [
+    {
+      "layer": "sha256:210b280f9556440a6475a3d20cb52baac3ed21a482dbc5889005d9da5ec612f4",
+      "path": "usr/local/bin/gosu",
+      "size": 1769900,
+      "mode": "0o755",
+      "sha256": "52c8749d0142edd234e9d6bd5237dff2d81e71f43537e2f4f66f75dd4b243dd0"
+    }
+  ],
+  "all_layer_hashes_verified": true,
+  "extraction": "tarfile inspect exact regular member only; no container execution; local output chmod 0644"
+}

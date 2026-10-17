@@ -1,0 +1,2188 @@
+
+> homecloud-backend@1.0.0 test
+> jest --runInBand --json --outputFile=../docs/evidence/d5-1-2-20261014/backend-local-tests.json
+
+FAIL src/uploads/upload-rate-limit.spec.ts (18.147 s)
+  ● authenticated upload rate policy (HTTP) › accepts 5120 synthetic chunks at 20 requests/s across concurrent uploads without the ordinary IP cap
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "status": 200,
+    +   "status": 500,
+      }
+
+      161 |           status: result.status,
+      162 |           body: result.body,
+    > 163 |         }).toMatchObject({ status: 200 });
+          |            ^
+      164 |     }
+      165 |     expect(service.uploadChunk).toHaveBeenCalledTimes(5120);
+      166 |     expect(fs.readdirSync(ingress)).toEqual([]);
+
+      at Object.<anonymous> (src/uploads/upload-rate-limit.spec.ts:163:12)
+
+  ● authenticated upload rate policy (HTTP) › keeps the ordinary global policy at 100 requests per 60 seconds while uploads have a separate budget
+
+    expected 200 "OK", got 500 "Internal Server Error"
+
+      183 |       await request(app.getHttpServer()).get("/api/v1/files").expect(404);
+      184 |     expectRetryAfter(await request(app.getHttpServer()).get("/api/v1/files"));
+    > 185 |     await chunk().expect(200);
+          |                   ^
+      186 |     await request(app.getHttpServer())
+      187 |       .delete(`/api/v1/uploads/session/${FIRST}`)
+      188 |       .set("Authorization", `Bearer ${token()}`)
+
+      at Object.<anonymous> (src/uploads/upload-rate-limit.spec.ts:185:19)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at node_modules/supertest/lib/test.js:156:7
+      at Test.fn [as callback] (node_modules/superagent/src/node/index.js:904:3)
+      at callback (node_modules/superagent/src/node/index.js:1183:18)
+      at IncomingMessage.fn (node_modules/superagent/src/node/parsers/json.js:19:7)
+
+  ● authenticated upload rate policy (HTTP) › bounds one user's burst across session IDs and refreshed JWTs and allows a different user
+
+    expected 200 "OK", got 500 "Internal Server Error"
+
+      192 |   it("bounds one user's burst across session IDs and refreshed JWTs and allows a different user", async () => {
+      193 |     for (let index = 0; index < UPLOAD_RATE_POLICY.chunk.burst; index++)
+    > 194 |       await chunk(index % 2 ? SECOND : FIRST).expect(200);
+          |                                               ^
+      195 |     const rotated = token(1, { nonce: "refreshed-token" });
+      196 |     const blocked = await request(app.getHttpServer())
+      197 |       .post(`/api/v1/uploads/session/${SECOND}/chunk/?retry=1`)
+
+      at Object.<anonymous> (src/uploads/upload-rate-limit.spec.ts:194:47)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at node_modules/supertest/lib/test.js:156:7
+      at Test.fn [as callback] (node_modules/superagent/src/node/index.js:904:3)
+      at callback (node_modules/superagent/src/node/index.js:1183:18)
+      at IncomingMessage.fn (node_modules/superagent/src/node/parsers/json.js:19:7)
+
+  ● authenticated upload rate policy (HTTP) › keeps upload control routes, unknown suffixes and unsupported methods in the ordinary global budget
+
+    expected 200 "OK", got 500 "Internal Server Error"
+
+      274 |     }
+      275 |     expectRetryAfter(await controls[0]());
+    > 276 |     await chunk().expect(200);
+          |                   ^
+      277 |   });
+      278 |
+      279 |   it("holds a shared per-user concurrency cap across sessions and releases it on service settlement", async () => {
+
+      at Object.<anonymous> (src/uploads/upload-rate-limit.spec.ts:276:19)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at node_modules/supertest/lib/test.js:156:7
+      at Test.fn [as callback] (node_modules/superagent/src/node/index.js:904:3)
+      at callback (node_modules/superagent/src/node/index.js:1183:18)
+      at IncomingMessage.fn (node_modules/superagent/src/node/parsers/json.js:19:7)
+
+  ● authenticated upload rate policy (HTTP) › holds a shared per-user concurrency cap across sessions and releases it on service settlement
+
+    Timed out waiting for upload lifecycle state
+
+      539 |   while (!predicate()) {
+      540 |     if (Date.now() > deadline)
+    > 541 |       throw new Error("Timed out waiting for upload lifecycle state");
+          |             ^
+      542 |     await new Promise((resolve) => setTimeout(resolve, 10));
+      543 |   }
+      544 | }
+
+      at waitUntil (src/uploads/upload-rate-limit.spec.ts:541:13)
+      at Object.<anonymous> (src/uploads/upload-rate-limit.spec.ts:289:5)
+
+  ● authenticated upload rate policy (HTTP) › releases concurrency and disk ingress after malformed multipart and service errors
+
+    expected 400 "Bad Request", got 500 "Internal Server Error"
+
+      316 |         .field("chunkIndex", "not-an-integer")
+      317 |         .attach("chunk", Buffer.from("x"), "tiny.bin")
+    > 318 |         .expect(400);
+          |          ^
+      319 |     }
+      320 |     service.uploadChunk.mockRejectedValueOnce(
+      321 |       new BadRequestException("synthetic service failure"),
+
+      at Object.<anonymous> (src/uploads/upload-rate-limit.spec.ts:318:10)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at node_modules/supertest/lib/test.js:156:7
+      at Test.fn [as callback] (node_modules/superagent/src/node/index.js:904:3)
+      at callback (node_modules/superagent/src/node/index.js:1183:18)
+      at IncomingMessage.fn (node_modules/superagent/src/node/parsers/json.js:19:7)
+
+  ● authenticated upload rate policy (HTTP) › rejects excessive text fields, oversized chunkIndex and truncated multipart while releasing ingress and leases
+
+    expected 400 "Bad Request", got 500 "Internal Server Error"
+
+      333 |       .field("extra", "x")
+      334 |       .attach("chunk", Buffer.from("x"), "tiny.bin")
+    > 335 |       .expect(400);
+          |        ^
+      336 |     expect(limiter.counts().active).toBe(0);
+      337 |     await waitUntil(
+      338 |       () =>
+
+      at Object.<anonymous> (src/uploads/upload-rate-limit.spec.ts:335:8)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at node_modules/supertest/lib/test.js:156:7
+      at Test.fn [as callback] (node_modules/superagent/src/node/index.js:904:3)
+      at callback (node_modules/superagent/src/node/index.js:1183:18)
+      at IncomingMessage.fn (node_modules/superagent/src/node/parsers/json.js:19:7)
+
+  ● authenticated upload rate policy (HTTP) › still applies the shared post-JWT upload budget to malformed session IDs before parsing files
+
+    expected 200 "OK", got 500 "Internal Server Error"
+
+      365 |   it("still applies the shared post-JWT upload budget to malformed session IDs before parsing files", async () => {
+      366 |     for (let index = 0; index < UPLOAD_RATE_POLICY.chunk.burst; index++)
+    > 367 |       await chunk().expect(200);
+          |                     ^
+      368 |     const before = ingressWrites.mock.calls.length;
+      369 |     expectRetryAfter(await chunk("not-a-uuid"));
+      370 |     expect(ingressWrites).toHaveBeenCalledTimes(before);
+
+      at Object.<anonymous> (src/uploads/upload-rate-limit.spec.ts:367:21)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at node_modules/supertest/lib/test.js:156:7
+      at Test.fn [as callback] (node_modules/superagent/src/node/index.js:904:3)
+      at callback (node_modules/superagent/src/node/index.js:1183:18)
+      at IncomingMessage.fn (node_modules/superagent/src/node/parsers/json.js:19:7)
+
+  ● authenticated upload rate policy (HTTP) › rejects an IP admission burst before another JWT verification
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: 500
+    Received array: [400, 429]
+
+      381 |         .post(`/api/v1/uploads/session/${FIRST}/chunk`)
+      382 |         .set("Authorization", `Bearer ${token()}`);
+    > 383 |       expect([400, 429]).toContain(result.status);
+          |                          ^
+      384 |     }
+      385 |     const before = verify.mock.calls.length;
+      386 |     expect(before).toBeGreaterThan(0);
+
+      at Object.<anonymous> (src/uploads/upload-rate-limit.spec.ts:383:26)
+
+  ● authenticated upload rate policy (HTTP) › caps all users' processing together and recovers capacity after settlement
+
+    Timed out waiting for upload lifecycle state
+
+      539 |   while (!predicate()) {
+      540 |     if (Date.now() > deadline)
+    > 541 |       throw new Error("Timed out waiting for upload lifecycle state");
+          |             ^
+      542 |     await new Promise((resolve) => setTimeout(resolve, 10));
+      543 |   }
+      544 | }
+
+      at waitUntil (src/uploads/upload-rate-limit.spec.ts:541:13)
+      at Object.<anonymous> (src/uploads/upload-rate-limit.spec.ts:435:5)
+
+  ● authenticated upload rate policy (HTTP) › keeps a disconnected processing handler's slot until its service promise settles
+
+    Timed out waiting for upload lifecycle state
+
+      539 |   while (!predicate()) {
+      540 |     if (Date.now() > deadline)
+    > 541 |       throw new Error("Timed out waiting for upload lifecycle state");
+          |             ^
+      542 |     await new Promise((resolve) => setTimeout(resolve, 10));
+      543 |   }
+      544 | }
+
+      at waitUntil (src/uploads/upload-rate-limit.spec.ts:541:13)
+      at Object.<anonymous> (src/uploads/upload-rate-limit.spec.ts:468:5)
+
+  ● authenticated upload rate policy (HTTP) › protects abort against abuse using its own finite budget
+
+    expected 200 "OK", got 500 "Internal Server Error"
+
+      499 |         .set("Authorization", `Bearer ${token()}`),
+      500 |     );
+    > 501 |     await chunk().expect(200);
+          |                   ^
+      502 |     clock += 2000;
+      503 |     await request(app.getHttpServer())
+      504 |       .delete(`/api/v1/uploads/session/${FIRST}`)
+
+      at Object.<anonymous> (src/uploads/upload-rate-limit.spec.ts:501:19)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at node_modules/supertest/lib/test.js:156:7
+      at Test.fn [as callback] (node_modules/superagent/src/node/index.js:904:3)
+      at callback (node_modules/superagent/src/node/index.js:1183:18)
+      at IncomingMessage.fn (node_modules/superagent/src/node/parsers/json.js:19:7)
+
+  ● authenticated upload rate policy (HTTP) › releases the ingress lease and partial disk file when a slow multipart client disconnects
+
+    Timed out waiting for upload lifecycle state
+
+      539 |   while (!predicate()) {
+      540 |     if (Date.now() > deadline)
+    > 541 |       throw new Error("Timed out waiting for upload lifecycle state");
+          |             ^
+      542 |     await new Promise((resolve) => setTimeout(resolve, 10));
+      543 |   }
+      544 | }
+
+      at waitUntil (src/uploads/upload-rate-limit.spec.ts:541:13)
+      at Object.<anonymous> (src/uploads/upload-rate-limit.spec.ts:527:5)
+
+FAIL src/uploads/ingress-file-cleanup.interceptor.spec.ts
+  ● IngressFileCleanupInterceptor › cleans after success and preserves the response
+
+    Upload workspace root unavailable
+
+      186 |     } catch (error) {
+      187 |       this.failed = true;
+    > 188 |       throw new Error("Upload workspace root unavailable", { cause: error });
+          |             ^
+      189 |     }
+      190 |   }
+      191 | }
+
+      at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:188:13)
+      at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+      at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+      at IngressFileCleanupInterceptor.intercept (src/uploads/ingress-file-cleanup.interceptor.ts:69:35)
+      at Object.<anonymous> (src/uploads/ingress-file-cleanup.interceptor.spec.ts:58:9)
+
+    Cause:
+        Secure upload filesystem requires Linux
+
+          19 | function native(): NativeBoundary {
+          20 |   if (process.platform !== "linux")
+        > 21 |     throw new Error("Secure upload filesystem requires Linux");
+             |           ^
+          22 |   // App-owned build artifact; no search in storage, env or working directory.
+          23 |   return (binding ??= loadNative(
+          24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+          at native (src/uploads/secure-filesystem.ts:21:11)
+          at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+          at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:166:25)
+          at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+          at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+          at IngressFileCleanupInterceptor.intercept (src/uploads/ingress-file-cleanup.interceptor.ts:69:35)
+          at Object.<anonymous> (src/uploads/ingress-file-cleanup.interceptor.spec.ts:58:9)
+
+  ● IngressFileCleanupInterceptor › cleans after downstream DTO error without masking it
+
+    Upload workspace root unavailable
+
+      186 |     } catch (error) {
+      187 |       this.failed = true;
+    > 188 |       throw new Error("Upload workspace root unavailable", { cause: error });
+          |             ^
+      189 |     }
+      190 |   }
+      191 | }
+
+      at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:188:13)
+      at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+      at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+      at IngressFileCleanupInterceptor.intercept (src/uploads/ingress-file-cleanup.interceptor.ts:69:35)
+      at Object.<anonymous> (src/uploads/ingress-file-cleanup.interceptor.spec.ts:71:9)
+
+    Cause:
+        Secure upload filesystem requires Linux
+
+          19 | function native(): NativeBoundary {
+          20 |   if (process.platform !== "linux")
+        > 21 |     throw new Error("Secure upload filesystem requires Linux");
+             |           ^
+          22 |   // App-owned build artifact; no search in storage, env or working directory.
+          23 |   return (binding ??= loadNative(
+          24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+          at native (src/uploads/secure-filesystem.ts:21:11)
+          at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+          at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:166:25)
+          at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+          at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+          at IngressFileCleanupInterceptor.intercept (src/uploads/ingress-file-cleanup.interceptor.ts:69:35)
+          at Object.<anonymous> (src/uploads/ingress-file-cleanup.interceptor.spec.ts:71:9)
+
+  ● IngressFileCleanupInterceptor › never deletes a path outside ingress
+
+    Upload workspace root unavailable
+
+      186 |     } catch (error) {
+      187 |       this.failed = true;
+    > 188 |       throw new Error("Upload workspace root unavailable", { cause: error });
+          |             ^
+      189 |     }
+      190 |   }
+      191 | }
+
+      at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:188:13)
+      at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+      at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+      at IngressFileCleanupInterceptor.intercept (src/uploads/ingress-file-cleanup.interceptor.ts:69:35)
+      at Object.<anonymous> (src/uploads/ingress-file-cleanup.interceptor.spec.ts:84:7)
+
+    Cause:
+        Secure upload filesystem requires Linux
+
+          19 | function native(): NativeBoundary {
+          20 |   if (process.platform !== "linux")
+        > 21 |     throw new Error("Secure upload filesystem requires Linux");
+             |           ^
+          22 |   // App-owned build artifact; no search in storage, env or working directory.
+          23 |   return (binding ??= loadNative(
+          24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+          at native (src/uploads/secure-filesystem.ts:21:11)
+          at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+          at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:166:25)
+          at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+          at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+          at IngressFileCleanupInterceptor.intercept (src/uploads/ingress-file-cleanup.interceptor.ts:69:35)
+          at Object.<anonymous> (src/uploads/ingress-file-cleanup.interceptor.spec.ts:84:7)
+
+  ● IngressFileCleanupInterceptor › cleans a request-owned file when the socket aborts before Multer completes
+
+    Upload workspace root unavailable
+
+      186 |     } catch (error) {
+      187 |       this.failed = true;
+    > 188 |       throw new Error("Upload workspace root unavailable", { cause: error });
+          |             ^
+      189 |     }
+      190 |   }
+      191 | }
+
+      at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:188:13)
+      at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+      at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+      at IngressFileCleanupInterceptor.intercept (src/uploads/ingress-file-cleanup.interceptor.ts:69:35)
+      at Object.<anonymous> (src/uploads/ingress-file-cleanup.interceptor.spec.ts:99:5)
+
+    Cause:
+        Secure upload filesystem requires Linux
+
+          19 | function native(): NativeBoundary {
+          20 |   if (process.platform !== "linux")
+        > 21 |     throw new Error("Secure upload filesystem requires Linux");
+             |           ^
+          22 |   // App-owned build artifact; no search in storage, env or working directory.
+          23 |   return (binding ??= loadNative(
+          24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+          at native (src/uploads/secure-filesystem.ts:21:11)
+          at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+          at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:166:25)
+          at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+          at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+          at IngressFileCleanupInterceptor.intercept (src/uploads/ingress-file-cleanup.interceptor.ts:69:35)
+          at Object.<anonymous> (src/uploads/ingress-file-cleanup.interceptor.spec.ts:99:5)
+
+FAIL src/uploads/upload-workspace.spec.ts
+  ● UploadWorkspaceResolver legacy binding › derives only the operator root and preserves exact session/chunk bytes
+
+    Upload workspace root unavailable
+
+      186 |     } catch (error) {
+      187 |       this.failed = true;
+    > 188 |       throw new Error("Upload workspace root unavailable", { cause: error });
+          |             ^
+      189 |     }
+      190 |   }
+      191 | }
+
+      at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:188:13)
+      at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+      at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+      at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:48:21)
+
+    Cause:
+        Secure upload filesystem requires Linux
+
+          19 | function native(): NativeBoundary {
+          20 |   if (process.platform !== "linux")
+        > 21 |     throw new Error("Secure upload filesystem requires Linux");
+             |           ^
+          22 |   // App-owned build artifact; no search in storage, env or working directory.
+          23 |   return (binding ??= loadNative(
+          24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+          at native (src/uploads/secure-filesystem.ts:21:11)
+          at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+          at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:166:25)
+          at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+          at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+          at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:48:21)
+
+  ● UploadWorkspaceResolver legacy binding › refuses workspace binding and retained path bridge mismatches
+
+    expect(received).toThrow(expected)
+
+    Expected substring: "session binding"
+    Received message:   "Upload workspace root unavailable"
+
+          186 |     } catch (error) {
+          187 |       this.failed = true;
+        > 188 |       throw new Error("Upload workspace root unavailable", { cause: error });
+              |             ^
+          189 |     }
+          190 |   }
+          191 | }
+
+      at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:188:13)
+      at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+      at UploadWorkspaceResolver.resolve (src/uploads/upload-workspace.ts:87:10)
+      at src/uploads/upload-workspace.spec.ts:75:16
+      at Object.<anonymous> (node_modules/expect/build/index.js:1824:9)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:2235:93)
+      at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:76:7)
+      at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:76:7)
+
+  ● UploadWorkspaceResolver legacy binding › permits missing terminal session directory without creating it
+
+    Upload workspace root unavailable
+
+      186 |     } catch (error) {
+      187 |       this.failed = true;
+    > 188 |       throw new Error("Upload workspace root unavailable", { cause: error });
+          |             ^
+      189 |     }
+      190 |   }
+      191 | }
+
+      at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:188:13)
+      at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+      at UploadWorkspaceResolver.resolve (src/uploads/upload-workspace.ts:87:10)
+      at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:89:21)
+
+    Cause:
+        Secure upload filesystem requires Linux
+
+          19 | function native(): NativeBoundary {
+          20 |   if (process.platform !== "linux")
+        > 21 |     throw new Error("Secure upload filesystem requires Linux");
+             |           ^
+          22 |   // App-owned build artifact; no search in storage, env or working directory.
+          23 |   return (binding ??= loadNative(
+          24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+          at native (src/uploads/secure-filesystem.ts:21:11)
+          at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+          at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:166:25)
+          at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+          at UploadWorkspaceResolver.resolve (src/uploads/upload-workspace.ts:87:10)
+          at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:89:21)
+
+  ● UploadWorkspaceResolver legacy binding › fails closed after workspace disappearance even if it returns
+
+    Upload workspace root unavailable
+
+      186 |     } catch (error) {
+      187 |       this.failed = true;
+    > 188 |       throw new Error("Upload workspace root unavailable", { cause: error });
+          |             ^
+      189 |     }
+      190 |   }
+      191 | }
+
+      at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:188:13)
+      at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+      at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+      at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:100:14)
+
+    Cause:
+        Secure upload filesystem requires Linux
+
+          19 | function native(): NativeBoundary {
+          20 |   if (process.platform !== "linux")
+        > 21 |     throw new Error("Secure upload filesystem requires Linux");
+             |           ^
+          22 |   // App-owned build artifact; no search in storage, env or working directory.
+          23 |   return (binding ??= loadNative(
+          24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+          at native (src/uploads/secure-filesystem.ts:21:11)
+          at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+          at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:166:25)
+          at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+          at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+          at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:100:14)
+
+  ● UploadWorkspaceResolver legacy binding › detects same-FS workspace replacement and never repins
+
+    Upload workspace root unavailable
+
+      186 |     } catch (error) {
+      187 |       this.failed = true;
+    > 188 |       throw new Error("Upload workspace root unavailable", { cause: error });
+          |             ^
+      189 |     }
+      190 |   }
+      191 | }
+
+      at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:188:13)
+      at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+      at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+      at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:109:14)
+
+    Cause:
+        Secure upload filesystem requires Linux
+
+          19 | function native(): NativeBoundary {
+          20 |   if (process.platform !== "linux")
+        > 21 |     throw new Error("Secure upload filesystem requires Linux");
+             |           ^
+          22 |   // App-owned build artifact; no search in storage, env or working directory.
+          23 |   return (binding ??= loadNative(
+          24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+          at native (src/uploads/secure-filesystem.ts:21:11)
+          at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+          at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:166:25)
+          at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+          at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+          at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:109:14)
+
+  ● UploadWorkspaceResolver legacy binding › refuses symbolic workspace and session/ingress directories
+
+    Upload workspace root unavailable
+
+      186 |     } catch (error) {
+      187 |       this.failed = true;
+    > 188 |       throw new Error("Upload workspace root unavailable", { cause: error });
+          |             ^
+      189 |     }
+      190 |   }
+      191 | }
+
+      at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:188:13)
+      at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+      at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+      at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:119:14)
+
+    Cause:
+        Secure upload filesystem requires Linux
+
+          19 | function native(): NativeBoundary {
+          20 |   if (process.platform !== "linux")
+        > 21 |     throw new Error("Secure upload filesystem requires Linux");
+             |           ^
+          22 |   // App-owned build artifact; no search in storage, env or working directory.
+          23 |   return (binding ??= loadNative(
+          24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+          at native (src/uploads/secure-filesystem.ts:21:11)
+          at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+          at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:166:25)
+          at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+          at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+          at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:119:14)
+
+  ● UploadWorkspaceResolver legacy binding › requires actual ingress/chunks directories and same filesystem
+
+    Upload workspace root unavailable
+
+      186 |     } catch (error) {
+      187 |       this.failed = true;
+    > 188 |       throw new Error("Upload workspace root unavailable", { cause: error });
+          |             ^
+      189 |     }
+      190 |   }
+      191 | }
+
+      at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:188:13)
+      at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+      at UploadWorkspaceResolver.ingress (src/uploads/upload-workspace.ts:106:10)
+      at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:134:30)
+
+    Cause:
+        Secure upload filesystem requires Linux
+
+          19 | function native(): NativeBoundary {
+          20 |   if (process.platform !== "linux")
+        > 21 |     throw new Error("Secure upload filesystem requires Linux");
+             |           ^
+          22 |   // App-owned build artifact; no search in storage, env or working directory.
+          23 |   return (binding ??= loadNative(
+          24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+          at native (src/uploads/secure-filesystem.ts:21:11)
+          at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+          at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:166:25)
+          at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+          at UploadWorkspaceResolver.ingress (src/uploads/upload-workspace.ts:106:10)
+          at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:134:30)
+
+  ● UploadWorkspaceResolver legacy binding › reuses MS-2 admission before each operation and propagates mount failure
+
+    Upload workspace root unavailable
+
+      186 |     } catch (error) {
+      187 |       this.failed = true;
+    > 188 |       throw new Error("Upload workspace root unavailable", { cause: error });
+          |             ^
+      189 |     }
+      190 |   }
+      191 | }
+
+      at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:188:13)
+      at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+      at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+      at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:153:14)
+
+    Cause:
+        Secure upload filesystem requires Linux
+
+          19 | function native(): NativeBoundary {
+          20 |   if (process.platform !== "linux")
+        > 21 |     throw new Error("Secure upload filesystem requires Linux");
+             |           ^
+          22 |   // App-owned build artifact; no search in storage, env or working directory.
+          23 |   return (binding ??= loadNative(
+          24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+          at native (src/uploads/secure-filesystem.ts:21:11)
+          at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+          at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:166:25)
+          at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+          at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+          at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:153:14)
+
+  ● UploadWorkspaceResolver legacy binding › refuses non-directory ingress and session objects
+
+    expect(received).toThrow(expected)
+
+    Expected substring: "directory"
+    Received message:   "Upload workspace root unavailable"
+
+          186 |     } catch (error) {
+          187 |       this.failed = true;
+        > 188 |       throw new Error("Upload workspace root unavailable", { cause: error });
+              |             ^
+          189 |     }
+          190 |   }
+          191 | }
+
+      at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:188:13)
+      at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+      at UploadWorkspaceResolver.resolve (src/uploads/upload-workspace.ts:87:10)
+      at src/uploads/upload-workspace.spec.ts:166:27
+      at Object.<anonymous> (node_modules/expect/build/index.js:1824:9)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:2235:93)
+      at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:166:55)
+      at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:166:55)
+
+  ● UploadWorkspaceResolver legacy binding › recovers the same legacy workspace only with a new resolver after observed loss, preserving binary bytes
+
+    Upload workspace root unavailable
+
+      186 |     } catch (error) {
+      187 |       this.failed = true;
+    > 188 |       throw new Error("Upload workspace root unavailable", { cause: error });
+          |             ^
+      189 |     }
+      190 |   }
+      191 | }
+
+      at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:188:13)
+      at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+      at UploadWorkspaceResolver.resolve (src/uploads/upload-workspace.ts:87:10)
+      at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:194:14)
+
+    Cause:
+        Secure upload filesystem requires Linux
+
+          19 | function native(): NativeBoundary {
+          20 |   if (process.platform !== "linux")
+        > 21 |     throw new Error("Secure upload filesystem requires Linux");
+             |           ^
+          22 |   // App-owned build artifact; no search in storage, env or working directory.
+          23 |   return (binding ??= loadNative(
+          24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+          at native (src/uploads/secure-filesystem.ts:21:11)
+          at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+          at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:166:25)
+          at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+          at UploadWorkspaceResolver.resolve (src/uploads/upload-workspace.ts:87:10)
+          at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:194:14)
+
+  ● UploadWorkspaceResolver legacy binding › releases its root anchor and refuses subsequent reuse
+
+    Upload workspace root unavailable
+
+      186 |     } catch (error) {
+      187 |       this.failed = true;
+    > 188 |       throw new Error("Upload workspace root unavailable", { cause: error });
+          |             ^
+      189 |     }
+      190 |   }
+      191 | }
+
+      at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:188:13)
+      at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+      at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+      at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:210:14)
+
+    Cause:
+        Secure upload filesystem requires Linux
+
+          19 | function native(): NativeBoundary {
+          20 |   if (process.platform !== "linux")
+        > 21 |     throw new Error("Secure upload filesystem requires Linux");
+             |           ^
+          22 |   // App-owned build artifact; no search in storage, env or working directory.
+          23 |   return (binding ??= loadNative(
+          24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+          at native (src/uploads/secure-filesystem.ts:21:11)
+          at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+          at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:166:25)
+          at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+          at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+          at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:210:14)
+
+FAIL src/uploads/secure-filesystem.spec.ts
+  ● Linux descriptor filesystem › creates, syncs, reads, publishes without overwriting, enumerates and removes
+
+    Secure upload filesystem requires Linux
+
+      19 | function native(): NativeBoundary {
+      20 |   if (process.platform !== "linux")
+    > 21 |     throw new Error("Secure upload filesystem requires Linux");
+         |           ^
+      22 |   // App-owned build artifact; no search in storage, env or working directory.
+      23 |   return (binding ??= loadNative(
+      24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+      at native (src/uploads/secure-filesystem.ts:21:11)
+      at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:13:16)
+
+  ● Linux descriptor filesystem › creates, syncs, reads, publishes without overwriting, enumerates and removes
+
+    TypeError: Cannot read properties of undefined (reading 'close')
+
+      14 |   });
+      15 |   afterEach(() => {
+    > 16 |     boundary.close();
+         |              ^
+      17 |     fs.rmSync(root, { recursive: true, force: true });
+      18 |     fs.rmSync(outside, { recursive: true, force: true });
+      19 |   });
+
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:16:14)
+
+  ● Linux descriptor filesystem › refuses uncanonical key ../escape
+
+    Secure upload filesystem requires Linux
+
+      19 | function native(): NativeBoundary {
+      20 |   if (process.platform !== "linux")
+    > 21 |     throw new Error("Secure upload filesystem requires Linux");
+         |           ^
+      22 |   // App-owned build artifact; no search in storage, env or working directory.
+      23 |   return (binding ??= loadNative(
+      24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+      at native (src/uploads/secure-filesystem.ts:21:11)
+      at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:13:16)
+
+  ● Linux descriptor filesystem › refuses uncanonical key ../escape
+
+    TypeError: Cannot read properties of undefined (reading 'close')
+
+      14 |   });
+      15 |   afterEach(() => {
+    > 16 |     boundary.close();
+         |              ^
+      17 |     fs.rmSync(root, { recursive: true, force: true });
+      18 |     fs.rmSync(outside, { recursive: true, force: true });
+      19 |   });
+
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:16:14)
+
+  ● Linux descriptor filesystem › refuses uncanonical key a/../../escape
+
+    Secure upload filesystem requires Linux
+
+      19 | function native(): NativeBoundary {
+      20 |   if (process.platform !== "linux")
+    > 21 |     throw new Error("Secure upload filesystem requires Linux");
+         |           ^
+      22 |   // App-owned build artifact; no search in storage, env or working directory.
+      23 |   return (binding ??= loadNative(
+      24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+      at native (src/uploads/secure-filesystem.ts:21:11)
+      at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:13:16)
+
+  ● Linux descriptor filesystem › refuses uncanonical key a/../../escape
+
+    TypeError: Cannot read properties of undefined (reading 'close')
+
+      14 |   });
+      15 |   afterEach(() => {
+    > 16 |     boundary.close();
+         |              ^
+      17 |     fs.rmSync(root, { recursive: true, force: true });
+      18 |     fs.rmSync(outside, { recursive: true, force: true });
+      19 |   });
+
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:16:14)
+
+  ● Linux descriptor filesystem › refuses uncanonical key a/../escape
+
+    Secure upload filesystem requires Linux
+
+      19 | function native(): NativeBoundary {
+      20 |   if (process.platform !== "linux")
+    > 21 |     throw new Error("Secure upload filesystem requires Linux");
+         |           ^
+      22 |   // App-owned build artifact; no search in storage, env or working directory.
+      23 |   return (binding ??= loadNative(
+      24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+      at native (src/uploads/secure-filesystem.ts:21:11)
+      at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:13:16)
+
+  ● Linux descriptor filesystem › refuses uncanonical key a/../escape
+
+    TypeError: Cannot read properties of undefined (reading 'close')
+
+      14 |   });
+      15 |   afterEach(() => {
+    > 16 |     boundary.close();
+         |              ^
+      17 |     fs.rmSync(root, { recursive: true, force: true });
+      18 |     fs.rmSync(outside, { recursive: true, force: true });
+      19 |   });
+
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:16:14)
+
+  ● Linux descriptor filesystem › refuses uncanonical key nul tail
+
+    Secure upload filesystem requires Linux
+
+      19 | function native(): NativeBoundary {
+      20 |   if (process.platform !== "linux")
+    > 21 |     throw new Error("Secure upload filesystem requires Linux");
+         |           ^
+      22 |   // App-owned build artifact; no search in storage, env or working directory.
+      23 |   return (binding ??= loadNative(
+      24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+      at native (src/uploads/secure-filesystem.ts:21:11)
+      at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:13:16)
+
+  ● Linux descriptor filesystem › refuses uncanonical key nul tail
+
+    TypeError: Cannot read properties of undefined (reading 'close')
+
+      14 |   });
+      15 |   afterEach(() => {
+    > 16 |     boundary.close();
+         |              ^
+      17 |     fs.rmSync(root, { recursive: true, force: true });
+      18 |     fs.rmSync(outside, { recursive: true, force: true });
+      19 |   });
+
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:16:14)
+
+  ● Linux descriptor filesystem › refuses symlink ancestors and leaves, even when link points inside
+
+    Secure upload filesystem requires Linux
+
+      19 | function native(): NativeBoundary {
+      20 |   if (process.platform !== "linux")
+    > 21 |     throw new Error("Secure upload filesystem requires Linux");
+         |           ^
+      22 |   // App-owned build artifact; no search in storage, env or working directory.
+      23 |   return (binding ??= loadNative(
+      24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+      at native (src/uploads/secure-filesystem.ts:21:11)
+      at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:13:16)
+
+  ● Linux descriptor filesystem › refuses symlink ancestors and leaves, even when link points inside
+
+    TypeError: Cannot read properties of undefined (reading 'close')
+
+      14 |   });
+      15 |   afterEach(() => {
+    > 16 |     boundary.close();
+         |              ^
+      17 |     fs.rmSync(root, { recursive: true, force: true });
+      18 |     fs.rmSync(outside, { recursive: true, force: true });
+      19 |   });
+
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:16:14)
+
+  ● Linux descriptor filesystem › recursive cleanup unlinks symlinks without following outside directories
+
+    Secure upload filesystem requires Linux
+
+      19 | function native(): NativeBoundary {
+      20 |   if (process.platform !== "linux")
+    > 21 |     throw new Error("Secure upload filesystem requires Linux");
+         |           ^
+      22 |   // App-owned build artifact; no search in storage, env or working directory.
+      23 |   return (binding ??= loadNative(
+      24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+      at native (src/uploads/secure-filesystem.ts:21:11)
+      at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:13:16)
+
+  ● Linux descriptor filesystem › recursive cleanup unlinks symlinks without following outside directories
+
+    TypeError: Cannot read properties of undefined (reading 'close')
+
+      14 |   });
+      15 |   afterEach(() => {
+    > 16 |     boundary.close();
+         |              ^
+      17 |     fs.rmSync(root, { recursive: true, force: true });
+      18 |     fs.rmSync(outside, { recursive: true, force: true });
+      19 |   });
+
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:16:14)
+
+  ● Linux descriptor filesystem › refuses hardlinked regular files and non-regular leaves
+
+    Secure upload filesystem requires Linux
+
+      19 | function native(): NativeBoundary {
+      20 |   if (process.platform !== "linux")
+    > 21 |     throw new Error("Secure upload filesystem requires Linux");
+         |           ^
+      22 |   // App-owned build artifact; no search in storage, env or working directory.
+      23 |   return (binding ??= loadNative(
+      24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+      at native (src/uploads/secure-filesystem.ts:21:11)
+      at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:13:16)
+
+  ● Linux descriptor filesystem › refuses hardlinked regular files and non-regular leaves
+
+    TypeError: Cannot read properties of undefined (reading 'close')
+
+      14 |   });
+      15 |   afterEach(() => {
+    > 16 |     boundary.close();
+         |              ^
+      17 |     fs.rmSync(root, { recursive: true, force: true });
+      18 |     fs.rmSync(outside, { recursive: true, force: true });
+      19 |   });
+
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:16:14)
+
+  ● Linux descriptor filesystem › refuses a substituted or symbolic root during acquisition
+
+    Secure upload filesystem requires Linux
+
+      19 | function native(): NativeBoundary {
+      20 |   if (process.platform !== "linux")
+    > 21 |     throw new Error("Secure upload filesystem requires Linux");
+         |           ^
+      22 |   // App-owned build artifact; no search in storage, env or working directory.
+      23 |   return (binding ??= loadNative(
+      24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+      at native (src/uploads/secure-filesystem.ts:21:11)
+      at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:13:16)
+
+  ● Linux descriptor filesystem › refuses a substituted or symbolic root during acquisition
+
+    TypeError: Cannot read properties of undefined (reading 'close')
+
+      14 |   });
+      15 |   afterEach(() => {
+    > 16 |     boundary.close();
+         |              ^
+      17 |     fs.rmSync(root, { recursive: true, force: true });
+      18 |     fs.rmSync(outside, { recursive: true, force: true });
+      19 |   });
+
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:16:14)
+
+  ● Linux descriptor filesystem › closes idempotently and fails closed on every later operation
+
+    Secure upload filesystem requires Linux
+
+      19 | function native(): NativeBoundary {
+      20 |   if (process.platform !== "linux")
+    > 21 |     throw new Error("Secure upload filesystem requires Linux");
+         |           ^
+      22 |   // App-owned build artifact; no search in storage, env or working directory.
+      23 |   return (binding ??= loadNative(
+      24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+      at native (src/uploads/secure-filesystem.ts:21:11)
+      at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:13:16)
+
+  ● Linux descriptor filesystem › closes idempotently and fails closed on every later operation
+
+    TypeError: Cannot read properties of undefined (reading 'close')
+
+      14 |   });
+      15 |   afterEach(() => {
+    > 16 |     boundary.close();
+         |              ^
+      17 |     fs.rmSync(root, { recursive: true, force: true });
+      18 |     fs.rmSync(outside, { recursive: true, force: true });
+      19 |   });
+
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:16:14)
+
+[Nest] 82752  - 10/14/2026, 7:42:22 PM    WARN [UploadsService] MIME metadata detection failed; storing as binary
+[Nest] 82752  - 10/14/2026, 7:42:22 PM   ERROR [UploadsService] Orphaned temp dir cleanup failed
+[Nest] 82752  - 10/14/2026, 7:42:28 PM    WARN [SsdUploadsService] Cancelled SSD chunk retained for inspection
+[Nest] 82752  - 10/14/2026, 7:42:28 PM    WARN [SsdUploadsService] SSD startup recovery retained operation for inspection
+[Nest] 82752  - 10/14/2026, 7:42:30 PM   ERROR [PreviewsService] Failed to generate thumbnail for file
+[Nest] 82752  - 10/14/2026, 7:42:32 PM     LOG [AuthService] Cleaned up 3 expired refresh token(s)
+[Nest] 82752  - 10/14/2026, 7:42:32 PM     LOG [AuthService] Cleaned up 2 expired refresh token(s)
+[Nest] 82752  - 10/14/2026, 7:42:32 PM   ERROR [FilesService] Failed to clean up copied file
+[Nest] 82752  - 10/14/2026, 7:42:32 PM   ERROR [FilesService] Failed to reconcile copied file after ambiguous commit
+[Nest] 82752  - 10/14/2026, 7:42:32 PM   ERROR [FilesService] Failed to release copied file transaction
+[Nest] 82752  - 10/14/2026, 7:42:32 PM   ERROR [FilesService] Failed to release copied file transaction
+
+Summary of all failing tests
+FAIL src/uploads/upload-rate-limit.spec.ts (18.147 s)
+  ● authenticated upload rate policy (HTTP) › accepts 5120 synthetic chunks at 20 requests/s across concurrent uploads without the ordinary IP cap
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "status": 200,
+    +   "status": 500,
+      }
+
+      161 |           status: result.status,
+      162 |           body: result.body,
+    > 163 |         }).toMatchObject({ status: 200 });
+          |            ^
+      164 |     }
+      165 |     expect(service.uploadChunk).toHaveBeenCalledTimes(5120);
+      166 |     expect(fs.readdirSync(ingress)).toEqual([]);
+
+      at Object.<anonymous> (src/uploads/upload-rate-limit.spec.ts:163:12)
+
+  ● authenticated upload rate policy (HTTP) › keeps the ordinary global policy at 100 requests per 60 seconds while uploads have a separate budget
+
+    expected 200 "OK", got 500 "Internal Server Error"
+
+      183 |       await request(app.getHttpServer()).get("/api/v1/files").expect(404);
+      184 |     expectRetryAfter(await request(app.getHttpServer()).get("/api/v1/files"));
+    > 185 |     await chunk().expect(200);
+          |                   ^
+      186 |     await request(app.getHttpServer())
+      187 |       .delete(`/api/v1/uploads/session/${FIRST}`)
+      188 |       .set("Authorization", `Bearer ${token()}`)
+
+      at Object.<anonymous> (src/uploads/upload-rate-limit.spec.ts:185:19)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at node_modules/supertest/lib/test.js:156:7
+      at Test.fn [as callback] (node_modules/superagent/src/node/index.js:904:3)
+      at callback (node_modules/superagent/src/node/index.js:1183:18)
+      at IncomingMessage.fn (node_modules/superagent/src/node/parsers/json.js:19:7)
+
+  ● authenticated upload rate policy (HTTP) › bounds one user's burst across session IDs and refreshed JWTs and allows a different user
+
+    expected 200 "OK", got 500 "Internal Server Error"
+
+      192 |   it("bounds one user's burst across session IDs and refreshed JWTs and allows a different user", async () => {
+      193 |     for (let index = 0; index < UPLOAD_RATE_POLICY.chunk.burst; index++)
+    > 194 |       await chunk(index % 2 ? SECOND : FIRST).expect(200);
+          |                                               ^
+      195 |     const rotated = token(1, { nonce: "refreshed-token" });
+      196 |     const blocked = await request(app.getHttpServer())
+      197 |       .post(`/api/v1/uploads/session/${SECOND}/chunk/?retry=1`)
+
+      at Object.<anonymous> (src/uploads/upload-rate-limit.spec.ts:194:47)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at node_modules/supertest/lib/test.js:156:7
+      at Test.fn [as callback] (node_modules/superagent/src/node/index.js:904:3)
+      at callback (node_modules/superagent/src/node/index.js:1183:18)
+      at IncomingMessage.fn (node_modules/superagent/src/node/parsers/json.js:19:7)
+
+  ● authenticated upload rate policy (HTTP) › keeps upload control routes, unknown suffixes and unsupported methods in the ordinary global budget
+
+    expected 200 "OK", got 500 "Internal Server Error"
+
+      274 |     }
+      275 |     expectRetryAfter(await controls[0]());
+    > 276 |     await chunk().expect(200);
+          |                   ^
+      277 |   });
+      278 |
+      279 |   it("holds a shared per-user concurrency cap across sessions and releases it on service settlement", async () => {
+
+      at Object.<anonymous> (src/uploads/upload-rate-limit.spec.ts:276:19)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at node_modules/supertest/lib/test.js:156:7
+      at Test.fn [as callback] (node_modules/superagent/src/node/index.js:904:3)
+      at callback (node_modules/superagent/src/node/index.js:1183:18)
+      at IncomingMessage.fn (node_modules/superagent/src/node/parsers/json.js:19:7)
+
+  ● authenticated upload rate policy (HTTP) › holds a shared per-user concurrency cap across sessions and releases it on service settlement
+
+    Timed out waiting for upload lifecycle state
+
+      539 |   while (!predicate()) {
+      540 |     if (Date.now() > deadline)
+    > 541 |       throw new Error("Timed out waiting for upload lifecycle state");
+          |             ^
+      542 |     await new Promise((resolve) => setTimeout(resolve, 10));
+      543 |   }
+      544 | }
+
+      at waitUntil (src/uploads/upload-rate-limit.spec.ts:541:13)
+      at Object.<anonymous> (src/uploads/upload-rate-limit.spec.ts:289:5)
+
+  ● authenticated upload rate policy (HTTP) › releases concurrency and disk ingress after malformed multipart and service errors
+
+    expected 400 "Bad Request", got 500 "Internal Server Error"
+
+      316 |         .field("chunkIndex", "not-an-integer")
+      317 |         .attach("chunk", Buffer.from("x"), "tiny.bin")
+    > 318 |         .expect(400);
+          |          ^
+      319 |     }
+      320 |     service.uploadChunk.mockRejectedValueOnce(
+      321 |       new BadRequestException("synthetic service failure"),
+
+      at Object.<anonymous> (src/uploads/upload-rate-limit.spec.ts:318:10)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at node_modules/supertest/lib/test.js:156:7
+      at Test.fn [as callback] (node_modules/superagent/src/node/index.js:904:3)
+      at callback (node_modules/superagent/src/node/index.js:1183:18)
+      at IncomingMessage.fn (node_modules/superagent/src/node/parsers/json.js:19:7)
+
+  ● authenticated upload rate policy (HTTP) › rejects excessive text fields, oversized chunkIndex and truncated multipart while releasing ingress and leases
+
+    expected 400 "Bad Request", got 500 "Internal Server Error"
+
+      333 |       .field("extra", "x")
+      334 |       .attach("chunk", Buffer.from("x"), "tiny.bin")
+    > 335 |       .expect(400);
+          |        ^
+      336 |     expect(limiter.counts().active).toBe(0);
+      337 |     await waitUntil(
+      338 |       () =>
+
+      at Object.<anonymous> (src/uploads/upload-rate-limit.spec.ts:335:8)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at node_modules/supertest/lib/test.js:156:7
+      at Test.fn [as callback] (node_modules/superagent/src/node/index.js:904:3)
+      at callback (node_modules/superagent/src/node/index.js:1183:18)
+      at IncomingMessage.fn (node_modules/superagent/src/node/parsers/json.js:19:7)
+
+  ● authenticated upload rate policy (HTTP) › still applies the shared post-JWT upload budget to malformed session IDs before parsing files
+
+    expected 200 "OK", got 500 "Internal Server Error"
+
+      365 |   it("still applies the shared post-JWT upload budget to malformed session IDs before parsing files", async () => {
+      366 |     for (let index = 0; index < UPLOAD_RATE_POLICY.chunk.burst; index++)
+    > 367 |       await chunk().expect(200);
+          |                     ^
+      368 |     const before = ingressWrites.mock.calls.length;
+      369 |     expectRetryAfter(await chunk("not-a-uuid"));
+      370 |     expect(ingressWrites).toHaveBeenCalledTimes(before);
+
+      at Object.<anonymous> (src/uploads/upload-rate-limit.spec.ts:367:21)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at node_modules/supertest/lib/test.js:156:7
+      at Test.fn [as callback] (node_modules/superagent/src/node/index.js:904:3)
+      at callback (node_modules/superagent/src/node/index.js:1183:18)
+      at IncomingMessage.fn (node_modules/superagent/src/node/parsers/json.js:19:7)
+
+  ● authenticated upload rate policy (HTTP) › rejects an IP admission burst before another JWT verification
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: 500
+    Received array: [400, 429]
+
+      381 |         .post(`/api/v1/uploads/session/${FIRST}/chunk`)
+      382 |         .set("Authorization", `Bearer ${token()}`);
+    > 383 |       expect([400, 429]).toContain(result.status);
+          |                          ^
+      384 |     }
+      385 |     const before = verify.mock.calls.length;
+      386 |     expect(before).toBeGreaterThan(0);
+
+      at Object.<anonymous> (src/uploads/upload-rate-limit.spec.ts:383:26)
+
+  ● authenticated upload rate policy (HTTP) › caps all users' processing together and recovers capacity after settlement
+
+    Timed out waiting for upload lifecycle state
+
+      539 |   while (!predicate()) {
+      540 |     if (Date.now() > deadline)
+    > 541 |       throw new Error("Timed out waiting for upload lifecycle state");
+          |             ^
+      542 |     await new Promise((resolve) => setTimeout(resolve, 10));
+      543 |   }
+      544 | }
+
+      at waitUntil (src/uploads/upload-rate-limit.spec.ts:541:13)
+      at Object.<anonymous> (src/uploads/upload-rate-limit.spec.ts:435:5)
+
+  ● authenticated upload rate policy (HTTP) › keeps a disconnected processing handler's slot until its service promise settles
+
+    Timed out waiting for upload lifecycle state
+
+      539 |   while (!predicate()) {
+      540 |     if (Date.now() > deadline)
+    > 541 |       throw new Error("Timed out waiting for upload lifecycle state");
+          |             ^
+      542 |     await new Promise((resolve) => setTimeout(resolve, 10));
+      543 |   }
+      544 | }
+
+      at waitUntil (src/uploads/upload-rate-limit.spec.ts:541:13)
+      at Object.<anonymous> (src/uploads/upload-rate-limit.spec.ts:468:5)
+
+  ● authenticated upload rate policy (HTTP) › protects abort against abuse using its own finite budget
+
+    expected 200 "OK", got 500 "Internal Server Error"
+
+      499 |         .set("Authorization", `Bearer ${token()}`),
+      500 |     );
+    > 501 |     await chunk().expect(200);
+          |                   ^
+      502 |     clock += 2000;
+      503 |     await request(app.getHttpServer())
+      504 |       .delete(`/api/v1/uploads/session/${FIRST}`)
+
+      at Object.<anonymous> (src/uploads/upload-rate-limit.spec.ts:501:19)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at node_modules/supertest/lib/test.js:156:7
+      at Test.fn [as callback] (node_modules/superagent/src/node/index.js:904:3)
+      at callback (node_modules/superagent/src/node/index.js:1183:18)
+      at IncomingMessage.fn (node_modules/superagent/src/node/parsers/json.js:19:7)
+
+  ● authenticated upload rate policy (HTTP) › releases the ingress lease and partial disk file when a slow multipart client disconnects
+
+    Timed out waiting for upload lifecycle state
+
+      539 |   while (!predicate()) {
+      540 |     if (Date.now() > deadline)
+    > 541 |       throw new Error("Timed out waiting for upload lifecycle state");
+          |             ^
+      542 |     await new Promise((resolve) => setTimeout(resolve, 10));
+      543 |   }
+      544 | }
+
+      at waitUntil (src/uploads/upload-rate-limit.spec.ts:541:13)
+      at Object.<anonymous> (src/uploads/upload-rate-limit.spec.ts:527:5)
+
+FAIL src/uploads/ingress-file-cleanup.interceptor.spec.ts
+  ● IngressFileCleanupInterceptor › cleans after success and preserves the response
+
+    Upload workspace root unavailable
+
+      186 |     } catch (error) {
+      187 |       this.failed = true;
+    > 188 |       throw new Error("Upload workspace root unavailable", { cause: error });
+          |             ^
+      189 |     }
+      190 |   }
+      191 | }
+
+      at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:188:13)
+      at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+      at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+      at IngressFileCleanupInterceptor.intercept (src/uploads/ingress-file-cleanup.interceptor.ts:69:35)
+      at Object.<anonymous> (src/uploads/ingress-file-cleanup.interceptor.spec.ts:58:9)
+
+    Cause:
+        Secure upload filesystem requires Linux
+
+          19 | function native(): NativeBoundary {
+          20 |   if (process.platform !== "linux")
+        > 21 |     throw new Error("Secure upload filesystem requires Linux");
+             |           ^
+          22 |   // App-owned build artifact; no search in storage, env or working directory.
+          23 |   return (binding ??= loadNative(
+          24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+          at native (src/uploads/secure-filesystem.ts:21:11)
+          at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+          at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:166:25)
+          at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+          at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+          at IngressFileCleanupInterceptor.intercept (src/uploads/ingress-file-cleanup.interceptor.ts:69:35)
+          at Object.<anonymous> (src/uploads/ingress-file-cleanup.interceptor.spec.ts:58:9)
+
+  ● IngressFileCleanupInterceptor › cleans after downstream DTO error without masking it
+
+    Upload workspace root unavailable
+
+      186 |     } catch (error) {
+      187 |       this.failed = true;
+    > 188 |       throw new Error("Upload workspace root unavailable", { cause: error });
+          |             ^
+      189 |     }
+      190 |   }
+      191 | }
+
+      at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:188:13)
+      at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+      at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+      at IngressFileCleanupInterceptor.intercept (src/uploads/ingress-file-cleanup.interceptor.ts:69:35)
+      at Object.<anonymous> (src/uploads/ingress-file-cleanup.interceptor.spec.ts:71:9)
+
+    Cause:
+        Secure upload filesystem requires Linux
+
+          19 | function native(): NativeBoundary {
+          20 |   if (process.platform !== "linux")
+        > 21 |     throw new Error("Secure upload filesystem requires Linux");
+             |           ^
+          22 |   // App-owned build artifact; no search in storage, env or working directory.
+          23 |   return (binding ??= loadNative(
+          24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+          at native (src/uploads/secure-filesystem.ts:21:11)
+          at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+          at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:166:25)
+          at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+          at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+          at IngressFileCleanupInterceptor.intercept (src/uploads/ingress-file-cleanup.interceptor.ts:69:35)
+          at Object.<anonymous> (src/uploads/ingress-file-cleanup.interceptor.spec.ts:71:9)
+
+  ● IngressFileCleanupInterceptor › never deletes a path outside ingress
+
+    Upload workspace root unavailable
+
+      186 |     } catch (error) {
+      187 |       this.failed = true;
+    > 188 |       throw new Error("Upload workspace root unavailable", { cause: error });
+          |             ^
+      189 |     }
+      190 |   }
+      191 | }
+
+      at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:188:13)
+      at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+      at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+      at IngressFileCleanupInterceptor.intercept (src/uploads/ingress-file-cleanup.interceptor.ts:69:35)
+      at Object.<anonymous> (src/uploads/ingress-file-cleanup.interceptor.spec.ts:84:7)
+
+    Cause:
+        Secure upload filesystem requires Linux
+
+          19 | function native(): NativeBoundary {
+          20 |   if (process.platform !== "linux")
+        > 21 |     throw new Error("Secure upload filesystem requires Linux");
+             |           ^
+          22 |   // App-owned build artifact; no search in storage, env or working directory.
+          23 |   return (binding ??= loadNative(
+          24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+          at native (src/uploads/secure-filesystem.ts:21:11)
+          at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+          at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:166:25)
+          at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+          at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+          at IngressFileCleanupInterceptor.intercept (src/uploads/ingress-file-cleanup.interceptor.ts:69:35)
+          at Object.<anonymous> (src/uploads/ingress-file-cleanup.interceptor.spec.ts:84:7)
+
+  ● IngressFileCleanupInterceptor › cleans a request-owned file when the socket aborts before Multer completes
+
+    Upload workspace root unavailable
+
+      186 |     } catch (error) {
+      187 |       this.failed = true;
+    > 188 |       throw new Error("Upload workspace root unavailable", { cause: error });
+          |             ^
+      189 |     }
+      190 |   }
+      191 | }
+
+      at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:188:13)
+      at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+      at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+      at IngressFileCleanupInterceptor.intercept (src/uploads/ingress-file-cleanup.interceptor.ts:69:35)
+      at Object.<anonymous> (src/uploads/ingress-file-cleanup.interceptor.spec.ts:99:5)
+
+    Cause:
+        Secure upload filesystem requires Linux
+
+          19 | function native(): NativeBoundary {
+          20 |   if (process.platform !== "linux")
+        > 21 |     throw new Error("Secure upload filesystem requires Linux");
+             |           ^
+          22 |   // App-owned build artifact; no search in storage, env or working directory.
+          23 |   return (binding ??= loadNative(
+          24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+          at native (src/uploads/secure-filesystem.ts:21:11)
+          at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+          at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:166:25)
+          at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+          at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+          at IngressFileCleanupInterceptor.intercept (src/uploads/ingress-file-cleanup.interceptor.ts:69:35)
+          at Object.<anonymous> (src/uploads/ingress-file-cleanup.interceptor.spec.ts:99:5)
+
+FAIL src/uploads/upload-workspace.spec.ts
+  ● UploadWorkspaceResolver legacy binding › derives only the operator root and preserves exact session/chunk bytes
+
+    Upload workspace root unavailable
+
+      186 |     } catch (error) {
+      187 |       this.failed = true;
+    > 188 |       throw new Error("Upload workspace root unavailable", { cause: error });
+          |             ^
+      189 |     }
+      190 |   }
+      191 | }
+
+      at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:188:13)
+      at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+      at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+      at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:48:21)
+
+    Cause:
+        Secure upload filesystem requires Linux
+
+          19 | function native(): NativeBoundary {
+          20 |   if (process.platform !== "linux")
+        > 21 |     throw new Error("Secure upload filesystem requires Linux");
+             |           ^
+          22 |   // App-owned build artifact; no search in storage, env or working directory.
+          23 |   return (binding ??= loadNative(
+          24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+          at native (src/uploads/secure-filesystem.ts:21:11)
+          at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+          at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:166:25)
+          at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+          at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+          at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:48:21)
+
+  ● UploadWorkspaceResolver legacy binding › refuses workspace binding and retained path bridge mismatches
+
+    expect(received).toThrow(expected)
+
+    Expected substring: "session binding"
+    Received message:   "Upload workspace root unavailable"
+
+          186 |     } catch (error) {
+          187 |       this.failed = true;
+        > 188 |       throw new Error("Upload workspace root unavailable", { cause: error });
+              |             ^
+          189 |     }
+          190 |   }
+          191 | }
+
+      at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:188:13)
+      at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+      at UploadWorkspaceResolver.resolve (src/uploads/upload-workspace.ts:87:10)
+      at src/uploads/upload-workspace.spec.ts:75:16
+      at Object.<anonymous> (node_modules/expect/build/index.js:1824:9)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:2235:93)
+      at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:76:7)
+      at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:76:7)
+
+  ● UploadWorkspaceResolver legacy binding › permits missing terminal session directory without creating it
+
+    Upload workspace root unavailable
+
+      186 |     } catch (error) {
+      187 |       this.failed = true;
+    > 188 |       throw new Error("Upload workspace root unavailable", { cause: error });
+          |             ^
+      189 |     }
+      190 |   }
+      191 | }
+
+      at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:188:13)
+      at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+      at UploadWorkspaceResolver.resolve (src/uploads/upload-workspace.ts:87:10)
+      at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:89:21)
+
+    Cause:
+        Secure upload filesystem requires Linux
+
+          19 | function native(): NativeBoundary {
+          20 |   if (process.platform !== "linux")
+        > 21 |     throw new Error("Secure upload filesystem requires Linux");
+             |           ^
+          22 |   // App-owned build artifact; no search in storage, env or working directory.
+          23 |   return (binding ??= loadNative(
+          24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+          at native (src/uploads/secure-filesystem.ts:21:11)
+          at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+          at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:166:25)
+          at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+          at UploadWorkspaceResolver.resolve (src/uploads/upload-workspace.ts:87:10)
+          at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:89:21)
+
+  ● UploadWorkspaceResolver legacy binding › fails closed after workspace disappearance even if it returns
+
+    Upload workspace root unavailable
+
+      186 |     } catch (error) {
+      187 |       this.failed = true;
+    > 188 |       throw new Error("Upload workspace root unavailable", { cause: error });
+          |             ^
+      189 |     }
+      190 |   }
+      191 | }
+
+      at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:188:13)
+      at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+      at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+      at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:100:14)
+
+    Cause:
+        Secure upload filesystem requires Linux
+
+          19 | function native(): NativeBoundary {
+          20 |   if (process.platform !== "linux")
+        > 21 |     throw new Error("Secure upload filesystem requires Linux");
+             |           ^
+          22 |   // App-owned build artifact; no search in storage, env or working directory.
+          23 |   return (binding ??= loadNative(
+          24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+          at native (src/uploads/secure-filesystem.ts:21:11)
+          at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+          at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:166:25)
+          at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+          at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+          at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:100:14)
+
+  ● UploadWorkspaceResolver legacy binding › detects same-FS workspace replacement and never repins
+
+    Upload workspace root unavailable
+
+      186 |     } catch (error) {
+      187 |       this.failed = true;
+    > 188 |       throw new Error("Upload workspace root unavailable", { cause: error });
+          |             ^
+      189 |     }
+      190 |   }
+      191 | }
+
+      at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:188:13)
+      at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+      at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+      at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:109:14)
+
+    Cause:
+        Secure upload filesystem requires Linux
+
+          19 | function native(): NativeBoundary {
+          20 |   if (process.platform !== "linux")
+        > 21 |     throw new Error("Secure upload filesystem requires Linux");
+             |           ^
+          22 |   // App-owned build artifact; no search in storage, env or working directory.
+          23 |   return (binding ??= loadNative(
+          24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+          at native (src/uploads/secure-filesystem.ts:21:11)
+          at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+          at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:166:25)
+          at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+          at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+          at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:109:14)
+
+  ● UploadWorkspaceResolver legacy binding › refuses symbolic workspace and session/ingress directories
+
+    Upload workspace root unavailable
+
+      186 |     } catch (error) {
+      187 |       this.failed = true;
+    > 188 |       throw new Error("Upload workspace root unavailable", { cause: error });
+          |             ^
+      189 |     }
+      190 |   }
+      191 | }
+
+      at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:188:13)
+      at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+      at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+      at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:119:14)
+
+    Cause:
+        Secure upload filesystem requires Linux
+
+          19 | function native(): NativeBoundary {
+          20 |   if (process.platform !== "linux")
+        > 21 |     throw new Error("Secure upload filesystem requires Linux");
+             |           ^
+          22 |   // App-owned build artifact; no search in storage, env or working directory.
+          23 |   return (binding ??= loadNative(
+          24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+          at native (src/uploads/secure-filesystem.ts:21:11)
+          at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+          at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:166:25)
+          at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+          at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+          at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:119:14)
+
+  ● UploadWorkspaceResolver legacy binding › requires actual ingress/chunks directories and same filesystem
+
+    Upload workspace root unavailable
+
+      186 |     } catch (error) {
+      187 |       this.failed = true;
+    > 188 |       throw new Error("Upload workspace root unavailable", { cause: error });
+          |             ^
+      189 |     }
+      190 |   }
+      191 | }
+
+      at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:188:13)
+      at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+      at UploadWorkspaceResolver.ingress (src/uploads/upload-workspace.ts:106:10)
+      at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:134:30)
+
+    Cause:
+        Secure upload filesystem requires Linux
+
+          19 | function native(): NativeBoundary {
+          20 |   if (process.platform !== "linux")
+        > 21 |     throw new Error("Secure upload filesystem requires Linux");
+             |           ^
+          22 |   // App-owned build artifact; no search in storage, env or working directory.
+          23 |   return (binding ??= loadNative(
+          24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+          at native (src/uploads/secure-filesystem.ts:21:11)
+          at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+          at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:166:25)
+          at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+          at UploadWorkspaceResolver.ingress (src/uploads/upload-workspace.ts:106:10)
+          at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:134:30)
+
+  ● UploadWorkspaceResolver legacy binding › reuses MS-2 admission before each operation and propagates mount failure
+
+    Upload workspace root unavailable
+
+      186 |     } catch (error) {
+      187 |       this.failed = true;
+    > 188 |       throw new Error("Upload workspace root unavailable", { cause: error });
+          |             ^
+      189 |     }
+      190 |   }
+      191 | }
+
+      at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:188:13)
+      at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+      at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+      at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:153:14)
+
+    Cause:
+        Secure upload filesystem requires Linux
+
+          19 | function native(): NativeBoundary {
+          20 |   if (process.platform !== "linux")
+        > 21 |     throw new Error("Secure upload filesystem requires Linux");
+             |           ^
+          22 |   // App-owned build artifact; no search in storage, env or working directory.
+          23 |   return (binding ??= loadNative(
+          24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+          at native (src/uploads/secure-filesystem.ts:21:11)
+          at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+          at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:166:25)
+          at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+          at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+          at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:153:14)
+
+  ● UploadWorkspaceResolver legacy binding › refuses non-directory ingress and session objects
+
+    expect(received).toThrow(expected)
+
+    Expected substring: "directory"
+    Received message:   "Upload workspace root unavailable"
+
+          186 |     } catch (error) {
+          187 |       this.failed = true;
+        > 188 |       throw new Error("Upload workspace root unavailable", { cause: error });
+              |             ^
+          189 |     }
+          190 |   }
+          191 | }
+
+      at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:188:13)
+      at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+      at UploadWorkspaceResolver.resolve (src/uploads/upload-workspace.ts:87:10)
+      at src/uploads/upload-workspace.spec.ts:166:27
+      at Object.<anonymous> (node_modules/expect/build/index.js:1824:9)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:2235:93)
+      at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:166:55)
+      at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:166:55)
+
+  ● UploadWorkspaceResolver legacy binding › recovers the same legacy workspace only with a new resolver after observed loss, preserving binary bytes
+
+    Upload workspace root unavailable
+
+      186 |     } catch (error) {
+      187 |       this.failed = true;
+    > 188 |       throw new Error("Upload workspace root unavailable", { cause: error });
+          |             ^
+      189 |     }
+      190 |   }
+      191 | }
+
+      at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:188:13)
+      at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+      at UploadWorkspaceResolver.resolve (src/uploads/upload-workspace.ts:87:10)
+      at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:194:14)
+
+    Cause:
+        Secure upload filesystem requires Linux
+
+          19 | function native(): NativeBoundary {
+          20 |   if (process.platform !== "linux")
+        > 21 |     throw new Error("Secure upload filesystem requires Linux");
+             |           ^
+          22 |   // App-owned build artifact; no search in storage, env or working directory.
+          23 |   return (binding ??= loadNative(
+          24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+          at native (src/uploads/secure-filesystem.ts:21:11)
+          at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+          at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:166:25)
+          at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+          at UploadWorkspaceResolver.resolve (src/uploads/upload-workspace.ts:87:10)
+          at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:194:14)
+
+  ● UploadWorkspaceResolver legacy binding › releases its root anchor and refuses subsequent reuse
+
+    Upload workspace root unavailable
+
+      186 |     } catch (error) {
+      187 |       this.failed = true;
+    > 188 |       throw new Error("Upload workspace root unavailable", { cause: error });
+          |             ^
+      189 |     }
+      190 |   }
+      191 | }
+
+      at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:188:13)
+      at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+      at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+      at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:210:14)
+
+    Cause:
+        Secure upload filesystem requires Linux
+
+          19 | function native(): NativeBoundary {
+          20 |   if (process.platform !== "linux")
+        > 21 |     throw new Error("Secure upload filesystem requires Linux");
+             |           ^
+          22 |   // App-owned build artifact; no search in storage, env or working directory.
+          23 |   return (binding ??= loadNative(
+          24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+          at native (src/uploads/secure-filesystem.ts:21:11)
+          at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+          at UploadWorkspaceResolver.assertRoot (src/uploads/upload-workspace.ts:166:25)
+          at UploadWorkspaceResolver.validate (src/uploads/upload-workspace.ts:75:10)
+          at UploadWorkspaceResolver.root (src/uploads/upload-workspace.ts:79:10)
+          at Object.<anonymous> (src/uploads/upload-workspace.spec.ts:210:14)
+
+FAIL src/uploads/secure-filesystem.spec.ts
+  ● Linux descriptor filesystem › creates, syncs, reads, publishes without overwriting, enumerates and removes
+
+    Secure upload filesystem requires Linux
+
+      19 | function native(): NativeBoundary {
+      20 |   if (process.platform !== "linux")
+    > 21 |     throw new Error("Secure upload filesystem requires Linux");
+         |           ^
+      22 |   // App-owned build artifact; no search in storage, env or working directory.
+      23 |   return (binding ??= loadNative(
+      24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+      at native (src/uploads/secure-filesystem.ts:21:11)
+      at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:13:16)
+
+  ● Linux descriptor filesystem › creates, syncs, reads, publishes without overwriting, enumerates and removes
+
+    TypeError: Cannot read properties of undefined (reading 'close')
+
+      14 |   });
+      15 |   afterEach(() => {
+    > 16 |     boundary.close();
+         |              ^
+      17 |     fs.rmSync(root, { recursive: true, force: true });
+      18 |     fs.rmSync(outside, { recursive: true, force: true });
+      19 |   });
+
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:16:14)
+
+  ● Linux descriptor filesystem › refuses uncanonical key ../escape
+
+    Secure upload filesystem requires Linux
+
+      19 | function native(): NativeBoundary {
+      20 |   if (process.platform !== "linux")
+    > 21 |     throw new Error("Secure upload filesystem requires Linux");
+         |           ^
+      22 |   // App-owned build artifact; no search in storage, env or working directory.
+      23 |   return (binding ??= loadNative(
+      24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+      at native (src/uploads/secure-filesystem.ts:21:11)
+      at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:13:16)
+
+  ● Linux descriptor filesystem › refuses uncanonical key ../escape
+
+    TypeError: Cannot read properties of undefined (reading 'close')
+
+      14 |   });
+      15 |   afterEach(() => {
+    > 16 |     boundary.close();
+         |              ^
+      17 |     fs.rmSync(root, { recursive: true, force: true });
+      18 |     fs.rmSync(outside, { recursive: true, force: true });
+      19 |   });
+
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:16:14)
+
+  ● Linux descriptor filesystem › refuses uncanonical key a/../../escape
+
+    Secure upload filesystem requires Linux
+
+      19 | function native(): NativeBoundary {
+      20 |   if (process.platform !== "linux")
+    > 21 |     throw new Error("Secure upload filesystem requires Linux");
+         |           ^
+      22 |   // App-owned build artifact; no search in storage, env or working directory.
+      23 |   return (binding ??= loadNative(
+      24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+      at native (src/uploads/secure-filesystem.ts:21:11)
+      at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:13:16)
+
+  ● Linux descriptor filesystem › refuses uncanonical key a/../../escape
+
+    TypeError: Cannot read properties of undefined (reading 'close')
+
+      14 |   });
+      15 |   afterEach(() => {
+    > 16 |     boundary.close();
+         |              ^
+      17 |     fs.rmSync(root, { recursive: true, force: true });
+      18 |     fs.rmSync(outside, { recursive: true, force: true });
+      19 |   });
+
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:16:14)
+
+  ● Linux descriptor filesystem › refuses uncanonical key a/../escape
+
+    Secure upload filesystem requires Linux
+
+      19 | function native(): NativeBoundary {
+      20 |   if (process.platform !== "linux")
+    > 21 |     throw new Error("Secure upload filesystem requires Linux");
+         |           ^
+      22 |   // App-owned build artifact; no search in storage, env or working directory.
+      23 |   return (binding ??= loadNative(
+      24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+      at native (src/uploads/secure-filesystem.ts:21:11)
+      at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:13:16)
+
+  ● Linux descriptor filesystem › refuses uncanonical key a/../escape
+
+    TypeError: Cannot read properties of undefined (reading 'close')
+
+      14 |   });
+      15 |   afterEach(() => {
+    > 16 |     boundary.close();
+         |              ^
+      17 |     fs.rmSync(root, { recursive: true, force: true });
+      18 |     fs.rmSync(outside, { recursive: true, force: true });
+      19 |   });
+
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:16:14)
+
+  ● Linux descriptor filesystem › refuses uncanonical key nul tail
+
+    Secure upload filesystem requires Linux
+
+      19 | function native(): NativeBoundary {
+      20 |   if (process.platform !== "linux")
+    > 21 |     throw new Error("Secure upload filesystem requires Linux");
+         |           ^
+      22 |   // App-owned build artifact; no search in storage, env or working directory.
+      23 |   return (binding ??= loadNative(
+      24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+      at native (src/uploads/secure-filesystem.ts:21:11)
+      at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:13:16)
+
+  ● Linux descriptor filesystem › refuses uncanonical key nul tail
+
+    TypeError: Cannot read properties of undefined (reading 'close')
+
+      14 |   });
+      15 |   afterEach(() => {
+    > 16 |     boundary.close();
+         |              ^
+      17 |     fs.rmSync(root, { recursive: true, force: true });
+      18 |     fs.rmSync(outside, { recursive: true, force: true });
+      19 |   });
+
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:16:14)
+
+  ● Linux descriptor filesystem › refuses symlink ancestors and leaves, even when link points inside
+
+    Secure upload filesystem requires Linux
+
+      19 | function native(): NativeBoundary {
+      20 |   if (process.platform !== "linux")
+    > 21 |     throw new Error("Secure upload filesystem requires Linux");
+         |           ^
+      22 |   // App-owned build artifact; no search in storage, env or working directory.
+      23 |   return (binding ??= loadNative(
+      24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+      at native (src/uploads/secure-filesystem.ts:21:11)
+      at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:13:16)
+
+  ● Linux descriptor filesystem › refuses symlink ancestors and leaves, even when link points inside
+
+    TypeError: Cannot read properties of undefined (reading 'close')
+
+      14 |   });
+      15 |   afterEach(() => {
+    > 16 |     boundary.close();
+         |              ^
+      17 |     fs.rmSync(root, { recursive: true, force: true });
+      18 |     fs.rmSync(outside, { recursive: true, force: true });
+      19 |   });
+
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:16:14)
+
+  ● Linux descriptor filesystem › recursive cleanup unlinks symlinks without following outside directories
+
+    Secure upload filesystem requires Linux
+
+      19 | function native(): NativeBoundary {
+      20 |   if (process.platform !== "linux")
+    > 21 |     throw new Error("Secure upload filesystem requires Linux");
+         |           ^
+      22 |   // App-owned build artifact; no search in storage, env or working directory.
+      23 |   return (binding ??= loadNative(
+      24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+      at native (src/uploads/secure-filesystem.ts:21:11)
+      at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:13:16)
+
+  ● Linux descriptor filesystem › recursive cleanup unlinks symlinks without following outside directories
+
+    TypeError: Cannot read properties of undefined (reading 'close')
+
+      14 |   });
+      15 |   afterEach(() => {
+    > 16 |     boundary.close();
+         |              ^
+      17 |     fs.rmSync(root, { recursive: true, force: true });
+      18 |     fs.rmSync(outside, { recursive: true, force: true });
+      19 |   });
+
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:16:14)
+
+  ● Linux descriptor filesystem › refuses hardlinked regular files and non-regular leaves
+
+    Secure upload filesystem requires Linux
+
+      19 | function native(): NativeBoundary {
+      20 |   if (process.platform !== "linux")
+    > 21 |     throw new Error("Secure upload filesystem requires Linux");
+         |           ^
+      22 |   // App-owned build artifact; no search in storage, env or working directory.
+      23 |   return (binding ??= loadNative(
+      24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+      at native (src/uploads/secure-filesystem.ts:21:11)
+      at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:13:16)
+
+  ● Linux descriptor filesystem › refuses hardlinked regular files and non-regular leaves
+
+    TypeError: Cannot read properties of undefined (reading 'close')
+
+      14 |   });
+      15 |   afterEach(() => {
+    > 16 |     boundary.close();
+         |              ^
+      17 |     fs.rmSync(root, { recursive: true, force: true });
+      18 |     fs.rmSync(outside, { recursive: true, force: true });
+      19 |   });
+
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:16:14)
+
+  ● Linux descriptor filesystem › refuses a substituted or symbolic root during acquisition
+
+    Secure upload filesystem requires Linux
+
+      19 | function native(): NativeBoundary {
+      20 |   if (process.platform !== "linux")
+    > 21 |     throw new Error("Secure upload filesystem requires Linux");
+         |           ^
+      22 |   // App-owned build artifact; no search in storage, env or working directory.
+      23 |   return (binding ??= loadNative(
+      24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+      at native (src/uploads/secure-filesystem.ts:21:11)
+      at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:13:16)
+
+  ● Linux descriptor filesystem › refuses a substituted or symbolic root during acquisition
+
+    TypeError: Cannot read properties of undefined (reading 'close')
+
+      14 |   });
+      15 |   afterEach(() => {
+    > 16 |     boundary.close();
+         |              ^
+      17 |     fs.rmSync(root, { recursive: true, force: true });
+      18 |     fs.rmSync(outside, { recursive: true, force: true });
+      19 |   });
+
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:16:14)
+
+  ● Linux descriptor filesystem › closes idempotently and fails closed on every later operation
+
+    Secure upload filesystem requires Linux
+
+      19 | function native(): NativeBoundary {
+      20 |   if (process.platform !== "linux")
+    > 21 |     throw new Error("Secure upload filesystem requires Linux");
+         |           ^
+      22 |   // App-owned build artifact; no search in storage, env or working directory.
+      23 |   return (binding ??= loadNative(
+      24 |     path.join(__dirname, "../../native/secure-fs.node"),
+
+      at native (src/uploads/secure-filesystem.ts:21:11)
+      at new SecureFilesystem (src/uploads/secure-filesystem.ts:36:23)
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:13:16)
+
+  ● Linux descriptor filesystem › closes idempotently and fails closed on every later operation
+
+    TypeError: Cannot read properties of undefined (reading 'close')
+
+      14 |   });
+      15 |   afterEach(() => {
+    > 16 |     boundary.close();
+         |              ^
+      17 |     fs.rmSync(root, { recursive: true, force: true });
+      18 |     fs.rmSync(outside, { recursive: true, force: true });
+      19 |   });
+
+      at Object.<anonymous> (src/uploads/secure-filesystem.spec.ts:16:14)
+
+
+Test Suites: 4 failed, 12 skipped, 63 passed, 67 of 79 total
+Tests:       38 failed, 154 skipped, 956 passed, 1148 total
+Snapshots:   0 total
+Time:        32.364 s, estimated 43 s
+Ran all test suites.
+Test results written to: ../docs/evidence/d5-1-2-20261014/backend-local-tests.json

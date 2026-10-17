@@ -1,0 +1,14 @@
+[
+  {
+    "before": "    CONSTRAINT \"CHK_ssd_cleanup_state\" CHECK ((((\"cleanupState\")::text = ANY ((ARRAY['pending'::character varying, 'cleaned'::character varying])::text[])) AND (((\"cleanupState\")::text <> 'cleaned'::text) OR ((state)::text = 'committed'::text)))),",
+    "after": "    CONSTRAINT \"CHK_ssd_cleanup_state\" CHECK ((((\"cleanupState\")::text = ANY (ARRAY[('pending'::character varying)::text, ('cleaned'::character varying)::text])) AND (((\"cleanupState\")::text <> 'cleaned'::text) OR ((state)::text = 'committed'::text)))),"
+  },
+  {
+    "before": "    CONSTRAINT ssd_finalization_operations_state_check CHECK (((state)::text = ANY ((ARRAY['assembling'::character varying, 'verified'::character varying, 'publishing'::character varying, 'published'::character varying, 'committed'::character varying])::text[]))),",
+    "after": "    CONSTRAINT ssd_finalization_operations_state_check CHECK (((state)::text = ANY (ARRAY[('assembling'::character varying)::text, ('verified'::character varying)::text, ('publishing'::character varying)::text, ('published'::character varying)::text, ('committed'::character varying)::text]))),"
+  },
+  {
+    "before": "    CONSTRAINT upload_session_status CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'uploading'::character varying, 'completed'::character varying, 'aborted'::character varying])::text[])))",
+    "after": "    CONSTRAINT upload_session_status CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('uploading'::character varying)::text, ('completed'::character varying)::text, ('aborted'::character varying)::text])))"
+  }
+]

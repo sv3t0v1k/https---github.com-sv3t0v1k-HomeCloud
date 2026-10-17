@@ -21,7 +21,8 @@
     "bench:complete-upload": "npm run bench:compile && node dist-bench/bench/complete-upload-index.js",
     "bench:permanent-delete": "npm run bench:compile && node dist-bench/bench/permanent-delete-index.js",
     "bench:multipart-memory": "npm run bench:compile && node dist-bench/bench/multipart-memory-index.js",
-    "bench:full-file-http": "npm run bench:compile && node dist-bench/bench/full-file-http-index.js"
+    "bench:full-file-http": "npm run bench:compile && node dist-bench/bench/full-file-http-index.js",
+    "test:dependency-security:compiled": "npm run build && node --test --test-timeout=10000 test/dependency-security-runtime.cjs"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.0",
@@ -31,8 +32,8 @@
     "@nestjs/passport": "^10.0.3",
     "@nestjs/platform-express": "^10.4.0",
     "@nestjs/platform-socket.io": "^10.4.0",
-    "@nestjs/terminus": "^10.2.0",
-    "@nestjs/typeorm": "^10.0.2",
+    "@nestjs/terminus": "11.1.1",
+    "@nestjs/typeorm": "11.0.3",
     "@nestjs/websockets": "^10.4.0",
     "archiver": "^5.3.1",
     "bcryptjs": "^2.4.3",
@@ -40,23 +41,23 @@
     "class-validator": "^0.14.1",
     "cors": "^2.8.5",
     "express-rate-limit": "^7.5.0",
-    "file-type": "^19.0.0",
+    "file-type": "21.3.2",
     "helmet": "^8.1.0",
     "mime-types": "^2.1.35",
-    "multer": "^1.4.5-lts.1",
+    "multer": "2.4.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
     "pg": "^8.13.0",
     "redis": "^4.7.0",
-    "sharp": "^0.33.5",
+    "sharp": "0.35.5",
     "slugify": "^1.6.6",
     "socket.io": "^4.8.1",
     "typeorm": "^0.3.20",
     "uuid": "^11.0.0"
   },
   "devDependencies": {
-    "@nestjs/cli": "^10.4.0",
+    "@nestjs/cli": "11.0.18",
     "@nestjs/testing": "^10.0.1",
     "@types/archiver": "^5.3.1",
     "@types/bcryptjs": "^2.4.6",
@@ -79,5 +80,18 @@
     "ts-jest": "^29.4.12",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.5.0"
+  },
+  "overrides": {
+    "@nestjs/common": {
+      "file-type": "$file-type"
+    },
+    "@nestjs/platform-express": {
+      "multer": "$multer",
+      "express": "4.22.3",
+      "body-parser": "1.20.8"
+    },
+    "@nestjs/config": {
+      "lodash": "4.18.1"
+    }
   }
 }

@@ -1,0 +1,30 @@
+{
+  "date": "2026-10-13",
+  "release_gate": "BLOCKED_HIGH_CRITICAL",
+  "counts": {
+    "backend": {
+      "info": 0,
+      "low": 4,
+      "moderate": 36,
+      "high": 13,
+      "critical": 2,
+      "total": 55
+    },
+    "backend-prod": {
+      "info": 0,
+      "low": 1,
+      "moderate": 10,
+      "high": 5,
+      "critical": 1,
+      "total": 17
+    },
+    "frontend": {
+      "info": 0,
+      "low": 0,
+      "moderate": 3,
+      "high": 7,
+      "critical": 2,
+      "total": 12
+    }
+  }
+}

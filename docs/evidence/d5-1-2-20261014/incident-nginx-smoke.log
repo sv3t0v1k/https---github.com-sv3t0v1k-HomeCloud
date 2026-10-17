@@ -1,0 +1,1252 @@
+﻿2026-10-14T09:50:18.0128411Z Current runner version: '2.337.0'
+2026-10-14T09:50:18.0152689Z ##[group]Runner Image Provisioner
+2026-10-14T09:50:18.0153658Z Hosted Compute Agent
+2026-10-14T09:50:18.0154266Z Version: 20261002.596
+2026-10-14T09:50:18.0154884Z Commit: c3d12f3313a95f25162a1503be624f3b0617f8c0
+2026-10-14T09:50:18.0155686Z Build Date: 2026-10-02T22:28:27Z
+2026-10-14T09:50:18.0156413Z Worker ID: {4936ef82-2f9f-4a74-b871-3a6cf2fecc45}
+2026-10-14T09:50:18.0157531Z Region: westus
+2026-10-14T09:50:18.0158271Z Cloud: Azure
+2026-10-14T09:50:18.0158811Z ##[endgroup]
+2026-10-14T09:50:18.0160757Z ##[group]Operating System
+2026-10-14T09:50:18.0161456Z Ubuntu
+2026-10-14T09:50:18.0162044Z 24.04.5
+2026-10-14T09:50:18.0162576Z LTS
+2026-10-14T09:50:18.0163093Z ##[endgroup]
+2026-10-14T09:50:18.0163737Z ##[group]Runner Image
+2026-10-14T09:50:18.0164382Z Image: ubuntu-24.04
+2026-10-14T09:50:18.0165025Z Version: 20261004.327.1
+2026-10-14T09:50:18.0166286Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261004.327/images/ubuntu/Ubuntu2404-Readme.md
+2026-10-14T09:50:18.0168353Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261004.327
+2026-10-14T09:50:18.0169452Z ##[endgroup]
+2026-10-14T09:50:18.0170607Z ##[group]GITHUB_TOKEN Permissions
+2026-10-14T09:50:18.0172523Z Contents: read
+2026-10-14T09:50:18.0173252Z Metadata: read
+2026-10-14T09:50:18.0173880Z ##[endgroup]
+2026-10-14T09:50:18.0175925Z Secret source: Actions
+2026-10-14T09:50:18.0176989Z Cache mode: write
+2026-10-14T09:50:18.0177973Z Prepare workflow directory
+2026-10-14T09:50:18.0568615Z Prepare all required actions
+2026-10-14T09:50:18.0615411Z Getting action download info
+2026-10-14T09:50:18.4091952Z Download action repository 'actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5' (SHA:34e114876b0b11c390a56381ad16ebd13914f8d5)
+2026-10-14T09:50:18.5460342Z Download action repository 'docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435' (SHA:e468171a9de216ec08956ac3ada2f0791b6bd435)
+2026-10-14T09:50:19.0658501Z Download action repository 'docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83' (SHA:263435318d21b8e681c14492fe198d362a7d2c83)
+2026-10-14T09:50:19.6014553Z Download action repository 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+2026-10-14T09:50:19.8769654Z Complete job name: image-build (frontend)
+2026-10-14T09:50:19.9883779Z ##[group]Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+2026-10-14T09:50:19.9885584Z with:
+2026-10-14T09:50:19.9886508Z   ref: 8a9add6fab55298c3397ea01b65e4f2d7512b92c
+2026-10-14T09:50:19.9887963Z   persist-credentials: false
+2026-10-14T09:50:19.9889260Z   repository: sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud
+2026-10-14T09:50:19.9898566Z   token: ***
+2026-10-14T09:50:19.9899419Z   ssh-strict: true
+2026-10-14T09:50:19.9900273Z   ssh-user: git
+2026-10-14T09:50:19.9901102Z   clean: true
+2026-10-14T09:50:19.9902004Z   sparse-checkout-cone-mode: true
+2026-10-14T09:50:19.9903050Z   fetch-depth: 1
+2026-10-14T09:50:19.9903927Z   fetch-tags: false
+2026-10-14T09:50:19.9904824Z   show-progress: true
+2026-10-14T09:50:19.9905718Z   lfs: false
+2026-10-14T09:50:19.9906584Z   submodules: false
+2026-10-14T09:50:19.9907815Z   set-safe-directory: true
+2026-10-14T09:50:19.9909133Z ##[endgroup]
+2026-10-14T09:50:20.0990743Z Syncing repository: sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud
+2026-10-14T09:50:20.0995463Z ##[group]Getting Git version info
+2026-10-14T09:50:20.0999308Z Working directory is '/home/runner/work/https---github.com-sv3t0v1k-HomeCloud/https---github.com-sv3t0v1k-HomeCloud'
+2026-10-14T09:50:20.1004062Z [command]/usr/bin/git version
+2026-10-14T09:50:20.1122897Z git version 2.55.0
+2026-10-14T09:50:20.1162931Z ##[endgroup]
+2026-10-14T09:50:20.1172556Z Temporarily overriding HOME='/home/runner/work/_temp/56819962-fd0d-4455-93f4-d46de1ed9005' before making global git config changes
+2026-10-14T09:50:20.1185798Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-14T09:50:20.1193352Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/https---github.com-sv3t0v1k-HomeCloud/https---github.com-sv3t0v1k-HomeCloud
+2026-10-14T09:50:20.1264347Z Deleting the contents of '/home/runner/work/https---github.com-sv3t0v1k-HomeCloud/https---github.com-sv3t0v1k-HomeCloud'
+2026-10-14T09:50:20.1269931Z ##[group]Initializing the repository
+2026-10-14T09:50:20.1276065Z [command]/usr/bin/git init /home/runner/work/https---github.com-sv3t0v1k-HomeCloud/https---github.com-sv3t0v1k-HomeCloud
+2026-10-14T09:50:20.1404351Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-14T09:50:20.1408272Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-14T09:50:20.1411791Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-14T09:50:20.1414562Z hint: call:
+2026-10-14T09:50:20.1416115Z hint:
+2026-10-14T09:50:20.1418232Z hint: 	git config --global init.defaultBranch <name>
+2026-10-14T09:50:20.1420574Z hint:
+2026-10-14T09:50:20.1422737Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-14T09:50:20.1426242Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-14T09:50:20.1429403Z hint:
+2026-10-14T09:50:20.1431003Z hint: 	git branch -m <name>
+2026-10-14T09:50:20.1432940Z hint:
+2026-10-14T09:50:20.1435514Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-14T09:50:20.1441070Z Initialized empty Git repository in /home/runner/work/https---github.com-sv3t0v1k-HomeCloud/https---github.com-sv3t0v1k-HomeCloud/.git/
+2026-10-14T09:50:20.1449223Z [command]/usr/bin/git remote add origin https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud
+2026-10-14T09:50:20.1498931Z ##[endgroup]
+2026-10-14T09:50:20.1502521Z ##[group]Disabling automatic garbage collection
+2026-10-14T09:50:20.1504890Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-14T09:50:20.1558877Z ##[endgroup]
+2026-10-14T09:50:20.1561511Z ##[group]Setting up auth
+2026-10-14T09:50:20.1563997Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-14T09:50:20.1598631Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-14T09:50:20.1967763Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-14T09:50:20.2004151Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-14T09:50:20.2230838Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-14T09:50:20.2268597Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-14T09:50:20.2502709Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-14T09:50:20.2543019Z ##[endgroup]
+2026-10-14T09:50:20.2545761Z ##[group]Fetching the repository
+2026-10-14T09:50:20.2555632Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin 8a9add6fab55298c3397ea01b65e4f2d7512b92c
+2026-10-14T09:50:21.4175452Z From https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud
+2026-10-14T09:50:21.4188734Z  * branch            8a9add6fab55298c3397ea01b65e4f2d7512b92c -> FETCH_HEAD
+2026-10-14T09:50:21.4191050Z ##[endgroup]
+2026-10-14T09:50:21.4191624Z ##[group]Determining the checkout info
+2026-10-14T09:50:21.4192175Z ##[endgroup]
+2026-10-14T09:50:21.4192545Z [command]/usr/bin/git sparse-checkout disable
+2026-10-14T09:50:21.4243687Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-14T09:50:21.4277404Z ##[group]Checking out the ref
+2026-10-14T09:50:21.4316820Z [command]/usr/bin/git checkout --progress --force 8a9add6fab55298c3397ea01b65e4f2d7512b92c
+2026-10-14T09:50:21.5376921Z Note: switching to '8a9add6fab55298c3397ea01b65e4f2d7512b92c'.
+2026-10-14T09:50:21.5377978Z 
+2026-10-14T09:50:21.5378475Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-14T09:50:21.5379571Z changes and commit them, and you can discard any commits you make in this
+2026-10-14T09:50:21.5380584Z state without impacting any branches by switching back to a branch.
+2026-10-14T09:50:21.5381199Z 
+2026-10-14T09:50:21.5381664Z If you want to create a new branch to retain commits you create, you may
+2026-10-14T09:50:21.5382544Z do so (now or later) by using -c with the switch command. Example:
+2026-10-14T09:50:21.5383043Z 
+2026-10-14T09:50:21.5383289Z   git switch -c <new-branch-name>
+2026-10-14T09:50:21.5383637Z 
+2026-10-14T09:50:21.5383865Z Or undo this operation with:
+2026-10-14T09:50:21.5384183Z 
+2026-10-14T09:50:21.5384376Z   git switch -
+2026-10-14T09:50:21.5384684Z 
+2026-10-14T09:50:21.5385166Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-14T09:50:21.5385756Z 
+2026-10-14T09:50:21.5386524Z HEAD is now at 8a9add6 Зафиксировать проверки готовности релиза и реальные блокеры D5.1.2
+2026-10-14T09:50:21.5394000Z ##[endgroup]
+2026-10-14T09:50:21.5441546Z [command]/usr/bin/git log -1 --format=%H
+2026-10-14T09:50:21.5469675Z 8a9add6fab55298c3397ea01b65e4f2d7512b92c
+2026-10-14T09:50:21.5479071Z ##[group]Removing auth
+2026-10-14T09:50:21.5482137Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-14T09:50:21.5516084Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-14T09:50:21.5741980Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-14T09:50:21.5771282Z http.https://github.com/.extraheader
+2026-10-14T09:50:21.5778424Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-10-14T09:50:21.5813858Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-14T09:50:21.6042603Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-14T09:50:21.6075726Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-14T09:50:21.6299193Z ##[endgroup]
+2026-10-14T09:50:21.6506552Z ##[group]Run python3 -c 'import json,os; d=json.load(open("scripts/ci/images.lock.json")); f=open(os.environ["GITHUB_OUTPUT"],"a"); [f.write(k+"="+v+"\n") for k,v in d.items()]'
+2026-10-14T09:50:21.6508262Z [36;1mpython3 -c 'import json,os; d=json.load(open("scripts/ci/images.lock.json")); f=open(os.environ["GITHUB_OUTPUT"],"a"); [f.write(k+"="+v+"\n") for k,v in d.items()]'[0m
+2026-10-14T09:50:21.6859027Z shell: /usr/bin/bash -e {0}
+2026-10-14T09:50:21.6859464Z ##[endgroup]
+2026-10-14T09:50:21.7255027Z ##[group]Run git diff --quiet HEAD -- . ':(exclude)scripts/tests/PHASE-5.3.1-TEST-AUDIT.md'
+2026-10-14T09:50:21.7255767Z [36;1mgit diff --quiet HEAD -- . ':(exclude)scripts/tests/PHASE-5.3.1-TEST-AUDIT.md'[0m
+2026-10-14T09:50:21.7256403Z [36;1mtest -z "$(git ls-files --others --exclude-standard -- backend frontend)"[0m
+2026-10-14T09:50:21.7256963Z [36;1mecho "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"[0m
+2026-10-14T09:50:21.7257812Z [36;1mecho "repository=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"[0m
+2026-10-14T09:50:21.7325058Z shell: /usr/bin/bash -e {0}
+2026-10-14T09:50:21.7325401Z ##[endgroup]
+2026-10-14T09:50:21.8216647Z ##[group]Run docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
+2026-10-14T09:50:21.8217445Z with:
+2026-10-14T09:50:21.8217718Z   version: v0.38.0
+2026-10-14T09:50:21.8218436Z   driver-opts: image=moby/buildkit@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea
+2026-10-14T09:50:21.8219024Z   driver: docker-container
+2026-10-14T09:50:21.8219347Z   install: false
+2026-10-14T09:50:21.8219605Z   use: true
+2026-10-14T09:50:21.8219855Z   keep-state: false
+2026-10-14T09:50:21.8220119Z   cache-binary: true
+2026-10-14T09:50:21.8220380Z   cleanup: true
+2026-10-14T09:50:21.8220635Z ##[endgroup]
+2026-10-14T09:50:22.1103307Z (node:2443) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-14T09:50:22.1104736Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-14T09:50:22.1281743Z ##[group]Docker info
+2026-10-14T09:50:22.1312094Z [command]/usr/bin/docker version
+2026-10-14T09:50:22.2413889Z Client: Docker Engine - Community
+2026-10-14T09:50:22.2415179Z  Version:           28.0.4
+2026-10-14T09:50:22.2416001Z  API version:       1.48
+2026-10-14T09:50:22.2416713Z  Go version:        go1.23.7
+2026-10-14T09:50:22.2418055Z  Git commit:        b8034c0
+2026-10-14T09:50:22.2427995Z  Built:             Tue Mar 25 15:07:16 2025
+2026-10-14T09:50:22.2428700Z  OS/Arch:           linux/amd64
+2026-10-14T09:50:22.2429372Z  Context:           default
+2026-10-14T09:50:22.2429790Z 
+2026-10-14T09:50:22.2430128Z Server: Docker Engine - Community
+2026-10-14T09:50:22.2430697Z  Engine:
+2026-10-14T09:50:22.2431153Z   Version:          28.0.4
+2026-10-14T09:50:22.2431726Z   API version:      1.48 (minimum version 1.24)
+2026-10-14T09:50:22.2432424Z   Go version:       go1.23.7
+2026-10-14T09:50:22.2433025Z   Git commit:       6430e49
+2026-10-14T09:50:22.2433622Z   Built:            Tue Mar 25 15:07:16 2025
+2026-10-14T09:50:22.2434268Z   OS/Arch:          linux/amd64
+2026-10-14T09:50:22.2434863Z   Experimental:     false
+2026-10-14T09:50:22.2435384Z  containerd:
+2026-10-14T09:50:22.2435858Z   Version:          v2.3.6
+2026-10-14T09:50:22.2436478Z   GitCommit:        ee2735368117d2eb259779949d5e75cdafec9761
+2026-10-14T09:50:22.2437344Z  runc:
+2026-10-14T09:50:22.2437844Z   Version:          1.5.1
+2026-10-14T09:50:22.2438475Z   GitCommit:        v1.5.1-0-g8f2685a4
+2026-10-14T09:50:22.2439172Z  docker-init:
+2026-10-14T09:50:22.2439817Z   Version:          0.19.0
+2026-10-14T09:50:22.2440427Z   GitCommit:        de40ad0
+2026-10-14T09:50:22.2487681Z [command]/usr/bin/docker info
+2026-10-14T09:50:22.4880835Z Client: Docker Engine - Community
+2026-10-14T09:50:22.4881434Z  Version:    28.0.4
+2026-10-14T09:50:22.4884490Z  Context:    default
+2026-10-14T09:50:22.4885522Z  Debug Mode: false
+2026-10-14T09:50:22.4886215Z  Plugins:
+2026-10-14T09:50:22.4886747Z   buildx: Docker Buildx (Docker Inc.)
+2026-10-14T09:50:22.4887949Z     Version:  v0.37.2
+2026-10-14T09:50:22.4888640Z     Path:     /usr/libexec/docker/cli-plugins/docker-buildx
+2026-10-14T09:50:22.4889393Z   compose: Docker Compose (Docker Inc.)
+2026-10-14T09:50:22.4890010Z     Version:  v2.38.2
+2026-10-14T09:50:22.4890651Z     Path:     /usr/libexec/docker/cli-plugins/docker-compose
+2026-10-14T09:50:22.4891237Z 
+2026-10-14T09:50:22.4891538Z Server:
+2026-10-14T09:50:22.4892009Z  Containers: 0
+2026-10-14T09:50:22.4892499Z   Running: 0
+2026-10-14T09:50:22.4892997Z   Paused: 0
+2026-10-14T09:50:22.4893473Z   Stopped: 0
+2026-10-14T09:50:22.4893948Z  Images: 6
+2026-10-14T09:50:22.4894441Z  Server Version: 28.0.4
+2026-10-14T09:50:22.4895085Z  Storage Driver: overlay2
+2026-10-14T09:50:22.4895668Z   Backing Filesystem: extfs
+2026-10-14T09:50:22.4896238Z   Supports d_type: true
+2026-10-14T09:50:22.4896770Z   Using metacopy: false
+2026-10-14T09:50:22.4897548Z   Native Overlay Diff: false
+2026-10-14T09:50:22.4898143Z   userxattr: false
+2026-10-14T09:50:22.4898707Z  Logging Driver: json-file
+2026-10-14T09:50:22.4899367Z  Cgroup Driver: systemd
+2026-10-14T09:50:22.4900461Z  Cgroup Version: 2
+2026-10-14T09:50:22.4901152Z  Plugins:
+2026-10-14T09:50:22.4901757Z   Volume: local
+2026-10-14T09:50:22.4902438Z   Network: bridge host ipvlan macvlan null overlay
+2026-10-14T09:50:22.4903716Z   Log: awslogs fluentd gcplogs gelf journald json-file local splunk syslog
+2026-10-14T09:50:22.4904553Z  Swarm: inactive
+2026-10-14T09:50:22.4905242Z  Runtimes: io.containerd.runc.v2 runc
+2026-10-14T09:50:22.4906065Z  Default Runtime: runc
+2026-10-14T09:50:22.4906750Z  Init Binary: docker-init
+2026-10-14T09:50:22.4907780Z  containerd version: ee2735368117d2eb259779949d5e75cdafec9761
+2026-10-14T09:50:22.4908633Z  runc version: v1.5.1-0-g8f2685a4
+2026-10-14T09:50:22.4909325Z  init version: de40ad0
+2026-10-14T09:50:22.4910074Z  Security Options:
+2026-10-14T09:50:22.4910758Z   apparmor
+2026-10-14T09:50:22.4911329Z   seccomp
+2026-10-14T09:50:22.4911951Z    Profile: builtin
+2026-10-14T09:50:22.4912591Z   cgroupns
+2026-10-14T09:50:22.4913262Z  Kernel Version: 6.17.0-1022-azure
+2026-10-14T09:50:22.4914131Z  Operating System: Ubuntu 24.04.5 LTS
+2026-10-14T09:50:22.4914952Z  OSType: linux
+2026-10-14T09:50:22.4915643Z  Architecture: x86_64
+2026-10-14T09:50:22.4916347Z  CPUs: 4
+2026-10-14T09:50:22.4916970Z  Total Memory: 15.61GiB
+2026-10-14T09:50:22.4917952Z  Name: runnervmmprz5
+2026-10-14T09:50:22.4918752Z  ID: 07f0e779-c305-4162-b8ec-c48c30f52fbe
+2026-10-14T09:50:22.4919633Z  Docker Root Dir: /var/lib/docker
+2026-10-14T09:50:22.4920413Z  Debug Mode: false
+2026-10-14T09:50:22.4921145Z  Username: githubactions
+2026-10-14T09:50:22.4921890Z  Experimental: false
+2026-10-14T09:50:22.4922638Z  Insecure Registries:
+2026-10-14T09:50:22.4927772Z   ::1/128
+2026-10-14T09:50:22.4928307Z   127.0.0.0/8
+2026-10-14T09:50:22.4928670Z  Live Restore Enabled: false
+2026-10-14T09:50:22.4928952Z 
+2026-10-14T09:50:22.4929946Z ##[endgroup]
+2026-10-14T09:50:22.5524525Z ##[group]Download buildx from GitHub Releases
+2026-10-14T09:50:22.5889981Z Use 0.38.0 version spec cache key for v0.38.0
+2026-10-14T09:50:22.8782395Z Cache hit for: buildx-dl-bin-0.38.0-linux-x64
+2026-10-14T09:50:22.8894461Z (node:2443) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-10-14T09:50:24.1829666Z Received 5741637 of 22518853 (25.5%), 5.5 MBs/sec
+2026-10-14T09:50:24.5705622Z Received 22518853 of 22518853 (100.0%), 15.5 MBs/sec
+2026-10-14T09:50:24.5707585Z Cache Size: ~21 MB (22518853 B)
+2026-10-14T09:50:24.5736966Z [command]/usr/bin/tar -xf /home/runner/work/_temp/46f8a5e5-0c19-447a-813e-4722ad498487/cache.tzst -P -C /home/runner/work/https---github.com-sv3t0v1k-HomeCloud/https---github.com-sv3t0v1k-HomeCloud --use-compress-program unzstd
+2026-10-14T09:50:24.6830479Z Cache restored successfully
+2026-10-14T09:50:24.6843152Z Restored buildx-dl-bin-0.38.0-linux-x64 from GitHub Actions cache
+2026-10-14T09:50:24.7202046Z Cached to hosted tool cache /opt/hostedtoolcache/buildx-dl-bin/0.38.0/linux-x64
+2026-10-14T09:50:24.7613646Z Buildx binary found in /home/runner/.docker/buildx/.bin/0.38.0/linux-x64/docker-buildx
+2026-10-14T09:50:24.7615045Z ##[endgroup]
+2026-10-14T09:50:24.7615807Z ##[group]Install buildx
+2026-10-14T09:50:24.7616298Z Docker plugin mode
+2026-10-14T09:50:24.7847922Z Fixing perms
+2026-10-14T09:50:24.7848585Z Plugin path: /home/runner/.docker/cli-plugins/docker-buildx
+2026-10-14T09:50:24.7849669Z ##[endgroup]
+2026-10-14T09:50:24.7850384Z ##[group]Buildx version
+2026-10-14T09:50:24.7880037Z [command]/usr/bin/docker buildx version
+2026-10-14T09:50:24.8360058Z github.com/docker/buildx v0.38.0 0dbe87f36ed472fe36b6796c3f70b4210a731fc5
+2026-10-14T09:50:24.8381241Z ##[endgroup]
+2026-10-14T09:50:24.8967386Z ##[group]Inspecting default docker context
+2026-10-14T09:50:24.9112479Z [
+2026-10-14T09:50:24.9112920Z   {
+2026-10-14T09:50:24.9113555Z     "Name": "default",
+2026-10-14T09:50:24.9113976Z     "Metadata": {},
+2026-10-14T09:50:24.9114363Z     "Endpoints": {
+2026-10-14T09:50:24.9114753Z       "docker": {
+2026-10-14T09:50:24.9115563Z         "Host": "unix:///var/run/docker.sock",
+2026-10-14T09:50:24.9116160Z         "SkipTLSVerify": false
+2026-10-14T09:50:24.9116606Z       }
+2026-10-14T09:50:24.9116940Z     },
+2026-10-14T09:50:24.9117842Z     "TLSMaterial": {},
+2026-10-14T09:50:24.9118270Z     "Storage": {
+2026-10-14T09:50:24.9118680Z       "MetadataPath": "<IN MEMORY>",
+2026-10-14T09:50:24.9119179Z       "TLSPath": "<IN MEMORY>"
+2026-10-14T09:50:24.9119619Z     }
+2026-10-14T09:50:24.9119947Z   }
+2026-10-14T09:50:24.9120279Z ]
+2026-10-14T09:50:24.9120926Z ##[endgroup]
+2026-10-14T09:50:24.9121607Z ##[group]Creating a new builder instance
+2026-10-14T09:50:25.0182759Z [command]/usr/bin/docker buildx create --name builder-038d7d11-5690-42e4-aad3-6622189aab8b --driver docker-container --driver-opt image=moby/buildkit@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea --buildkitd-flags --allow-insecure-entitlement security.insecure --allow-insecure-entitlement network.host --use
+2026-10-14T09:50:25.0702515Z builder-038d7d11-5690-42e4-aad3-6622189aab8b
+2026-10-14T09:50:25.0722058Z ##[endgroup]
+2026-10-14T09:50:25.0722725Z ##[group]Booting builder
+2026-10-14T09:50:25.0755092Z [command]/usr/bin/docker buildx inspect --bootstrap --builder builder-038d7d11-5690-42e4-aad3-6622189aab8b
+2026-10-14T09:50:25.1232227Z #1 [internal] booting buildkit
+2026-10-14T09:50:25.2736648Z #1 pulling image moby/buildkit@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea
+2026-10-14T09:50:29.5272157Z #1 pulling image moby/buildkit@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea 4.4s done
+2026-10-14T09:50:29.6793633Z #1 creating container buildx_buildkit_builder-038d7d11-5690-42e4-aad3-6622189aab8b0
+2026-10-14T09:50:29.8666103Z #1 creating container buildx_buildkit_builder-038d7d11-5690-42e4-aad3-6622189aab8b0 0.3s done
+2026-10-14T09:50:29.8985637Z #1 DONE 4.7s
+2026-10-14T09:50:29.9316152Z Name:          builder-038d7d11-5690-42e4-aad3-6622189aab8b
+2026-10-14T09:50:29.9317042Z Driver:        docker-container
+2026-10-14T09:50:29.9317997Z Last Activity: 2026-10-14 09:50:25 +0000 UTC
+2026-10-14T09:50:29.9318385Z 
+2026-10-14T09:50:29.9318523Z Nodes:
+2026-10-14T09:50:29.9318992Z Name:                  builder-038d7d11-5690-42e4-aad3-6622189aab8b0
+2026-10-14T09:50:29.9319704Z Endpoint:              unix:///var/run/docker.sock
+2026-10-14T09:50:29.9320528Z Driver Options:        image="moby/buildkit@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea"
+2026-10-14T09:50:29.9321200Z Status:                running
+2026-10-14T09:50:29.9321835Z BuildKit daemon flags: --allow-insecure-entitlement security.insecure --allow-insecure-entitlement network.host
+2026-10-14T09:50:29.9322790Z BuildKit version:      v0.33.1
+2026-10-14T09:50:29.9323392Z Platforms:             linux/amd64, linux/amd64/v2, linux/amd64/v3, linux/386
+2026-10-14T09:50:29.9324419Z Labels:
+2026-10-14T09:50:29.9324905Z  org.mobyproject.buildkit.worker.executor:         oci
+2026-10-14T09:50:29.9325492Z  org.mobyproject.buildkit.worker.hostname:         00b7b840e4df
+2026-10-14T09:50:29.9326417Z  org.mobyproject.buildkit.worker.network:          host
+2026-10-14T09:50:29.9327123Z  org.mobyproject.buildkit.worker.oci.process-mode: sandbox
+2026-10-14T09:50:29.9328098Z  org.mobyproject.buildkit.worker.selinux.enabled:  false
+2026-10-14T09:50:29.9328868Z  org.mobyproject.buildkit.worker.snapshotter:      overlayfs
+2026-10-14T09:50:29.9329501Z GC Policy rule#0:
+2026-10-14T09:50:29.9329878Z  All:            false
+2026-10-14T09:50:29.9330477Z  Filters:        type==source.local type==exec.cachemount type==source.git.checkout
+2026-10-14T09:50:29.9331240Z  Keep Duration:  48h0m0s
+2026-10-14T09:50:29.9331665Z  Max Used Space: 488.3MiB
+2026-10-14T09:50:29.9332090Z GC Policy rule#1:
+2026-10-14T09:50:29.9332467Z  All:            false
+2026-10-14T09:50:29.9332870Z  Keep Duration:  1440h0m0s
+2026-10-14T09:50:29.9333290Z  Reserved Space: 9.313GiB
+2026-10-14T09:50:29.9333756Z  Max Used Space: 93.13GiB
+2026-10-14T09:50:29.9334521Z  Min Free Space: 27.01GiB
+2026-10-14T09:50:29.9334948Z GC Policy rule#2:
+2026-10-14T09:50:29.9335326Z  All:            false
+2026-10-14T09:50:29.9335706Z  Reserved Space: 9.313GiB
+2026-10-14T09:50:29.9336100Z  Max Used Space: 93.13GiB
+2026-10-14T09:50:29.9336782Z  Min Free Space: 27.01GiB
+2026-10-14T09:50:29.9337430Z GC Policy rule#3:
+2026-10-14T09:50:29.9337852Z  All:            true
+2026-10-14T09:50:29.9338249Z  Reserved Space: 9.313GiB
+2026-10-14T09:50:29.9338619Z  Max Used Space: 93.13GiB
+2026-10-14T09:50:29.9338994Z  Min Free Space: 27.01GiB
+2026-10-14T09:50:29.9342322Z ##[endgroup]
+2026-10-14T09:50:30.0267032Z ##[group]Inspect builder
+2026-10-14T09:50:30.0269034Z {
+2026-10-14T09:50:30.0269891Z   "nodes": [
+2026-10-14T09:50:30.0270575Z     {
+2026-10-14T09:50:30.0271309Z       "name": "builder-038d7d11-5690-42e4-aad3-6622189aab8b0",
+2026-10-14T09:50:30.0271996Z       "endpoint": "unix:///var/run/docker.sock",
+2026-10-14T09:50:30.0272541Z       "driver-opts": [
+2026-10-14T09:50:30.0273359Z         "image=moby/buildkit@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea"
+2026-10-14T09:50:30.0274241Z       ],
+2026-10-14T09:50:30.0274614Z       "status": "running",
+2026-10-14T09:50:30.0275560Z       "buildkitd-flags": "--allow-insecure-entitlement security.insecure --allow-insecure-entitlement network.host",
+2026-10-14T09:50:30.0276616Z       "buildkit": "v0.33.1",
+2026-10-14T09:50:30.0277520Z       "platforms": "linux/amd64,linux/amd64/v2,linux/amd64/v3,linux/386",
+2026-10-14T09:50:30.0278205Z       "features": {
+2026-10-14T09:50:30.0278752Z         "Automatically load images to the Docker Engine image store": true,
+2026-10-14T09:50:30.0279419Z         "Cache export": true,
+2026-10-14T09:50:30.0279854Z         "Direct push": true,
+2026-10-14T09:50:30.0280319Z         "Docker exporter": true,
+2026-10-14T09:50:30.0280799Z         "Multi-platform build": true,
+2026-10-14T09:50:30.0281242Z         "OCI exporter": true
+2026-10-14T09:50:30.0281605Z       },
+2026-10-14T09:50:30.0281896Z       "labels": {
+2026-10-14T09:50:30.0282342Z         "org.mobyproject.buildkit.worker.executor": "oci",
+2026-10-14T09:50:30.0283119Z         "org.mobyproject.buildkit.worker.hostname": "00b7b840e4df",
+2026-10-14T09:50:30.0283836Z         "org.mobyproject.buildkit.worker.network": "host",
+2026-10-14T09:50:30.0284547Z         "org.mobyproject.buildkit.worker.oci.process-mode": "sandbox",
+2026-10-14T09:50:30.0285322Z         "org.mobyproject.buildkit.worker.selinux.enabled": "false",
+2026-10-14T09:50:30.0286041Z         "org.mobyproject.buildkit.worker.snapshotter": "overlayfs"
+2026-10-14T09:50:30.0286612Z       },
+2026-10-14T09:50:30.0286911Z       "gcPolicy": [
+2026-10-14T09:50:30.0291212Z         {
+2026-10-14T09:50:30.0291603Z           "all": false,
+2026-10-14T09:50:30.0291957Z           "filter": [
+2026-10-14T09:50:30.0292502Z             "type==source.local type==exec.cachemount type==source.git.checkout"
+2026-10-14T09:50:30.0293182Z           ],
+2026-10-14T09:50:30.0293518Z           "keepDuration": "48h0m0s",
+2026-10-14T09:50:30.0294033Z           "maxUsedSpace": "488.3MiB"
+2026-10-14T09:50:30.0294512Z         },
+2026-10-14T09:50:30.0294863Z         {
+2026-10-14T09:50:30.0295162Z           "all": false,
+2026-10-14T09:50:30.0295545Z           "keepDuration": "1440h0m0s",
+2026-10-14T09:50:30.0296013Z           "reservedSpace": "9.313GiB",
+2026-10-14T09:50:30.0296483Z           "maxUsedSpace": "93.13GiB",
+2026-10-14T09:50:30.0296915Z           "minFreeSpace": "27.01GiB"
+2026-10-14T09:50:30.0297559Z         },
+2026-10-14T09:50:30.0297864Z         {
+2026-10-14T09:50:30.0298167Z           "all": false,
+2026-10-14T09:50:30.0298560Z           "reservedSpace": "9.313GiB",
+2026-10-14T09:50:30.0299012Z           "maxUsedSpace": "93.13GiB",
+2026-10-14T09:50:30.0299450Z           "minFreeSpace": "27.01GiB"
+2026-10-14T09:50:30.0299851Z         },
+2026-10-14T09:50:30.0300145Z         {
+2026-10-14T09:50:30.0300438Z           "all": true,
+2026-10-14T09:50:30.0300798Z           "reservedSpace": "9.313GiB",
+2026-10-14T09:50:30.0301510Z           "maxUsedSpace": "93.13GiB",
+2026-10-14T09:50:30.0301953Z           "minFreeSpace": "27.01GiB"
+2026-10-14T09:50:30.0302365Z         }
+2026-10-14T09:50:30.0302652Z       ]
+2026-10-14T09:50:30.0302931Z     }
+2026-10-14T09:50:30.0303379Z   ],
+2026-10-14T09:50:30.0303768Z   "name": "builder-038d7d11-5690-42e4-aad3-6622189aab8b",
+2026-10-14T09:50:30.0304307Z   "driver": "docker-container",
+2026-10-14T09:50:30.0304738Z   "lastActivity": "2026-10-14T09:50:25.000Z"
+2026-10-14T09:50:30.0305162Z }
+2026-10-14T09:50:30.0305745Z ##[endgroup]
+2026-10-14T09:50:30.0306309Z ##[group]BuildKit version
+2026-10-14T09:50:30.0306777Z builder-038d7d11-5690-42e4-aad3-6622189aab8b0: v0.33.1
+2026-10-14T09:50:30.0307719Z ##[endgroup]
+2026-10-14T09:50:30.0560416Z ##[group]Run docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83
+2026-10-14T09:50:30.0560848Z with:
+2026-10-14T09:50:30.0561045Z   context: ./frontend
+2026-10-14T09:50:30.0561275Z   platforms: linux/amd64
+2026-10-14T09:50:30.0561511Z   push: false
+2026-10-14T09:50:30.0561706Z   load: true
+2026-10-14T09:50:30.0561898Z   provenance: false
+2026-10-14T09:50:30.0562219Z   tags: homecloud-ci-frontend:8a9add6fab55298c3397ea01b65e4f2d7512b92c
+2026-10-14T09:50:30.0563325Z   build-args: NODE_IMAGE=docker.io/library/node:24.21.0-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
+NGINX_IMAGE=docker.io/library/nginx:1.30.5-alpine@sha256:0985e772fb9f729e6fa0980da05fca5d9c468e870eed43071545afa9d2e27d94
+
+2026-10-14T09:50:30.0564339Z   no-cache: false
+2026-10-14T09:50:30.0564541Z   pull: false
+2026-10-14T09:50:30.0567081Z   github-token: ***
+2026-10-14T09:50:30.0567537Z env:
+2026-10-14T09:50:30.0567742Z   BUILDX_GIT_CHECK_DIRTY: false
+2026-10-14T09:50:30.0568029Z   BUILDX_GIT_INFO: true
+2026-10-14T09:50:30.0568253Z   BUILDX_GIT_LABELS: false
+2026-10-14T09:50:30.0568478Z ##[endgroup]
+2026-10-14T09:50:30.3502080Z (node:2932) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-14T09:50:30.3503370Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-14T09:50:30.3524233Z ##[group]GitHub Actions runtime token ACs
+2026-10-14T09:50:30.3533316Z refs/heads/этап/d5-1-ci: read/write
+2026-10-14T09:50:30.3533841Z refs/heads/main: read
+2026-10-14T09:50:30.3534535Z ##[endgroup]
+2026-10-14T09:50:30.3535119Z ##[group]Docker info
+2026-10-14T09:50:30.3579537Z [command]/usr/bin/docker version
+2026-10-14T09:50:30.3819556Z Client: Docker Engine - Community
+2026-10-14T09:50:30.3828256Z  Version:           28.0.4
+2026-10-14T09:50:30.3829009Z  API version:       1.48
+2026-10-14T09:50:30.3829497Z  Go version:        go1.23.7
+2026-10-14T09:50:30.3829946Z  Git commit:        b8034c0
+2026-10-14T09:50:30.3830441Z  Built:             Tue Mar 25 15:07:16 2025
+2026-10-14T09:50:30.3830967Z  OS/Arch:           linux/amd64
+2026-10-14T09:50:30.3831425Z  Context:           default
+2026-10-14T09:50:30.3831673Z 
+2026-10-14T09:50:30.3831855Z Server: Docker Engine - Community
+2026-10-14T09:50:30.3832316Z  Engine:
+2026-10-14T09:50:30.3832671Z   Version:          28.0.4
+2026-10-14T09:50:30.3833158Z   API version:      1.48 (minimum version 1.24)
+2026-10-14T09:50:30.3833705Z   Go version:       go1.23.7
+2026-10-14T09:50:30.3834170Z   Git commit:       6430e49
+2026-10-14T09:50:30.3834620Z   Built:            Tue Mar 25 15:07:16 2025
+2026-10-14T09:50:30.3835126Z   OS/Arch:          linux/amd64
+2026-10-14T09:50:30.3835592Z   Experimental:     false
+2026-10-14T09:50:30.3836039Z  containerd:
+2026-10-14T09:50:30.3836410Z   Version:          v2.3.6
+2026-10-14T09:50:30.3836930Z   GitCommit:        ee2735368117d2eb259779949d5e75cdafec9761
+2026-10-14T09:50:30.3838069Z  runc:
+2026-10-14T09:50:30.3838447Z   Version:          1.5.1
+2026-10-14T09:50:30.3838892Z   GitCommit:        v1.5.1-0-g8f2685a4
+2026-10-14T09:50:30.3839352Z  docker-init:
+2026-10-14T09:50:30.3839716Z   Version:          0.19.0
+2026-10-14T09:50:30.3840122Z   GitCommit:        de40ad0
+2026-10-14T09:50:30.3863158Z [command]/usr/bin/docker info
+2026-10-14T09:50:30.4401396Z Client: Docker Engine - Community
+2026-10-14T09:50:30.4401917Z  Version:    28.0.4
+2026-10-14T09:50:30.4402618Z  Context:    default
+2026-10-14T09:50:30.4403219Z  Debug Mode: false
+2026-10-14T09:50:30.4404619Z  Plugins:
+2026-10-14T09:50:30.4405154Z   buildx: Docker Buildx (Docker Inc.)
+2026-10-14T09:50:30.4405448Z     Version:  v0.38.0
+2026-10-14T09:50:30.4405756Z     Path:     /home/runner/.docker/cli-plugins/docker-buildx
+2026-10-14T09:50:30.4406104Z   compose: Docker Compose (Docker Inc.)
+2026-10-14T09:50:30.4406384Z     Version:  v2.38.2
+2026-10-14T09:50:30.4406683Z     Path:     /usr/libexec/docker/cli-plugins/docker-compose
+2026-10-14T09:50:30.4406923Z 
+2026-10-14T09:50:30.4407016Z Server:
+2026-10-14T09:50:30.4407791Z  Containers: 1
+2026-10-14T09:50:30.4408023Z   Running: 1
+2026-10-14T09:50:30.4408233Z   Paused: 0
+2026-10-14T09:50:30.4408420Z   Stopped: 0
+2026-10-14T09:50:30.4408604Z  Images: 7
+2026-10-14T09:50:30.4408798Z  Server Version: 28.0.4
+2026-10-14T09:50:30.4409035Z  Storage Driver: overlay2
+2026-10-14T09:50:30.4409270Z   Backing Filesystem: extfs
+2026-10-14T09:50:30.4409510Z   Supports d_type: true
+2026-10-14T09:50:30.4409733Z   Using metacopy: false
+2026-10-14T09:50:30.4409956Z   Native Overlay Diff: false
+2026-10-14T09:50:30.4410202Z   userxattr: false
+2026-10-14T09:50:30.4410418Z  Logging Driver: json-file
+2026-10-14T09:50:30.4410656Z  Cgroup Driver: systemd
+2026-10-14T09:50:30.4410876Z  Cgroup Version: 2
+2026-10-14T09:50:30.4411086Z  Plugins:
+2026-10-14T09:50:30.4411279Z   Volume: local
+2026-10-14T09:50:30.4411515Z   Network: bridge host ipvlan macvlan null overlay
+2026-10-14T09:50:30.4411934Z   Log: awslogs fluentd gcplogs gelf journald json-file local splunk syslog
+2026-10-14T09:50:30.4412318Z  Swarm: inactive
+2026-10-14T09:50:30.4412547Z  Runtimes: io.containerd.runc.v2 runc
+2026-10-14T09:50:30.4412821Z  Default Runtime: runc
+2026-10-14T09:50:30.4413046Z  Init Binary: docker-init
+2026-10-14T09:50:30.4413446Z  containerd version: ee2735368117d2eb259779949d5e75cdafec9761
+2026-10-14T09:50:30.4414125Z  runc version: v1.5.1-0-g8f2685a4
+2026-10-14T09:50:30.4414583Z  init version: de40ad0
+2026-10-14T09:50:30.4414968Z  Security Options:
+2026-10-14T09:50:30.4415343Z   apparmor
+2026-10-14T09:50:30.4415718Z   seccomp
+2026-10-14T09:50:30.4415943Z    Profile: builtin
+2026-10-14T09:50:30.4416160Z   cgroupns
+2026-10-14T09:50:30.4416368Z  Kernel Version: 6.17.0-1022-azure
+2026-10-14T09:50:30.4416639Z  Operating System: Ubuntu 24.04.5 LTS
+2026-10-14T09:50:30.4416902Z  OSType: linux
+2026-10-14T09:50:30.4417120Z  Architecture: x86_64
+2026-10-14T09:50:30.4418336Z  CPUs: 4
+2026-10-14T09:50:30.4419380Z  Total Memory: 15.61GiB
+2026-10-14T09:50:30.4419947Z  Name: runnervmmprz5
+2026-10-14T09:50:30.4420688Z  ID: 07f0e779-c305-4162-b8ec-c48c30f52fbe
+2026-10-14T09:50:30.4421451Z  Docker Root Dir: /var/lib/docker
+2026-10-14T09:50:30.4422176Z  Debug Mode: false
+2026-10-14T09:50:30.4422846Z  Username: githubactions
+2026-10-14T09:50:30.4423301Z  Experimental: false
+2026-10-14T09:50:30.4423739Z  Insecure Registries:
+2026-10-14T09:50:30.4424157Z   ::1/128
+2026-10-14T09:50:30.4424462Z   127.0.0.0/8
+2026-10-14T09:50:30.4424855Z  Live Restore Enabled: false
+2026-10-14T09:50:30.4425200Z 
+2026-10-14T09:50:30.4425899Z ##[endgroup]
+2026-10-14T09:50:30.4426421Z ##[group]Proxy configuration
+2026-10-14T09:50:30.4426997Z No proxy configuration found
+2026-10-14T09:50:30.4427931Z ##[endgroup]
+2026-10-14T09:50:30.5015878Z ##[group]Buildx version
+2026-10-14T09:50:30.5045739Z [command]/usr/bin/docker buildx version
+2026-10-14T09:50:30.5503466Z github.com/docker/buildx v0.38.0 0dbe87f36ed472fe36b6796c3f70b4210a731fc5
+2026-10-14T09:50:30.5525271Z ##[endgroup]
+2026-10-14T09:50:30.5525866Z ##[group]Builder info
+2026-10-14T09:50:30.6428855Z {
+2026-10-14T09:50:30.6429263Z   "nodes": [
+2026-10-14T09:50:30.6429626Z     {
+2026-10-14T09:50:30.6430152Z       "name": "builder-038d7d11-5690-42e4-aad3-6622189aab8b0",
+2026-10-14T09:50:30.6430824Z       "endpoint": "unix:///var/run/docker.sock",
+2026-10-14T09:50:30.6431370Z       "driver-opts": [
+2026-10-14T09:50:30.6432220Z         "image=moby/buildkit@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea"
+2026-10-14T09:50:30.6433048Z       ],
+2026-10-14T09:50:30.6433391Z       "status": "running",
+2026-10-14T09:50:30.6434784Z       "buildkitd-flags": "--allow-insecure-entitlement security.insecure --allow-insecure-entitlement network.host",
+2026-10-14T09:50:30.6435804Z       "buildkit": "v0.33.1",
+2026-10-14T09:50:30.6436482Z       "platforms": "linux/amd64,linux/amd64/v2,linux/amd64/v3,linux/386",
+2026-10-14T09:50:30.6437140Z       "features": {
+2026-10-14T09:50:30.6438158Z         "Automatically load images to the Docker Engine image store": true,
+2026-10-14T09:50:30.6439208Z         "Cache export": true,
+2026-10-14T09:50:30.6439692Z         "Direct push": true,
+2026-10-14T09:50:30.6440143Z         "Docker exporter": true,
+2026-10-14T09:50:30.6440617Z         "Multi-platform build": true,
+2026-10-14T09:50:30.6441157Z         "OCI exporter": true
+2026-10-14T09:50:30.6441623Z       },
+2026-10-14T09:50:30.6441993Z       "labels": {
+2026-10-14T09:50:30.6442498Z         "org.mobyproject.buildkit.worker.executor": "oci",
+2026-10-14T09:50:30.6443303Z         "org.mobyproject.buildkit.worker.hostname": "00b7b840e4df",
+2026-10-14T09:50:30.6444129Z         "org.mobyproject.buildkit.worker.network": "host",
+2026-10-14T09:50:30.6444919Z         "org.mobyproject.buildkit.worker.oci.process-mode": "sandbox",
+2026-10-14T09:50:30.6445767Z         "org.mobyproject.buildkit.worker.selinux.enabled": "false",
+2026-10-14T09:50:30.6446635Z         "org.mobyproject.buildkit.worker.snapshotter": "overlayfs"
+2026-10-14T09:50:30.6447715Z       },
+2026-10-14T09:50:30.6448109Z       "gcPolicy": [
+2026-10-14T09:50:30.6448489Z         {
+2026-10-14T09:50:30.6448826Z           "all": false,
+2026-10-14T09:50:30.6449268Z           "filter": [
+2026-10-14T09:50:30.6449884Z             "type==source.local type==exec.cachemount type==source.git.checkout"
+2026-10-14T09:50:30.6450604Z           ],
+2026-10-14T09:50:30.6450983Z           "keepDuration": "48h0m0s",
+2026-10-14T09:50:30.6451474Z           "maxUsedSpace": "488.3MiB"
+2026-10-14T09:50:30.6451939Z         },
+2026-10-14T09:50:30.6452269Z         {
+2026-10-14T09:50:30.6452592Z           "all": false,
+2026-10-14T09:50:30.6453011Z           "keepDuration": "1440h0m0s",
+2026-10-14T09:50:30.6453453Z           "reservedSpace": "9.313GiB",
+2026-10-14T09:50:30.6453977Z           "maxUsedSpace": "93.13GiB",
+2026-10-14T09:50:30.6454446Z           "minFreeSpace": "27.01GiB"
+2026-10-14T09:50:30.6454877Z         },
+2026-10-14T09:50:30.6455256Z         {
+2026-10-14T09:50:30.6455630Z           "all": false,
+2026-10-14T09:50:30.6456055Z           "reservedSpace": "9.313GiB",
+2026-10-14T09:50:30.6456578Z           "maxUsedSpace": "93.13GiB",
+2026-10-14T09:50:30.6457140Z           "minFreeSpace": "27.01GiB"
+2026-10-14T09:50:30.6458122Z         },
+2026-10-14T09:50:30.6458468Z         {
+2026-10-14T09:50:30.6458844Z           "all": true,
+2026-10-14T09:50:30.6459263Z           "reservedSpace": "9.313GiB",
+2026-10-14T09:50:30.6459816Z           "maxUsedSpace": "93.13GiB",
+2026-10-14T09:50:30.6460301Z           "minFreeSpace": "27.01GiB"
+2026-10-14T09:50:30.6460782Z         }
+2026-10-14T09:50:30.6461126Z       ]
+2026-10-14T09:50:30.6461498Z     }
+2026-10-14T09:50:30.6461819Z   ],
+2026-10-14T09:50:30.6462264Z   "name": "builder-038d7d11-5690-42e4-aad3-6622189aab8b",
+2026-10-14T09:50:30.6462815Z   "driver": "docker-container",
+2026-10-14T09:50:30.6463341Z   "lastActivity": "2026-10-14T09:50:25.000Z"
+2026-10-14T09:50:30.6463854Z }
+2026-10-14T09:50:30.6464616Z ##[endgroup]
+2026-10-14T09:50:30.7164920Z [command]/usr/bin/docker buildx build --build-arg NODE_IMAGE=docker.io/library/node:24.21.0-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 --build-arg NGINX_IMAGE=docker.io/library/nginx:1.30.5-alpine@sha256:0985e772fb9f729e6fa0980da05fca5d9c468e870eed43071545afa9d2e27d94 --iidfile /home/runner/work/_temp/docker-actions-toolkit-YFcrc0/build-iidfile-d61d6e129b.txt --platform linux/amd64 --attest type=provenance,disabled=true --tag homecloud-ci-frontend:8a9add6fab55298c3397ea01b65e4f2d7512b92c --load --metadata-file /home/runner/work/_temp/docker-actions-toolkit-YFcrc0/build-metadata-9fabb9abac.json ./frontend
+2026-10-14T09:50:30.8253657Z #0 building with "builder-038d7d11-5690-42e4-aad3-6622189aab8b" instance using docker-container driver
+2026-10-14T09:50:30.8254455Z 
+2026-10-14T09:50:30.8254619Z #1 [internal] load build definition from Dockerfile
+2026-10-14T09:50:30.9885154Z #1 transferring dockerfile: 738B done
+2026-10-14T09:50:30.9885567Z #1 DONE 0.0s
+2026-10-14T09:50:30.9885718Z 
+2026-10-14T09:50:30.9886566Z #2 [internal] load metadata for docker.io/library/nginx:1.30.5-alpine@sha256:0985e772fb9f729e6fa0980da05fca5d9c468e870eed43071545afa9d2e27d94
+2026-10-14T09:50:31.1922153Z #2 ...
+2026-10-14T09:50:31.1922384Z 
+2026-10-14T09:50:31.1922655Z #3 [auth] library/nginx:pull token for registry-1.docker.io
+2026-10-14T09:50:31.1923100Z #3 DONE 0.0s
+2026-10-14T09:50:31.1923253Z 
+2026-10-14T09:50:31.1923454Z #4 [auth] library/node:pull token for registry-1.docker.io
+2026-10-14T09:50:31.1923882Z #4 DONE 0.0s
+2026-10-14T09:50:31.3414594Z 
+2026-10-14T09:50:31.3415858Z #5 [internal] load metadata for docker.io/library/node:24.21.0-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
+2026-10-14T09:50:31.6247960Z #5 ...
+2026-10-14T09:50:31.6248229Z 
+2026-10-14T09:50:31.6249002Z #2 [internal] load metadata for docker.io/library/nginx:1.30.5-alpine@sha256:0985e772fb9f729e6fa0980da05fca5d9c468e870eed43071545afa9d2e27d94
+2026-10-14T09:50:31.6249759Z #2 DONE 0.8s
+2026-10-14T09:50:31.7300647Z 
+2026-10-14T09:50:31.7301699Z #5 [internal] load metadata for docker.io/library/node:24.21.0-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
+2026-10-14T09:50:31.7302666Z #5 DONE 0.8s
+2026-10-14T09:50:31.7302889Z 
+2026-10-14T09:50:31.7303068Z #6 [internal] load .dockerignore
+2026-10-14T09:50:31.7303528Z #6 transferring context: 339B done
+2026-10-14T09:50:31.7303784Z #6 DONE 0.0s
+2026-10-14T09:50:31.7303894Z 
+2026-10-14T09:50:31.7304288Z #7 [deps 1/5] FROM docker.io/library/node:24.21.0-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
+2026-10-14T09:50:31.7305361Z #7 resolve docker.io/library/node:24.21.0-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 done
+2026-10-14T09:50:31.8309796Z #7 ...
+2026-10-14T09:50:31.8310887Z 
+2026-10-14T09:50:31.8311103Z #8 [internal] load build context
+2026-10-14T09:50:31.8312242Z #8 transferring context: 622.94kB 0.0s done
+2026-10-14T09:50:31.8313328Z #8 DONE 0.0s
+2026-10-14T09:50:31.8313495Z 
+2026-10-14T09:50:31.8314111Z #7 [deps 1/5] FROM docker.io/library/node:24.21.0-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
+2026-10-14T09:50:31.8315473Z #7 sha256:7ce7dcbafb7f750cf0c6be3c30e34372b06dd1182fa67f6ae30782c8150c5444 444B / 444B 0.1s done
+2026-10-14T09:50:31.8316370Z #7 sha256:02f40d53b06f6b91fec0cd6a6719656da99270bff8ee54ed8dcdf4c157763fc1 1.26MB / 1.26MB 0.1s done
+2026-10-14T09:50:31.9702289Z #7 sha256:3c504d5a797be28f9de43147d49cd8ecb2eea46dfaf7beb8715db695d5f0a7f0 4.19MB / 56.52MB 0.2s
+2026-10-14T09:50:31.9703574Z #7 sha256:e2de96513ba9eb53b431787ec8a65cdde380ac4772a3e4c4b714dcfde2a102b5 3.85MB / 3.85MB 0.2s done
+2026-10-14T09:50:31.9704765Z #7 extracting sha256:e2de96513ba9eb53b431787ec8a65cdde380ac4772a3e4c4b714dcfde2a102b5
+2026-10-14T09:50:32.0827636Z #7 sha256:3c504d5a797be28f9de43147d49cd8ecb2eea46dfaf7beb8715db695d5f0a7f0 44.04MB / 56.52MB 0.3s
+2026-10-14T09:50:32.0829031Z #7 extracting sha256:e2de96513ba9eb53b431787ec8a65cdde380ac4772a3e4c4b714dcfde2a102b5 0.1s done
+2026-10-14T09:50:32.2661605Z #7 ...
+2026-10-14T09:50:32.2662097Z 
+2026-10-14T09:50:32.2671986Z #9 [runner 1/3] FROM docker.io/library/nginx:1.30.5-alpine@sha256:0985e772fb9f729e6fa0980da05fca5d9c468e870eed43071545afa9d2e27d94
+2026-10-14T09:50:32.2674655Z #9 resolve docker.io/library/nginx:1.30.5-alpine@sha256:0985e772fb9f729e6fa0980da05fca5d9c468e870eed43071545afa9d2e27d94 0.0s done
+2026-10-14T09:50:32.2692722Z #9 sha256:b27cf3f7c39dd0da0aa52a285f0c0cce938ac61472babfea353b1daa83586c49 20.34MB / 20.34MB 0.2s done
+2026-10-14T09:50:32.2694083Z #9 sha256:b335b7ac3a400afa780d0d89e0b778ee19dc3e3df95bed4b274a763af2264fd7 1.40kB / 1.40kB 0.2s done
+2026-10-14T09:50:32.2695413Z #9 sha256:703c5424632fab32aa3327bebe6e5202ac53a93740062efb830f8188e580b9db 1.21kB / 1.21kB 0.1s done
+2026-10-14T09:50:32.2696311Z #9 sha256:6b4dfb2e8f8a72d7ae1380b667f50faccdc19147869b2afa09aeddfdea59ce64 403B / 403B 0.1s done
+2026-10-14T09:50:32.2696994Z #9 sha256:22e5a8a110ec69c6af30325ccfe8bb0bfb94e5783117808061bae5115e1e3dcb 963B / 963B 0.1s done
+2026-10-14T09:50:32.2700244Z #9 sha256:3d85d110b167fae23d8eb3a7060cd079682b682b04d295fc7bbdf454c9e722c8 626B / 626B 0.1s done
+2026-10-14T09:50:32.2701824Z #9 sha256:e3320d02d5786716dcc40d9f6267baec5d3d2c46945082958050c3ac5ea23751 1.88MB / 1.88MB 0.1s done
+2026-10-14T09:50:32.2702528Z #9 extracting sha256:e3320d02d5786716dcc40d9f6267baec5d3d2c46945082958050c3ac5ea23751 0.1s done
+2026-10-14T09:50:32.2702976Z #9 DONE 0.6s
+2026-10-14T09:50:32.2703097Z 
+2026-10-14T09:50:32.2703472Z #7 [deps 1/5] FROM docker.io/library/node:24.21.0-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
+2026-10-14T09:50:32.2704272Z #7 sha256:3c504d5a797be28f9de43147d49cd8ecb2eea46dfaf7beb8715db695d5f0a7f0 56.52MB / 56.52MB 0.4s done
+2026-10-14T09:50:32.2704911Z #7 extracting sha256:3c504d5a797be28f9de43147d49cd8ecb2eea46dfaf7beb8715db695d5f0a7f0
+2026-10-14T09:50:32.7165141Z #7 ...
+2026-10-14T09:50:32.7165635Z 
+2026-10-14T09:50:32.7166635Z #9 [runner 1/3] FROM docker.io/library/nginx:1.30.5-alpine@sha256:0985e772fb9f729e6fa0980da05fca5d9c468e870eed43071545afa9d2e27d94
+2026-10-14T09:50:32.7168321Z #9 extracting sha256:3d85d110b167fae23d8eb3a7060cd079682b682b04d295fc7bbdf454c9e722c8 done
+2026-10-14T09:50:32.7169249Z #9 extracting sha256:22e5a8a110ec69c6af30325ccfe8bb0bfb94e5783117808061bae5115e1e3dcb done
+2026-10-14T09:50:32.7170125Z #9 extracting sha256:6b4dfb2e8f8a72d7ae1380b667f50faccdc19147869b2afa09aeddfdea59ce64 done
+2026-10-14T09:50:32.7171174Z #9 extracting sha256:703c5424632fab32aa3327bebe6e5202ac53a93740062efb830f8188e580b9db done
+2026-10-14T09:50:32.7172309Z #9 extracting sha256:b335b7ac3a400afa780d0d89e0b778ee19dc3e3df95bed4b274a763af2264fd7 done
+2026-10-14T09:50:32.7173525Z #9 extracting sha256:b27cf3f7c39dd0da0aa52a285f0c0cce938ac61472babfea353b1daa83586c49 0.4s done
+2026-10-14T09:50:32.7174396Z #9 DONE 1.0s
+2026-10-14T09:50:32.8664032Z 
+2026-10-14T09:50:32.8666640Z #7 [deps 1/5] FROM docker.io/library/node:24.21.0-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
+2026-10-14T09:50:33.3038757Z #7 extracting sha256:3c504d5a797be28f9de43147d49cd8ecb2eea46dfaf7beb8715db695d5f0a7f0 1.2s done
+2026-10-14T09:50:33.3039861Z #7 DONE 1.6s
+2026-10-14T09:50:33.4839177Z 
+2026-10-14T09:50:33.4840334Z #7 [deps 1/5] FROM docker.io/library/node:24.21.0-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
+2026-10-14T09:50:33.4841335Z #7 extracting sha256:02f40d53b06f6b91fec0cd6a6719656da99270bff8ee54ed8dcdf4c157763fc1 0.0s done
+2026-10-14T09:50:33.4842139Z #7 extracting sha256:7ce7dcbafb7f750cf0c6be3c30e34372b06dd1182fa67f6ae30782c8150c5444 done
+2026-10-14T09:50:33.4842724Z #7 DONE 1.6s
+2026-10-14T09:50:33.4842864Z 
+2026-10-14T09:50:33.4843025Z #10 [deps 2/5] RUN apk add --no-cache libc6-compat
+2026-10-14T09:50:33.6578584Z #10 ...
+2026-10-14T09:50:33.6579452Z 
+2026-10-14T09:50:33.6579799Z #11 [builder 2/5] WORKDIR /app
+2026-10-14T09:50:33.6580594Z #11 DONE 0.3s
+2026-10-14T09:50:33.7657033Z 
+2026-10-14T09:50:33.7658375Z #10 [deps 2/5] RUN apk add --no-cache libc6-compat
+2026-10-14T09:50:33.7659379Z #10 0.433 (1/3) Installing musl-obstack (1.2.3-r2)
+2026-10-14T09:50:33.9671667Z #10 0.435 (2/3) Installing libucontext (1.5.1-r0)
+2026-10-14T09:50:33.9672340Z #10 0.437 (3/3) Installing gcompat (1.1.0-r4)
+2026-10-14T09:50:33.9672868Z #10 0.441 OK: 11.0 MiB in 21 packages
+2026-10-14T09:50:33.9673302Z #10 DONE 0.5s
+2026-10-14T09:50:33.9673499Z 
+2026-10-14T09:50:33.9673650Z #12 [deps 3/5] WORKDIR /app
+2026-10-14T09:50:33.9674048Z #12 DONE 0.0s
+2026-10-14T09:50:33.9674234Z 
+2026-10-14T09:50:33.9674481Z #13 [deps 4/5] COPY package.json package-lock.json* ./
+2026-10-14T09:50:33.9675437Z #13 DONE 0.0s
+2026-10-14T09:50:33.9675629Z 
+2026-10-14T09:50:33.9675776Z #14 [deps 5/5] RUN npm ci
+2026-10-14T09:50:35.3942601Z #14 1.577 npm warn deprecated whatwg-encoding@3.1.1: Use @exodus/bytes instead for a more spec-conformant and faster implementation
+2026-10-14T09:50:37.8009293Z #14 3.984 npm warn deprecated eslint@9.39.5: This version is no longer supported. Please see https://eslint.org/version-support for other options.
+2026-10-14T09:50:38.1243135Z #14 4.308 
+2026-10-14T09:50:38.1244003Z #14 4.308 added 297 packages, and audited 298 packages in 4s
+2026-10-14T09:50:38.2799574Z #14 4.308 
+2026-10-14T09:50:38.2800117Z #14 4.308 74 packages are looking for funding
+2026-10-14T09:50:38.2800752Z #14 4.308   run `npm fund` for details
+2026-10-14T09:50:38.2801169Z #14 4.310 
+2026-10-14T09:50:38.2801426Z #14 4.310 found 0 vulnerabilities
+2026-10-14T09:50:38.2801964Z #14 4.311 npm warn install-scripts 1 package has install scripts not yet covered by allowScripts:
+2026-10-14T09:50:38.2802731Z #14 4.311 npm warn install-scripts   esbuild@0.25.12 (postinstall: node install.js)
+2026-10-14T09:50:38.2803229Z #14 4.311 npm warn install-scripts
+2026-10-14T09:50:38.2803893Z #14 4.311 npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.
+2026-10-14T09:50:38.2804538Z #14 4.313 npm notice
+2026-10-14T09:50:38.2804935Z #14 4.313 npm notice New major version of npm available! 11.19.0 -> 12.2.0
+2026-10-14T09:50:38.2805575Z #14 4.313 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+2026-10-14T09:50:38.2806134Z #14 4.313 npm notice To update run: npm install -g npm@12.2.0
+2026-10-14T09:50:38.2806519Z #14 4.313 npm notice
+2026-10-14T09:50:38.4078231Z #14 DONE 4.6s
+2026-10-14T09:50:38.9540873Z 
+2026-10-14T09:50:38.9542273Z #15 [builder 3/5] COPY --from=deps /app/node_modules ./node_modules
+2026-10-14T09:50:40.0991295Z #15 DONE 1.1s
+2026-10-14T09:50:40.3327091Z 
+2026-10-14T09:50:40.3327903Z #16 [builder 4/5] COPY . .
+2026-10-14T09:50:40.3328486Z #16 DONE 0.1s
+2026-10-14T09:50:40.3328712Z 
+2026-10-14T09:50:40.3328886Z #17 [builder 5/5] RUN npm run build
+2026-10-14T09:50:40.6133415Z #17 0.431 
+2026-10-14T09:50:40.6133862Z #17 0.431 > homecloud-frontend@0.0.0 build
+2026-10-14T09:50:40.6134457Z #17 0.431 > tsc -b && vite build
+2026-10-14T09:50:40.6134870Z #17 0.431 
+2026-10-14T09:50:45.0728518Z #17 4.889 vite v6.4.3 building for production...
+2026-10-14T09:50:45.3432744Z #17 5.161 transforming...
+2026-10-14T09:50:47.1265029Z #17 6.945 ✓ 124 modules transformed.
+2026-10-14T09:50:47.3221802Z #17 7.140 rendering chunks...
+2026-10-14T09:50:47.4706194Z #17 7.150 computing gzip size...
+2026-10-14T09:50:47.4707584Z #17 7.162 dist/index.html                                                     0.39 kB │ gzip:   0.27 kB
+2026-10-14T09:50:47.4708585Z #17 7.162 dist/assets/jetbrains-mono-vietnamese-wght-normal-Bt-aOZkq.woff2    7.50 kB
+2026-10-14T09:50:47.4709666Z #17 7.162 dist/assets/manrope-vietnamese-wght-normal-usUDDRr7.woff2           8.52 kB
+2026-10-14T09:50:47.4710796Z #17 7.163 dist/assets/jetbrains-mono-greek-wght-normal-Bw9x6K1M.woff2         9.00 kB
+2026-10-14T09:50:47.4711866Z #17 7.163 dist/assets/manrope-greek-wght-normal-DL7QRZyv.woff2                9.44 kB
+2026-10-14T09:50:47.4712905Z #17 7.163 dist/assets/jetbrains-mono-cyrillic-wght-normal-D73BlboJ.woff2     12.11 kB
+2026-10-14T09:50:47.4713912Z #17 7.163 dist/assets/manrope-cyrillic-wght-normal-Dvxsihut.woff2            14.50 kB
+2026-10-14T09:50:47.4714898Z #17 7.163 dist/assets/manrope-latin-ext-wght-normal-Ch3YOpNY.woff2           15.12 kB
+2026-10-14T09:50:47.4715901Z #17 7.163 dist/assets/jetbrains-mono-latin-ext-wght-normal-DBQx-q_a.woff2    15.20 kB
+2026-10-14T09:50:47.4716887Z #17 7.163 dist/assets/manrope-latin-wght-normal-DHIcAJRg.woff2               24.84 kB
+2026-10-14T09:50:47.4718405Z #17 7.163 dist/assets/jetbrains-mono-latin-wght-normal-B9CIFXIH.woff2        40.40 kB
+2026-10-14T09:50:47.4719850Z #17 7.163 dist/assets/index-C2Ud9Nx0.css                                     41.33 kB │ gzip:  13.85 kB
+2026-10-14T09:50:47.4721404Z #17 7.163 dist/assets/index-B6wmoXcj.js                                     338.63 kB │ gzip: 108.89 kB
+2026-10-14T09:50:47.4722235Z #17 7.163 ✓ built in 2.24s
+2026-10-14T09:50:47.4722644Z #17 7.223 npm notice
+2026-10-14T09:50:47.4723171Z #17 7.223 npm notice New major version of npm available! 11.19.0 -> 12.2.0
+2026-10-14T09:50:47.4724052Z #17 7.223 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+2026-10-14T09:50:47.4725098Z #17 7.223 npm notice To update run: npm install -g npm@12.2.0
+2026-10-14T09:50:47.4725692Z #17 7.223 npm notice
+2026-10-14T09:50:47.4726050Z #17 DONE 7.3s
+2026-10-14T09:50:47.6091367Z 
+2026-10-14T09:50:47.6094058Z #18 [runner 2/3] COPY --from=builder /app/dist /usr/share/nginx/html
+2026-10-14T09:50:47.8279703Z #18 DONE 0.0s
+2026-10-14T09:50:47.8280014Z 
+2026-10-14T09:50:47.8280918Z #19 [runner 3/3] COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+2026-10-14T09:50:47.8281826Z #19 DONE 0.0s
+2026-10-14T09:50:47.8282351Z 
+2026-10-14T09:50:47.8282598Z #20 exporting to docker image format
+2026-10-14T09:50:47.8283154Z #20 exporting layers 0.0s done
+2026-10-14T09:50:47.8284413Z #20 exporting manifest sha256:b57dd9e673b20cb96af6950d2b97c354c979bb28dd3b019fcdaf27fcecb88c94 done
+2026-10-14T09:50:47.8294587Z #20 exporting config sha256:71f912fb0bb291d381507ddcad69f86d26ea5339e7a853b6d7e8c7e228f6caf8 done
+2026-10-14T09:50:47.8295926Z #20 sending tarball
+2026-10-14T09:50:48.5400288Z #20 sending tarball 0.8s done
+2026-10-14T09:50:48.5401013Z #20 DONE 0.9s
+2026-10-14T09:50:48.5401317Z 
+2026-10-14T09:50:48.5401743Z #21 importing to docker
+2026-10-14T09:50:48.5402441Z #21 loading layer 2d3fbe0ca19d 1.88MB / 1.88MB 0.7s done
+2026-10-14T09:50:48.5403117Z #21 loading layer ed752e851ebe 626B / 626B 0.5s done
+2026-10-14T09:50:48.5403687Z #21 loading layer ec2b9a359ab9 963B / 963B 0.5s done
+2026-10-14T09:50:48.5404232Z #21 loading layer 267e83adf4c4 403B / 403B 0.5s done
+2026-10-14T09:50:48.5404802Z #21 loading layer 8fb5da5ad6fa 1.21kB / 1.21kB 0.5s done
+2026-10-14T09:50:48.5405423Z #21 loading layer 0d250d8db7c2 1.40kB / 1.40kB 0.5s done
+2026-10-14T09:50:48.5406045Z #21 loading layer e46f4042ccf5 20.34MB / 20.34MB 0.4s done
+2026-10-14T09:50:48.5406699Z #21 loading layer 950aae8968b9 282.26kB / 282.26kB 0.0s done
+2026-10-14T09:50:48.5407605Z #21 loading layer 68d92c2ab0e4 1.43kB / 1.43kB 0.0s done
+2026-10-14T09:50:48.5408118Z #21 DONE 0.7s
+2026-10-14T09:50:48.5408315Z 
+2026-10-14T09:50:48.5408529Z #22 resolving provenance for metadata file
+2026-10-14T09:50:48.5408843Z #22 DONE 0.0s
+2026-10-14T09:50:48.5469017Z ##[group]ImageID
+2026-10-14T09:50:48.5478968Z sha256:71f912fb0bb291d381507ddcad69f86d26ea5339e7a853b6d7e8c7e228f6caf8
+2026-10-14T09:50:48.5480139Z ##[endgroup]
+2026-10-14T09:50:48.5480870Z ##[group]Digest
+2026-10-14T09:50:48.5481487Z sha256:b57dd9e673b20cb96af6950d2b97c354c979bb28dd3b019fcdaf27fcecb88c94
+2026-10-14T09:50:48.5482557Z ##[endgroup]
+2026-10-14T09:50:48.5483172Z ##[group]Metadata
+2026-10-14T09:50:48.5483584Z {
+2026-10-14T09:50:48.5483906Z   "buildx.build.provenance": {
+2026-10-14T09:50:48.5484423Z     "builder": {
+2026-10-14T09:50:48.5484763Z       "id": ""
+2026-10-14T09:50:48.5485104Z     },
+2026-10-14T09:50:48.5485604Z     "buildType": "https://mobyproject.org/buildkit@v1",
+2026-10-14T09:50:48.5486250Z     "materials": [
+2026-10-14T09:50:48.5486641Z       {
+2026-10-14T09:50:48.5488335Z         "uri": "pkg:docker/nginx@1.30.5-alpine?digest=sha256:0985e772fb9f729e6fa0980da05fca5d9c468e870eed43071545afa9d2e27d94&platform=linux%2Famd64",
+2026-10-14T09:50:48.5489397Z         "digest": {
+2026-10-14T09:50:48.5489939Z           "sha256": "0985e772fb9f729e6fa0980da05fca5d9c468e870eed43071545afa9d2e27d94"
+2026-10-14T09:50:48.5490595Z         }
+2026-10-14T09:50:48.5490867Z       },
+2026-10-14T09:50:48.5491198Z       {
+2026-10-14T09:50:48.5492124Z         "uri": "pkg:docker/node@24.21.0-alpine?digest=sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1&platform=linux%2Famd64",
+2026-10-14T09:50:48.5493569Z         "digest": {
+2026-10-14T09:50:48.5494301Z           "sha256": "ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1"
+2026-10-14T09:50:48.5494946Z         }
+2026-10-14T09:50:48.5495225Z       }
+2026-10-14T09:50:48.5495491Z     ],
+2026-10-14T09:50:48.5495773Z     "invocation": {
+2026-10-14T09:50:48.5496094Z       "configSource": {
+2026-10-14T09:50:48.5496461Z         "entryPoint": "Dockerfile"
+2026-10-14T09:50:48.5496904Z       },
+2026-10-14T09:50:48.5497739Z       "parameters": {
+2026-10-14T09:50:48.5498183Z         "frontend": "dockerfile.v0",
+2026-10-14T09:50:48.5498633Z         "args": {
+2026-10-14T09:50:48.5499493Z           "build-arg:NGINX_IMAGE": "docker.io/library/nginx:1.30.5-alpine@sha256:0985e772fb9f729e6fa0980da05fca5d9c468e870eed43071545afa9d2e27d94",
+2026-10-14T09:50:48.5501222Z           "build-arg:NODE_IMAGE": "docker.io/library/node:24.21.0-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1"
+2026-10-14T09:50:48.5502309Z         },
+2026-10-14T09:50:48.5502663Z         "locals": [
+2026-10-14T09:50:48.5502972Z           {
+2026-10-14T09:50:48.5503285Z             "name": "context"
+2026-10-14T09:50:48.5503660Z           },
+2026-10-14T09:50:48.5504005Z           {
+2026-10-14T09:50:48.5504352Z             "name": "dockerfile"
+2026-10-14T09:50:48.5504766Z           }
+2026-10-14T09:50:48.5505089Z         ],
+2026-10-14T09:50:48.5505386Z         "root": {
+2026-10-14T09:50:48.5505757Z           "configSource": {
+2026-10-14T09:50:48.5506194Z             "path": "Dockerfile"
+2026-10-14T09:50:48.5506649Z           },
+2026-10-14T09:50:48.5507003Z           "request": {
+2026-10-14T09:50:48.5507614Z             "args": {
+2026-10-14T09:50:48.5508576Z               "build-arg:NGINX_IMAGE": "docker.io/library/nginx:1.30.5-alpine@sha256:0985e772fb9f729e6fa0980da05fca5d9c468e870eed43071545afa9d2e27d94",
+2026-10-14T09:50:48.5510336Z               "build-arg:NODE_IMAGE": "docker.io/library/node:24.21.0-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1",
+2026-10-14T09:50:48.5511689Z               "vcs:localdir:context": "frontend",
+2026-10-14T09:50:48.5512307Z               "vcs:localdir:dockerfile": "frontend",
+2026-10-14T09:50:48.5512977Z               "vcs:revision": "8a9add6fab55298c3397ea01b65e4f2d7512b92c",
+2026-10-14T09:50:48.5513905Z               "vcs:source": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud"
+2026-10-14T09:50:48.5514659Z             }
+2026-10-14T09:50:48.5515003Z           }
+2026-10-14T09:50:48.5515340Z         },
+2026-10-14T09:50:48.5515722Z         "compatibilityVersion": 30
+2026-10-14T09:50:48.5516205Z       },
+2026-10-14T09:50:48.5516521Z       "environment": {
+2026-10-14T09:50:48.5516964Z         "dockerfileVersion": "1.27.0",
+2026-10-14T09:50:48.5517667Z         "github_actor": "sv3t0v1k",
+2026-10-14T09:50:48.5518129Z         "github_actor_id": "122977177",
+2026-10-14T09:50:48.5518641Z         "github_event_name": "push",
+2026-10-14T09:50:48.5519218Z         "github_event_payload": {
+2026-10-14T09:50:48.5519792Z           "after": "8a9add6fab55298c3397ea01b65e4f2d7512b92c",
+2026-10-14T09:50:48.5520365Z           "base_ref": null,
+2026-10-14T09:50:48.5520887Z           "before": "79f8e4b72883b775d6fa2fac8f1209da26843f9f",
+2026-10-14T09:50:48.5521423Z           "commits": [
+2026-10-14T09:50:48.5521792Z             {
+2026-10-14T09:50:48.5522118Z               "author": {
+2026-10-14T09:50:48.5522547Z                 "email": "dev@homecloud.local",
+2026-10-14T09:50:48.5523063Z                 "name": "HomeCloud Dev"
+2026-10-14T09:50:48.5523540Z               },
+2026-10-14T09:50:48.5523885Z               "committer": {
+2026-10-14T09:50:48.5524338Z                 "email": "dev@homecloud.local",
+2026-10-14T09:50:48.5524875Z                 "name": "HomeCloud Dev"
+2026-10-14T09:50:48.5525310Z               },
+2026-10-14T09:50:48.5525673Z               "distinct": true,
+2026-10-14T09:50:48.5526188Z               "id": "f81f48f8cbed9819cf30cf2750ac37450ff53de2",
+2026-10-14T09:50:48.5527410Z               "message": "Устранить достижимые уязвимости file-type и вложенного uuid",
+2026-10-14T09:50:48.5528434Z               "timestamp": "2026-10-14T19:48:48+10:00",
+2026-10-14T09:50:48.5529070Z               "tree_id": "45b3455617a653616560d2cd909e0e4388c8f9f8",
+2026-10-14T09:50:48.5530201Z               "url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/commit/f81f48f8cbed9819cf30cf2750ac37450ff53de2"
+2026-10-14T09:50:48.5531239Z             },
+2026-10-14T09:50:48.5531766Z             {
+2026-10-14T09:50:48.5532119Z               "author": {
+2026-10-14T09:50:48.5532563Z                 "email": "dev@homecloud.local",
+2026-10-14T09:50:48.5533080Z                 "name": "HomeCloud Dev"
+2026-10-14T09:50:48.5533537Z               },
+2026-10-14T09:50:48.5533902Z               "committer": {
+2026-10-14T09:50:48.5534387Z                 "email": "dev@homecloud.local",
+2026-10-14T09:50:48.5534893Z                 "name": "HomeCloud Dev"
+2026-10-14T09:50:48.5535343Z               },
+2026-10-14T09:50:48.5535726Z               "distinct": true,
+2026-10-14T09:50:48.5536275Z               "id": "87c5e913a36ae9b4f52f026bed49d4cca3de7da1",
+2026-10-14T09:50:48.5537441Z               "message": "Перевести CI на Node LTS и проверять образы и происхождение релиза",
+2026-10-14T09:50:48.5538204Z               "timestamp": "2026-10-14T19:48:48+10:00",
+2026-10-14T09:50:48.5538807Z               "tree_id": "fb41a1d22792f9017b7bf4ef7933f9ffabed3954",
+2026-10-14T09:50:48.5539997Z               "url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/commit/87c5e913a36ae9b4f52f026bed49d4cca3de7da1"
+2026-10-14T09:50:48.5541048Z             },
+2026-10-14T09:50:48.5541389Z             {
+2026-10-14T09:50:48.5541735Z               "author": {
+2026-10-14T09:50:48.5542177Z                 "email": "dev@homecloud.local",
+2026-10-14T09:50:48.5542691Z                 "name": "HomeCloud Dev"
+2026-10-14T09:50:48.5543141Z               },
+2026-10-14T09:50:48.5543504Z               "committer": {
+2026-10-14T09:50:48.5543970Z                 "email": "dev@homecloud.local",
+2026-10-14T09:50:48.5544511Z                 "name": "HomeCloud Dev"
+2026-10-14T09:50:48.5544962Z               },
+2026-10-14T09:50:48.5545326Z               "distinct": true,
+2026-10-14T09:50:48.5545872Z               "id": "8a9add6fab55298c3397ea01b65e4f2d7512b92c",
+2026-10-14T09:50:48.5546822Z               "message": "Зафиксировать проверки готовности релиза и реальные блокеры D5.1.2",
+2026-10-14T09:50:48.5547773Z               "timestamp": "2026-10-14T19:49:36+10:00",
+2026-10-14T09:50:48.5548427Z               "tree_id": "0ae02c5cf870608a05a046cffd9fa52fe5a09531",
+2026-10-14T09:50:48.5549597Z               "url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/commit/8a9add6fab55298c3397ea01b65e4f2d7512b92c"
+2026-10-14T09:50:48.5550648Z             }
+2026-10-14T09:50:48.5551055Z           ],
+2026-10-14T09:50:48.5551962Z           "compare": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/compare/79f8e4b72883...8a9add6fab55",
+2026-10-14T09:50:48.5552978Z           "created": false,
+2026-10-14T09:50:48.5553362Z           "deleted": false,
+2026-10-14T09:50:48.5553779Z           "forced": false,
+2026-10-14T09:50:48.5554149Z           "head_commit": {
+2026-10-14T09:50:48.5554509Z             "author": {
+2026-10-14T09:50:48.5554891Z               "email": "dev@homecloud.local",
+2026-10-14T09:50:48.5555419Z               "name": "HomeCloud Dev"
+2026-10-14T09:50:48.5555831Z             },
+2026-10-14T09:50:48.5556206Z             "committer": {
+2026-10-14T09:50:48.5556688Z               "email": "dev@homecloud.local",
+2026-10-14T09:50:48.5557085Z               "name": "HomeCloud Dev"
+2026-10-14T09:50:48.5557745Z             },
+2026-10-14T09:50:48.5558161Z             "distinct": true,
+2026-10-14T09:50:48.5558678Z             "id": "8a9add6fab55298c3397ea01b65e4f2d7512b92c",
+2026-10-14T09:50:48.5559299Z             "message": "Зафиксировать проверки готовности релиза и реальные блокеры D5.1.2",
+2026-10-14T09:50:48.5560075Z             "timestamp": "2026-10-14T19:49:36+10:00",
+2026-10-14T09:50:48.5560427Z             "tree_id": "0ae02c5cf870608a05a046cffd9fa52fe5a09531",
+2026-10-14T09:50:48.5561068Z             "url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/commit/8a9add6fab55298c3397ea01b65e4f2d7512b92c"
+2026-10-14T09:50:48.5561631Z           },
+2026-10-14T09:50:48.5561832Z           "pusher": {
+2026-10-14T09:50:48.5562256Z             "email": "122977177+sv3t0v1k@users.noreply.github.com",
+2026-10-14T09:50:48.5562600Z             "name": "sv3t0v1k"
+2026-10-14T09:50:48.5562828Z           },
+2026-10-14T09:50:48.5563103Z           "ref": "refs/heads/этап/d5-1-ci",
+2026-10-14T09:50:48.5563377Z           "repository": {
+2026-10-14T09:50:48.5563611Z             "allow_forking": true,
+2026-10-14T09:50:48.5564151Z             "archive_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/{archive_format}{/ref}",
+2026-10-14T09:50:48.5564700Z             "archived": false,
+2026-10-14T09:50:48.5565214Z             "assignees_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/assignees{/user}",
+2026-10-14T09:50:48.5565980Z             "blobs_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/git/blobs{/sha}",
+2026-10-14T09:50:48.5566773Z             "branches_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/branches{/branch}",
+2026-10-14T09:50:48.5567830Z             "clone_url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud.git",
+2026-10-14T09:50:48.5568601Z             "collaborators_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/collaborators{/collaborator}",
+2026-10-14T09:50:48.5569438Z             "comments_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/comments{/number}",
+2026-10-14T09:50:48.5570200Z             "commits_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/commits{/sha}",
+2026-10-14T09:50:48.5570977Z             "compare_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/compare/{base}...{head}",
+2026-10-14T09:50:48.5571771Z             "contents_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/contents/{+path}",
+2026-10-14T09:50:48.5572562Z             "contributors_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/contributors",
+2026-10-14T09:50:48.5573095Z             "created_at": 1788861621,
+2026-10-14T09:50:48.5573375Z             "default_branch": "main",
+2026-10-14T09:50:48.5573878Z             "deployments_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/deployments",
+2026-10-14T09:50:48.5574407Z             "description": null,
+2026-10-14T09:50:48.5574812Z             "disabled": false,
+2026-10-14T09:50:48.5575749Z             "downloads_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/downloads",
+2026-10-14T09:50:48.5576610Z             "events_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/events",
+2026-10-14T09:50:48.5577769Z             "fork": false,
+2026-10-14T09:50:48.5578157Z             "forks": 0,
+2026-10-14T09:50:48.5578527Z             "forks_count": 0,
+2026-10-14T09:50:48.5579300Z             "forks_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/forks",
+2026-10-14T09:50:48.5580303Z             "full_name": "sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud",
+2026-10-14T09:50:48.5581409Z             "git_commits_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/git/commits{/sha}",
+2026-10-14T09:50:48.5582806Z             "git_refs_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/git/refs{/sha}",
+2026-10-14T09:50:48.5584145Z             "git_tags_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/git/tags{/sha}",
+2026-10-14T09:50:48.5585598Z             "git_url": "git://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud.git",
+2026-10-14T09:50:48.5586343Z             "has_discussions": false,
+2026-10-14T09:50:48.5586800Z             "has_downloads": true,
+2026-10-14T09:50:48.5587491Z             "has_issues": true,
+2026-10-14T09:50:48.5587908Z             "has_pages": false,
+2026-10-14T09:50:48.5588314Z             "has_projects": true,
+2026-10-14T09:50:48.5588926Z             "has_pull_requests": true,
+2026-10-14T09:50:48.5589384Z             "has_wiki": true,
+2026-10-14T09:50:48.5589783Z             "homepage": null,
+2026-10-14T09:50:48.5590559Z             "hooks_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/hooks",
+2026-10-14T09:50:48.5591682Z             "html_url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud",
+2026-10-14T09:50:48.5592398Z             "id": 1361208027,
+2026-10-14T09:50:48.5592809Z             "is_template": false,
+2026-10-14T09:50:48.5593782Z             "issue_comment_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/issues/comments{/number}",
+2026-10-14T09:50:48.5595206Z             "issue_events_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/issues/events{/number}",
+2026-10-14T09:50:48.5596516Z             "issues_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/issues{/number}",
+2026-10-14T09:50:48.5598017Z             "keys_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/keys{/key_id}",
+2026-10-14T09:50:48.5599245Z             "labels_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/labels{/name}",
+2026-10-14T09:50:48.5600120Z             "language": "TypeScript",
+2026-10-14T09:50:48.5600962Z             "languages_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/languages",
+2026-10-14T09:50:48.5601823Z             "license": {
+2026-10-14T09:50:48.5602200Z               "key": "mit",
+2026-10-14T09:50:48.5602596Z               "name": "MIT License",
+2026-10-14T09:50:48.5603059Z               "node_id": "MDc6TGljZW5zZTEz",
+2026-10-14T09:50:48.5603525Z               "spdx_id": "MIT",
+2026-10-14T09:50:48.5603992Z               "url": "https://api.github.com/licenses/mit"
+2026-10-14T09:50:48.5604477Z             },
+2026-10-14T09:50:48.5604808Z             "master_branch": "main",
+2026-10-14T09:50:48.5605644Z             "merges_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/merges",
+2026-10-14T09:50:48.5606948Z             "milestones_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/milestones{/number}",
+2026-10-14T09:50:48.5608048Z             "mirror_url": null,
+2026-10-14T09:50:48.5608539Z             "name": "https---github.com-sv3t0v1k-HomeCloud",
+2026-10-14T09:50:48.5609079Z             "node_id": "R_kgDOUSJi2w",
+2026-10-14T09:50:48.5610172Z             "notifications_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/notifications{?since,all,participating}",
+2026-10-14T09:50:48.5611252Z             "open_issues": 1,
+2026-10-14T09:50:48.5611643Z             "open_issues_count": 1,
+2026-10-14T09:50:48.5612042Z             "owner": {
+2026-10-14T09:50:48.5612601Z               "avatar_url": "https://avatars.githubusercontent.com/u/122977177?v=4",
+2026-10-14T09:50:48.5613390Z               "email": "122977177+sv3t0v1k@users.noreply.github.com",
+2026-10-14T09:50:48.5614151Z               "events_url": "https://api.github.com/users/sv3t0v1k/events{/privacy}",
+2026-10-14T09:50:48.5614986Z               "followers_url": "https://api.github.com/users/sv3t0v1k/followers",
+2026-10-14T09:50:48.5615877Z               "following_url": "https://api.github.com/users/sv3t0v1k/following{/other_user}",
+2026-10-14T09:50:48.5616709Z               "gists_url": "https://api.github.com/users/sv3t0v1k/gists{/gist_id}",
+2026-10-14T09:50:48.5617479Z               "gravatar_id": "",
+2026-10-14T09:50:48.5618165Z               "html_url": "https://github.com/sv3t0v1k",
+2026-10-14T09:50:48.5618676Z               "id": 122977177,
+2026-10-14T09:50:48.5619081Z               "login": "sv3t0v1k",
+2026-10-14T09:50:48.5619502Z               "name": "sv3t0v1k",
+2026-10-14T09:50:48.5619935Z               "node_id": "U_kgDOB1R7mQ",
+2026-10-14T09:50:48.5620572Z               "organizations_url": "https://api.github.com/users/sv3t0v1k/orgs",
+2026-10-14T09:50:48.5621691Z               "received_events_url": "https://api.github.com/users/sv3t0v1k/received_events",
+2026-10-14T09:50:48.5622489Z               "repos_url": "https://api.github.com/users/sv3t0v1k/repos",
+2026-10-14T09:50:48.5623079Z               "site_admin": false,
+2026-10-14T09:50:48.5623743Z               "starred_url": "https://api.github.com/users/sv3t0v1k/starred{/owner}{/repo}",
+2026-10-14T09:50:48.5624661Z               "subscriptions_url": "https://api.github.com/users/sv3t0v1k/subscriptions",
+2026-10-14T09:50:48.5625359Z               "type": "User",
+2026-10-14T09:50:48.5625851Z               "url": "https://api.github.com/users/sv3t0v1k",
+2026-10-14T09:50:48.5626611Z               "user_view_type": "public"
+2026-10-14T09:50:48.5627058Z             },
+2026-10-14T09:50:48.5627675Z             "private": false,
+2026-10-14T09:50:48.5628110Z             "pull_request_creation_policy": "all",
+2026-10-14T09:50:48.5628963Z             "pulls_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/pulls{/number}",
+2026-10-14T09:50:48.5629491Z             "pushed_at": 1791971411,
+2026-10-14T09:50:48.5630005Z             "releases_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/releases{/id}",
+2026-10-14T09:50:48.5630522Z             "size": 7698,
+2026-10-14T09:50:48.5630892Z             "ssh_url": "git@github.com:sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud.git",
+2026-10-14T09:50:48.5631317Z             "stargazers": 0,
+2026-10-14T09:50:48.5631564Z             "stargazers_count": 0,
+2026-10-14T09:50:48.5632064Z             "stargazers_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/stargazers",
+2026-10-14T09:50:48.5632825Z             "statuses_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/statuses/{sha}",
+2026-10-14T09:50:48.5633591Z             "subscribers_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/subscribers",
+2026-10-14T09:50:48.5634364Z             "subscription_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/subscription",
+2026-10-14T09:50:48.5635039Z             "svn_url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud",
+2026-10-14T09:50:48.5635667Z             "tags_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/tags",
+2026-10-14T09:50:48.5636344Z             "teams_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/teams",
+2026-10-14T09:50:48.5636828Z             "topics": [],
+2026-10-14T09:50:48.5637581Z             "trees_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/git/trees{/sha}",
+2026-10-14T09:50:48.5638122Z             "updated_at": "2026-10-13T11:51:45Z",
+2026-10-14T09:50:48.5638564Z             "url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud",
+2026-10-14T09:50:48.5639008Z             "visibility": "public",
+2026-10-14T09:50:48.5639273Z             "watchers": 0,
+2026-10-14T09:50:48.5639506Z             "watchers_count": 0,
+2026-10-14T09:50:48.5639773Z             "web_commit_signoff_required": false
+2026-10-14T09:50:48.5640048Z           },
+2026-10-14T09:50:48.5640240Z           "sender": {
+2026-10-14T09:50:48.5640575Z             "avatar_url": "https://avatars.githubusercontent.com/u/122977177?v=4",
+2026-10-14T09:50:48.5641071Z             "events_url": "https://api.github.com/users/sv3t0v1k/events{/privacy}",
+2026-10-14T09:50:48.5641869Z             "followers_url": "https://api.github.com/users/sv3t0v1k/followers",
+2026-10-14T09:50:48.5642375Z             "following_url": "https://api.github.com/users/sv3t0v1k/following{/other_user}",
+2026-10-14T09:50:48.5642877Z             "gists_url": "https://api.github.com/users/sv3t0v1k/gists{/gist_id}",
+2026-10-14T09:50:48.5643253Z             "gravatar_id": "",
+2026-10-14T09:50:48.5643543Z             "html_url": "https://github.com/sv3t0v1k",
+2026-10-14T09:50:48.5643969Z             "id": 122977177,
+2026-10-14T09:50:48.5644206Z             "login": "sv3t0v1k",
+2026-10-14T09:50:48.5644458Z             "node_id": "U_kgDOB1R7mQ",
+2026-10-14T09:50:48.5644826Z             "organizations_url": "https://api.github.com/users/sv3t0v1k/orgs",
+2026-10-14T09:50:48.5645339Z             "received_events_url": "https://api.github.com/users/sv3t0v1k/received_events",
+2026-10-14T09:50:48.5645822Z             "repos_url": "https://api.github.com/users/sv3t0v1k/repos",
+2026-10-14T09:50:48.5646169Z             "site_admin": false,
+2026-10-14T09:50:48.5646545Z             "starred_url": "https://api.github.com/users/sv3t0v1k/starred{/owner}{/repo}",
+2026-10-14T09:50:48.5647071Z             "subscriptions_url": "https://api.github.com/users/sv3t0v1k/subscriptions",
+2026-10-14T09:50:48.5647709Z             "type": "User",
+2026-10-14T09:50:48.5647982Z             "url": "https://api.github.com/users/sv3t0v1k",
+2026-10-14T09:50:48.5648301Z             "user_view_type": "public"
+2026-10-14T09:50:48.5648561Z           }
+2026-10-14T09:50:48.5648747Z         },
+2026-10-14T09:50:48.5648947Z         "github_job": "image-build",
+2026-10-14T09:50:48.5649366Z         "github_ref": "refs/heads/этап/d5-1-ci",
+2026-10-14T09:50:48.5649700Z         "github_ref_name": "этап/d5-1-ci",
+2026-10-14T09:50:48.5649989Z         "github_ref_protected": "false",
+2026-10-14T09:50:48.5650262Z         "github_ref_type": "branch",
+2026-10-14T09:50:48.5650631Z         "github_repository": "sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud",
+2026-10-14T09:50:48.5651040Z         "github_repository_id": "1361208027",
+2026-10-14T09:50:48.5651340Z         "github_repository_owner": "sv3t0v1k",
+2026-10-14T09:50:48.5651638Z         "github_repository_owner_id": "122977177",
+2026-10-14T09:50:48.5651931Z         "github_run_attempt": "1",
+2026-10-14T09:50:48.5652187Z         "github_run_id": "38545262386",
+2026-10-14T09:50:48.5652457Z         "github_run_number": "13",
+2026-10-14T09:50:48.5652708Z         "github_runner_arch": "X64",
+2026-10-14T09:50:48.5653013Z         "github_runner_environment": "github-hosted",
+2026-10-14T09:50:48.5653327Z         "github_runner_image_os": "ubuntu24",
+2026-10-14T09:50:48.5653641Z         "github_runner_image_version": "20261004.327.1",
+2026-10-14T09:50:48.5653976Z         "github_runner_name": "GitHub Actions 1000000220",
+2026-10-14T09:50:48.5654277Z         "github_runner_os": "Linux",
+2026-10-14T09:50:48.5654646Z         "github_runner_tracking_id": "github_5f9e4e9e-29c7-4a3f-8e31-00ca71f8fa7c",
+2026-10-14T09:50:48.5655070Z         "github_server_url": "https://github.com",
+2026-10-14T09:50:48.5655385Z         "github_triggering_actor": "sv3t0v1k",
+2026-10-14T09:50:48.5655675Z         "github_workflow": "HomeCloud CI",
+2026-10-14T09:50:48.5656336Z         "github_workflow_ref": "sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/.github/workflows/ci.yml@refs/heads/этап/d5-1-ci",
+2026-10-14T09:50:48.5656988Z         "github_workflow_sha": "8a9add6fab55298c3397ea01b65e4f2d7512b92c",
+2026-10-14T09:50:48.5657566Z         "platform": "linux/amd64"
+2026-10-14T09:50:48.5657812Z       }
+2026-10-14T09:50:48.5657990Z     }
+2026-10-14T09:50:48.5658169Z   },
+2026-10-14T09:50:48.5658709Z   "buildx.build.ref": "builder-038d7d11-5690-42e4-aad3-6622189aab8b/builder-038d7d11-5690-42e4-aad3-6622189aab8b0/ssc9tdac0dizeekvk9tgk58p6",
+2026-10-14T09:50:48.5659573Z   "containerimage.config.digest": "sha256:71f912fb0bb291d381507ddcad69f86d26ea5339e7a853b6d7e8c7e228f6caf8",
+2026-10-14T09:50:48.5660092Z   "containerimage.descriptor": {
+2026-10-14T09:50:48.5660606Z     "mediaType": "application/vnd.oci.image.manifest.v1+json",
+2026-10-14T09:50:48.5661104Z     "digest": "sha256:b57dd9e673b20cb96af6950d2b97c354c979bb28dd3b019fcdaf27fcecb88c94",
+2026-10-14T09:50:48.5661525Z     "size": 2189,
+2026-10-14T09:50:48.5661730Z     "annotations": {
+2026-10-14T09:50:48.5662027Z       "org.opencontainers.image.created": "2026-10-14T09:50:47Z"
+2026-10-14T09:50:48.5662360Z     },
+2026-10-14T09:50:48.5662545Z     "platform": {
+2026-10-14T09:50:48.5662943Z       "architecture": "amd64",
+2026-10-14T09:50:48.5663192Z       "os": "linux"
+2026-10-14T09:50:48.5663391Z     }
+2026-10-14T09:50:48.5663567Z   },
+2026-10-14T09:50:48.5664463Z   "containerimage.digest": "sha256:b57dd9e673b20cb96af6950d2b97c354c979bb28dd3b019fcdaf27fcecb88c94",
+2026-10-14T09:50:48.5665164Z   "image.name": "docker.io/library/homecloud-ci-frontend:8a9add6fab55298c3397ea01b65e4f2d7512b92c"
+2026-10-14T09:50:48.5665626Z }
+2026-10-14T09:50:48.5666017Z ##[endgroup]
+2026-10-14T09:50:48.5666363Z ##[group]Reference
+2026-10-14T09:50:48.5666867Z builder-038d7d11-5690-42e4-aad3-6622189aab8b/builder-038d7d11-5690-42e4-aad3-6622189aab8b0/ssc9tdac0dizeekvk9tgk58p6
+2026-10-14T09:50:48.5667789Z ##[endgroup]
+2026-10-14T09:50:48.5668135Z ##[group]Check build summary support
+2026-10-14T09:50:48.5668550Z Build summary supported!
+2026-10-14T09:50:48.5668904Z ##[endgroup]
+2026-10-14T09:50:48.5728033Z ##[group]Run docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges --add-host backend:127.0.0.1 --env INGRESS_PROXY_IP=127.0.0.2 "$IMAGE" nginx -t
+2026-10-14T09:50:48.5729235Z [36;1mdocker run --rm --network none --cap-drop ALL --security-opt no-new-privileges --add-host backend:127.0.0.1 --env INGRESS_PROXY_IP=127.0.0.2 "$IMAGE" nginx -t[0m
+2026-10-14T09:50:48.5790946Z shell: /usr/bin/bash -e {0}
+2026-10-14T09:50:48.5791200Z env:
+2026-10-14T09:50:48.5791510Z   IMAGE: homecloud-ci-frontend:8a9add6fab55298c3397ea01b65e4f2d7512b92c
+2026-10-14T09:50:48.5791898Z ##[endgroup]
+2026-10-14T09:50:48.6971444Z /docker-entrypoint.sh: /docker-entrypoint.d/ is not empty, will attempt to perform configuration
+2026-10-14T09:50:48.6972464Z /docker-entrypoint.sh: Looking for shell scripts in /docker-entrypoint.d/
+2026-10-14T09:50:48.6982941Z /docker-entrypoint.sh: Launching /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh
+2026-10-14T09:50:48.7118104Z 10-listen-on-ipv6-by-default.sh: info: Getting the checksum of /etc/nginx/conf.d/default.conf
+2026-10-14T09:50:48.7852889Z 10-listen-on-ipv6-by-default.sh: info: Enabled listen on IPv6 in /etc/nginx/conf.d/default.conf
+2026-10-14T09:50:48.7855626Z /docker-entrypoint.sh: Sourcing /docker-entrypoint.d/15-local-resolvers.envsh
+2026-10-14T09:50:48.7856962Z /docker-entrypoint.sh: Launching /docker-entrypoint.d/20-envsubst-on-templates.sh
+2026-10-14T09:50:48.7901242Z 20-envsubst-on-templates.sh: Running envsubst on /etc/nginx/templates/default.conf.template to /etc/nginx/conf.d/default.conf
+2026-10-14T09:50:48.7928212Z /docker-entrypoint.sh: Launching /docker-entrypoint.d/30-tune-worker-processes.sh
+2026-10-14T09:50:48.7938605Z /docker-entrypoint.sh: Configuration complete; ready for start up
+2026-10-14T09:50:48.8025157Z nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+2026-10-14T09:50:48.8043509Z 2026/10/14 09:50:48 [emerg] 1#1: chown("/var/cache/nginx/client_temp", 101) failed (1: Operation not permitted)
+2026-10-14T09:50:48.8044758Z nginx: [emerg] chown("/var/cache/nginx/client_temp", 101) failed (1: Operation not permitted)
+2026-10-14T09:50:48.8045673Z nginx: configuration file /etc/nginx/nginx.conf test failed
+2026-10-14T09:50:48.8458509Z ##[error]Process completed with exit code 1.
+2026-10-14T09:50:48.8584401Z ##[group]Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+2026-10-14T09:50:48.8584835Z with:
+2026-10-14T09:50:48.8585079Z   name: offline-provenance-frontend-1
+2026-10-14T09:50:48.8585385Z   path: offline-frontend*.json
+2026-10-14T09:50:48.8585647Z   if-no-files-found: error
+2026-10-14T09:50:48.8585886Z   retention-days: 14
+2026-10-14T09:50:48.8586107Z   compression-level: 6
+2026-10-14T09:50:48.8586522Z   overwrite: false
+2026-10-14T09:50:48.8586741Z   include-hidden-files: false
+2026-10-14T09:50:48.8586985Z ##[endgroup]
+2026-10-14T09:50:49.0275134Z (node:3526) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-14T09:50:49.0276421Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-14T09:50:49.0357444Z ##[error]No files were found with the provided path: offline-frontend*.json. No artifacts will be uploaded.
+2026-10-14T09:50:49.0504769Z ##[group]Run sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/homecloud-trivy"
+2026-10-14T09:50:49.0505676Z [36;1msh scripts/ci/install-trivy.sh "$RUNNER_TEMP/homecloud-trivy"[0m
+2026-10-14T09:50:49.0585079Z shell: /usr/bin/bash -e {0}
+2026-10-14T09:50:49.0585493Z ##[endgroup]
+2026-10-14T09:50:49.5095136Z /home/runner/work/_temp/homecloud-trivy/trivy.tar.gz: OK
+2026-10-14T09:50:50.6043371Z Version: 0.75.0
+2026-10-14T09:50:50.6125967Z ##[group]Run sh scripts/ci/scan-image.sh "$RUNNER_TEMP/homecloud-trivy/trivy" docker "homecloud-ci-frontend:8a9add6fab55298c3397ea01b65e4f2d7512b92c" "image-frontend.json"
+2026-10-14T09:50:50.6127525Z [36;1msh scripts/ci/scan-image.sh "$RUNNER_TEMP/homecloud-trivy/trivy" docker "homecloud-ci-frontend:8a9add6fab55298c3397ea01b65e4f2d7512b92c" "image-frontend.json"[0m
+2026-10-14T09:50:50.6189715Z shell: /usr/bin/bash -e {0}
+2026-10-14T09:50:50.6189987Z ##[endgroup]
+2026-10-14T09:50:50.7122895Z 2026-10-14T09:50:50Z	INFO	[vulndb] Need to update DB
+2026-10-14T09:50:50.7123648Z 2026-10-14T09:50:50Z	INFO	[vulndb] Downloading vulnerability DB...
+2026-10-14T09:50:50.7124725Z 2026-10-14T09:50:50Z	INFO	[vulndb] Downloading artifact...	repo="mirror.gcr.io/aquasec/trivy-db:2"
+2026-10-14T09:50:56.3439673Z 2026-10-14T09:50:56Z	INFO	[vulndb] Artifact successfully downloaded	repo="mirror.gcr.io/aquasec/trivy-db:2"
+2026-10-14T09:50:56.3442246Z 2026-10-14T09:50:56Z	INFO	[vuln] Vulnerability scanning is enabled
+2026-10-14T09:50:56.9791410Z 2026-10-14T09:50:56Z	INFO	Detected OS	family="alpine" version="3.24.2"
+2026-10-14T09:50:56.9792513Z 2026-10-14T09:50:56Z	INFO	[alpine] Detecting vulnerabilities...	os_version="3.24" repository="3.24" pkg_num=71
+2026-10-14T09:50:56.9829536Z 2026-10-14T09:50:56Z	INFO	Number of language-specific files	num=0
+2026-10-14T09:50:56.9831230Z 2026-10-14T09:50:56Z	WARN	Using severities from other vendors for some vulnerabilities. Read https://trivy.dev/docs/v0.75/guide/scanner/vulnerability#severity-selection for details.
+2026-10-14T09:50:57.0200546Z {"artifact": "homecloud-ci-frontend:8a9add6fab55298c3397ea01b65e4f2d7512b92c", "findings": {"HIGH": 3, "MEDIUM": 3}, "gate": "BLOCKED"}
+2026-10-14T09:50:57.1457475Z Traceback (most recent call last):
+2026-10-14T09:50:57.1458396Z   File "<stdin>", line 13, in <module>
+2026-10-14T09:50:57.1459234Z AssertionError: Image contains high/critical vulnerabilities; report retained
+2026-10-14T09:50:57.1607644Z ##[error]Process completed with exit code 1.
+2026-10-14T09:50:57.1656600Z ##[group]Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+2026-10-14T09:50:57.1657028Z with:
+2026-10-14T09:50:57.1657591Z   name: image-scan-frontend-1
+2026-10-14T09:50:57.1657922Z   path: image-frontend.json
+2026-10-14T09:50:57.1658171Z   if-no-files-found: error
+2026-10-14T09:50:57.1658410Z   retention-days: 14
+2026-10-14T09:50:57.1658630Z   compression-level: 6
+2026-10-14T09:50:57.1658854Z   overwrite: false
+2026-10-14T09:50:57.1659072Z   include-hidden-files: false
+2026-10-14T09:50:57.1659319Z ##[endgroup]
+2026-10-14T09:50:57.3346494Z (node:3592) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-14T09:50:57.3347507Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-14T09:50:57.3411290Z With the provided path, there will be 1 file uploaded
+2026-10-14T09:50:57.3412582Z Artifact name is valid!
+2026-10-14T09:50:57.3413263Z Root directory input is valid!
+2026-10-14T09:50:57.7714279Z Beginning upload of artifact content to blob storage
+2026-10-14T09:50:57.7935310Z (node:3592) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-10-14T09:50:58.1154387Z Uploaded bytes 24263
+2026-10-14T09:50:58.1867308Z Finished uploading artifact content to blob storage!
+2026-10-14T09:50:58.1868678Z SHA256 digest of uploaded artifact zip is 1edfee26ed7bd054b9ce9927abc39da7587e2c8873523bbee554f4159ae49433
+2026-10-14T09:50:58.1870658Z Finalizing artifact upload
+2026-10-14T09:50:58.4998098Z Artifact image-scan-frontend-1.zip successfully finalized. Artifact ID 11883808303
+2026-10-14T09:50:58.4999455Z Artifact image-scan-frontend-1 has been successfully uploaded! Final size is 24263 bytes. Artifact ID is 11883808303
+2026-10-14T09:50:58.5006376Z Artifact download URL: https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38545262386/artifacts/11883808303
+2026-10-14T09:50:58.5185276Z Post job cleanup.
+2026-10-14T09:50:58.8045046Z ##[group]Generating build summary
+2026-10-14T09:50:58.8050245Z exporting build record to /home/runner/work/_temp/docker-actions-toolkit-5lRHwI/export
+2026-10-14T09:50:58.8064216Z (node:3604) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-14T09:50:58.8065253Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-14T09:50:58.9869635Z [command]/usr/bin/docker buildx history export --builder builder-038d7d11-5690-42e4-aad3-6622189aab8b --output /home/runner/work/_temp/docker-actions-toolkit-5lRHwI/export/sv3t0v1k~https---github.com-sv3t0v1k-HomeCloud~SSC9TD.dockerbuild ssc9tdac0dizeekvk9tgk58p6 --finalize
+2026-10-14T09:50:59.1613051Z Build record written to /home/runner/work/_temp/docker-actions-toolkit-5lRHwI/export/sv3t0v1k~https---github.com-sv3t0v1k-HomeCloud~SSC9TD.dockerbuild (44.15 KB)
+2026-10-14T09:50:59.1646648Z Uploading sv3t0v1k~https---github.com-sv3t0v1k-HomeCloud~SSC9TD.dockerbuild to blob storage
+2026-10-14T09:50:59.5847588Z Beginning upload of artifact content to blob storage
+2026-10-14T09:50:59.5938703Z (node:3604) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-10-14T09:50:59.5946126Z Uploaded bytes 45206
+2026-10-14T09:50:59.9720632Z Finished uploading artifact content to blob storage!
+2026-10-14T09:50:59.9724912Z SHA256 hash of uploaded artifact is 3bc0f9b21ef598f3a02caf24fbbc8bd8ac27b8698fda8fb673c318caffa0ab75
+2026-10-14T09:50:59.9726129Z Finalizing artifact upload
+2026-10-14T09:51:00.4240412Z Artifact successfully finalized (11884416034)
+2026-10-14T09:51:00.4242545Z Artifact download URL: https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38545262386/artifacts/11884416034
+2026-10-14T09:51:00.4272311Z Writing summary
+2026-10-14T09:51:00.4286006Z ##[endgroup]
+2026-10-14T09:51:00.4286918Z ##[group]Removing temp folder /home/runner/work/_temp/docker-actions-toolkit-YFcrc0
+2026-10-14T09:51:00.4291951Z ##[endgroup]
+2026-10-14T09:51:00.4292632Z ##[group]Post cache
+2026-10-14T09:51:00.4294004Z State not set
+2026-10-14T09:51:00.4294710Z ##[endgroup]
+2026-10-14T09:51:00.4456975Z Post job cleanup.
+2026-10-14T09:51:00.7404732Z ##[group]Removing builder
+2026-10-14T09:51:00.7412742Z (node:3754) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-14T09:51:00.7413692Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-14T09:51:00.8553931Z [command]/usr/bin/docker buildx rm builder-038d7d11-5690-42e4-aad3-6622189aab8b
+2026-10-14T09:51:05.9990031Z builder-038d7d11-5690-42e4-aad3-6622189aab8b removed
+2026-10-14T09:51:06.0017574Z ##[endgroup]
+2026-10-14T09:51:06.0018326Z ##[group]Cleaning up certificates
+2026-10-14T09:51:06.0019839Z ##[endgroup]
+2026-10-14T09:51:06.0020790Z ##[group]Post cache
+2026-10-14T09:51:06.0023375Z State not set
+2026-10-14T09:51:06.0024088Z ##[endgroup]
+2026-10-14T09:51:06.0194726Z Post job cleanup.
+2026-10-14T09:51:06.1058024Z [command]/usr/bin/git version
+2026-10-14T09:51:06.1099979Z git version 2.55.0
+2026-10-14T09:51:06.1143948Z Temporarily overriding HOME='/home/runner/work/_temp/2e9c773e-d578-4737-8bb8-7322e7e7e6a2' before making global git config changes
+2026-10-14T09:51:06.1145151Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-14T09:51:06.1148839Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/https---github.com-sv3t0v1k-HomeCloud/https---github.com-sv3t0v1k-HomeCloud
+2026-10-14T09:51:06.1190263Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-14T09:51:06.1226447Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-14T09:51:06.1502015Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-14T09:51:06.1539679Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-14T09:51:06.1795036Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-14T09:51:06.1840098Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-14T09:51:06.2238274Z Cleaning up orphan processes
+2026-10-14T09:51:06.2558109Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5, actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02, docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83, docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
