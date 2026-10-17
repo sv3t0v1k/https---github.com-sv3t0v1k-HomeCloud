@@ -149,3 +149,8 @@ Moby/user update не доказан безопасным в этом scope; x/s
 Production Compose/gates/policy/dispositions не менялись. GHCR/merge/tag/release/deploy,
 Mac Docker/mini-PC/реальные данные не затронуты. Запрещённый audit file не читался,
 не искался, не хешировался и не staged; посторонние untracked сохранены.
+
+
+## Продолжение квалификации сохранённого OCI
+
+По отдельному разрешению владельца выполнено продолжение без пересборки. Allowlist, functional checks и SBOM подтверждены; fresh vulnerability scan BLOCKED по строгому DB age gate после двух фактических загрузок. [Новый отчёт и точные ограничения](./d5-1-11-existing-oci-20261017.md), [независимый итоговый review](./d5-1-11-existing-oci-review-20261017.md). Production NO_GO; docs/ROADMAP.md не редактировался, COMPLETE не установлен.
