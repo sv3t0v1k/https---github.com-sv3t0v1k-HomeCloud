@@ -1,0 +1,28 @@
+{
+  "recorded_at": "2026-10-18T09:27:00.822531+10:00",
+  "tests": {
+    "command": "PYTHONDONTWRITEBYTECODE=1 python3 experiments/d5-1-13/test_preflight.py",
+    "passed": 6,
+    "failed": 0,
+    "python": "3.9.6"
+  },
+  "lint": {
+    "command": "/private/tmp/homecloud-d517-tools/actionlint -shellcheck= .github/workflows/pg-recovery-preflight.yml",
+    "version": "1.7.12",
+    "exit_code": 0,
+    "shellcheck": "UNAVAILABLE_EXPLICITLY_DISABLED",
+    "bash_syntax": "PASS_ALL_RUN_SNIPPETS"
+  },
+  "not_run": [
+    "full app suites",
+    "app lint/build",
+    "GitHub Actions",
+    "runtime containers",
+    "local environment scans"
+  ],
+  "source_sha256": {
+    ".github/workflows/pg-recovery-preflight.yml": "f5eeb39796015fab5209bcf0a3d20bbba15c83c2196612d9391d877f5073b301",
+    "experiments/d5-1-13/preflight.py": "7042526e7f8faef1c2bb27dc2e4189e01006320719384d7ac7d96bd6471ff725",
+    "experiments/d5-1-13/test_preflight.py": "29553c88d9dfd6a7a0fec766ac9e9607a3bf28a7e8109aa7648e0fb9cb0dd1c4"
+  }
+}

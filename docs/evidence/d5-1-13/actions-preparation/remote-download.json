@@ -1,0 +1,9 @@
+{
+  "archive_substitution": false,
+  "attempts": 1,
+  "automatic_retry": false,
+  "local_fallback": "Verification only; no runner upload or rebuild",
+  "partial_payload_removed": true,
+  "status": "NOT_VERIFIED_TIMEOUT",
+  "timeout_seconds": 180
+}

@@ -1450,3 +1450,15 @@ Exact OCI↔official, startup gate и DB+HDD recovery **NOT_RUN**, RPO/RTO
 Medium/UNKNOWN не приняты, OCI reproducibility UNPROVEN, прежние security/tooling
 блокеры сохранены. Нужен одноразовый изолированный Linux/amd64 runner; до этого
 drill не запускать. [Evidence, матрица и решение владельцу](./evidence/d5-1-13/report.md).
+
+D5.1.13, продолжение18.10: владелец выбрал GitHub-hosted Linux/amd64 вместо
+отдельной машины. **PREPARATION_READY / RUNTIME_BLOCKED**, Production NO_GO;
+COMPLETE не установлен. Подготовлен manual-only preflight (1job/25мин,
+contents/actions read, fail-closed без контейнеров, always evidence). Exact OCI
+проверяется без rebuild; official и actual runner/tools security gates не сняты.
+Полный recovery harness пока не реализован; исходная матрица и контракт его
+исполнения сохранены, все сценарии NOT_RUN, RPO/RTO NOT_MEASURED.
+До отдельного согласия нет push/dispatch/GitHub writes. Публикация текущей ветки
+затронет накопленные6commits и ожидаемо запустит2CI+1residual experiment;
+новый workflow требует отдельной reviewed регистрации на protected main.
+PR№1 draft. [Подготовка, ограничения, расходы и план согласования](./evidence/d5-1-13/actions-preparation/report.md).

@@ -1,0 +1,273 @@
+{
+  "child": {
+    "digest": "sha256:1a66d744c1b459e13b05a8fca341da84cb63383e99ce262210efee5a319d4551",
+    "platform": {
+      "architecture": "amd64",
+      "os": "linux"
+    }
+  },
+  "config": {
+    "architecture": "amd64",
+    "config": {
+      "Cmd": [
+        "postgres"
+      ],
+      "Entrypoint": [
+        "docker-entrypoint.sh"
+      ],
+      "Env": [
+        "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "GOSU_VERSION=1.19",
+        "LANG=en_US.utf8",
+        "PG_MAJOR=16",
+        "PG_VERSION=16.15",
+        "PG_SHA256=c1575341fa7bd40f5274ea465b34390f4dc64cdd0770af327005caaeb9f6b7ed",
+        "DOCKER_PG_LLVM_DEPS=llvm21-dev \t\tclang21",
+        "PGDATA=/var/lib/postgresql/data"
+      ],
+      "ExposedPorts": {
+        "5432/tcp": {}
+      },
+      "StopSignal": "SIGINT",
+      "Volumes": {
+        "/var/lib/postgresql/data": {}
+      },
+      "WorkingDir": "/"
+    },
+    "created": "2026-09-17T21:31:24.32976807Z",
+    "history": [
+      {
+        "comment": "buildkit.dockerfile.v0",
+        "created": "2026-09-17T20:37:20.889221879Z",
+        "created_by": "ADD alpine-minirootfs-3.24.2-x86_64.tar.gz / # buildkit"
+      },
+      {
+        "comment": "buildkit.dockerfile.v0",
+        "created": "2026-09-17T20:37:20.889221879Z",
+        "created_by": "CMD [\"/bin/sh\"]",
+        "empty_layer": true
+      },
+      {
+        "comment": "buildkit.dockerfile.v0",
+        "created": "2026-09-17T21:29:22.679896907Z",
+        "created_by": "RUN /bin/sh -c set -eux; \taddgroup -g 70 -S postgres; \tadduser -u 70 -S -D -G postgres -H -h /var/lib/postgresql -s /bin/sh postgres; \tinstall --verbose --directory --owner postgres --group postgres --mode 1777 /var/lib/postgresql # buildkit"
+      },
+      {
+        "comment": "buildkit.dockerfile.v0",
+        "created": "2026-09-17T21:29:25.179631261Z",
+        "created_by": "ENV GOSU_VERSION=1.19",
+        "empty_layer": true
+      },
+      {
+        "comment": "buildkit.dockerfile.v0",
+        "created": "2026-09-17T21:29:25.179631261Z",
+        "created_by": "RUN /bin/sh -c set -eux; \t\tapk add --no-cache --virtual .gosu-deps \t\tca-certificates \t\tdpkg \t\tgnupg \t; \t\tdpkgArch=\"$(dpkg --print-architecture | awk -F- '{ print $NF }')\"; \twget -O /usr/local/bin/gosu \"https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch\"; \twget -O /usr/local/bin/gosu.asc \"https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch.asc\"; \t\texport GNUPGHOME=\"$(mktemp -d)\"; \tgpg --batch --keyserver hkps://keys.openpgp.org --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4; \tgpg --batch --verify /usr/local/bin/gosu.asc /usr/local/bin/gosu; \tgpgconf --kill all; \trm -rf \"$GNUPGHOME\" /usr/local/bin/gosu.asc; \t\tapk del --no-network .gosu-deps; \t\tchmod +x /usr/local/bin/gosu; \tgosu --version; \tgosu nobody true # buildkit"
+      },
+      {
+        "comment": "buildkit.dockerfile.v0",
+        "created": "2026-09-17T21:29:25.28081521Z",
+        "created_by": "RUN /bin/sh -c set -eux; ln -svf gosu /usr/local/bin/su-exec; su-exec nobody true # backwards compatibility (removed in PostgreSQL 17+) # buildkit"
+      },
+      {
+        "comment": "buildkit.dockerfile.v0",
+        "created": "2026-09-17T21:29:25.28081521Z",
+        "created_by": "ENV LANG=en_US.utf8",
+        "empty_layer": true
+      },
+      {
+        "comment": "buildkit.dockerfile.v0",
+        "created": "2026-09-17T21:29:25.352444353Z",
+        "created_by": "RUN /bin/sh -c mkdir /docker-entrypoint-initdb.d # buildkit"
+      },
+      {
+        "comment": "buildkit.dockerfile.v0",
+        "created": "2026-09-17T21:29:25.352444353Z",
+        "created_by": "ENV PG_MAJOR=16",
+        "empty_layer": true
+      },
+      {
+        "comment": "buildkit.dockerfile.v0",
+        "created": "2026-09-17T21:29:25.352444353Z",
+        "created_by": "ENV PG_VERSION=16.15",
+        "empty_layer": true
+      },
+      {
+        "comment": "buildkit.dockerfile.v0",
+        "created": "2026-09-17T21:29:25.352444353Z",
+        "created_by": "ENV PG_SHA256=c1575341fa7bd40f5274ea465b34390f4dc64cdd0770af327005caaeb9f6b7ed",
+        "empty_layer": true
+      },
+      {
+        "comment": "buildkit.dockerfile.v0",
+        "created": "2026-09-17T21:29:25.352444353Z",
+        "created_by": "ENV DOCKER_PG_LLVM_DEPS=llvm21-dev \t\tclang21",
+        "empty_layer": true
+      },
+      {
+        "comment": "buildkit.dockerfile.v0",
+        "created": "2026-09-17T21:31:23.881397184Z",
+        "created_by": "RUN /bin/sh -c set -eux; \t\twget -O postgresql.tar.bz2 \"https://ftp.postgresql.org/pub/source/v$PG_VERSION/postgresql-$PG_VERSION.tar.bz2\"; \techo \"$PG_SHA256 *postgresql.tar.bz2\" | sha256sum -c -; \tmkdir -p /usr/src/postgresql; \ttar \t\t--extract \t\t--file postgresql.tar.bz2 \t\t--directory /usr/src/postgresql \t\t--strip-components 1 \t; \trm postgresql.tar.bz2; \t\tapk add --no-cache --virtual .build-deps \t\t$DOCKER_PG_LLVM_DEPS \t\tbison \t\tcoreutils \t\tdpkg-dev dpkg \t\tflex \t\tg++ \t\tgcc \t\tkrb5-dev \t\tlibc-dev \t\tlibedit-dev \t\tlibxml2-dev \t\tlibxslt-dev \t\tlinux-headers \t\tmake \t\topenldap-dev \t\topenssl-dev \t\tperl-dev \t\tperl-ipc-run \t\tperl-utils \t\tpython3-dev \t\ttcl-dev \t\tutil-linux-dev \t\tzlib-dev \t\ticu-dev \t\tlz4-dev \t\tzstd-dev \t; \t\tcd /usr/src/postgresql; \tawk '$1 == \"#define\" && $2 == \"DEFAULT_PGSOCKET_DIR\" && $3 == \"\\\"/tmp\\\"\" { $3 = \"\\\"/var/run/postgresql\\\"\"; print; next } { print }' src/include/pg_config_manual.h > src/include/pg_config_manual.h.new; \tgrep '/var/run/postgresql' src/include/pg_config_manual.h.new; \tmv src/include/pg_config_manual.h.new src/include/pg_config_manual.h; \tgnuArch=\"$(dpkg-architecture --query DEB_BUILD_GNU_TYPE)\"; \t\texport LLVM_CONFIG=\"/usr/lib/llvm21/bin/llvm-config\"; \texport CLANG=clang-21; \t\t./configure \t\t--enable-option-checking=fatal \t\t--build=\"$gnuArch\" \t\t--enable-integer-datetimes \t\t--enable-thread-safety \t\t--enable-tap-tests \t\t--disable-rpath \t\t--with-uuid=e2fs \t\t--with-pgport=5432 \t\t--with-system-tzdata=/usr/share/zoneinfo \t\t--prefix=/usr/local \t\t--with-includes=/usr/local/include \t\t--with-libraries=/usr/local/lib \t\t--with-gssapi \t\t--with-icu \t\t--with-ldap \t\t--with-libxml \t\t--with-libxslt \t\t--with-llvm \t\t--with-lz4 \t\t--with-openssl \t\t--with-perl \t\t--with-python \t\t--with-tcl \t\t--with-zstd \t; \tmake -j \"$(nproc)\" world-bin; \tmake install-world-bin; \tmake -C contrib install; \t\trunDeps=\"$( \t\tscanelf --needed --nobanner --format '%n#p' --recursive /usr/local \t\t\t| tr ',' '\\n' \t\t\t| sort -u \t\t\t| awk 'system(\"[ -e /usr/local/lib/\" $1 \" ]\") == 0 { next } { print \"so:\" $1 }' \t\t\t| grep -v -e perl -e python -e tcl \t)\"; \tapk add --no-cache --virtual .postgresql-rundeps \t\t$runDeps \t\tbash \t\ttzdata \t\tzstd \t\ticu-data-full \t\t$([ \"$(apk --print-arch)\" != 'ppc64le' ] && echo 'nss_wrapper') \t; \tapk del --no-network .build-deps; \tcd /; \trm -rf \t\t/usr/src/postgresql \t\t/usr/local/share/doc \t\t/usr/local/share/man \t; \t\tpostgres --version # buildkit"
+      },
+      {
+        "comment": "buildkit.dockerfile.v0",
+        "created": "2026-09-17T21:31:24.000655603Z",
+        "created_by": "RUN /bin/sh -c set -eux; \tcp -v /usr/local/share/postgresql/postgresql.conf.sample /usr/local/share/postgresql/postgresql.conf.sample.orig; \tsed -ri \"s!^#?(listen_addresses)\\s*=\\s*\\S+.*!\\1 = '*'!\" /usr/local/share/postgresql/postgresql.conf.sample; \tgrep -F \"listen_addresses = '*'\" /usr/local/share/postgresql/postgresql.conf.sample # buildkit"
+      },
+      {
+        "comment": "buildkit.dockerfile.v0",
+        "created": "2026-09-17T21:31:24.084784874Z",
+        "created_by": "RUN /bin/sh -c install --verbose --directory --owner postgres --group postgres --mode 3777 /var/run/postgresql # buildkit"
+      },
+      {
+        "comment": "buildkit.dockerfile.v0",
+        "created": "2026-09-17T21:31:24.084784874Z",
+        "created_by": "ENV PGDATA=/var/lib/postgresql/data",
+        "empty_layer": true
+      },
+      {
+        "comment": "buildkit.dockerfile.v0",
+        "created": "2026-09-17T21:31:24.192566583Z",
+        "created_by": "RUN /bin/sh -c install --verbose --directory --owner postgres --group postgres --mode 1777 \"$PGDATA\" # buildkit"
+      },
+      {
+        "comment": "buildkit.dockerfile.v0",
+        "created": "2026-09-17T21:31:24.192566583Z",
+        "created_by": "VOLUME [/var/lib/postgresql/data]",
+        "empty_layer": true
+      },
+      {
+        "comment": "buildkit.dockerfile.v0",
+        "created": "2026-09-17T21:31:24.231302266Z",
+        "created_by": "COPY docker-entrypoint.sh docker-ensure-initdb.sh /usr/local/bin/ # buildkit"
+      },
+      {
+        "comment": "buildkit.dockerfile.v0",
+        "created": "2026-09-17T21:31:24.32976807Z",
+        "created_by": "RUN /bin/sh -c ln -sT docker-ensure-initdb.sh /usr/local/bin/docker-enforce-initdb.sh # buildkit"
+      },
+      {
+        "comment": "buildkit.dockerfile.v0",
+        "created": "2026-09-17T21:31:24.32976807Z",
+        "created_by": "ENTRYPOINT [\"docker-entrypoint.sh\"]",
+        "empty_layer": true
+      },
+      {
+        "comment": "buildkit.dockerfile.v0",
+        "created": "2026-09-17T21:31:24.32976807Z",
+        "created_by": "STOPSIGNAL SIGINT",
+        "empty_layer": true
+      },
+      {
+        "comment": "buildkit.dockerfile.v0",
+        "created": "2026-09-17T21:31:24.32976807Z",
+        "created_by": "EXPOSE map[5432/tcp:{}]",
+        "empty_layer": true
+      },
+      {
+        "comment": "buildkit.dockerfile.v0",
+        "created": "2026-09-17T21:31:24.32976807Z",
+        "created_by": "CMD [\"postgres\"]",
+        "empty_layer": true
+      }
+    ],
+    "os": "linux",
+    "rootfs": {
+      "diff_ids": [
+        "sha256:74d97c428c51a828f9051a7a40a53ff1fc99e54fc30323ce36760701b0b7f711",
+        "sha256:55469241be312953a965a95ac8affc80a9e6caca7ae6b7c865eeb85bed6c0935",
+        "sha256:7efd3fa04051c098ad166c177d3b5df5db8019f3b230a11650cae3b99e0247d4",
+        "sha256:6abee75ee30a340e7bb44aba0ebc89f77573822aaae42ee12c0cd8ac003d0dca",
+        "sha256:1e6eba70f825671214a5a7f9b042c272b510657980522e2972deee9745685660",
+        "sha256:09bef825aa08dbb0073c2ffd188ea973f42d09ac910a0c88545825f958f70a8f",
+        "sha256:470ae8e9f008967fa132e4f35c6b7d5dd6f74aac23c2eacdb45d82dd2d1f12e4",
+        "sha256:b006494f482847c06687d7f95f7be1683af2e7545b951f81f20041b5e0644ebb",
+        "sha256:ed38a2de685f56abc00e510ad09c7ddf5fe342bc545cfb1f7e64a4b6e2f46b05",
+        "sha256:3a1fd3ebad6c8e69047f4b2c1e4cd78d37425ee3bbbb72642a3ad9ba00731b33",
+        "sha256:38dab51118192bc13c247cd7d9356d34b50c2eb436337b2e251dd14d2e9be5bb"
+      ],
+      "type": "layers"
+    }
+  },
+  "layer_bytes_verified": false,
+  "manifest": {
+    "annotations": {
+      "com.docker.official-images.bashbrew.arch": "amd64",
+      "org.opencontainers.image.base.digest": "sha256:d56c381f961d307a21b3ca004cf1e3910f106644aefb1f43e654c8a56c4fd395",
+      "org.opencontainers.image.base.name": "alpine:3.24",
+      "org.opencontainers.image.created": "2026-09-17T21:29:19Z",
+      "org.opencontainers.image.revision": "9d15534160ade17f2b6c455a39ee967c49b1937d",
+      "org.opencontainers.image.source": "https://github.com/docker-library/postgres.git#9d15534160ade17f2b6c455a39ee967c49b1937d:16/alpine3.24",
+      "org.opencontainers.image.url": "https://hub.docker.com/_/postgres",
+      "org.opencontainers.image.version": "16.15-alpine3.24"
+    },
+    "config": {
+      "digest": "sha256:81bd698b4594e751a3269e4dcd3e03a4a0ec0daf7b72e7aa1abd43cce9887542",
+      "mediaType": "application/vnd.oci.image.config.v1+json",
+      "size": 9065
+    },
+    "layers": [
+      {
+        "digest": "sha256:e2de96513ba9eb53b431787ec8a65cdde380ac4772a3e4c4b714dcfde2a102b5",
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "size": 3849738
+      },
+      {
+        "digest": "sha256:1b7f9cd581eeedab1ccc397162662ee9238b4c4e074cc00429b8404fcf2219af",
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "size": 969
+      },
+      {
+        "digest": "sha256:210b280f9556440a6475a3d20cb52baac3ed21a482dbc5889005d9da5ec612f4",
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "size": 901406
+      },
+      {
+        "digest": "sha256:81717818649a9c77cf8c6f954d4d1cf744961a39e95756bc9cbf0f1f63f750f8",
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "size": 172
+      },
+      {
+        "digest": "sha256:3ae6141cfd99b452b6681c53b7ad98794795232fd103f21aff66d2551310b767",
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "size": 116
+      },
+      {
+        "digest": "sha256:25b77f59fd950b831b1d657ac02b3f928f53fd09180c59ebed1ffd697838c31a",
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "size": 111293729
+      },
+      {
+        "digest": "sha256:6c25da34e03ff0b3cfff79692019fae820b89a50db84537f15168a4d538c337b",
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "size": 9669
+      },
+      {
+        "digest": "sha256:a88782f9280681a31f5d2cac17c4942587a302d42f0a4b3cd9faf9643f5b5270",
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "size": 128
+      },
+      {
+        "digest": "sha256:d8d21be4bf02dc58e3f0d02f32d50d42e349f0a27b895716a1dc3224e7ea3c7c",
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "size": 169
+      },
+      {
+        "digest": "sha256:6117bd39f23f25487117cad6c2a1cdda0ec0e4652de068ae90b8ce4ef8647aaa",
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "size": 6111
+      },
+      {
+        "digest": "sha256:509688edf37bf62fcdb59297fd894b2b5ae4fc0beb79d98ad2e9ff06a26a939c",
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "size": 185
+      }
+    ],
+    "mediaType": "application/vnd.oci.image.manifest.v1+json",
+    "schemaVersion": 2
+  },
+  "pinned_digest": "sha256:1a66d744c1b459e13b05a8fca341da84cb63383e99ce262210efee5a319d4551",
+  "reference": "docker.io/library/postgres:16.15-alpine@sha256:1a66d744c1b459e13b05a8fca341da84cb63383e99ce262210efee5a319d4551",
+  "reference_kind": "platform-manifest",
+  "runtime_started": false,
+  "security_approved": false
+}
