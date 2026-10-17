@@ -1417,3 +1417,22 @@ Manifest `sha256:83b8b00eca9cb7e77dc6c6bbb3fd4bef197853afa0c2cd104991d7a9673abbe
 Review одобряет отчёт INCOMPLETE, итогового APPROVE image нет. Production не менялся;
 dispositions/exceptions/gates не расширены. D5.2 NOT_STARTED.
 [Квалификация, evidence, ограничения и решение владельцу](./evidence/d5-1-11-postgres-residual-20261017.md).
+
+
+### D5.1.12 — подготовка интеграции собственного PostgreSQL image (2026-10-18)
+
+**PREPARATION ONLY; Release BLOCKED / Production NO_GO; COMPLETE не установлен.**
+Обновление D5.1.11: сохранённый exact manifest
+`sha256:83b8b00eca9cb7e77dc6c6bbb3fd4bef197853afa0c2cd104991d7a9673abbe8`
+получил экспериментальный PASS: один scan с DB около4ч, 0C/0H/1M/1UNKNOWN,
+zlib CVE отсутствует; независимый PASS только эксперименту. Это последующее
+свидетельство уточняет исторические INCOMPLETE выше, не меняя release status.
+Подготовлены pins/25 retained evidence, минимальный Dockerfile, offline verifier и
+сборочный протокол; образ не пересобирался. Provenance/SBOM UNSIGNED, весь OCI
+UNPROVEN reproducible; новый результат рецепта не наследует квалификацию.
+Статический Compose contract PASS; runtime production gate и прямой rollback на
+official ещё UNQUALIFIED. Runbook различает возврат образа и recovery DB+HDD.
+Независимый review нового пакета — PASS только preparation;8/8 новых tests PASS.
+Medium/UNKNOWN не приняты; Gitleaks/Compose/esbuild/BuildKit/CI rootfs blockers
+сохраняются. Production Compose/locks/deployed images не менялись, D5.2 NOT_STARTED.
+[Пакет подготовки, проверки и решение владельцу](./evidence/d5-1-12/report.md).
