@@ -185,54 +185,6 @@ try:
           append=lock["apk_log_append"], full_inventory_match=True, directory_permissions_unchanged=True,
           reviewed_manifest=lock["manifest"]))
 
-    trivy = str(Path(os.environ["RUNNER_TEMP"]) / "d5111-trivy/trivy")
-    cache = ROOT / "trivy-cache"
-    run([trivy, "image", "--cache-dir", str(cache), "--download-db-only"])
-    db = cache / "db/trivy.db"
-    db_hash = sha(db)
-    meta = json.loads((cache / "db/metadata.json").read_text())
-    age = (datetime.now(timezone.utc) - datetime.fromisoformat(meta["UpdatedAt"].replace("Z", "+00:00"))).total_seconds()
-    assert 0 <= age < 86400
-    findings = {}
-    for name, arc, ident in [("previous", docker_old, old_artifact), ("candidate", new_archive, identity)]:
-        layout = str(helper.materialize(arc))
-        common = [trivy, "image", "--cache-dir", str(cache), "--skip-db-update", "--offline-scan", "--config", "/dev/null",
-                  "--ignorefile", "/dev/null", "--ignore-unfixed=false", "--platform", "linux/amd64", "--input", layout]
-        run(common + ["--scanners", "vuln", "--list-all-pkgs", "--format", "json", "--output", str(E / (name + "-scan.json"))])
-        report = json.loads((E / (name + "-scan.json")).read_text())
-        binding = helper.bind(arc, report, "postgres", os.environ["GITHUB_SHA"], ident[0])
-        binding["scan_sha256"] = "sha256:" + sha(E / (name + "-scan.json"))
-        binding["source_commit_role"] = "qualification harness; build origin recorded separately in provenance.json"
-        write(name + "-binding.json", binding)
-        run(common + ["--format", "cyclonedx", "--output", str(E / (name + "-sbom.cdx.json"))])
-        sbom = json.loads((E / (name + "-sbom.cdx.json")).read_text())
-        assert sbom["bomFormat"] == "CycloneDX"
-        assert sbom["metadata"]["component"]["name"] == layout
-        properties = sbom["metadata"]["component"]["properties"]
-        assert [p["value"] for p in properties if p["name"] == "aquasecurity:trivy:ImageID"] == [ident[1]["config"]["digest"]]
-        assert [p["value"] for p in properties if p["name"] == "aquasecurity:trivy:DiffID"] == ident[2]["rootfs"]["diff_ids"]
-        components = {(c.get("name"), c.get("version")) for c in sbom["components"]}
-        expected_packages = before_packages if name == "previous" else after_packages
-        assert all((package, version) in components for package, version in expected_packages.items())
-        assert ("github.com/moby/sys/user", "v0.1.0") in components
-        assert ("golang.org/x/sys", "v0.1.0") in components
-        write(name + "-sbom-binding.json", dict(manifest=ident[0], config=ident[1]["config"]["digest"],
-              archive_sha256=sha(arc), sbom_sha256=sha(E / (name + "-sbom.cdx.json")),
-              scan_layout=str(helper.verify_layout(arc, layout)), packages_verified=len(expected_packages),
-              source_commit_role="qualification harness", signature="UNSIGNED"))
-        assert sha(db) == db_hash
-        assert any(r.get("Target") == "usr/local/bin/gosu" and r.get("Packages") for r in report["Results"])
-        findings[name] = [{"target": "os:" + r["Type"] if r.get("Class") == "os-pkgs" else r["Target"],
-                           "package": v["PkgName"], "cve": v["VulnerabilityID"], "severity": v["Severity"]}
-                          for r in report["Results"] for v in r.get("Vulnerabilities", [])]
-    write("scanner-db.json", dict(sha256=db_hash, metadata=meta, same_db=True))
-    key = lambda v: (v["target"], v["package"], v["cve"])
-    before = set(map(key, findings["previous"]))
-    delta = [v for v in findings["candidate"] if key(v) not in before]
-    write("comparison.json", dict(findings=findings, counts={k:dict(collections.Counter(v["severity"] for v in vs)) for k,vs in findings.items()}, new=delta))
-    assert not delta
-    assert not any(v["cve"] == "CVE-2026-85091" or v["severity"] in ("CRITICAL", "HIGH") for v in findings["candidate"])
-
     assert docker("run", "--rm", "--network=none", "--entrypoint", "stat", NEW, "-c", "%u:%g:%a", "/usr/local/bin/gosu") == "0:0:755"
     for user in ("postgres", "postgres:postgres", "70:70"):
         assert docker("run", "--rm", "--network=none", "--entrypoint", "gosu", NEW, user, "sh", "-c", 'test "$(id -u)" = 70 && test "$(id -g)" = 70 && test "$(id -G)" = 70 && test "$HOME" = /var/lib/postgresql && echo PASS') == "PASS"
@@ -299,6 +251,58 @@ try:
           checks=["named/numeric UID/GID/groups/HOME", "fresh init", "previous-to-new PGDATA", "PID1 UID/GID70",
                   "compressed pg_dump/pg_restore", "clean shutdown", "restart", "new-to-previous PGDATA"],
           prior_154_tests="not rerun; unchanged backend, targeted 26 migrations and restore on this exact OCI", migrations="26 + no-op + compressed schema/fixture restore"))
+    # Functional evidence is retained even when the final scanner gate blocks qualification.
+    trivy = str(Path(os.environ["RUNNER_TEMP"]) / "d5111-trivy/trivy")
+    cache = ROOT / "trivy-cache"
+    db_repository = "ghcr.io/aquasecurity/trivy-db:2"
+    run([trivy, "image", "--cache-dir", str(cache), "--db-repository", db_repository, "--download-db-only"])
+    db = cache / "db/trivy.db"
+    db_hash = sha(db)
+    meta = json.loads((cache / "db/metadata.json").read_text())
+    age = (datetime.now(timezone.utc) - datetime.fromisoformat(meta["UpdatedAt"].replace("Z", "+00:00"))).total_seconds()
+    write("scanner-db.json", dict(sha256=db_hash, metadata=meta, age_seconds=age,
+          repository=db_repository, fresh=0 <= age < 86400, same_db=True))
+    assert 0 <= age < 86400, f"DB UpdatedAt age out of range: {age} seconds"
+    findings = {}
+    for name, arc, ident in [("previous", docker_old, old_artifact), ("candidate", new_archive, identity)]:
+        layout = str(helper.materialize(arc))
+        common = [trivy, "image", "--cache-dir", str(cache), "--skip-db-update", "--offline-scan", "--config", "/dev/null",
+                  "--ignorefile", "/dev/null", "--ignore-unfixed=false", "--platform", "linux/amd64", "--input", layout]
+        run(common + ["--scanners", "vuln", "--list-all-pkgs", "--format", "json", "--output", str(E / (name + "-scan.json"))])
+        report = json.loads((E / (name + "-scan.json")).read_text())
+        binding = helper.bind(arc, report, "postgres", os.environ["GITHUB_SHA"], ident[0])
+        binding["scan_sha256"] = "sha256:" + sha(E / (name + "-scan.json"))
+        binding["source_commit_role"] = "qualification harness; build origin recorded separately in provenance.json"
+        write(name + "-binding.json", binding)
+        run(common + ["--format", "cyclonedx", "--output", str(E / (name + "-sbom.cdx.json"))])
+        sbom = json.loads((E / (name + "-sbom.cdx.json")).read_text())
+        assert sbom["bomFormat"] == "CycloneDX"
+        assert sbom["metadata"]["component"]["name"] == layout
+        properties = sbom["metadata"]["component"]["properties"]
+        assert [p["value"] for p in properties if p["name"] == "aquasecurity:trivy:ImageID"] == [ident[1]["config"]["digest"]]
+        assert [p["value"] for p in properties if p["name"] == "aquasecurity:trivy:DiffID"] == ident[2]["rootfs"]["diff_ids"]
+        components = {(c.get("name"), c.get("version")) for c in sbom["components"]}
+        expected_packages = before_packages if name == "previous" else after_packages
+        assert all((package, version) in components for package, version in expected_packages.items())
+        assert ("github.com/moby/sys/user", "v0.1.0") in components
+        assert ("golang.org/x/sys", "v0.1.0") in components
+        write(name + "-sbom-binding.json", dict(manifest=ident[0], config=ident[1]["config"]["digest"],
+              archive_sha256=sha(arc), sbom_sha256=sha(E / (name + "-sbom.cdx.json")),
+              scan_layout=str(helper.verify_layout(arc, layout)), packages_verified=len(expected_packages),
+              source_commit_role="qualification harness", signature="UNSIGNED"))
+        assert sha(db) == db_hash
+        assert any(r.get("Target") == "usr/local/bin/gosu" and r.get("Packages") for r in report["Results"])
+        findings[name] = [{"target": "os:" + r["Type"] if r.get("Class") == "os-pkgs" else r["Target"],
+                           "package": v["PkgName"], "cve": v["VulnerabilityID"], "severity": v["Severity"]}
+                          for r in report["Results"] for v in r.get("Vulnerabilities", [])]
+    assert sha(db) == db_hash
+    key = lambda v: (v["target"], v["package"], v["cve"])
+    before = set(map(key, findings["previous"]))
+    delta = [v for v in findings["candidate"] if key(v) not in before]
+    write("comparison.json", dict(findings=findings, counts={k:dict(collections.Counter(v["severity"] for v in vs)) for k,vs in findings.items()}, new=delta))
+    assert not delta
+    assert not any(v["cve"] == "CVE-2026-85091" or v["severity"] in ("CRITICAL", "HIGH") for v in findings["candidate"])
+
     write("result.json", dict(experiment="PASS", production="NO_GO", manifest=identity[0], binary_sha256=builds[0],
           disposition_transferred=False, new_exceptions=False, policy_changed=False))
 finally:
