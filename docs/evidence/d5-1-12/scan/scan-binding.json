@@ -1,0 +1,15 @@
+{
+  "format": "homecloud-qualified-artifact-v1",
+  "role": "postgres",
+  "source_commit": "8e8a356e93620f3e0c88904aea74d14c90292b1e",
+  "platform": "linux/amd64",
+  "archive_sha256": "sha256:392dfe5ab7ce5fdfd77b4c32884ab8700a72124d783fd20b244cba6135d5c645",
+  "platform_digest": "sha256:83b8b00eca9cb7e77dc6c6bbb3fd4bef197853afa0c2cd104991d7a9673abbe8",
+  "config_digest": "sha256:e8f72c13539571329d433e4d0ea475dc42a6407b36f9332cfe3fd790fe81a7d2",
+  "scan_sha256": "sha256:6f83142ccaec95dd1fb13c21d78c8b83ee6656a4a050e9fd41cf6efc3fc0d507",
+  "binding": "ARCHIVE_MANIFEST_CONFIG_SCAN_VERIFIED",
+  "production": "NO_GO",
+  "source_commit_role": "qualification evidence; original build origin reused from prior provenance",
+  "db_sha256": "53ec1bdd7717514174ed808d43464deab895ce6e32924f8224b2a68b0c244125",
+  "scan_attempts": 1
+}

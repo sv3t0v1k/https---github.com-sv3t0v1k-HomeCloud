@@ -1,0 +1,16 @@
+{
+  "status": "PASS_SBOM_ONLY",
+  "manifest": "sha256:83b8b00eca9cb7e77dc6c6bbb3fd4bef197853afa0c2cd104991d7a9673abbe8",
+  "config": "sha256:e8f72c13539571329d433e4d0ea475dc42a6407b36f9332cfe3fd790fe81a7d2",
+  "archive_sha256": "392dfe5ab7ce5fdfd77b4c32884ab8700a72124d783fd20b244cba6135d5c645",
+  "sbom_sha256": "24004d905b756af5d3ac15c7eb4df482a284b2c02298e0185866e7f63d4f8f47",
+  "packages_verified": 45,
+  "gosu_modules_verified": true,
+  "diff_id_check": "MULTISET: CycloneDX properties are sorted; original OCI config digest/order is separately verified",
+  "missing_or_duplicate_diff_id_negative_tests": "PASS",
+  "db_downloaded": false,
+  "vulnerability_scan": false,
+  "docker_used": false,
+  "signature": "UNSIGNED",
+  "production": "NO_GO"
+}

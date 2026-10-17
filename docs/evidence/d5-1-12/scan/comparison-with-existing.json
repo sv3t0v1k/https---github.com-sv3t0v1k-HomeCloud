@@ -1,0 +1,21 @@
+{
+  "historical_manifest": "sha256:fd2e86b5b1a2d9381d6e6018feacda382e6b669dda0a519dbc4744aa46980f95",
+  "current_manifest": "sha256:83b8b00eca9cb7e77dc6c6bbb3fd4bef197853afa0c2cd104991d7a9673abbe8",
+  "historical_findings_sha256": "e04f2d677857caba657724fe7576e7ae975152b52fd17ec53f4d25b96d9a54f4",
+  "historical_counts": {
+    "MEDIUM": 2,
+    "UNKNOWN": 1
+  },
+  "current_counts": {
+    "CRITICAL": 0,
+    "HIGH": 0,
+    "MEDIUM": 1,
+    "LOW": 0,
+    "UNKNOWN": 1
+  },
+  "absent_previous_ids": [
+    "CVE-2026-85091"
+  ],
+  "new_ids_beyond_historical": [],
+  "scope": "single fresh candidate scan compared with retained historical finding list; historical baseline not rescanned, not a same-DB paired comparison"
+}

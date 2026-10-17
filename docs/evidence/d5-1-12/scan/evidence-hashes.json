@@ -1,0 +1,14 @@
+{
+  "preflight.json": "9b0493fc3f564c91ef21684545095ce9ca62bd0a3a6c2406dd143daffb42a3db",
+  "identity.json": "2aac57ddcfaa7f335cd5232e1c7f2b15a94b65fd4bfe5fbe333ffea5a0d9c460",
+  "db-download.json": "f0b95bd61556e2b4963c961dddaf96cd99ea59abb3ab2599a640cd78a3ebe600",
+  "db-check.json": "0b98220cea0ab3eaa544e56e8faefc6291ee6aa1174ada8660be5b9fc2ca107c",
+  "candidate-scan.json": "6f83142ccaec95dd1fb13c21d78c8b83ee6656a4a050e9fd41cf6efc3fc0d507",
+  "scan-command.json": "925e1bb945dc821e5a4656f66a206e80bc1b7c25f7a4e8b9db9cb1e37bb2ec10",
+  "scan-freshness-before.json": "6d67bf38a974b946e986cffcfbe86093f5601dabbc35167b45e3c54236c1619b",
+  "scan-freshness-after.json": "5a89185aa425a2d78c2140e9da6fe69c1619692099dd280aceaae29ef2c03b77",
+  "scan-binding.json": "38bf282bf7d2db3b5bbc3bcbef4fec91b4e6a115e1cb04cd0387b2d61a6a5a52",
+  "evaluation.json": "e04c9ae73ab7f43e9cd7ad9d7ebea6782805ce40b84a754176386454ce18e481",
+  "reused-evidence.json": "fbcc4492b66e92cb34a43289a6266dc1366959b96e015cd28dd5a75a9e1fcfc4",
+  "comparison-with-existing.json": "f94d4379268e5e59af940aed8f0efafe687a905aad8dfdc9041df3e3bc30d388"
+}

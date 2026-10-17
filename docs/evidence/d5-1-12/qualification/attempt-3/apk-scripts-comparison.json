@@ -1,0 +1,167 @@
+{
+  "previous": {
+    "alpine-baselayout-3.7.2-r1.X1f0fcfdc2f4da058af6473bc45c4eab62916225b2.pre-install": {
+      "type": "0",
+      "linkname": "",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "sha256": "28ecff91a36f438ca26bc8cc08d857863378aa94eab399a1f413e52501b86f85"
+    },
+    "alpine-baselayout-3.7.2-r1.X1f0fcfdc2f4da058af6473bc45c4eab62916225b2.post-install": {
+      "type": "0",
+      "linkname": "",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "sha256": "dd30b63bfbe4f7d8085f57840e15b84015b3518d6f282a3e0924f73a61000016"
+    },
+    "alpine-baselayout-3.7.2-r1.X1f0fcfdc2f4da058af6473bc45c4eab62916225b2.pre-upgrade": {
+      "type": "0",
+      "linkname": "",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "sha256": "3f35fa5402d397389f366e8934ba0f800a017a149f4281dc8c22762419e47e10"
+    },
+    "alpine-baselayout-3.7.2-r1.X1f0fcfdc2f4da058af6473bc45c4eab62916225b2.post-upgrade": {
+      "type": "0",
+      "linkname": "",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "sha256": "dd30b63bfbe4f7d8085f57840e15b84015b3518d6f282a3e0924f73a61000016"
+    },
+    "bash-5.3.9-r1.X12ce9606f1c31438297b40df5875dbceb66afb675.post-install": {
+      "type": "0",
+      "linkname": "",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "sha256": "8d3f6002c8da057110c04bb8e823d2a90e555df1cec438833cd1768ef293bbf8"
+    },
+    "bash-5.3.9-r1.X12ce9606f1c31438297b40df5875dbceb66afb675.pre-deinstall": {
+      "type": "0",
+      "linkname": "",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "sha256": "c704907faf0ff83d5e6625bb8b1adbc7334eee9f0e78f76dd482aa7104507fa6"
+    },
+    "bash-5.3.9-r1.X12ce9606f1c31438297b40df5875dbceb66afb675.post-upgrade": {
+      "type": "0",
+      "linkname": "",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "sha256": "8d3f6002c8da057110c04bb8e823d2a90e555df1cec438833cd1768ef293bbf8"
+    },
+    "busybox-1.37.0-r31.X1b5405ebc02f7dd8be95b6265c54b243d5456ab8f.post-install": {
+      "type": "0",
+      "linkname": "",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "sha256": "13c120a1c714ecafa7fe1fc748406a89dfffc549118ebce324b53d4bbb4ba75f"
+    },
+    "busybox-1.37.0-r31.X1b5405ebc02f7dd8be95b6265c54b243d5456ab8f.post-upgrade": {
+      "type": "0",
+      "linkname": "",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "sha256": "3cf0a22d2d6c6ed34be6b77ed3973b7c0b7434525744026c0159f5a76f827f49"
+    },
+    "busybox-1.37.0-r31.X1b5405ebc02f7dd8be95b6265c54b243d5456ab8f.trigger": {
+      "type": "0",
+      "linkname": "",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "sha256": "c7840b111dd82669de2074ea3c7e345c063928db2bbff650a81289777b3ff98f"
+    }
+  },
+  "candidate": {
+    "alpine-baselayout-3.7.2-r1.X1f0fcfdc2f4da058af6473bc45c4eab62916225b2.pre-install": {
+      "type": "0",
+      "linkname": "",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "sha256": "28ecff91a36f438ca26bc8cc08d857863378aa94eab399a1f413e52501b86f85"
+    },
+    "alpine-baselayout-3.7.2-r1.X1f0fcfdc2f4da058af6473bc45c4eab62916225b2.post-install": {
+      "type": "0",
+      "linkname": "",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "sha256": "dd30b63bfbe4f7d8085f57840e15b84015b3518d6f282a3e0924f73a61000016"
+    },
+    "alpine-baselayout-3.7.2-r1.X1f0fcfdc2f4da058af6473bc45c4eab62916225b2.pre-upgrade": {
+      "type": "0",
+      "linkname": "",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "sha256": "3f35fa5402d397389f366e8934ba0f800a017a149f4281dc8c22762419e47e10"
+    },
+    "alpine-baselayout-3.7.2-r1.X1f0fcfdc2f4da058af6473bc45c4eab62916225b2.post-upgrade": {
+      "type": "0",
+      "linkname": "",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "sha256": "dd30b63bfbe4f7d8085f57840e15b84015b3518d6f282a3e0924f73a61000016"
+    },
+    "bash-5.3.9-r1.X12ce9606f1c31438297b40df5875dbceb66afb675.post-install": {
+      "type": "0",
+      "linkname": "",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "sha256": "8d3f6002c8da057110c04bb8e823d2a90e555df1cec438833cd1768ef293bbf8"
+    },
+    "bash-5.3.9-r1.X12ce9606f1c31438297b40df5875dbceb66afb675.pre-deinstall": {
+      "type": "0",
+      "linkname": "",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "sha256": "c704907faf0ff83d5e6625bb8b1adbc7334eee9f0e78f76dd482aa7104507fa6"
+    },
+    "bash-5.3.9-r1.X12ce9606f1c31438297b40df5875dbceb66afb675.post-upgrade": {
+      "type": "0",
+      "linkname": "",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "sha256": "8d3f6002c8da057110c04bb8e823d2a90e555df1cec438833cd1768ef293bbf8"
+    },
+    "busybox-1.37.0-r31.X1b5405ebc02f7dd8be95b6265c54b243d5456ab8f.post-install": {
+      "type": "0",
+      "linkname": "",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "sha256": "13c120a1c714ecafa7fe1fc748406a89dfffc549118ebce324b53d4bbb4ba75f"
+    },
+    "busybox-1.37.0-r31.X1b5405ebc02f7dd8be95b6265c54b243d5456ab8f.post-upgrade": {
+      "type": "0",
+      "linkname": "",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "sha256": "3cf0a22d2d6c6ed34be6b77ed3973b7c0b7434525744026c0159f5a76f827f49"
+    },
+    "busybox-1.37.0-r31.X1b5405ebc02f7dd8be95b6265c54b243d5456ab8f.trigger": {
+      "type": "0",
+      "linkname": "",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "sha256": "c7840b111dd82669de2074ea3c7e345c063928db2bbff650a81289777b3ff98f"
+    }
+  },
+  "identical": true
+}
