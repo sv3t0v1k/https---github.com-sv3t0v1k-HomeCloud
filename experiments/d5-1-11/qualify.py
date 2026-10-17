@@ -126,7 +126,19 @@ try:
     old = inspect(OLD)
     assert new["Config"] == old["Config"]
     assert new["RootFS"]["Layers"][:len(old["RootFS"]["Layers"])] == old["RootFS"]["Layers"]
-    assert docker("run", "--rm", "--network=none", "--entrypoint", "apk", NEW, "info", "-v", "zlib") == "zlib-1.3.2-r1"
+    def installed(image):
+        raw = docker("run", "--rm", "--network=none", "--entrypoint", "cat", image, "/lib/apk/db/installed")
+        packages = {}
+        for block in raw.split("\n\n"):
+            fields = dict(line.split(":", 1) for line in block.splitlines() if ":" in line)
+            if "P" in fields:
+                assert fields["P"] not in packages
+                packages[fields["P"]] = fields["V"]
+        return packages
+    before_packages, after_packages = installed(OLD), installed(NEW)
+    assert before_packages["zlib"] == "1.3.2-r0" and after_packages["zlib"] == "1.3.2-r1"
+    assert {k:v for k,v in before_packages.items() if k != "zlib"} == {k:v for k,v in after_packages.items() if k != "zlib"}
+    write("package-inventory.json", dict(previous=before_packages, candidate=after_packages, changed_only=["zlib"]))
     assert docker("run", "--rm", "--network=none", "--entrypoint", "sha256sum", NEW, "/usr/local/bin/gosu").split()[0] == builds[0]
     new_archive = ROOT / "candidate.oci.tar"
     run(["skopeo", "copy", "--format=v2s2", "--preserve-digests", "docker-daemon:" + NEW, "oci-archive:" + str(new_archive)])
