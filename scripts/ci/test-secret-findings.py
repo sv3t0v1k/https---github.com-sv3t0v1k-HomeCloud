@@ -28,11 +28,22 @@ class Tests(unittest.TestCase):
                          verify_upstream=lambda url,sha:verified,verify_local=lambda sha,ancestor:verified,check_context=lambda *args:True)
 
     def test_exact_upstream_and_local_object(self):
-        for line in ('  "url": "'+URL+'",','  "commit": "'+SHA+'",'):
-            self.assertEqual(self.check(line)['status'],'PASS')
-            self.assertEqual(self.check(line)['raw_findings'],1)
-            self.assertEqual(self.check(line)['findings'][0]['classification'],'VERIFIED_PUBLIC_GIT_REFERENCE')
-            self.assertEqual(self.check(line,verified=False)['status'],'BLOCKED')
+        upstream_line='  "url": "'+URL+'",'
+        result=self.check(upstream_line)
+        self.assertEqual(result['status'],'PASS')
+        self.assertEqual(result['raw_findings'],1)
+        self.assertEqual(result['findings'][0]['classification'],'VERIFIED_PUBLIC_GIT_REFERENCE')
+        self.assertEqual(self.check(upstream_line,verified=False)['status'],'BLOCKED')
+
+        local_line='  "commit": "'+SHA+'",'
+        finding=self.finding(local_line)
+        with patch.object(s,'upstream') as verify_upstream, patch.object(s,'local_commit',return_value=True) as verify_local:
+            result=s.qualify([finding],42,raw_report_sha256=REPORT_SHA,
+                             read_line=lambda _:local_line,verify_local=s.local_commit,
+                             verify_upstream=s.upstream,check_context=lambda *_:True)
+        self.assertEqual(result['status'],'PASS')
+        verify_local.assert_called_once_with(SHA,'b'*40)
+        verify_upstream.assert_not_called()
 
     def test_spoofed_host_path_key_and_adjacent_token_block(self):
         for line in ('"url":"https://go.googlesource.com.evil/go/+/'+SHA+'"',
@@ -145,7 +156,7 @@ class Tests(unittest.TestCase):
         line='  "url": "'+url+'",'
         finding=self.finding(line,sha)
         calls,run=self.git_run_stub(payload)
-        with patch.object(s,'EXPECTED_GO_COMMITS',{sha}),patch.object(s.subprocess,'run',side_effect=run):
+        with patch.object(s.subprocess,'run',side_effect=run):
             result=s.qualify([finding],42,raw_report_sha256=REPORT_SHA,
                              read_line=lambda _:line,check_context=lambda *_:True)
         self.assertEqual(result['status'],'PASS')
@@ -166,16 +177,26 @@ class Tests(unittest.TestCase):
         for key in ('GIT_SSL_NO_VERIFY','GIT_CONFIG_COUNT','GIT_DIR','GIT_WORK_TREE'):
             self.assertNotIn(key,kwargs['env'])
 
-    def test_only_the_two_reviewed_go_objects_are_network_candidates(self):
-        self.assertEqual(s.EXPECTED_GO_COMMITS,{
-            'fa98f46741f818913a8c11b877520a548715131f',
-            '45c3387d777caf28f4b992ad9a6216e3085bb8fe',
-        })
+    def test_unlisted_canonical_go_and_net_objects_are_verified_by_exact_oid(self):
+        payload,sha=self.synthetic_commit(b'previously unlisted canonical object')
+        for project in ('go','net'):
+            url=f'https://go.googlesource.com/{project}/+/{sha}'
+            calls,run=self.git_run_stub(payload)
+            with patch.object(s.subprocess,'run',side_effect=run):
+                self.assertTrue(s.upstream(url,sha))
+            fetch,kwargs=next((command,kwargs) for command,kwargs in calls if 'fetch' in command)
+            self.assertEqual(fetch[-2:],[f'https://go.googlesource.com/{project}',sha])
+            self.assertIn('http.sslVerify=true',fetch)
+            self.assertIn('http.followRedirects=false',fetch)
+
+    def test_noncanonical_upstream_locations_never_start_network(self):
         unknown='f'*40
-        known=next(iter(s.EXPECTED_GO_COMMITS))
         with patch.object(s.subprocess,'run') as run:
-            self.assertFalse(s.upstream(s.UPSTREAM_GO_REPOSITORY+'/+/'+unknown,unknown))
-            self.assertFalse(s.upstream('https://go.googlesource.com/net/+/'+known,known))
+            self.assertFalse(s.upstream(s.UPSTREAM_GO_REPOSITORY+'/+/g'+unknown[1:],unknown))
+            self.assertFalse(s.upstream('https://go.googlesource.com.evil/go/+/'+unknown,unknown))
+            self.assertFalse(s.upstream('https://go.googlesource.com/other/+/'+unknown,unknown))
+            self.assertFalse(s.upstream('http://go.googlesource.com/go/+/'+unknown,unknown))
+            self.assertFalse(s.upstream(s.UPSTREAM_GO_REPOSITORY+'/+/'+unknown,'x'*40))
             run.assert_not_called()
 
     def test_upstream_object_substitution_stays_blocked(self):
@@ -184,7 +205,7 @@ class Tests(unittest.TestCase):
         url=s.UPSTREAM_GO_REPOSITORY+'/+/'+sha
         line='"url":"'+url+'"'
         calls,run=self.git_run_stub(wrong_payload)
-        with patch.object(s,'EXPECTED_GO_COMMITS',{sha}),patch.object(s.subprocess,'run',side_effect=run):
+        with patch.object(s.subprocess,'run',side_effect=run):
             self.assertFalse(s.upstream(url,sha))
         self.assertEqual(sum('fetch' in command for command,_ in calls),1)
 
@@ -194,7 +215,7 @@ class Tests(unittest.TestCase):
         line='"url":"'+url+'"'
         finding=self.finding(line,sha)
         calls,run=self.git_run_stub(payload,fetch_status=1)
-        with patch.object(s,'EXPECTED_GO_COMMITS',{sha}),patch.object(s.subprocess,'run',side_effect=run):
+        with patch.object(s.subprocess,'run',side_effect=run):
             result=s.qualify([finding],42,raw_report_sha256=REPORT_SHA,
                              read_line=lambda _:line,check_context=lambda *_:True)
         self.assertEqual(result['status'],'BLOCKED')
@@ -207,7 +228,7 @@ class Tests(unittest.TestCase):
         line='"url":"'+url+'"'
         finding=self.finding(line,sha)
         calls,run=self.git_run_stub(payload)
-        with patch.object(s,'EXPECTED_GO_COMMITS',{sha}),patch.object(s.subprocess,'run',side_effect=run):
+        with patch.object(s.subprocess,'run',side_effect=run):
             with self.assertRaises(ValueError):
                 s.qualify([finding],42,read_line=lambda _:line,check_context=lambda *_:True)
         self.assertFalse(any('fetch' in command for command,_ in calls))

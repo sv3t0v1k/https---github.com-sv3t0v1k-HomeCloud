@@ -23,9 +23,9 @@ GO_EVIDENCE = 'docs/evidence/d5-1-5-20261014/pg-govulncheck.json'
 METADATA_EVIDENCE = 'docs/evidence/d5-1-5-policy-secret-findings-20261015.json'
 FORBIDDEN = 'scripts/tests/' + 'PHASE-5.3.1-TEST-AUDIT.md'
 UPSTREAM_GO_REPOSITORY = 'https://go.googlesource.com/go'
-EXPECTED_GO_COMMITS = {
-    'fa98f46741f818913a8c11b877520a548715131f',
-    '45c3387d777caf28f4b992ad9a6216e3085bb8fe',
+UPSTREAM_GO_REPOSITORIES = {
+    'go': UPSTREAM_GO_REPOSITORY,
+    'net': 'https://go.googlesource.com/net',
 }
 
 
@@ -116,9 +116,14 @@ def historical_context(finding,plan):
 
 
 def upstream(url, sha):
-    # Fetch only the two pinned objects from canonical upstream over verified HTTPS.
-    # The temporary bare repository is discarded; no local object cache can pass.
-    if not isinstance(sha,str) or sha not in EXPECTED_GO_COMMITS or url != UPSTREAM_GO_REPOSITORY+'/+/'+sha:
+    # Fetch only an exact commit reference from a canonical Go project over
+    # verified HTTPS. The temporary bare repository is discarded; no local
+    # object cache can pass.
+    if not isinstance(sha, str) or not SHA.fullmatch(sha):
+        return False
+    upstream_repository = next((repo for repo in UPSTREAM_GO_REPOSITORIES.values()
+                                if url == repo+'/+/'+sha), None)
+    if upstream_repository is None:
         return False
     env={key:value for key,value in os.environ.items() if not key.startswith('GIT_')}
     env.update(GIT_CONFIG_NOSYSTEM='1',GIT_CONFIG_GLOBAL=os.devnull,GIT_TERMINAL_PROMPT='0')
@@ -128,7 +133,7 @@ def upstream(url, sha):
             commands=(
                 ['git','init','--bare','--quiet',repository],
                 ['git','-C',repository,'-c','http.sslVerify=true','-c','http.followRedirects=false',
-                 '-c','credential.helper=','fetch','--no-tags','--depth=1',UPSTREAM_GO_REPOSITORY,sha],
+                 '-c','credential.helper=','fetch','--no-tags','--depth=1',upstream_repository,sha],
                 ['git','-C',repository,'cat-file','-t',sha],
             )
             for index,command in enumerate(commands):
