@@ -36,7 +36,7 @@ RUN npm run build
 
 FROM ${NGINX_IMAGE} AS runner
 # Адресные security patches совместимых библиотек; base digest сохраняется.
-RUN apk add --no-cache --upgrade libexpat=2.8.5-r0 pcre2=10.49-r0 tiff=4.7.2-r0
+RUN apk add --no-cache --upgrade libexpat=2.9.0-r0 pcre2=10.49-r0 tiff=4.7.2-r0
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 

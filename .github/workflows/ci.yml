@@ -344,8 +344,13 @@ jobs:
           retention-days: 14
       - name: Mandatory actual CI environment qualification
         if: always()
+        env:
+          IMAGE_SCANNER_INSTALL_RESULT: ${{ steps.scanner.outcome }}
         run: |
           sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy"
+          if [ "$IMAGE_SCANNER_INSTALL_RESULT" != "success" ]; then
+            sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/homecloud-trivy"
+          fi
           python3 -c "import os,json; temp=os.environ['RUNNER_TEMP']; print(json.dumps([dict(id='image-trivy', path=temp+'/homecloud-trivy/trivy')]))" > "$RUNNER_TEMP/environment-tools.json"
           sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "image-build-${{ matrix.component }}" "none" "environment-image-build-${{ matrix.component }}" "$RUNNER_TEMP/environment-tools.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
