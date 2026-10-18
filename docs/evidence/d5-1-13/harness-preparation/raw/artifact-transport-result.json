@@ -1,0 +1,36 @@
+{
+  "checked_at_utc": "2026-10-17T23:31:33.030839+00:00",
+  "status": "NOT_VERIFIED",
+  "production": "NO_GO",
+  "remote_mutations": false,
+  "download_directory": "/private/tmp/d513-artifact-transport-gxw004ja",
+  "error": "bounded artifact transfer not verified",
+  "transport": {
+    "status": "NOT_VERIFIED",
+    "max_sessions": 2,
+    "timeout_seconds": 420,
+    "expected_bytes": 116311061,
+    "sessions": [
+      {
+        "session": 1,
+        "start_bytes": 0,
+        "http_status": 200,
+        "mode": "restart",
+        "strong_etag": true,
+        "outcome": "failed",
+        "error_type": "timeout",
+        "end_bytes": 87556096
+      },
+      {
+        "session": 2,
+        "start_bytes": 87556096,
+        "outcome": "failed",
+        "error_type": "TimeoutError",
+        "end_bytes": 87556096
+      }
+    ],
+    "signed_urls_logged": false,
+    "bytes": 87556096,
+    "elapsed_seconds": 420.002
+  }
+}

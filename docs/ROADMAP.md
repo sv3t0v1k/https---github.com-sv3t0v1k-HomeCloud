@@ -1462,3 +1462,16 @@ contents/actions read, fail-closed без контейнеров, always evidenc
 затронет накопленные6commits и ожидаемо запустит2CI+1residual experiment;
 новый workflow требует отдельной reviewed регистрации на protected main.
 PR№1 draft. [Подготовка, ограничения, расходы и план согласования](./evidence/d5-1-13/actions-preparation/report.md).
+
+D5.1.13, локальная реализация18.10: push HEAD95d3deb владельцем не разрешён.
+Подготовлен исполнимый hosted-only synthetic DB+HDD harness:18сценариев,
+single writer, real startup gate, direct/cold/logical recovery, integrity/RPO/RTO
+и cleanup с проверкой фактического отсутствия owned resources. Exact remote OCI
+подтверждён полным pinned ZIP SHA и прежним tar/manifest/config/14layers verifier
+после bounded Range resume, без rebuild. Локальные pure/mock tests и независимый
+review квалифицируют только подготовку; **runtime UNQUALIFIED/NOT_RUN**, реальные
+RPO/RTO NOT_MEASURED. Manual workflow:1job,run_drill=false по умолчанию,
+runtime вариант≤55мин, обязательные image+actual runner/tool gates до контейнеров.
+Регистрация на main всё ещё BLOCKED настоящим required gate; bypass не добавлен.
+Medium/UNKNOWN не приняты, UNSIGNED/UNPROVEN и **Production NO_GO** сохранены;
+COMPLETE не установлен, PR№1 draft. [Код, evidence, ограничения и минимальный план](./evidence/d5-1-13/harness-preparation/report.md).

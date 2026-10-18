@@ -1,0 +1,32 @@
+{
+  "attempt": 2,
+  "max_attempts": 2,
+  "status": "REMOTE_EXACT_OCI_VERIFIED",
+  "checked_at_utc": "2026-10-17T23:41:45.372886+00:00",
+  "timeout_seconds": 180,
+  "expected_bytes": 116311061,
+  "start_bytes": 87556096,
+  "remote_mutations": false,
+  "production": "NO_GO",
+  "signed_urls_logged": false,
+  "full_redownload_allowed": false,
+  "head_status": 200,
+  "strong_etag": true,
+  "http_status": 206,
+  "content_range": "bytes 87556096-116311060/116311061",
+  "etag_matches_head": true,
+  "zip_sha256": "c0af0e9a0871b0bc2e7618ba36f16b7afc8f92e8e9918912ec69349d1bb89a83",
+  "identity": {
+    "status": "EXACT_RETAINED_OCI_VERIFIED",
+    "manifest": "sha256:83b8b00eca9cb7e77dc6c6bbb3fd4bef197853afa0c2cd104991d7a9673abbe8",
+    "config": "sha256:e8f72c13539571329d433e4d0ea475dc42a6407b36f9332cfe3fd790fe81a7d2",
+    "layers": 14,
+    "signature": "UNSIGNED",
+    "production": "NO_GO"
+  },
+  "candidate_path": "/private/tmp/d513-artifact-transport-gxw004ja/candidate.oci.tar",
+  "end_bytes": 116311061,
+  "elapsed_seconds": 148.738,
+  "executed_helper_sha256": "841e34d318dba17ec9aac6ad8f10ad6676f0803453cfab86f64f5351354e61fc",
+  "helper_source": "artifact-resume-check.py"
+}
