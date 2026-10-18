@@ -1475,3 +1475,18 @@ runtime вариант≤55мин, обязательные image+actual runner/
 Регистрация на main всё ещё BLOCKED настоящим required gate; bypass не добавлен.
 Medium/UNKNOWN не приняты, UNSIGNED/UNPROVEN и **Production NO_GO** сохранены;
 COMPLETE не установлен, PR№1 draft. [Код, evidence, ограничения и минимальный план](./evidence/d5-1-13/harness-preparation/report.md).
+
+### D5.1 — устранение дублирующего CI на рабочих ветках (2026-10-18)
+
+Локально `ci.yml` ограничен push-триггером в `main`; полный `pull_request` и
+`workflow_call` сохранены. PR на открытие/обновление, включая синхронизацию с
+`main`, получает прежний полный CI; push в `main` также получает полный CI.
+Сохранены обязательный `gate`, все18 expanded jobs, permissions, security checks,
+артефакты и `concurrency` с `cancel-in-progress: false`; release и recovery workflows
+не менялись. Рабочие push без PR больше не запускают CI, а push рабочей ветки с PR
+не дублирует PR-run. При ручной отмене run статус gate не считается PASS; защита
+`main` продолжает требовать успешный `gate` для актуального SHA. При быстром потоке
+событий GitHub concurrency может заменить ожидающий, но не текущий run; проверка
+последнего PR SHA остаётся обязательной.
+Статическая проверка сценариев и YAML-инвариантов PASS; independent review APPROVE.
+CI **NOT_RUN**, push **NOT_AUTHORIZED**. PR№1 draft, Production **NO_GO**.
