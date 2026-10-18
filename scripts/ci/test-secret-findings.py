@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Public-reference proof must not accept adjacent or unrelated credentials."""
 import importlib.util
-import io
+import hashlib
 import json
+import os
 from pathlib import Path
-import ssl
+from types import SimpleNamespace
 import unittest
-import urllib.error
 from unittest.mock import patch, MagicMock
 
 spec=importlib.util.spec_from_file_location('secrets',Path(__file__).with_name('secret-findings.py'))
@@ -14,6 +14,7 @@ s=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(s)
 SHA='a'*40
 URL='https://go.googlesource.com/go/+/'+SHA
+REPORT_SHA='d'*64
 
 
 class Tests(unittest.TestCase):
@@ -23,7 +24,7 @@ class Tests(unittest.TestCase):
                     StartColumn=start+2,EndColumn=start+42,Secret='REDACTED',Fingerprint='fixture')
 
     def check(self,line,verified=True,rule='sourcegraph-access-token',sha=SHA):
-        return s.qualify([self.finding(line,sha,rule)],42,read_line=lambda finding:line,
+        return s.qualify([self.finding(line,sha,rule)],42,raw_report_sha256=REPORT_SHA,read_line=lambda finding:line,
                          verify_upstream=lambda url,sha:verified,verify_local=lambda sha,ancestor:verified,check_context=lambda *args:True)
 
     def test_exact_upstream_and_local_object(self):
@@ -50,7 +51,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(self.check(line,rule='github-pat')['status'],'BLOCKED')
         finding=self.finding(line)
         finding['StartColumn']+=1
-        result=s.qualify([finding],42,read_line=lambda f:line,verify_upstream=lambda *args:True,check_context=lambda *args:True)
+        result=s.qualify([finding],42,raw_report_sha256=REPORT_SHA,read_line=lambda f:line,verify_upstream=lambda *args:True,check_context=lambda *args:True)
         self.assertEqual(result['status'],'BLOCKED')
 
     def test_infrastructure_and_malformed_report_fail_closed(self):
@@ -67,7 +68,7 @@ class Tests(unittest.TestCase):
 
     def test_unknown_local_sha_does_not_pass_as_metadata(self):
         result=s.qualify([self.finding('"commit":"'+SHA+'"')],42,
-                         read_line=lambda f:'"commit":"'+SHA+'"',verify_local=lambda sha,ancestor:False,check_context=lambda *args:True)
+                         raw_report_sha256=REPORT_SHA,read_line=lambda f:'"commit":"'+SHA+'"',verify_local=lambda sha,ancestor:False,check_context=lambda *args:True)
         self.assertEqual(result['status'],'BLOCKED')
 
     def test_arbitrary_source_context_is_never_qualified(self):
@@ -96,11 +97,19 @@ class Tests(unittest.TestCase):
             return blob if path==s.METADATA_EVIDENCE else '"url":"'+URL+'"'
         with patch.object(s,'historical_blob',side_effect=historical):
             for verified in (False,True):
-                result=s.qualify([finding],42,read_line=lambda f:line,
+                result=s.qualify([finding],42,raw_report_sha256=REPORT_SHA,read_line=lambda f:line,
                                  verify_local=lambda sha,ancestor:verified)
                 self.assertEqual(result['status'],'PASS' if verified else 'BLOCKED')
                 if verified:
-                    self.assertEqual(result['findings'][0]['proof']['verification'],'EXACT_LOCAL_GIT_COMMIT_OBJECT')
+                    proof=result['findings'][0]['proof']
+                    self.assertEqual(proof['verification'],'EXACT_LOCAL_GIT_COMMIT_OBJECT')
+                    self.assertEqual(proof['raw_report_sha256'],REPORT_SHA)
+                    self.assertEqual(proof['finding_fingerprint'],finding['Fingerprint'])
+                    self.assertEqual(proof['source_line'],line)
+                    self.assertEqual(proof['source_file'],finding['File'])
+                    self.assertEqual(proof['source_line_number'],finding['StartLine'])
+                    self.assertEqual(proof['source_columns'],[finding['StartColumn'],finding['EndColumn']])
+                    self.assertEqual(proof['source_line_sha256'],hashlib.sha256(line.encode()).hexdigest())
 
     def test_column_types_rejected_before_arithmetic(self):
         line='"url":"'+URL+'"'
@@ -110,95 +119,121 @@ class Tests(unittest.TestCase):
             with self.subTest(value=value),self.assertRaises(ValueError):
                 s.candidate(finding,line)
 
-    def test_gitiles_requires_exact_commit_json(self):
-        response=MagicMock()
-        response.__enter__.return_value=response
-        opener=MagicMock()
-        opener.open.return_value=response
-        with patch.object(s.urllib.request,'build_opener',return_value=opener):
-            response.read.return_value=b")]}'\n"+('{"commit":"'+SHA+'"}').encode()
-            self.assertTrue(s.upstream(URL,SHA))
-            response.read.return_value=b")]}'\n"+('{"commit":"'+'f'*40+'"}').encode()
-            self.assertFalse(s.upstream(URL,SHA))
-            response.read.return_value=b'{"commit":"'+SHA.encode()+b'"}'
-            self.assertFalse(s.upstream(URL,SHA))
+    def synthetic_commit(self,body=b'local test commit'):
+        payload=(b'tree '+b'0'*40+b'\nparent '+b'1'*40+b'\n'
+                 b'author Test <test@example.invalid> 0 +0000\n'
+                 b'committer Test <test@example.invalid> 0 +0000\n\n'+body+b'\n')
+        oid=hashlib.sha1(b'commit '+str(len(payload)).encode()+b'\0'+payload).hexdigest()
+        return payload,oid
 
-    def response(self,payload=None):
-        response=MagicMock()
-        response.__enter__.return_value=response
-        response.read.return_value=payload if payload is not None else b")]}'\n"+json.dumps({'commit':SHA}).encode()
-        return response
+    def git_run_stub(self,payload,fetch_status=0):
+        calls=[]
+        def run(command,**kwargs):
+            calls.append((command,kwargs))
+            if 'fetch' in command:
+                return SimpleNamespace(returncode=fetch_status,stdout=b'',stderr=b'')
+            if command[-3:-1]==['cat-file','-t']:
+                return SimpleNamespace(returncode=0,stdout=b'commit\n',stderr=b'')
+            if command[-3:-1]==['cat-file','commit']:
+                return SimpleNamespace(returncode=0,stdout=payload,stderr=b'')
+            return SimpleNamespace(returncode=0,stdout=b'',stderr=b'')
+        return calls,run
 
-    def test_transient_network_failure_recovers_once_per_unique_reference(self):
-        line='"url":"'+URL+'"'
-        findings=[self.finding(line),dict(self.finding(line),Fingerprint='second-occurrence')]
-        opener=MagicMock()
-        opener.open.side_effect=[urllib.error.URLError(TimeoutError('timed out')),self.response()]
-        with patch.object(s.urllib.request,'build_opener',return_value=opener):
-            result=s.qualify(findings,42,read_line=lambda f:line,check_context=lambda *args:True)
+    def test_upstream_fetch_success_binds_report_fingerprint_and_source_line(self):
+        payload,sha=self.synthetic_commit()
+        url=s.UPSTREAM_GO_REPOSITORY+'/+/'+sha
+        line='  "url": "'+url+'",'
+        finding=self.finding(line,sha)
+        calls,run=self.git_run_stub(payload)
+        with patch.object(s,'EXPECTED_GO_COMMITS',{sha}),patch.object(s.subprocess,'run',side_effect=run):
+            result=s.qualify([finding],42,raw_report_sha256=REPORT_SHA,
+                             read_line=lambda _:line,check_context=lambda *_:True)
         self.assertEqual(result['status'],'PASS')
-        self.assertEqual(result['verified_public_references'],2)
-        self.assertEqual(opener.open.call_count,2)
-        first,second=opener.open.call_args_list
-        self.assertIs(first.args[0],second.args[0])
-        self.assertEqual(first.args[0].full_url,URL+'?format=JSON')
-        self.assertEqual(first.kwargs,{'timeout':15})
+        proof=result['findings'][0]['proof']
+        self.assertEqual(proof['raw_report_sha256'],REPORT_SHA)
+        self.assertEqual(proof['finding_fingerprint'],finding['Fingerprint'])
+        self.assertEqual(proof['source_line'],line)
+        self.assertEqual(proof['source_line_sha256'],hashlib.sha256(line.encode()).hexdigest())
+        self.assertEqual(proof['source_columns'],[finding['StartColumn'],finding['EndColumn']])
+        self.assertEqual(proof['object_id'],sha)
+        fetch,kwargs=next((command,kwargs) for command,kwargs in calls if 'fetch' in command)
+        self.assertEqual(fetch[-2:],[s.UPSTREAM_GO_REPOSITORY,sha])
+        self.assertIn('http.sslVerify=true',fetch)
+        self.assertIn('http.followRedirects=false',fetch)
+        self.assertEqual(kwargs['env']['GIT_CONFIG_NOSYSTEM'],'1')
+        self.assertEqual(kwargs['env']['GIT_CONFIG_GLOBAL'],os.devnull)
+        self.assertEqual(kwargs['env']['GIT_TERMINAL_PROMPT'],'0')
+        for key in ('GIT_SSL_NO_VERIFY','GIT_CONFIG_COUNT','GIT_DIR','GIT_WORK_TREE'):
+            self.assertNotIn(key,kwargs['env'])
 
-    def test_network_exhaustion_stays_blocked_after_two_requests(self):
-        line='"url":"'+URL+'"'
-        opener=MagicMock()
-        opener.open.side_effect=[urllib.error.URLError('unavailable'),TimeoutError('unavailable'),self.response()]
-        with patch.object(s.urllib.request,'build_opener',return_value=opener):
-            result=s.qualify([self.finding(line)],42,read_line=lambda f:line,check_context=lambda *args:True)
+    def test_only_the_two_reviewed_go_objects_are_network_candidates(self):
+        self.assertEqual(s.EXPECTED_GO_COMMITS,{
+            'fa98f46741f818913a8c11b877520a548715131f',
+            '45c3387d777caf28f4b992ad9a6216e3085bb8fe',
+        })
+        unknown='f'*40
+        known=next(iter(s.EXPECTED_GO_COMMITS))
+        with patch.object(s.subprocess,'run') as run:
+            self.assertFalse(s.upstream(s.UPSTREAM_GO_REPOSITORY+'/+/'+unknown,unknown))
+            self.assertFalse(s.upstream('https://go.googlesource.com/net/+/'+known,known))
+            run.assert_not_called()
+
+    def test_upstream_object_substitution_stays_blocked(self):
+        _,sha=self.synthetic_commit()
+        wrong_payload,_=self.synthetic_commit(b'substituted object')
+        url=s.UPSTREAM_GO_REPOSITORY+'/+/'+sha
+        line='"url":"'+url+'"'
+        calls,run=self.git_run_stub(wrong_payload)
+        with patch.object(s,'EXPECTED_GO_COMMITS',{sha}),patch.object(s.subprocess,'run',side_effect=run):
+            self.assertFalse(s.upstream(url,sha))
+        self.assertEqual(sum('fetch' in command for command,_ in calls),1)
+
+    def test_upstream_network_failure_stays_blocked_without_retry(self):
+        payload,sha=self.synthetic_commit()
+        url=s.UPSTREAM_GO_REPOSITORY+'/+/'+sha
+        line='"url":"'+url+'"'
+        finding=self.finding(line,sha)
+        calls,run=self.git_run_stub(payload,fetch_status=1)
+        with patch.object(s,'EXPECTED_GO_COMMITS',{sha}),patch.object(s.subprocess,'run',side_effect=run):
+            result=s.qualify([finding],42,raw_report_sha256=REPORT_SHA,
+                             read_line=lambda _:line,check_context=lambda *_:True)
         self.assertEqual(result['status'],'BLOCKED')
         self.assertEqual(result['unresolved_findings'],1)
-        self.assertEqual(opener.open.call_count,2)
+        self.assertEqual(sum('fetch' in command for command,_ in calls),1)
 
-    def test_only_transient_http_failures_retry(self):
-        for status in (408,429,500,502,503,504,301,302,401,403,404,410):
-            opener=MagicMock()
-            opener.open.side_effect=[urllib.error.HTTPError(URL,status,'fixture',{},io.BytesIO(b'')),self.response()]
-            transient=status in (408,429,500,502,503,504)
-            with self.subTest(status=status),patch.object(s.urllib.request,'build_opener',return_value=opener):
-                self.assertEqual(s.upstream(URL,SHA),transient)
-                self.assertEqual(opener.open.call_count,2 if transient else 1)
+    def test_upstream_without_raw_report_digest_stays_blocked(self):
+        payload,sha=self.synthetic_commit()
+        url=s.UPSTREAM_GO_REPOSITORY+'/+/'+sha
+        line='"url":"'+url+'"'
+        finding=self.finding(line,sha)
+        calls,run=self.git_run_stub(payload)
+        with patch.object(s,'EXPECTED_GO_COMMITS',{sha}),patch.object(s.subprocess,'run',side_effect=run):
+            with self.assertRaises(ValueError):
+                s.qualify([finding],42,read_line=lambda _:line,check_context=lambda *_:True)
+        self.assertFalse(any('fetch' in command for command,_ in calls))
 
-    def test_malformed_mismatched_or_oversized_response_never_retried(self):
-        for payload in (b'{}',b")]}'\n"+b'{"commit":',b")]}'\n[]",
-                        b")]}'\n"+json.dumps({'commit':'f'*40}).encode(),
-                        b")]}'\n"+b'x'*(1024*1024)):
-            opener=MagicMock()
-            opener.open.side_effect=[self.response(payload),self.response()]
-            with self.subTest(payload_length=len(payload)),patch.object(s.urllib.request,'build_opener',return_value=opener):
-                self.assertFalse(s.upstream(URL,SHA))
-                self.assertEqual(opener.open.call_count,1)
-
-    def test_recovery_cannot_accept_mismatched_commit(self):
-        opener=MagicMock()
-        opener.open.side_effect=[TimeoutError('timed out'),self.response(b")]}'\n"+json.dumps({'commit':'f'*40}).encode()),self.response()]
-        with patch.object(s.urllib.request,'build_opener',return_value=opener):
-            self.assertFalse(s.upstream(URL,SHA))
-            self.assertEqual(opener.open.call_count,2)
-
-    def test_tls_verification_failures_do_not_retry(self):
-        for error in (ssl.SSLCertVerificationError('certificate verification failed'),
-                      urllib.error.URLError(ssl.SSLCertVerificationError('certificate verification failed'))):
-            opener=MagicMock()
-            opener.open.side_effect=[error,self.response()]
-            with self.subTest(error=type(error).__name__),patch.object(s.urllib.request,'build_opener',return_value=opener):
-                self.assertFalse(s.upstream(URL,SHA))
-                self.assertEqual(opener.open.call_count,1)
+    def test_invalid_or_missing_fingerprint_and_digest_fail_closed(self):
+        line='"url":"'+URL+'"'
+        finding=self.finding(line)
+        finding['Fingerprint']=''
+        with self.assertRaises(ValueError):
+            s.qualify([finding],42,raw_report_sha256=REPORT_SHA,read_line=lambda _:line)
+        finding=self.finding(line)
+        with self.assertRaises(ValueError):
+            s.qualify([finding],42,read_line=lambda _:line,check_context=lambda *_:True)
+        with self.assertRaises(ValueError):
+            s.qualify([finding],42,raw_report_sha256='xyz',read_line=lambda _:line)
 
     def test_unqualified_context_and_real_credentials_never_request_upstream(self):
         lines=('"url":"'+URL+'"','"token":"'+SHA+'"',
                '"url":"'+URL+'", "token":"'+'c'*40+'"')
-        with patch.object(s.urllib.request,'build_opener') as build_opener:
+        with patch.object(s.subprocess,'run') as run:
             for line in lines:
-                result=s.qualify([self.finding(line)],42,read_line=lambda f:line,check_context=lambda *args:False)
+                result=s.qualify([self.finding(line)],42,raw_report_sha256=REPORT_SHA,read_line=lambda f:line,check_context=lambda *args:False)
                 self.assertEqual(result['status'],'BLOCKED')
             real_secret=self.finding(lines[0],rule='github-pat')
-            self.assertEqual(s.qualify([real_secret],42)['status'],'BLOCKED')
-            build_opener.assert_not_called()
+            self.assertEqual(s.qualify([real_secret],42,raw_report_sha256=REPORT_SHA)['status'],'BLOCKED')
+            run.assert_not_called()
 
 
 if __name__=='__main__':

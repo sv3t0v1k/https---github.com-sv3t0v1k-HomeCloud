@@ -9,13 +9,12 @@ from concurrent.futures import ThreadPoolExecutor
 import json
 import hashlib
 from functools import lru_cache
+import os
 from pathlib import Path, PurePosixPath
 import re
-import ssl
 import subprocess
 import sys
-import urllib.error
-import urllib.request
+import tempfile
 
 SHA = re.compile(r'[a-f0-9]{40}')
 GO_LINE = re.compile(r'\s*"url"\s*:\s*"(https://go\.googlesource\.com/(?:go|net)/\+/([a-f0-9]{40}))"\s*,?\s*')
@@ -23,11 +22,11 @@ COMMIT_LINE = re.compile(r'\s*"commit"\s*:\s*"([a-f0-9]{40})"\s*,?\s*')
 GO_EVIDENCE = 'docs/evidence/d5-1-5-20261014/pg-govulncheck.json'
 METADATA_EVIDENCE = 'docs/evidence/d5-1-5-policy-secret-findings-20261015.json'
 FORBIDDEN = 'scripts/tests/' + 'PHASE-5.3.1-TEST-AUDIT.md'
-
-
-class NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, *args):
-        return None
+UPSTREAM_GO_REPOSITORY = 'https://go.googlesource.com/go'
+EXPECTED_GO_COMMITS = {
+    'fa98f46741f818913a8c11b877520a548715131f',
+    '45c3387d777caf28f4b992ad9a6216e3085bb8fe',
+}
 
 
 def git(*args):
@@ -117,43 +116,39 @@ def historical_context(finding,plan):
 
 
 def upstream(url, sha):
-    # Fixed Gitiles host/project/path, no redirects or credential headers.
-    if not isinstance(sha,str) or not SHA.fullmatch(sha) or not re.fullmatch(r'https://go\.googlesource\.com/(?:go|net)/\+/'+sha, url):
+    # Fetch only the two pinned objects from canonical upstream over verified HTTPS.
+    # The temporary bare repository is discarded; no local object cache can pass.
+    if not isinstance(sha,str) or sha not in EXPECTED_GO_COMMITS or url != UPSTREAM_GO_REPOSITORY+'/+/'+sha:
         return False
-    request = urllib.request.Request(url+'?format=JSON', headers={'Accept':'application/json'})
-    opener = urllib.request.build_opener(NoRedirect())
-    # qualify deduplicates upstream plans. Each unique reference gets at most
-    # two requests; only transport failures and transient HTTP failures retry.
-    for attempt in range(2):
-        try:
-            with opener.open(request, timeout=15) as response:
-                payload = response.read(1024*1024+1)
-        except urllib.error.HTTPError as error:
-            transient = error.code in (408,429,500,502,503,504)
-            error.close()
-            if attempt == 0 and transient:
-                continue
-            return False
-        except urllib.error.URLError as error:
-            if attempt == 0 and not isinstance(error.reason,ssl.SSLError):
-                continue
-            return False
-        except ssl.SSLError:
-            return False
-        except OSError:
-            if attempt == 0:
-                continue
-            return False
-        # A received response must itself prove the exact object. Malformed,
-        # oversized or mismatched content never earns another request.
-        if len(payload) > 1024*1024 or not payload.startswith(b")]}'\n"):
-            return False
-        try:
-            document = json.loads(payload[5:])
-        except (ValueError,UnicodeError):
-            return False
-        return isinstance(document,dict) and document.get('commit') == sha
-    return False
+    env={key:value for key,value in os.environ.items() if not key.startswith('GIT_')}
+    env.update(GIT_CONFIG_NOSYSTEM='1',GIT_CONFIG_GLOBAL=os.devnull,GIT_TERMINAL_PROMPT='0')
+    try:
+        with tempfile.TemporaryDirectory(prefix='homecloud-go-object-') as temp:
+            repository=os.path.join(temp,'objects.git')
+            commands=(
+                ['git','init','--bare','--quiet',repository],
+                ['git','-C',repository,'-c','http.sslVerify=true','-c','http.followRedirects=false',
+                 '-c','credential.helper=','fetch','--no-tags','--depth=1',UPSTREAM_GO_REPOSITORY,sha],
+                ['git','-C',repository,'cat-file','-t',sha],
+            )
+            for index,command in enumerate(commands):
+                result=subprocess.run(command,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,
+                                      env=env,timeout=60,check=False)
+                if result.returncode != 0:
+                    return False
+                if index == 2 and result.stdout.strip() != b'commit':
+                    return False
+            result=subprocess.run(['git','-C',repository,'cat-file','commit',sha],
+                                  stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,
+                                  env=env,timeout=60,check=False)
+            if result.returncode != 0:
+                return False
+            payload=result.stdout
+            object_header=b'commit '+str(len(payload)).encode('ascii')+b'\0'
+            actual=hashlib.sha1(object_header+payload).hexdigest()
+            return actual == sha
+    except (OSError,subprocess.SubprocessError,TimeoutError):
+        return False
 
 
 def local_commit(sha,ancestor):
@@ -165,27 +160,35 @@ def local_commit(sha,ancestor):
         return False
 
 
-def qualify(findings, scanner_exit, read_line=source_line, verify_upstream=upstream, verify_local=local_commit, check_context=historical_context):
+def qualify(findings, scanner_exit, raw_report_sha256=None, read_line=source_line, verify_upstream=upstream, verify_local=local_commit, check_context=historical_context):
     if scanner_exit not in (0,42) or not isinstance(findings,list) or (scanner_exit == 0) != (len(findings) == 0):
         raise ValueError('Scanner failure or inconsistent report')
+    if findings and (not isinstance(raw_report_sha256,str)
+                     or not re.fullmatch(r'[a-f0-9]{64}',raw_report_sha256)):
+        raise ValueError('Missing or invalid raw report digest')
     plans = []
     for finding in findings:
-        if not isinstance(finding,dict) or finding.get('Secret') != 'REDACTED' or not isinstance(finding.get('Fingerprint'),str):
+        if (not isinstance(finding,dict) or finding.get('Secret') != 'REDACTED'
+                or not isinstance(finding.get('Fingerprint'),str) or not finding['Fingerprint']):
             raise ValueError('Expected complete redacted scanner finding')
         plan = None
+        line = None
         if finding.get('RuleID') == 'sourcegraph-access-token':
-            plan = candidate(finding,read_line(finding))
+            line = read_line(finding)
+            plan = candidate(finding,line)
             if plan and not check_context(finding,plan):
                 plan = None
-        plans.append(plan)
-    checks = set(plan for plan in plans if plan)
+        plans.append((plan,line))
+    checks = sorted(set((plan for plan,line in plans if plan)),
+                    key=lambda item:(item[0],item[1] or '',item[2],item[3] or ''))
     def verify(plan):
         kind,url,sha,ancestor = plan
-        return plan, verify_upstream(url,sha) if kind == 'upstream_go_commit' else verify_local(sha,ancestor)
+        valid=(raw_report_sha256 is not None) if kind == 'upstream_go_commit' else True
+        return plan, valid and (verify_upstream(url,sha) if kind == 'upstream_go_commit' else verify_local(sha,ancestor))
     with ThreadPoolExecutor(max_workers=8) as pool:
         verified = dict(pool.map(verify,checks))
     records = []
-    for finding,plan in zip(findings,plans):
+    for finding,(plan,line) in zip(findings,plans):
         accepted = bool(plan and verified.get(plan))
         record = dict(fingerprint=finding['Fingerprint'],rule=finding['RuleID'],file=finding['File'],
                       line=finding['StartLine'],columns=[finding['StartColumn'],finding['EndColumn']],
@@ -193,11 +196,16 @@ def qualify(findings, scanner_exit, read_line=source_line, verify_upstream=upstr
                       reason=('EXACT_REFERENCE_AND_OBJECT_VERIFIED' if accepted else
                               ('REFERENCE_OBJECT_UNAVAILABLE_OR_UNVERIFIED' if plan else 'UNQUALIFIED_RULE_SOURCE_OR_SPAN')))
         if accepted:
-            record['proof'] = dict(kind=plan[0],verification='EXACT_GITILES_COMMIT_OBJECT' if plan[0]=='upstream_go_commit' else 'EXACT_LOCAL_GIT_COMMIT_OBJECT',
-                                   source_commit=finding['Commit'],
-                                   source_blob_sha256=hashlib.sha256(read_line(finding).encode()).hexdigest())
-            if plan[1]:
-                record['proof']['url'] = plan[1]
+            record['proof'] = dict(kind=plan[0],
+                                   verification='HTTPS_GIT_COMMIT_OBJECT_ID_MATCH' if plan[0]=='upstream_go_commit' else 'EXACT_LOCAL_GIT_COMMIT_OBJECT',
+                                   source_commit=finding['Commit'],raw_report_sha256=raw_report_sha256,
+                                   finding_fingerprint=finding['Fingerprint'],source_file=finding['File'],
+                                   source_line_number=finding['StartLine'],source_line=line,
+                                   source_columns=[finding['StartColumn'],finding['EndColumn']],
+                                   source_line_sha256=hashlib.sha256(line.encode()).hexdigest())
+            if plan[0]=='upstream_go_commit':
+                record['proof'].update(object_id=plan[2],url=plan[1],
+                                       transport='HTTPS; certificate verification enabled; redirects disabled')
         records.append(record)
     blocked=sum(record['classification'] != 'VERIFIED_PUBLIC_GIT_REFERENCE' for record in records)
     return dict(format='homecloud-secret-reference-evidence-v1',scanner_exit=scanner_exit,
@@ -213,8 +221,9 @@ def main():
     args=parser.parse_args()
     try:
         raw=Path(args.report).read_bytes()
-        result=qualify(json.loads(raw),args.scanner_exit)
-        result['raw_report_sha256']=hashlib.sha256(raw).hexdigest()
+        report_sha256=hashlib.sha256(raw).hexdigest()
+        result=qualify(json.loads(raw),args.scanner_exit,raw_report_sha256=report_sha256)
+        result['raw_report_sha256']=report_sha256
     except (OSError,ValueError,KeyError,TypeError,UnicodeError,subprocess.SubprocessError):
         result=dict(format='homecloud-secret-reference-evidence-v1',status='BLOCKED',error='Invalid or unavailable scanner/reference evidence')
     Path(args.output).write_text(json.dumps(result,indent=2)+'\n')
