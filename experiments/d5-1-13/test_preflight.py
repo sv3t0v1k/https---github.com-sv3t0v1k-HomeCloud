@@ -72,6 +72,21 @@ class Boundaries(unittest.TestCase):
             self.assertFalse(status["runtime_integration_ready"])
             self.assertIn("partial.json", json.loads((root / "hashes.json").read_text()))
 
+    def test_finish_preserves_partial_runtime_after_interruption(self):
+        import json,os
+        with tempfile.TemporaryDirectory() as temp:
+            temp=Path(temp).resolve()
+            out=temp/'evidence';out.mkdir()
+            runtime=temp/'d513-runtime-123-1';runtime.mkdir()
+            (runtime/'ledger.json').write_text('{"cleanup":"IN_PROGRESS","containers":[]}')
+            with patch.dict(os.environ,RUNNER_TEMP=str(temp),GITHUB_RUN_ID='123',GITHUB_RUN_ATTEMPT='1'):
+                subject.finish(out)
+            status=json.loads((out/'status.json').read_text())
+            self.assertEqual(status['status'],'INTERRUPTED_RUNTIME')
+            self.assertEqual(status['drill'],'PARTIAL')
+            self.assertIsNone(status['rpo'])
+            self.assertEqual(json.loads((out/'resource-ledger.json').read_text())['cleanup'],'IN_PROGRESS')
+
     def test_official_accepts_pinned_child_and_selects_unique_amd64_from_index(self):
         import io
         lock = dict(base="postgres@sha256:" + "a" * 64, postgres_version="16.15")

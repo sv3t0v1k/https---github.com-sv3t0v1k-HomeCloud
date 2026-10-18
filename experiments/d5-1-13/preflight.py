@@ -9,11 +9,9 @@ import os
 from pathlib import Path
 import platform
 import re
-import shutil
 import subprocess
-import sys
 import urllib.request
-import zipfile
+import artifact as transport
 
 REPO = "sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud"
 ARTIFACT = 12095095760
@@ -175,36 +173,44 @@ def images(out):
             f'd513-download-{os.environ["GITHUB_RUN_ID"]}-{os.environ["GITHUB_RUN_ATTEMPT"]}',
             "unexpected download path")
     download.mkdir(mode=0o700)
-    archive = download / "artifact.zip"
-    with archive.open("xb") as target:
-        subprocess.run(["gh", "api", f"repos/{REPO}/actions/artifacts/{ARTIFACT}/zip"],
-                       stdout=target, check=True, timeout=180)
-    require(archive.stat().st_size == artifact["size_in_bytes"] and digest(archive) == ZIP_SHA,
-            "download ZIP checksum/length mismatch")
-    target = download / "candidate.oci.tar"
-    with zipfile.ZipFile(archive) as zipped:
-        require(zipped.namelist() == ["candidate.oci.tar"] and
-                zipped.getinfo("candidate.oci.tar").file_size < 512 * 1024 * 1024,
-                "unexpected ZIP member/size")
-        with zipped.open("candidate.oci.tar") as source, target.open("xb") as destination:
-            shutil.copyfileobj(source, destination)
     spec = importlib.util.spec_from_file_location("prepare", ROOT / "ops/postgres/prepare.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     require(lock == module.load_lock(), "lock changed")
-    write(out, "exact-identity.json", module.verify_archive(target, lock))
+    try:
+        result = transport.fetch_verified(download, artifact, lock, module.verify_archive)
+    except transport.TransportError as error:
+        write(out, 'artifact-transport.json', error.evidence)
+        raise
+    write(out, 'artifact-transport.json', result['transport'])
+    write(out, "exact-identity.json", result['identity'])
     write(out, "official-metadata.json", official(lock))
 
 
 def finish(out):
-    write(out, "status.json", dict(status="BLOCKED_BEFORE_RUNTIME", production="NO_GO",
+    status = dict(status="BLOCKED_BEFORE_RUNTIME", production="NO_GO",
           release="BLOCKED", complete=False, drill="NOT_RUN", rpo=None, rto=None,
           provenance="UNSIGNED", sbom="UNSIGNED", reproducibility="UNPROVEN",
           medium_unknown_accepted=False, runtime_integration_ready=False,
           blockers=["Official runtime not security-approved", "Actual runner/tools gate requires PASS",
-                    "Runtime harness and real startup mount fixture require separate reviewed implementation"],
+                    "Runtime drill requires explicit input, qualified images and actual runner/tools"],
           retry_policy="At most two attempts for the same blocker; no automatic retry",
-          evidence_upload="best effort: cancellation/runner loss may prevent always steps"))
+          evidence_upload="best effort: cancellation/runner loss may prevent always steps")
+    if all(os.environ.get(k) for k in ('RUNNER_TEMP','GITHUB_RUN_ID','GITHUB_RUN_ATTEMPT')):
+        ledger = Path(os.environ['RUNNER_TEMP']) / ('d513-runtime-'+os.environ['GITHUB_RUN_ID']+'-'+
+            os.environ['GITHUB_RUN_ATTEMPT']) / 'ledger.json'
+        if ledger.is_file() and not ledger.is_symlink() and ledger.resolve()==ledger:
+            write(out,'resource-ledger.json',json.loads(ledger.read_text()))
+            status.update(status='INTERRUPTED_RUNTIME',drill='PARTIAL',runtime_started=True)
+    result = out/'harness-status.json'
+    if result.exists():
+        record = json.loads(result.read_text())
+        require(record.get('production') == 'NO_GO' and record.get('complete') is False,
+                'harness cannot promote production')
+        status.update(record)
+        if record.get('status') == 'SYNTHETIC_DRILL_PASSED':
+            status['blockers'] = ['Production/release qualification and risk triage remain separate']
+    write(out, 'status.json', status)
     paths = sorted(p for p in out.rglob("*") if p.is_file() and not p.is_symlink()
                    and "executed-tools" not in p.parts and p.name != "hashes.json")
     write(out, "hashes.json", {str(p.relative_to(out)): digest(p) for p in paths})
