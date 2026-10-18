@@ -2,6 +2,9 @@
 set -u
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+if [ "${HOMECLOUD_ACCEPTANCE_SUPERVISED:-}" != 1 ]; then
+  exec python3 "$ROOT/scripts/local-acceptance-supervisor.py" "$0"
+fi
 cd "$ROOT" || exit 2
 
 REPORT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/homecloud-local-acceptance.XXXXXX") || exit 2
@@ -69,8 +72,10 @@ run_backend_tests() {
   # PostgreSQL suites read only this explicit test variable. Drop it here so
   # this local command can never connect to an inherited database endpoint.
   if [ "$(uname -s)" = Darwin ]; then
-    # This native filesystem suite explicitly requires Linux; CI runs it there.
-    env -u HOMECLOUD_TEST_DATABASE_URL npm --prefix backend test -- --runInBand --json --outputFile="$REPORT_DIR/backend-tests.json" --testPathIgnorePatterns=src/uploads/secure-filesystem.spec.ts || return $?
+    # These suites reach the Linux-only native SecureFilesystem boundary,
+    # directly or through UploadWorkspaceResolver/IngressFileCleanupInterceptor.
+    # Linux CI does not use this filter and retains the complete required set.
+    env -u HOMECLOUD_TEST_DATABASE_URL npm --prefix backend test -- --runInBand --json --outputFile="$REPORT_DIR/backend-tests.json" --testPathIgnorePatterns='src/uploads/(secure-filesystem|upload-workspace|upload-rate-limit|ingress-file-cleanup\.interceptor)\.spec\.ts' || return $?
   else
     env -u HOMECLOUD_TEST_DATABASE_URL npm --prefix backend test -- --runInBand --json --outputFile="$REPORT_DIR/backend-tests.json" || return $?
   fi
@@ -86,7 +91,7 @@ run_backend_tests() {
       console.log("Ограничение: PostgreSQL integration suites пропущены без отдельной disposable test DB; они остаются обязательными в CI.");
     }
     if (process.platform === "darwin") {
-      console.log("Ограничение: Linux-only secure-filesystem suite пропущен на macOS; он остаётся обязательным в Linux CI.");
+      console.log("Ограничение macOS: пропущены secure-filesystem.spec.ts, upload-workspace.spec.ts, upload-rate-limit.spec.ts и ingress-file-cleanup.interceptor.spec.ts — все достигают Linux-only SecureFilesystem. Полный набор остаётся обязательным в Linux CI.");
     }
   ' "$REPORT_DIR/backend-tests.json"
 }
