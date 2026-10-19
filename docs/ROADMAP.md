@@ -35,6 +35,7 @@
 | Единый локальный Docker baseline — ненумерованный checkpoint | `COMPLETE` | `bf97bef` / `f578030`; [runbook и preservation boundaries](./operations-runbook.md) |
 | D5.1 — Release Management & CI Foundation | `RELEASE_BLOCKED; local runner/skopeo model implemented, hosted confirmation pending` | [Image security policy](./image-security-policy.md) |
 | Полный 50 ГиБ IAB Browser E2E — ненумерованный checkpoint | `PASS` | `167498d`; [scope/evidence](./evidence/browser-50gib-qualification-20261006/report.md); Safari 50 ГиБ UNQUALIFIED |
+| Multi-Storage и выбор пользователем места хранения | `DEFERRED` | Исторические checkpoint’ы и зависимости сохранены в соответствующих разделах; продолжение только после отдельного решения |
 
 ## Completed
 
@@ -616,14 +617,17 @@ Evidence: focused 64/64 PASS; full backend 609 PASS / 15 SKIPPED (51 suites PASS
 
 Эти направления остаются будущей работой без новых номеров Phase; завершённые backend hardening и frontend здесь не дублируются:
 
-- **Многотомное хранение — OWNER_APPROVED; Schema & Legacy Compatibility COMPLETE (2026-10-10):** ненумерованный workstream перед deployment. [Архитектура](./multi-storage-architecture.md) и [evidence](./evidence/multi-storage-schema-20261010/report.md): minimal StorageLocation, logical File placement, fail-closed legacy backfill и resolver текущего `/storage`; 6 File сохранены, 5 физических backfilled, **0 bytes moved**. Backup/isolated migration/restore, full backend real PostgreSQL 65 suites / 858 tests, lint/typecheck/build и runtime smoke PASS; A/B/C reviews ACCEPT. Второй storage, workspace/finalizer/policy/admin/UI и mount changes не реализованы; дальнейшие checkpoints требуют отдельного разрешения. Production NOT_READY / NO_GO; true SSD→HDD 50 GiB qualification остаётся будущим gate.
-
 - **Production readiness — INCOMPLETE:** production offsite/operator qualification, final recovery/production deployment acceptance и public CA/domain qualification; TLS/proxy baseline см. checkpoint выше; incremental strategy — отдельное решение. Architecture & Release Gate см. checkpoint выше.
 
 Ни одно planned-направление не разрешено начинать автоматически.
 
 ## Deferred
 
+- **Multi-Storage и пользовательский выбор хранилища — DEFERRED; реализация возможна только после отдельного решения владельца.** Исторические записи сохраняют факты и точные статусы ограниченных checkpoint’ов (Schema & Legacy Compatibility, MS-2, MS-3A, SSD→HDD этапы 1–2.3 и API integration, Frontend SSD Integration); это не разрешение продолжать и не означает завершения всего workstream. Датированные формулировки `следующий gate/action` отражают план на дату записи и заменяются этой текущей отсрочкой.
+  - **Предпосылки активации:** закрыть документированные блокеры безопасного descriptor-relative lifecycle, постоянной операторской регистрации и восстановления, квалификации целевого Linux mount, безопасного ingress и DB admission. До этого SSD activation остаётся OFF, `secureOpen=false`, production — `NO_GO`.
+  - **Активация SSD→HDD и эксплуатационная квалификация:** отдельно согласовать и пройти target writer fencing/native rebuild, сверку исторических журналов, migration/enrollment/rollback preflight; проверить реальные mount/outage, аварийное завершение (включая SIGKILL), reboot/power-loss и требуемые 50+ ГиБ/RSS gates. Уже выполненные изолированные finalizer/API/browser checkpoints подтверждают только свой ограниченный scope.
+  - **Постоянное размещение и выбор пользователем:** только после предпосылок спроектировать и реализовать назначение approved storage location новым файлам, storage-aware download и связанные lifecycle-пути, policy/admin/API и UI выбора только approved mount key. Сохраняются зависимости дизайна: один default в первой поведенческой реализации; fixed default + min-free reserve + ordered fallback для policy v1; secondary offline → `DEGRADED`; удаление location только после drain и нулевых ссылок. Произвольные browser/API filesystem paths не допускаются.
+  - Это зависимая последовательность; ранее выполненные legacy-compatible schema/registry/workspace и staging checkpoints не переоткрываются без подтверждённой данными причины. Ни один следующий этап, изменение конфигурации, включение SSD, миграция или qualification не начинается автоматически.
 - Incremental backup — отдельное решение после full-volume RPO/RTO qualification; encrypted/offsite baseline завершён ниже.
 - Полноценное использование Redis либо удаление неподтверждённой зависимости.
 - Удаление или подключение `uploads_data`.
