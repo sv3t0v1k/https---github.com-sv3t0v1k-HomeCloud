@@ -10,16 +10,30 @@ import subprocess
 
 TARGET = '/usr/share/dotnet'
 FORMAT = 'homecloud-hosted-runner-minimization-v1'
+GITHUB_IDENTITY_FIELDS = ('run_id', 'run_attempt', 'sha', 'job', 'runner_environment')
+
+
+def validate_github_identity(record, expected):
+    if not isinstance(record, dict) or not isinstance(expected, dict):
+        raise ValueError('Missing or mismatched hosted runner GitHub identity')
+    for field in GITHUB_IDENTITY_FIELDS:
+        actual_value = record.get(field)
+        expected_value = expected.get(field)
+        if (not isinstance(actual_value, str) or not actual_value
+                or not isinstance(expected_value, str) or not expected_value
+                or actual_value != expected_value):
+            raise ValueError('Missing or mismatched hosted runner GitHub identity: ' + field)
 
 
 def validate(record, source, github):
-    if (record.get('format') != FORMAT or record.get('source_commit') != source
-            or record.get('github') != github
+    if (not isinstance(record, dict)
+            or record.get('format') != FORMAT or record.get('source_commit') != source
             or record.get('removed_paths') != [TARGET]
             or record.get('absent_after') is not True
             or record.get('status') != 'REMOVED_BEFORE_WORKLOAD'
             or record.get('rootfs_scope_changed') is not False):
         raise ValueError('Missing or mismatched hosted runner minimization evidence')
+    validate_github_identity(record.get('github'), github)
 
 
 def context(env):

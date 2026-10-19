@@ -67,11 +67,60 @@ class MinimizationTests(unittest.TestCase):
             self.assertEqual(run.call_count, 1)  # ownership query only; no sudo or removal
 
     def test_changed_source_or_execution_identity_blocks(self):
-        for field in ['source_commit', 'github']:
+        for field in ['source_commit']:
             changed = copy.deepcopy(self.record)
-            changed[field] = 'b'*40 if field == 'source_commit' else {**self.github, 'run_attempt': '2'}
+            changed[field] = 'b'*40
             with self.assertRaises(ValueError):
                 minimize.validate(changed, 'a'*40, self.github)
+
+    def test_required_github_identity_fields_must_be_present_on_both_sides(self):
+        for field in minimize.GITHUB_IDENTITY_FIELDS:
+            with self.subTest(missing_record_field=field):
+                changed = copy.deepcopy(self.record)
+                del changed['github'][field]
+                with self.assertRaisesRegex(ValueError, field):
+                    minimize.validate(changed, 'a'*40, self.github)
+            with self.subTest(missing_expected_field=field):
+                expected = dict(self.github)
+                del expected[field]
+                with self.assertRaisesRegex(ValueError, field):
+                    minimize.validate(self.record, 'a'*40, expected)
+
+    def test_required_github_identity_mismatches_block_individually(self):
+        for field in minimize.GITHUB_IDENTITY_FIELDS:
+            changed = copy.deepcopy(self.record)
+            changed['github'][field] = 'different-'+field
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, field):
+                minimize.validate(changed, 'a'*40, self.github)
+
+    def test_additional_github_fields_are_permitted(self):
+        extended_environment = {**self.github, 'runner_os': 'Linux', 'runner_arch': 'X64',
+                                'image_os': 'ubuntu24', 'image_version': '20261018.1.0',
+                                'context_marker': 'environment-only'}
+        extended_record = copy.deepcopy(self.record)
+        extended_record['github']['image_version'] = '20261018.1.0'
+        extended_record['github']['context_marker'] = 'record-only'
+        minimize.validate(extended_record, 'a'*40, extended_environment)
+
+    def test_malformed_context_shapes_and_required_values_block(self):
+        with self.assertRaises(ValueError):
+            minimize.validate([], 'a'*40, self.github)
+        changed = copy.deepcopy(self.record)
+        changed['github'] = None
+        with self.assertRaises(ValueError):
+            minimize.validate(changed, 'a'*40, self.github)
+        with self.assertRaises(ValueError):
+            minimize.validate(self.record, 'a'*40, [])
+        for field in minimize.GITHUB_IDENTITY_FIELDS:
+            for invalid in ('', None, 1):
+                changed = copy.deepcopy(self.record)
+                changed['github'][field] = invalid
+                with self.subTest(side='record', field=field, value=invalid), self.assertRaisesRegex(ValueError, field):
+                    minimize.validate(changed, 'a'*40, self.github)
+                expected = dict(self.github)
+                expected[field] = invalid
+                with self.subTest(side='expected', field=field, value=invalid), self.assertRaisesRegex(ValueError, field):
+                    minimize.validate(self.record, 'a'*40, expected)
 
     def test_deleted_scope_or_scan_exclusion_cannot_substitute(self):
         for field, value in [('removed_paths', ['/usr/share']), ('removed_paths', []),
