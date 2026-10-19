@@ -23,13 +23,14 @@ describe('public sharing transport', () => {
     const fetchMock = vi.fn(); vi.stubGlobal('fetch', fetchMock)
     let action = ''; let body: FormData | undefined
     vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(function (this: HTMLFormElement) {
-      action = this.action; body = new FormData(this); expect(this.method).toBe('post'); expect(this.target).toBe('homecloud-native-download')
+      action = this.action; body = new FormData(this); expect(this.method).toBe('post'); expect(this.target).toBe('_self')
     })
     await downloadPublicShare('token', 'private-password', 7)
     expect(new URL(action).pathname).toBe('/api/v1/sharing/public/token/download')
     expect(new URL(action).search).toBe('')
     expect(body?.get('password')).toBe('private-password'); expect(body?.get('fileId')).toBe('7')
     expect(fetchMock).not.toHaveBeenCalled(); expect(document.querySelector('form')).toBeNull()
+    expect(document.getElementById('homecloud-native-download')).toBeNull()
   })
   it('downloads passwordless shares without calling password verification', async () => {
     const requests: string[] = []

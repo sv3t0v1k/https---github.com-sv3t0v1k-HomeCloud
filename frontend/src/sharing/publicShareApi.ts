@@ -1,6 +1,6 @@
 import { apiRequest } from '../api/client'
 import { ApiError } from '../api/errors'
-import { nativeDownloadTarget, nativeDownloadUrl } from '../files/download'
+import { nativeDownloadUrl } from '../files/download'
 
 export interface PublicResource { name: string; size: string | number | null; mimeType: string | null }
 export interface PublicShare { resource?: PublicResource; fileId: number; isFolder: boolean; requiresPassword: boolean; expiresAt: string | null }
@@ -30,7 +30,9 @@ export async function downloadPublicShare(token: string, password: string, fileI
   const form = document.createElement('form')
   form.method = 'POST'
   form.action = nativeDownloadUrl(`${path(token)}/download`)
-  form.target = nativeDownloadTarget()
+  // Attachment responses must reach the top-level browsing context: the
+  // ingress blocks framing and a hidden iframe can consume a download slot.
+  form.target = '_self'
   form.style.display = 'none'
   for (const [name, value] of Object.entries({ password, ...(fileId === undefined ? {} : { fileId: String(fileId) }) })) {
     const input = document.createElement('input')

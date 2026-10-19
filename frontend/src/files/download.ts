@@ -24,14 +24,3 @@ export function nativeDownloadUrl(path: string): string {
   if (url.origin !== window.location.origin) throw new Error('Native downloads require a same-origin API')
   return url.href
 }
-
-export function nativeDownloadTarget(): string {
-  const name = 'homecloud-native-download'
-  if (!document.getElementById(name)) {
-    const frame = document.createElement('iframe')
-    frame.id = name; frame.name = name; frame.hidden = true
-    frame.title = 'Загрузки браузера'
-    document.body.append(frame)
-  }
-  return name
-}
