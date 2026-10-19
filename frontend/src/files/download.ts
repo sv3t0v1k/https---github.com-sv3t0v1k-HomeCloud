@@ -10,7 +10,8 @@ export async function downloadOriginalFile(file: Pick<FileItem, 'id' | 'name' | 
   if (result.downloadPath !== `/native-downloads/${file.id}`) throw new Error('Invalid download endpoint')
   const anchor = document.createElement('a')
   anchor.href = nativeDownloadUrl(result.downloadPath)
-  anchor.target = nativeDownloadTarget()
+  // Attachment responses must navigate at the top level. The ingress forbids
+  // framing, so an iframe can consume the one-time capability without saving.
   anchor.rel = 'noreferrer'
   anchor.style.display = 'none'
   document.body.append(anchor)
