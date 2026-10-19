@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Fail-closed scope/freshness tests; no filesystem scan is executed locally."""
 import copy
+import hashlib
 import json
 from datetime import datetime, timedelta, timezone
 import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location('environment_evidence', Path(__file__).with_name('environment-evidence.py'))
 module = importlib.util.module_from_spec(spec)
@@ -18,11 +20,12 @@ class EvidenceTests(unittest.TestCase):
         self.now = datetime.now(timezone.utc)
         self.db = dict(Version=2, UpdatedAt=(self.now - timedelta(hours=1)).isoformat(),
                        DownloadedAt=self.now.isoformat(), NextUpdate=(self.now + timedelta(hours=4)).isoformat())
-        self.evidence = dict(source_kind='actual-job-filesystem', platform='linux/x86_64',
+        self.evidence = dict(source_kind='actual-job-filesystem', environment_id='backend', platform='linux/x86_64',
                              workspace='/checkout', rootfs_excluded_dirs=['/proc', '/checkout'],
                              component_target='/checkout/backend/node_modules', rootfs_artifact_name='runner-host', executed_tools_target='/evidence/executed-tools', executed_tools=[dict(id='trivy', version=dict(exit_code=0, stdout='Version: 0.76.0'))], source_commit='a' * 40,
                              global_npm_manifests=[dict(name='npm', version='11.0.0', path='/usr/lib/node_modules/npm/package.json'), dict(name='bundled', version='1.0.0', path='/usr/lib/node_modules/npm/node_modules/bundled/package.json')],
                              global_npm_inventory=dict(exit_code=0, stdout=json.dumps({'dependencies': {'npm': {'version': '11.0.0'}}})),
+                             global_npm_root={'exit_code': 0, 'stdout': '/usr/lib/node_modules'},
                              component_npm_manifests=[dict(name='example', version='1.0.0', path='/checkout/backend/node_modules/example/package.json')],
                              component_npm_inventory=dict(exit_code=0, stdout=json.dumps({'dependencies': {'example': {'version': '1.0.0'}}})),
                              os_package_inventory={'exit_code': 0, 'stdout': 'libc\t1\tamd64\tinstalled'},
@@ -34,6 +37,10 @@ class EvidenceTests(unittest.TestCase):
                                     dict(Class='lang-pkgs', Type='node-pkg', Target='Node.js', Packages=[
                                         dict(Name='npm', Version='11.0.0', FilePath='usr/lib/node_modules/npm/package.json'),
                                         dict(Name='bundled', Version='1.0.0', FilePath='usr/lib/node_modules/npm/node_modules/bundled/package.json')])]),
+            'global-npm': dict(ArtifactType='filesystem', ArtifactName='/usr/lib/node_modules', Trivy={'Version': '0.76.0'},
+                               Results=[dict(Class='lang-pkgs', Type='node-pkg', Packages=[
+                                   dict(Name='npm', Version='11.0.0', FilePath='npm/package.json'),
+                                   dict(Name='bundled', Version='1.0.0', FilePath='npm/node_modules/bundled/package.json')])]),
             'component': dict(ArtifactType='filesystem', ArtifactName='/checkout/backend/node_modules', Trivy={'Version': '0.76.0'},
                               Results=[dict(Class='lang-pkgs', Type='node-pkg', Packages=[dict(Name='example', Version='1.0.0', FilePath='example/package.json')])])}
 
@@ -87,6 +94,67 @@ class EvidenceTests(unittest.TestCase):
 
     def test_actual_environment(self):
         self.check()
+
+    def test_host_platform_requires_supported_provider_identity(self):
+        evidence = copy.deepcopy(self.evidence)
+        evidence['os_release'] = 'ID=ubuntu\nVERSION_ID="24.04"\n'
+        evidence['environment_id'] = 'frontend'
+        evidence['github'] = dict(runner_environment='github-hosted', runner_os='Linux', runner_arch='X64',
+                                  image_os='ubuntu24', image_version='20261018.1.0')
+        module.validate_host_platform_identity(evidence)
+        for key, value in (('runner_environment', 'self-hosted'), ('runner_os', 'Windows'),
+                           ('runner_arch', 'ARM64'), ('image_os', 'ubuntu26'), ('image_version', '')):
+            changed = copy.deepcopy(evidence)
+            changed['github'][key] = value
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                module.validate_host_platform_identity(changed)
+        evidence['os_release'] = 'ID=debian\nVERSION_ID="12"\n'
+        with self.assertRaisesRegex(ValueError, 'does not match'):
+            module.validate_host_platform_identity(evidence)
+
+    def test_release_tool_contract_requires_exact_registry_and_bound_closure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'skopeo-closure.json'
+            closure = dict(format='homecloud-skopeo-apt-closure-v1', source_commit='a' * 40,
+                           run_id='123', attempt='1', image_os='ubuntu24', image_version='20261018.1.0')
+            path.write_text(json.dumps(closure))
+            with patch.dict('os.environ', dict(GITHUB_RUN_ID='123', GITHUB_RUN_ATTEMPT='1',
+                                               ImageOS='ubuntu24', ImageVersion='20261018.1.0')):
+                with patch.object(module.subprocess, 'check_output', return_value='a' * 40 + '\n'):
+                    registrations = [dict(id=name, path='/usr/bin/'+name) for name in ('docker', 'gh', 'skopeo')]
+                    self.assertEqual(len(module.validate_release_tool_contract('release-images', registrations, str(path))), 64)
+                    with self.assertRaisesRegex(ValueError, 'exactly docker'):
+                        module.validate_release_tool_contract('release-images', registrations[:2], str(path))
+                    with self.assertRaisesRegex(ValueError, 'requires complete'):
+                        module.validate_release_tool_contract('release-images', registrations, None)
+                    closure['attempt'] = '2'
+                    path.write_text(json.dumps(closure))
+                    with self.assertRaisesRegex(ValueError, 'source/run/runner'):
+                        module.validate_release_tool_contract('release-images', registrations, str(path))
+
+    def test_release_scan_requires_complete_closure_artifact_binding(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            closure = root / 'skopeo-closure.json'
+            summary = root / 'skopeo-closure-summary.json'
+            rootfs = root / 'rootfs.json'
+            closure_data = dict(source_commit='a'*40, run_id='123', attempt='1',
+                                skopeo=dict(sha256='b'*64, path='/usr/bin/skopeo'))
+            closure.write_text(json.dumps(closure_data))
+            rootfs.write_text('{"Results":[]}')
+            summary_data = dict(gate='PASS', evidence_sha256=hashlib.sha256(closure.read_bytes()).hexdigest(),
+                                rootfs_report_sha256=hashlib.sha256(rootfs.read_bytes()).hexdigest())
+            summary.write_text(json.dumps(summary_data))
+            evidence = dict(environment_id='release-images', source_commit='a'*40,
+                            github=dict(run_id='123', run_attempt='1'),
+                            skopeo_closure_sha256=summary_data['evidence_sha256'],
+                            executed_tools=[dict(id=name, sha256='b'*64 if name == 'skopeo' else 'c'*64,
+                                                 real_path='/usr/bin/skopeo' if name == 'skopeo' else '/usr/bin/'+name)
+                                            for name in ('docker', 'gh', 'skopeo', 'trivy')])
+            self.assertEqual(module.validate_release_closure_artifacts(evidence, root)['gate'], 'PASS')
+            summary.unlink()
+            with self.assertRaisesRegex(ValueError, 'Missing strict'):
+                module.validate_release_closure_artifacts(evidence, root)
 
     def test_checkout_exclusion_mandatory(self):
         self.evidence['rootfs_excluded_dirs'] = ['/proc']

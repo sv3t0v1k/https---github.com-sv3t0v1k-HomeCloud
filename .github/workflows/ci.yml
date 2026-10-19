@@ -55,6 +55,7 @@ jobs:
       - run: python3 scripts/ci/test-scan-evidence.py
       - run: python3 scripts/ci/test-scan-policy.py
       - run: python3 scripts/ci/test-environment-evidence.py
+      - run: python3 scripts/ci/test-skopeo-closure.py
       - run: python3 scripts/ci/test-runner-minimization.py
       - run: python3 scripts/ci/test-gosu-disposition.py
       - run: python3 scripts/ci/test-oci-scan-binding.py

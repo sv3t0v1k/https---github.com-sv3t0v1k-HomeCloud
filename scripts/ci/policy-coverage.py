@@ -126,7 +126,7 @@ def qualify(root, source):
             expected_target = str(Path(current['workspace'])/component/'node_modules') if component != 'none' else None
             if current.get('component') != component or current.get('component_target') != expected_target:
                 raise ValueError('Required installed component coverage missing: '+name)
-            if set(current['report_sha256']) != ({'rootfs', 'component', 'tools'} if expected_target else {'rootfs', 'tools'}):
+            if set(current['report_sha256']) != ({'rootfs', 'global-npm', 'component', 'tools'} if expected_target else {'rootfs', 'global-npm', 'tools'}):
                 raise ValueError('Required environment report set missing: '+name)
             temp = Path(current['runner_temp'])
             required_tools = {'trivy': temp/'environment-trivy/trivy'}
@@ -146,10 +146,16 @@ def qualify(root, source):
                     raise ValueError('Environment report changed: '+name)
             environment.validate(current, reports, current['vulnerability_db'],
                                  datetime.now(timezone.utc), current.get('java_db'))
-            summaries = {role: policy.evaluate_environment(report, component=role in ('component', 'tools'))
-                         for role, report in reports.items()}
+            summaries = {}
+            for role, report in reports.items():
+                if role == 'rootfs' and name != 'backend':
+                    summaries[role] = policy.evaluate_host_platform(report, current)
+                else:
+                    summaries[role] = policy.evaluate_environment(report, component=role in ('component', 'global-npm', 'tools'))
+            accepted = {'PASS', 'PLATFORM_ASSURANCE'}
             return dict(source_commit=source, scans=summaries,
-                        gate='BLOCKED' if any(s['gate'] != 'PASS' for s in summaries.values()) else 'PASS')
+                        runner_policy='GITHUB_HOSTED_PLATFORM_ASSURANCE' if name != 'backend' else 'PINNED_CONTAINER_STRICT',
+                        gate='BLOCKED' if any(s['gate'] not in accepted for s in summaries.values()) else 'PASS')
         attempt('environments', name, check)
     for role in ('node', 'nginx', 'postgres', 'node-ci'):
         def check(role=role):

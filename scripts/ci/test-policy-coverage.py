@@ -77,8 +77,16 @@ class CoverageTests(unittest.TestCase):
                            progress_sha256=coverage.sha(progress), metadata_sha256=coverage.sha(metadata)))
         for name in coverage.ENVIRONMENTS:
             p = self.write('env-'+name+'/rootfs.json', self.report('/', image=False))
+            rootfs_report = json.loads(p.read_text())
+            rootfs_report['ArtifactName'] = 'runner-host' if name != 'backend' else 'container-root'
+            p.write_text(json.dumps(rootfs_report))
             component = coverage.COMPONENTS.get(name, 'none')
             reports = {'rootfs': coverage.sha(p)}
+            global_report = self.report('/usr/lib/node_modules', image=False)
+            global_report['Results'] = [dict(Class='lang-pkgs', Type='node-pkg', Packages=[
+                dict(Name='npm', Version='11'), dict(Name='bundled', Version='1')])]
+            global_path = self.write('env-'+name+'/global-npm.json', global_report)
+            reports['global-npm'] = coverage.sha(global_path)
             tools_report = self.report('/evidence/executed-tools', image=False)
             tools_report['Results'] = [dict(Class='lang-pkgs', Type='gobinary', Packages=[dict(Name='stdlib', Version='1')])]
             tp = self.write('env-'+name+'/tools.json', tools_report)
@@ -101,7 +109,12 @@ class CoverageTests(unittest.TestCase):
                 reports['component'] = coverage.sha(cp)
             self.write('env-'+name+'/environment.json', dict(environment_id=name, source_commit=self.source,
                        evidence_status='PASS', report_sha256=reports, vulnerability_db=self.db,
-                       workspace='/checkout', runner_temp='/temp', executed_tools=tools, component=component, component_target=target))
+                       workspace='/checkout', runner_temp='/temp', executed_tools=tools, component=component, component_target=target,
+                       github=dict(runner_environment='github-hosted', runner_os='Linux', runner_arch='X64',
+                                   image_os='ubuntu24', image_version='20261018.1.0'),
+                       os_release='ID=ubuntu\nVERSION_ID="24.04"\n',
+                       rootfs_artifact_name='runner-host' if name != 'backend' else 'container-root',
+                       global_npm_root=dict(exit_code=0, stdout='/usr/lib/node_modules')))
         raw_lock = json.loads(Path(__file__).with_name('images.lock.json').read_text())
         for role in ('node', 'nginx', 'postgres', 'node-ci'):
             ref = ('node:24.21.0-bookworm-slim@sha256:51b1100cc2a83d370c6a60952e3f2989c8a43159d0e38586e090f3b3326efefd'
@@ -146,6 +159,39 @@ class CoverageTests(unittest.TestCase):
         r = self.qualify()
         self.assertEqual(r['status'], 'PASS', r['errors'])
         self.assertTrue(all(x['findings']['HIGH'] == 1 and x['gate'] == 'DIAGNOSTIC' for x in r['raw_bases'].values()))
+
+    def test_runner_findings_are_retained_separately_from_application_gates(self):
+        self.fixture()
+        path = self.root/'env-frontend/rootfs.json'
+        report = json.loads(path.read_text())
+        report['Results'][0]['Vulnerabilities'] = [dict(PkgName='runner-lib', VulnerabilityID='CVE-TEST', Severity='CRITICAL')]
+        path.write_text(json.dumps(report))
+        env_path = self.root/'env-frontend/environment.json'
+        env = json.loads(env_path.read_text())
+        env['report_sha256']['rootfs'] = coverage.sha(path)
+        env_path.write_text(json.dumps(env))
+        result = self.qualify()
+        self.assertEqual(result['status'], 'PASS', result['errors'])
+        scan = result['environments']['frontend']['scans']['rootfs']
+        self.assertEqual(scan['gate'], 'PLATFORM_ASSURANCE')
+        self.assertEqual(scan['findings'], {'CRITICAL': 1})
+        self.assertTrue(scan['raw_findings_retained'])
+
+    def test_global_npm_and_tools_findings_still_block(self):
+        for report_name in ('global-npm', 'tools'):
+            with self.subTest(report=report_name):
+                self.fixture()
+                path = self.root/f'env-frontend/{report_name}.json'
+                report = json.loads(path.read_text())
+                report['Results'][0]['Vulnerabilities'] = [dict(PkgName='runner-tool', VulnerabilityID='CVE-TEST', Severity='HIGH')]
+                path.write_text(json.dumps(report))
+                env_path = self.root/'env-frontend/environment.json'
+                env = json.loads(env_path.read_text())
+                env['report_sha256'][report_name] = coverage.sha(path)
+                env_path.write_text(json.dumps(env))
+                result = self.qualify()
+                self.assertEqual(result['status'], 'BLOCKED', result['errors'])
+                self.assertEqual(result['environments']['frontend']['scans'][report_name]['gate'], 'BLOCKED')
 
     def test_missing_environment_blocks(self):
         self.fixture()

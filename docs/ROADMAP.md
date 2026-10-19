@@ -33,7 +33,7 @@
 | Failure & Security Testing — ненумерованный checkpoint | `COMPLETE` | [evidence и границы](./failure-security-checkpoint.md) |
 | Универсальное хранение и докачка — ненумерованный checkpoint | `COMPLETE` | [IAB/Safari functional evidence](./evidence/universal-storage-upload-ux-20261005/report.md) |
 | Единый локальный Docker baseline — ненумерованный checkpoint | `COMPLETE` | `bf97bef` / `f578030`; [runbook и preservation boundaries](./operations-runbook.md) |
-| D5.1 — Release Management & CI Foundation | `D5.1.10_RELEASE_BLOCKED` | [Экспериментальная квалификация PostgreSQL/gosu](./evidence/d5-1-10-postgres-gosu-20261017.md) |
+| D5.1 — Release Management & CI Foundation | `RELEASE_BLOCKED; local runner/skopeo model implemented, hosted confirmation pending` | [Image security policy](./image-security-policy.md) |
 | Полный 50 ГиБ IAB Browser E2E — ненумерованный checkpoint | `PASS` | `167498d`; [scope/evidence](./evidence/browser-50gib-qualification-20261006/report.md); Safari 50 ГиБ UNQUALIFIED |
 
 ## Completed
@@ -1490,3 +1490,24 @@ COMPLETE не установлен, PR№1 draft. [Код, evidence, огран�
 последнего PR SHA остаётся обязательной.
 Статическая проверка сценариев и YAML-инвариантов PASS; independent review APPROVE.
 CI **NOT_RUN**, push **NOT_AUTHORIZED**. PR№1 draft, Production **NO_GO**.
+
+### D5.1 — локальная проверка runner и skopeo apt closure (2026-10-19)
+
+**IMPLEMENTED_LOCALLY / HOSTED_CONFIRMATION_PENDING; RELEASE BLOCKED; Production NO_GO.**
+Сохранена provider-managed граница для ephemeral GitHub-hosted Ubuntu 24.04 host rootfs:
+полный scan/inventory и все findings удерживаются в evidence; установленное workflow ПО и
+pinned job containers остаются под строгим scan gate. Добавлена строгая closure-проверка
+apt-installed `skopeo`: baseline/final dpkg inventories, рекурсивные Depends/Pre-Depends,
+ELF shared-library owners, точные package versions и SHA-256 `.deb`/установленных файлов,
+проверенный origin против enabled apt source, точные `Signed-By` keyring hashes,
+хеши apt source/config/index/trust store,
+успешный `apt-get update --error-on=any` с привязанным log hash, bind к source/run/attempt/
+runner identity и строгая оценка closure findings по полному rootfs report. Используется
+APT-secure, предоставленный идентифицированным GitHub Ubuntu image; отдельный verifier
+подписей не реализован. Insecure/trusted overrides, неподтверждённый origin, неполная/
+неизвестная зависимость, отчёт или hash блокируют до GHCR login/write. Локальные targeted
+tests и независимый review подтверждают только модель; hosted release run не выполнялся,
+поэтому runtime evidence схемы отсутствует. Открыты BuildKit 107H, PostgreSQL/gosu 1C/24H, ingress
+`libexpat` High, esbuild 1C/24H без byte-verified npm binary и runtime/recovery квалификация
+D5.1.13. Security gates и CVE exception policy не ослаблялись. PR№1 draft;
+push/CI/release/deployment не запускались; D5.2 NOT_STARTED.

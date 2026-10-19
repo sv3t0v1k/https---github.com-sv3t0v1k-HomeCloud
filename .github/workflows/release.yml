@@ -72,6 +72,8 @@ jobs:
           ref: ${{ needs.validate.outputs.commit }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Remove unused hosted .NET SDK before release workload; retain evidence
+        run: python3 scripts/ci/minimize-runner.py
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: production-qualification-${{ github.run_attempt }}
@@ -101,10 +103,17 @@ jobs:
           python3 scripts/ci/release.py verify-qualified --qualification qualified/production-qualification.json --commit "$COMMIT" --tag "$TAG" --repository "$REPOSITORY" --backend-archive qualified/backend.oci.tar --frontend-archive qualified/frontend.oci.tar --backend-proof qualified/offline-backend.json --frontend-proof qualified/offline-frontend.json --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT"
       - name: Prepare publication tools and qualify actual publication environment
         run: |
-          sudo apt-get update
+          mkdir -p release-environment
+          python3 scripts/ci/skopeo-closure.py baseline --source "$COMMIT" --output release-environment/skopeo-baseline.json
+          set -o pipefail
+          sudo apt-get update --error-on=any 2>&1 | tee release-environment/apt-update.log
+          python3 -c 'import hashlib,json,sys; p=sys.argv[1]; json.dump({"command":["apt-get","update","--error-on=any"],"exit_code":0,"log_path":p,"log_sha256":hashlib.sha256(open(p,"rb").read()).hexdigest()},open(sys.argv[2],"w"),sort_keys=True)' release-environment/apt-update.log release-environment/apt-update.json
+          sudo apt-get install --download-only --no-install-recommends -y skopeo
           sudo apt-get install --no-install-recommends -y skopeo
+          python3 scripts/ci/skopeo-closure.py capture --baseline release-environment/skopeo-baseline.json --output release-environment/skopeo-closure.json --binary "$(command -v skopeo)" --apt-update-status release-environment/apt-update.json
           sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/homecloud-trivy"
-          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/homecloud-trivy/trivy" release-images none release-environment
+          python3 -c 'import json,shutil,sys; names=("docker","gh","skopeo"); tools=[dict(id=name,path=shutil.which(name)) for name in names]; assert all(tool["path"] for tool in tools), "missing publication tool"; json.dump(tools,open(sys.argv[1],"w"))' "$RUNNER_TEMP/release-tools.json"
+          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/homecloud-trivy/trivy" release-images none release-environment "$RUNNER_TEMP/release-tools.json" release-environment/skopeo-closure.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:

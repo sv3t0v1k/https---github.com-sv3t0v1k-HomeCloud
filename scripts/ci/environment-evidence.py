@@ -33,6 +33,22 @@ def validate_minimization(evidence):
                                        evidence['source_commit'], evidence['github'])
 
 
+def validate_host_platform_identity(evidence):
+    github = evidence.get('github', {})
+    if github.get('runner_environment') != 'github-hosted':
+        raise ValueError('Host platform assurance requires a GitHub-hosted runner')
+    if (github.get('runner_os'), github.get('runner_arch')) != ('Linux', 'X64'):
+        raise ValueError('Host platform assurance requires Linux/x64')
+    if github.get('image_os') != 'ubuntu24':
+        raise ValueError('Unsupported or unidentified GitHub runner image')
+    image_version = github.get('image_version')
+    if not isinstance(image_version, str) or not re.fullmatch(r'\d{8}\.\d+\.\d+', image_version):
+        raise ValueError('Missing or invalid GitHub runner image version')
+    os_release = evidence.get('os_release', '')
+    if not re.search(r'^ID=ubuntu$', os_release, re.MULTILINE) or not re.search(r'^VERSION_ID="?24\.04"?$', os_release, re.MULTILINE):
+        raise ValueError('Runner image metadata does not match Ubuntu 24.04 rootfs')
+
+
 def scopes(workspace, component):
     root = Path(workspace).resolve()
     if root == Path('/') or component not in ('backend', 'frontend', 'none'):
@@ -181,7 +197,57 @@ def stage_executed_binary(actual, target):
     return digest
 
 
-def capture(environment_id, component, workspace, output, skip_dirs, scanner, registry=None):
+def validate_release_tool_contract(environment_id, registrations, closure_path):
+    if environment_id != 'release-images':
+        if closure_path:
+            raise ValueError('skopeo apt closure is only valid for the publication environment')
+        return None
+    if (not isinstance(registrations, list)
+            or {item.get('id') for item in registrations if isinstance(item, dict)} != {'docker', 'gh', 'skopeo'}
+            or len(registrations) != 3):
+        raise ValueError('Release environment requires exactly docker, gh and skopeo registrations')
+    if not closure_path or not Path(closure_path).is_file():
+        raise ValueError('Release environment requires complete skopeo apt closure evidence')
+    evidence = json.loads(Path(closure_path).read_text())
+    expected = dict(format='homecloud-skopeo-apt-closure-v1',
+                    source_commit=subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
+                    run_id=os.environ.get('GITHUB_RUN_ID'), attempt=os.environ.get('GITHUB_RUN_ATTEMPT'),
+                    image_os=os.environ.get('ImageOS'), image_version=os.environ.get('ImageVersion'))
+    if any(evidence.get(key) != value or not value for key, value in expected.items()):
+        raise ValueError('skopeo closure is not bound to this release source/run/runner')
+    return hashlib.sha256(Path(closure_path).read_bytes()).hexdigest()
+
+
+def validate_release_closure_artifacts(evidence, output):
+    closure_path = Path(output) / 'skopeo-closure.json'
+    summary_path = Path(output) / 'skopeo-closure-summary.json'
+    rootfs_path = Path(output) / 'rootfs.json'
+    if not closure_path.is_file() or not summary_path.is_file() or not rootfs_path.is_file():
+        raise ValueError('Missing strict skopeo dependency closure result')
+    closure = json.loads(closure_path.read_text())
+    summary = json.loads(summary_path.read_text())
+    closure_hash = hashlib.sha256(closure_path.read_bytes()).hexdigest()
+    tools = evidence.get('executed_tools', [])
+    if ({tool.get('id') for tool in tools if isinstance(tool, dict)} != {'docker', 'gh', 'skopeo', 'trivy'}
+            or len(tools) != 4):
+        raise ValueError('Release environment evidence has an incomplete executed tool set')
+    skopeo_tool = next((tool for tool in tools if tool.get('id') == 'skopeo'), None)
+    if (closure_hash != evidence.get('skopeo_closure_sha256')
+            or summary.get('gate') != 'PASS'
+            or summary.get('evidence_sha256') != closure_hash
+            or summary.get('rootfs_report_sha256') != hashlib.sha256(rootfs_path.read_bytes()).hexdigest()
+            or closure.get('source_commit') != evidence.get('source_commit')
+            or closure.get('run_id') != evidence.get('github', {}).get('run_id')
+            or closure.get('attempt') != evidence.get('github', {}).get('run_attempt')
+            or not skopeo_tool
+            or closure.get('skopeo', {}).get('sha256') != skopeo_tool.get('sha256')
+            or closure.get('skopeo', {}).get('path') != skopeo_tool.get('real_path')):
+        raise ValueError('skopeo dependency closure result is incomplete or mismatched')
+    return dict(**summary, closure_report_sha256=closure_hash,
+                closure_summary_sha256=hashlib.sha256(summary_path.read_bytes()).hexdigest())
+
+
+def capture(environment_id, component, workspace, output, skip_dirs, scanner, registry=None, closure_path=None):
     root, selected = scopes(workspace, component)
     excluded = skip_dirs.split(',')
     if str(root) not in excluded:
@@ -203,7 +269,9 @@ def capture(environment_id, component, workspace, output, skip_dirs, scanner, re
                     os_release=Path('/etc/os-release').read_text(),
                     github=dict(run_id=os.environ.get('GITHUB_RUN_ID'), run_attempt=os.environ.get('GITHUB_RUN_ATTEMPT'),
                                 sha=os.environ.get('GITHUB_SHA'), job=os.environ.get('GITHUB_JOB'),
-                                runner_environment=os.environ.get('RUNNER_ENVIRONMENT')),
+                                runner_environment=os.environ.get('RUNNER_ENVIRONMENT'),
+                                runner_os=os.environ.get('RUNNER_OS'), runner_arch=os.environ.get('RUNNER_ARCH'),
+                                image_os=os.environ.get('ImageOS'), image_version=os.environ.get('ImageVersion')),
                     execution_policy=dict(observed_cpu_count=os.cpu_count(), trivy_parallel=0, rootfs_timeout_minutes=60, component_timeout_minutes=20, tools_timeout_minutes=15, analyzers_disabled=[]),
                     evidence_status='BLOCKED', scope_limitations=[
                         'Pseudo filesystems and temporary directories excluded; installed system/toolcache directories included.',
@@ -227,6 +295,9 @@ def capture(environment_id, component, workspace, output, skip_dirs, scanner, re
     registrations = json.loads(Path(registry).read_text()) if registry else []
     if not isinstance(registrations, list):
         raise ValueError('Executed tool registry must be a list')
+    closure_sha256 = validate_release_tool_contract(environment_id, registrations, closure_path)
+    if closure_sha256:
+        evidence['skopeo_closure_sha256'] = closure_sha256
     registrations.append(dict(id='trivy', path=scanner))
     stage = Path(output, 'executed-tools')
     stage.mkdir()
@@ -263,6 +334,8 @@ def validate(evidence, reports, metadata, now, java_metadata=None):
         raise ValueError('Stale or invalid vulnerability DB metadata')
     if evidence.get('source_kind') != 'actual-job-filesystem' or evidence.get('platform') != 'linux/x86_64':
         raise ValueError('Expected actual Linux amd64 job environment')
+    if evidence.get('environment_id') != 'backend':
+        validate_host_platform_identity(evidence)
     if evidence['workspace'] not in evidence['rootfs_excluded_dirs']:
         raise ValueError('Checkout was not excluded')
     if evidence['os_package_inventory']['exit_code'] != 0 or not evidence['os_package_inventory']['stdout'].strip():
@@ -274,7 +347,12 @@ def validate(evidence, reports, metadata, now, java_metadata=None):
         raise ValueError('Missing actual source commit')
     validate_os_inventory(reports['rootfs'], evidence['os_package_inventory'])
     validate_installed(reports['rootfs'], evidence['global_npm_manifests'], evidence['global_npm_inventory'], '/')
-    expected = {'rootfs': '/'}
+    global_npm_root = evidence['global_npm_root']['stdout'].strip()
+    if not global_npm_root.startswith('/'):
+        raise ValueError('Global npm root must be an absolute path')
+    validate_installed(reports['global-npm'], evidence['global_npm_manifests'],
+                       evidence['global_npm_inventory'], global_npm_root)
+    expected = {'rootfs': '/', 'global-npm': global_npm_root}
     if evidence.get('component_target'):
         expected['component'] = evidence['component_target']
         validate_installed(reports['component'], evidence['component_npm_manifests'], evidence['component_npm_inventory'], evidence['component_target'])
@@ -318,7 +396,7 @@ def main():
     try:
         db = json.loads(db_path.read_text())
         evidence['vulnerability_db'] = db
-        reports = {name: json.loads((output / f'{name}.json').read_text()) for name in ('rootfs', 'tools')}
+        reports = {name: json.loads((output / f'{name}.json').read_text()) for name in ('rootfs', 'global-npm', 'tools')}
         if evidence.get('component_target'):
             reports['component'] = json.loads((output / 'component.json').read_text())
         java_path = db_path.parent.parent / 'java-db' / 'metadata.json'
@@ -338,6 +416,11 @@ def main():
             tool['postscan_staged_sha256'] = staged_digest
         validate(evidence, reports, db, datetime.now(timezone.utc), java_db)
         evidence['report_sha256'] = {k: hashlib.sha256((output / f'{k}.json').read_bytes()).hexdigest() for k in reports}
+        if evidence.get('environment_id') == 'release-images':
+            summary = validate_release_closure_artifacts(evidence, output)
+            evidence['skopeo_closure'] = summary
+            evidence['report_sha256']['skopeo-closure'] = summary['closure_report_sha256']
+            evidence['report_sha256']['skopeo-closure-summary'] = summary['closure_summary_sha256']
         evidence['evidence_status'] = 'PASS'
     except (ValueError, KeyError, OSError, TypeError) as error:
         evidence['error'] = str(error)

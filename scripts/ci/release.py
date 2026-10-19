@@ -28,7 +28,8 @@ SOURCE_PATHS = ('docker-compose.yml', 'docker-compose.production.yml', 'docker-c
                 'scripts/ci/scan-environment.sh', 'scripts/ci/environment-evidence.py',
                 'scripts/ci/oci-scan-binding.py', 'scripts/ci/policy-coverage.py',
                 'scripts/ci/stage-cache-proof.py', 'scripts/ci/qualify-stages.sh',
-                'scripts/ci/production-images.lock.json', 'scripts/ci/secret-findings.py')
+                'scripts/ci/production-images.lock.json', 'scripts/ci/secret-findings.py',
+                'scripts/ci/skopeo-closure.py', 'docs/image-security-policy.md')
 RUNTIME = {'backend', 'frontend', 'postgres', 'ingress'}
 BUILD = {'backend-deps', 'backend-builder', 'frontend-deps', 'frontend-builder', 'buildkit'}
 ENVIRONMENTS = {'backend', 'frontend', 'configuration', 'image-build-backend', 'image-build-frontend',
@@ -91,11 +92,29 @@ def qualification(value, commit, run_id=None, attempt=None):
                 require(not item.get('findings', {}).get('HIGH', 0)
                         and not item.get('findings', {}).get('CRITICAL', 0), 'qualified artifact has high/critical')
             else:
-                expected = {'rootfs', 'component'} if role in ('backend', 'frontend', 'security-backend', 'security-frontend') else {'rootfs'}
-                require(set(item.get('scans', {})) == expected and all(scan.get('gate') == 'PASS'
-                        and not scan.get('findings', {}).get('HIGH', 0)
-                        and not scan.get('findings', {}).get('CRITICAL', 0)
-                        for scan in item['scans'].values()), 'environment has high/critical')
+                expected = ({'rootfs', 'global-npm', 'tools', 'component'} if role in ('backend', 'frontend', 'security-backend', 'security-frontend')
+                            else {'rootfs', 'global-npm', 'tools'})
+                require(set(item.get('scans', {})) == expected, 'environment scan coverage is incomplete')
+                rootfs = item['scans']['rootfs']
+                if role == 'backend':
+                    require(item.get('runner_policy') == 'PINNED_CONTAINER_STRICT'
+                            and rootfs.get('gate') == 'PASS'
+                            and not rootfs.get('findings', {}).get('HIGH', 0)
+                            and not rootfs.get('findings', {}).get('CRITICAL', 0),
+                            'pinned backend container rootfs has high/critical')
+                else:
+                    require(item.get('runner_policy') == 'GITHUB_HOSTED_PLATFORM_ASSURANCE'
+                            and rootfs.get('gate') == 'PLATFORM_ASSURANCE'
+                            and rootfs.get('risk_domain') == 'github-hosted-runner-platform'
+                            and rootfs.get('raw_findings_retained') is True,
+                            'GitHub-hosted runner evidence lacks platform assurance')
+                for name, scan in item['scans'].items():
+                    if name == 'rootfs' and role != 'backend':
+                        continue
+                    require(scan.get('gate') == 'PASS'
+                            and not scan.get('findings', {}).get('HIGH', 0)
+                            and not scan.get('findings', {}).get('CRITICAL', 0),
+                            'controlled environment has high/critical: '+role+'/'+name)
     require(set(value['raw_bases']) == {'node', 'nginx', 'postgres', 'node-ci'}
             and all(item.get('gate') == 'DIAGNOSTIC' for item in value['raw_bases'].values()), 'missing raw diagnostics')
     return value

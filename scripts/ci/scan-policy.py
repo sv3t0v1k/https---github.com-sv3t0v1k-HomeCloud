@@ -78,6 +78,34 @@ def evaluate_environment(report, component=False):
                 gate='BLOCKED' if blocked else 'PASS', high_critical_present=blocked)
 
 
+def evaluate_host_platform(report, evidence):
+    """Retain the full host scan while applying provider assurance to GitHub-managed rootfs."""
+    if not isinstance(evidence, dict) or evidence.get('evidence_status') != 'PASS':
+        raise ValueError('Validated environment evidence is required for host platform assurance')
+    if evidence.get('environment_id') == 'backend':
+        raise ValueError('Pinned backend container rootfs remains under the strict environment gate')
+    checker = Path(__file__).with_name('environment-evidence.py')
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('environment_evidence', checker)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.validate_host_platform_identity(evidence)
+    if report.get('ArtifactName') != evidence.get('rootfs_artifact_name'):
+        raise ValueError('Host scan target does not match validated environment evidence')
+    findings = validate_environment_report(report)
+    counts = Counter(finding['Severity'] for finding in findings)
+    blocked = bool(counts['HIGH'] or counts['CRITICAL'])
+    return dict(artifact=report['ArtifactName'], findings=dict(sorted(counts.items())),
+                gate='PLATFORM_ASSURANCE', high_critical_present=blocked,
+                risk_domain='github-hosted-runner-platform', raw_findings_retained=True)
+
+
+def validate_environment_report(report):
+    if not isinstance(report, dict) or report.get('ArtifactType') not in ('filesystem', 'rootfs'):
+        raise ValueError('Expected filesystem or rootfs report')
+    return validate_results(report, require_os=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('report')
@@ -87,15 +115,21 @@ def main():
                         help='Qualify rootfs severity; separate environment evidence is required')
     parser.add_argument('--component', action='store_true',
                         help='Qualify component severity with retained language package inventory')
+    parser.add_argument('--platform-host-evidence',
+                        help='Apply provider assurance to a complete GitHub-hosted host rootfs scan')
     args = parser.parse_args()
     try:
         report = json.loads(Path(args.report).read_text())
-        if (args.environment or args.component) and args.diagnostic:
+        if (args.environment or args.component or args.platform_host_evidence) and args.diagnostic:
             raise ValueError('Environment checks cannot be diagnostic')
-        if args.environment and args.component:
+        if sum(bool(v) for v in (args.environment, args.component, args.platform_host_evidence)) > 1:
             raise ValueError('Select one environment report kind')
-        summary = (evaluate_environment(report, component=args.component)
-                   if args.environment or args.component else evaluate(report, args.diagnostic))
+        if args.platform_host_evidence:
+            summary = evaluate_host_platform(report, json.loads(Path(args.platform_host_evidence).read_text()))
+        elif args.environment or args.component:
+            summary = evaluate_environment(report, component=args.component)
+        else:
+            summary = evaluate(report, args.diagnostic)
     except (OSError, ValueError, TypeError, KeyError, AttributeError) as error:
         print(json.dumps(dict(gate='INVALID', error=str(error)), sort_keys=True))
         return 2

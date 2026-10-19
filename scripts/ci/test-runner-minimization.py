@@ -90,11 +90,13 @@ class MinimizationTests(unittest.TestCase):
                     minimize.context({'GITHUB_ACTIONS': 'true', 'RUNNER_ENVIRONMENT': 'github-hosted'})
             run.assert_not_called()
 
-    def test_host_rootfs_scan_contract_is_unchanged(self):
+    def test_host_rootfs_is_retained_and_classified_separately(self):
         script = Path(__file__).with_name('scan-environment.sh').read_text()
         self.assertIn('--parallel 0 --timeout 60m', script)
         self.assertNotIn('/usr/share/dotnet', script)
         self.assertNotIn('--skip-files', script)
+        self.assertIn('--platform-host-evidence', script)
+        self.assertIn('if [ "$environment_id" = backend ]', script)
 
 
 if __name__ == '__main__':

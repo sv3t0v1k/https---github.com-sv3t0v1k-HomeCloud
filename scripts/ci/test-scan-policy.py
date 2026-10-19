@@ -67,6 +67,23 @@ class PolicyTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 policy.evaluate_environment(report, component=True)
 
+    def test_host_findings_are_retained_as_provider_risk(self):
+        report = {**self.finding('CRITICAL'), 'ArtifactType': 'filesystem', 'ArtifactName': 'runner-host'}
+        report.pop('Metadata')
+        evidence = dict(evidence_status='PASS', environment_id='frontend', rootfs_artifact_name='runner-host',
+                        github=dict(runner_environment='github-hosted', runner_os='Linux', runner_arch='X64',
+                                    image_os='ubuntu24', image_version='20261018.1.0'),
+                        os_release='ID=ubuntu\nVERSION_ID="24.04"\n')
+        result = policy.evaluate_host_platform(report, evidence)
+        self.assertEqual(result['gate'], 'PLATFORM_ASSURANCE')
+        self.assertEqual(result['findings'], {'CRITICAL': 1})
+        self.assertTrue(result['high_critical_present'])
+        self.assertTrue(result['raw_findings_retained'])
+        with self.assertRaisesRegex(ValueError, 'Pinned backend'):
+            policy.evaluate_host_platform(report, {**evidence, 'environment_id': 'backend'})
+        with self.assertRaisesRegex(ValueError, 'Validated'):
+            policy.evaluate_host_platform(report, {**evidence, 'evidence_status': 'BLOCKED'})
+
     def test_os_inventory_required_for_image_and_rootfs(self):
         for packages in (None, [], 'bad', [{}], [dict(Name='libc')],
                          [dict(Name='libc', Version='')]):

@@ -48,6 +48,34 @@ class ReleaseTests(unittest.TestCase):
     def test_approved_annotated_tag(self):
         r.verify_tag('v0.9.1-beta.1', self.commit)
 
+    def test_release_publication_tools_are_strictly_scanned_before_registry_writes(self):
+        workflow = Path(__file__).parents[2]/'.github/workflows/release.yml'
+        text = workflow.read_text()
+        baseline = text.index('skopeo-closure.py baseline')
+        apt_update = text.index('apt-get update --error-on=any', baseline)
+        download = text.index('apt-get install --download-only', apt_update)
+        install = text.index('apt-get install --no-install-recommends -y skopeo', download)
+        closure = text.index('skopeo-closure.py capture', install)
+        inventory = text.index('names=("docker","gh","skopeo")', closure)
+        scan = text.index('scan-environment.sh', inventory)
+        login = text.index('docker/login-action', scan)
+        publish = text.index('Publish the qualified archives without rebuilding')
+        self.assertLess(baseline, apt_update)
+        self.assertLess(download, install)
+        self.assertLess(install, closure)
+        self.assertLess(inventory, scan)
+        self.assertLess(scan, publish)
+        self.assertLess(scan, login)
+        self.assertLess(login, publish)
+        self.assertIn('set -o pipefail', text[apt_update-300:apt_update])
+        self.assertIn('"$RUNNER_TEMP/release-tools.json"', text[scan:publish])
+        self.assertIn('release-environment/skopeo-closure.json', text[scan:publish])
+        self.assertIn('--apt-update-status release-environment/apt-update.json', text[closure:scan])
+
+    def test_apt_update_pipeline_propagates_failure(self):
+        result = subprocess.run(['bash', '-eo', 'pipefail', '-c', 'false | tee /dev/null'], check=False)
+        self.assertNotEqual(result.returncode, 0)
+
     def test_lightweight_tag_blocked(self):
         self.git('tag', 'v0.9.1-beta.2')
         with self.assertRaises(ValueError):
@@ -78,8 +106,13 @@ class ReleaseTests(unittest.TestCase):
                     production='NO_GO', errors=[], runtime={role:image(role) for role in r.RUNTIME},
                     build={role:image(role) for role in r.BUILD},
                     environments={role:dict(source_commit=self.commit,gate='PASS',
-                                            scans={kind:dict(gate='PASS',findings={}) for kind in
-                                                   (('rootfs','component') if role in ('backend','frontend','security-backend','security-frontend') else ('rootfs',))}) for role in r.ENVIRONMENTS},
+                                            runner_policy='PINNED_CONTAINER_STRICT' if role == 'backend' else 'GITHUB_HOSTED_PLATFORM_ASSURANCE',
+                                            scans={'rootfs':dict(gate='PASS',findings={}) if role == 'backend' else
+                                                   dict(gate='PLATFORM_ASSURANCE',findings={'HIGH':1},risk_domain='github-hosted-runner-platform',raw_findings_retained=True),
+                                                  'global-npm':dict(gate='PASS',findings={}),
+                                                  'tools':dict(gate='PASS',findings={}),
+                                                  **({'component':dict(gate='PASS',findings={})} if role in ('backend','frontend','security-backend','security-frontend') else {})})
+                                            for role in r.ENVIRONMENTS},
                     raw_bases={role:dict(gate='DIAGNOSTIC') for role in ('node','nginx','postgres','node-ci')})
 
     def manifest(self):
@@ -108,7 +141,11 @@ class ReleaseTests(unittest.TestCase):
                      lambda q:q['raw_bases'].pop('postgres'), lambda q:q.update(errors=['missing evidence']),
                      lambda q:q['runtime']['backend'].update(gate='BLOCKED'),
                      lambda q:q['runtime']['backend'].update(findings={'HIGH':1}),
-                     lambda q:q['environments']['backend']['scans']['rootfs'].update(findings={'CRITICAL':1})]
+                     lambda q:q['environments']['backend']['scans']['rootfs'].update(findings={'CRITICAL':1}),
+                     lambda q:q['environments']['frontend']['scans']['global-npm'].update(gate='BLOCKED',findings={'HIGH':1}),
+                     lambda q:q['environments']['frontend']['scans']['tools'].update(gate='BLOCKED',findings={'CRITICAL':1}),
+                     lambda q:q['environments']['frontend']['scans']['rootfs'].update(raw_findings_retained=False),
+                     lambda q:q['environments']['frontend'].update(runner_policy='PINNED_CONTAINER_STRICT')]
         for mutate in mutations:
             value=copy.deepcopy(original)
             mutate(value)
