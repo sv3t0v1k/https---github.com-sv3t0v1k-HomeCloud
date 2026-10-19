@@ -122,15 +122,25 @@ class EvidenceTests(unittest.TestCase):
                                                ImageOS='ubuntu24', ImageVersion='20261018.1.0')):
                 with patch.object(module.subprocess, 'check_output', return_value='a' * 40 + '\n'):
                     registrations = [dict(id=name, path='/usr/bin/'+name) for name in ('docker', 'gh', 'skopeo')]
-                    self.assertEqual(len(module.validate_release_tool_contract('release-images', registrations, str(path))), 64)
-                    with self.assertRaisesRegex(ValueError, 'exactly docker'):
-                        module.validate_release_tool_contract('release-images', registrations[:2], str(path))
-                    with self.assertRaisesRegex(ValueError, 'requires complete'):
-                        module.validate_release_tool_contract('release-images', registrations, None)
+                    self.assertEqual(len(module.validate_skopeo_tool_contract('release-images', registrations, str(path))), 64)
+                    with self.assertRaisesRegex(ValueError, 'exactly the tools'):
+                        module.validate_skopeo_tool_contract('release-images', registrations[:2], str(path))
+                    with self.assertRaisesRegex(ValueError, 'complete apt closure'):
+                        module.validate_skopeo_tool_contract('release-images', registrations, None)
                     closure['attempt'] = '2'
                     path.write_text(json.dumps(closure))
                     with self.assertRaisesRegex(ValueError, 'source/run/runner'):
-                        module.validate_release_tool_contract('release-images', registrations, str(path))
+                        module.validate_skopeo_tool_contract('release-images', registrations, str(path))
+                    closure['attempt'] = '1'
+                    path.write_text(json.dumps(closure))
+                    skopeo_only = [dict(id='skopeo', path='/usr/bin/skopeo')]
+                    self.assertEqual(len(module.validate_skopeo_tool_contract(
+                        'skopeo-qualification', skopeo_only, str(path))), 64)
+                    for invalid in (skopeo_only + [dict(id='gh', path='/usr/bin/gh')], registrations[:2]):
+                        with self.assertRaisesRegex(ValueError, 'exactly the tools'):
+                            module.validate_skopeo_tool_contract('skopeo-qualification', invalid, str(path))
+                    with self.assertRaisesRegex(ValueError, 'complete apt closure'):
+                        module.validate_skopeo_tool_contract('skopeo-qualification', skopeo_only, None)
 
     def test_release_scan_requires_complete_closure_artifact_binding(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -151,10 +161,38 @@ class EvidenceTests(unittest.TestCase):
                             executed_tools=[dict(id=name, sha256='b'*64 if name == 'skopeo' else 'c'*64,
                                                  real_path='/usr/bin/skopeo' if name == 'skopeo' else '/usr/bin/'+name)
                                             for name in ('docker', 'gh', 'skopeo', 'trivy')])
-            self.assertEqual(module.validate_release_closure_artifacts(evidence, root)['gate'], 'PASS')
+            self.assertEqual(module.validate_skopeo_closure_artifacts(evidence, root)['gate'], 'PASS')
+            evidence['environment_id'] = 'skopeo-qualification'
+            evidence['executed_tools'] = [tool for tool in evidence['executed_tools'] if tool['id'] in ('skopeo', 'trivy')]
+            self.assertEqual(module.validate_skopeo_closure_artifacts(evidence, root)['gate'], 'PASS')
+            evidence['executed_tools'].append(dict(id='gh', sha256='c'*64, real_path='/usr/bin/gh'))
+            with self.assertRaisesRegex(ValueError, 'incomplete executed tool set'):
+                module.validate_skopeo_closure_artifacts(evidence, root)
             summary.unlink()
             with self.assertRaisesRegex(ValueError, 'Missing strict'):
-                module.validate_release_closure_artifacts(evidence, root)
+                module.validate_skopeo_closure_artifacts(evidence, root)
+
+    def test_skopeo_pr_qualification_is_read_only_and_required_by_gate(self):
+        workflow = Path(__file__).parents[2] / '.github/workflows/ci.yml'
+        text = workflow.read_text()
+        start = text.index('  skopeo-qualification:\n')
+        end = text.index('  policy-coverage:\n', start)
+        job = text[start:end]
+        gate_start = text.index('  gate:\n', end)
+        gate = text[gate_start:]
+        self.assertIn('permissions:\n      contents: read', job)
+        self.assertIn('name: environment-skopeo-qualification-', job)
+        self.assertIn('homecloud-skopeo-qualification-start-v1', job)
+        self.assertIn('homecloud-skopeo-qualification-result-v1', job)
+        self.assertIn('status="PASS" if job == "success" and scan == "success" else "BLOCKED"', job)
+        self.assertIn('        if: always()\n        with:', job)
+        self.assertIn('skopeo-tools.json', job)
+        self.assertIn('shutil.which("skopeo")', job)
+        self.assertNotIn('packages: write', job)
+        for forbidden in ('secrets.', 'docker/login-action', 'gh api', 'GH_TOKEN', 'ghcr.io'):
+            self.assertNotIn(forbidden, job)
+        needs = next(line for line in gate.splitlines() if line.strip().startswith('needs:'))
+        self.assertIn('skopeo-qualification', needs)
 
     def test_checkout_exclusion_mandatory(self):
         self.evidence['rootfs_excluded_dirs'] = ['/proc']

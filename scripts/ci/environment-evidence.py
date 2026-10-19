@@ -197,28 +197,29 @@ def stage_executed_binary(actual, target):
     return digest
 
 
-def validate_release_tool_contract(environment_id, registrations, closure_path):
-    if environment_id != 'release-images':
+def validate_skopeo_tool_contract(environment_id, registrations, closure_path):
+    if environment_id not in ('release-images', 'skopeo-qualification'):
         if closure_path:
-            raise ValueError('skopeo apt closure is only valid for the publication environment')
+            raise ValueError('skopeo apt closure is only valid for release or qualification environments')
         return None
+    expected_tools = {'docker', 'gh', 'skopeo'} if environment_id == 'release-images' else {'skopeo'}
     if (not isinstance(registrations, list)
-            or {item.get('id') for item in registrations if isinstance(item, dict)} != {'docker', 'gh', 'skopeo'}
-            or len(registrations) != 3):
-        raise ValueError('Release environment requires exactly docker, gh and skopeo registrations')
+            or {item.get('id') for item in registrations if isinstance(item, dict)} != expected_tools
+            or len(registrations) != len(expected_tools)):
+        raise ValueError('Skopeo environment requires exactly the tools allowed for its mode')
     if not closure_path or not Path(closure_path).is_file():
-        raise ValueError('Release environment requires complete skopeo apt closure evidence')
+        raise ValueError('Skopeo environment requires complete apt closure evidence')
     evidence = json.loads(Path(closure_path).read_text())
     expected = dict(format='homecloud-skopeo-apt-closure-v1',
                     source_commit=subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
                     run_id=os.environ.get('GITHUB_RUN_ID'), attempt=os.environ.get('GITHUB_RUN_ATTEMPT'),
                     image_os=os.environ.get('ImageOS'), image_version=os.environ.get('ImageVersion'))
     if any(evidence.get(key) != value or not value for key, value in expected.items()):
-        raise ValueError('skopeo closure is not bound to this release source/run/runner')
+        raise ValueError('skopeo closure is not bound to this source/run/runner')
     return hashlib.sha256(Path(closure_path).read_bytes()).hexdigest()
 
 
-def validate_release_closure_artifacts(evidence, output):
+def validate_skopeo_closure_artifacts(evidence, output):
     closure_path = Path(output) / 'skopeo-closure.json'
     summary_path = Path(output) / 'skopeo-closure-summary.json'
     rootfs_path = Path(output) / 'rootfs.json'
@@ -228,9 +229,12 @@ def validate_release_closure_artifacts(evidence, output):
     summary = json.loads(summary_path.read_text())
     closure_hash = hashlib.sha256(closure_path.read_bytes()).hexdigest()
     tools = evidence.get('executed_tools', [])
-    if ({tool.get('id') for tool in tools if isinstance(tool, dict)} != {'docker', 'gh', 'skopeo', 'trivy'}
-            or len(tools) != 4):
-        raise ValueError('Release environment evidence has an incomplete executed tool set')
+    environment_id = evidence.get('environment_id')
+    expected_tools = {'docker', 'gh', 'skopeo', 'trivy'} if environment_id == 'release-images' else {'skopeo', 'trivy'}
+    if (environment_id not in ('release-images', 'skopeo-qualification')
+            or {tool.get('id') for tool in tools if isinstance(tool, dict)} != expected_tools
+            or len(tools) != len(expected_tools)):
+        raise ValueError('Skopeo environment evidence has an incomplete executed tool set')
     skopeo_tool = next((tool for tool in tools if tool.get('id') == 'skopeo'), None)
     if (closure_hash != evidence.get('skopeo_closure_sha256')
             or summary.get('gate') != 'PASS'
@@ -295,7 +299,7 @@ def capture(environment_id, component, workspace, output, skip_dirs, scanner, re
     registrations = json.loads(Path(registry).read_text()) if registry else []
     if not isinstance(registrations, list):
         raise ValueError('Executed tool registry must be a list')
-    closure_sha256 = validate_release_tool_contract(environment_id, registrations, closure_path)
+    closure_sha256 = validate_skopeo_tool_contract(environment_id, registrations, closure_path)
     if closure_sha256:
         evidence['skopeo_closure_sha256'] = closure_sha256
     registrations.append(dict(id='trivy', path=scanner))
@@ -416,8 +420,8 @@ def main():
             tool['postscan_staged_sha256'] = staged_digest
         validate(evidence, reports, db, datetime.now(timezone.utc), java_db)
         evidence['report_sha256'] = {k: hashlib.sha256((output / f'{k}.json').read_bytes()).hexdigest() for k in reports}
-        if evidence.get('environment_id') == 'release-images':
-            summary = validate_release_closure_artifacts(evidence, output)
+        if evidence.get('environment_id') in ('release-images', 'skopeo-qualification'):
+            summary = validate_skopeo_closure_artifacts(evidence, output)
             evidence['skopeo_closure'] = summary
             evidence['report_sha256']['skopeo-closure'] = summary['closure_report_sha256']
             evidence['report_sha256']['skopeo-closure-summary'] = summary['closure_summary_sha256']

@@ -18,12 +18,12 @@ script_dir=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
 cache_dir="$(dirname "$scanner")/cache"
 mkdir -p "$output"
 output=$(realpath "$output")
-if [ "$environment_id" = release-images ]; then
-  [ -n "$apt_closure" ] && [ -f "$apt_closure" ] || { echo 'Release scan requires skopeo apt closure evidence' >&2; exit 1; }
+if [ "$environment_id" = release-images ] || [ "$environment_id" = skopeo-qualification ]; then
+  [ -n "$apt_closure" ] && [ -f "$apt_closure" ] || { echo 'Skopeo scan requires apt closure evidence' >&2; exit 1; }
   apt_closure=$(realpath "$apt_closure")
   [ "$apt_closure" = "$output/skopeo-closure.json" ] || cp "$apt_closure" "$output/skopeo-closure.json"
 elif [ -n "$apt_closure" ]; then
-  echo 'Apt closure evidence is only accepted for release-images' >&2; exit 1
+  echo 'Apt closure evidence is only accepted for skopeo environments' >&2; exit 1
 fi
 # The checkout is excluded BEFORE traversal. Its only scanned portion is an
 # explicitly selected application directory. No audit/document subtree is read.
@@ -34,14 +34,14 @@ for excluded in "${GITHUB_WORKSPACE:-$workspace}" "${RUNNER_TEMP:-/tmp}"; do
   skip_dirs="$skip_dirs,$excluded,$(realpath "$excluded")"
 done
 closure_path=
-if [ "$environment_id" = release-images ]; then closure_path="$output/skopeo-closure.json"; fi
+if [ "$environment_id" = release-images ] || [ "$environment_id" = skopeo-qualification ]; then closure_path="$output/skopeo-closure.json"; fi
 python3 "$script_dir/environment-evidence.py" capture "$environment_id" "$component" "$workspace" "$output" "$skip_dirs" "$scanner" "$registry" "$closure_path"
 status=0
 "$scanner" --cache-dir "$cache_dir" rootfs --config /dev/null \
   --skip-dirs "$skip_dirs" --scanners vuln --ignore-unfixed=false --ignorefile /dev/null \
   --list-all-pkgs --parallel 0 --timeout 60m --no-progress --format json \
   --output "$output/rootfs.json" / > "$output/rootfs.log" 2>&1 || status=1
-if [ "$environment_id" = release-images ]; then
+if [ "$environment_id" = release-images ] || [ "$environment_id" = skopeo-qualification ]; then
   source_commit=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["source_commit"])' "$output/environment.json")
   python3 "$script_dir/skopeo-closure.py" evaluate --evidence "$output/skopeo-closure.json" \
     --rootfs "$output/rootfs.json" --source "$source_commit" --run-id "${GITHUB_RUN_ID:-}" \

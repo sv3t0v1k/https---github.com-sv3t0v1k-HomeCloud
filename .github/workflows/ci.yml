@@ -623,6 +623,69 @@ jobs:
           path: environment-support-${{ matrix.role }}
           if-no-files-found: error
           retention-days: 14
+  skopeo-qualification:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    permissions:
+      contents: read
+    steps:
+      - name: Prepare evidence directory
+        run: |
+          mkdir -p "$RUNNER_TEMP/skopeo-qualification"
+          python3 -c 'import json,os,sys; json.dump({"format":"homecloud-skopeo-qualification-start-v1","status":"IN_PROGRESS","run_id":os.environ["GITHUB_RUN_ID"],"run_attempt":os.environ["GITHUB_RUN_ATTEMPT"],"sha":os.environ["GITHUB_SHA"],"job":os.environ["GITHUB_JOB"],"runner_environment":os.environ.get("RUNNER_ENVIRONMENT","")},open(sys.argv[1],"w"),sort_keys=True)' "$RUNNER_TEMP/skopeo-qualification/job-start.json"
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Remove unused hosted .NET SDK before workload; retain evidence
+        run: python3 scripts/ci/minimize-runner.py
+      - name: Retain runner minimization evidence
+        if: always()
+        run: |
+          source="$RUNNER_TEMP/homecloud-runner-minimization.json"
+          if [ -f "$source" ]; then cp "$source" "$RUNNER_TEMP/skopeo-qualification/runner-minimization.json"; fi
+      - name: Record apt baseline before installing skopeo
+        run: python3 scripts/ci/skopeo-closure.py baseline --source "$(git rev-parse HEAD)" --output "$RUNNER_TEMP/skopeo-qualification/skopeo-baseline.json"
+      - name: Update authenticated apt indexes and retain exact result
+        shell: bash
+        run: |
+          set +e
+          sudo apt-get update --error-on=any 2>&1 | tee "$RUNNER_TEMP/skopeo-qualification/apt-update.log"
+          result=${PIPESTATUS[0]}
+          set -e
+          python3 -c 'import hashlib,json,sys; p=sys.argv[1]; json.dump({"command":["apt-get","update","--error-on=any"],"exit_code":int(sys.argv[3]),"log_path":p,"log_sha256":hashlib.sha256(open(p,"rb").read()).hexdigest()},open(sys.argv[2],"w"),sort_keys=True)' \
+            "$RUNNER_TEMP/skopeo-qualification/apt-update.log" "$RUNNER_TEMP/skopeo-qualification/apt-update.json" "$result"
+          test "$result" -eq 0
+      - name: Download and install the actual apt skopeo package
+        shell: bash
+        run: |
+          set -o pipefail
+          sudo apt-get install --download-only --no-install-recommends -y skopeo 2>&1 | tee "$RUNNER_TEMP/skopeo-qualification/apt-download.log"
+          sudo apt-get install --no-install-recommends -y skopeo 2>&1 | tee "$RUNNER_TEMP/skopeo-qualification/apt-install.log"
+      - name: Capture installed package and ELF dependency closure
+        run: python3 scripts/ci/skopeo-closure.py capture --baseline "$RUNNER_TEMP/skopeo-qualification/skopeo-baseline.json" --output "$RUNNER_TEMP/skopeo-qualification/skopeo-closure.json" --binary "$(command -v skopeo)" --apt-update-status "$RUNNER_TEMP/skopeo-qualification/apt-update.json"
+      - name: Install checksum-pinned scanner and register only skopeo
+        run: |
+          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/skopeo-trivy"
+          python3 -c 'import json,shutil,sys; p=shutil.which("skopeo"); assert p; json.dump([{"id":"skopeo","path":p}],open(sys.argv[1],"w"))' "$RUNNER_TEMP/skopeo-qualification/skopeo-tools.json"
+      - id: skopeo-scan
+        name: Scan actual runner environment and enforce strict closure gate
+        run: sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/skopeo-trivy/trivy" skopeo-qualification none "$RUNNER_TEMP/skopeo-qualification" "$RUNNER_TEMP/skopeo-qualification/skopeo-tools.json" "$RUNNER_TEMP/skopeo-qualification/skopeo-closure.json"
+      - name: Retain final qualification result
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          SCAN_OUTCOME: ${{ steps.skopeo-scan.outcome }}
+        run: |
+          python3 -c 'import json,os,sys; job=os.environ.get("JOB_STATUS", "unknown"); scan=os.environ.get("SCAN_OUTCOME", "not_run"); status="PASS" if job == "success" and scan == "success" else "BLOCKED"; json.dump({"format":"homecloud-skopeo-qualification-result-v1","status":status,"job_status":job,"scan_outcome":scan},open(sys.argv[1],"w"),sort_keys=True)' \
+            "$RUNNER_TEMP/skopeo-qualification/qualification-result.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: environment-skopeo-qualification-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/skopeo-qualification
+          if-no-files-found: error
+          retention-days: 14
   policy-coverage:
     if: always()
     needs: [backend, frontend, configuration, image-build, provenance-pair, base-image-scan, security, secrets, support-images]
@@ -648,7 +711,7 @@ jobs:
           retention-days: 14
   gate:
     if: always()
-    needs: [backend, frontend, configuration, image-build, provenance-pair, base-image-scan, security, secrets, support-images, policy-coverage]
+    needs: [backend, frontend, configuration, image-build, provenance-pair, base-image-scan, security, secrets, support-images, policy-coverage, skopeo-qualification]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:

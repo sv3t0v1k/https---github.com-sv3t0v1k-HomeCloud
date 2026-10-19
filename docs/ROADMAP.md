@@ -1511,3 +1511,23 @@ tests и независимый review подтверждают только м�
 `libexpat` High, esbuild 1C/24H без byte-verified npm binary и runtime/recovery квалификация
 D5.1.13. Security gates и CVE exception policy не ослаблялись. PR№1 draft;
 push/CI/release/deployment не запускались; D5.2 NOT_STARTED.
+
+### D5.1 — runner evidence binding и PR qualification `skopeo` (2026-10-19)
+
+Локально исправлена проверка контекста minimization/environment evidence: сравниваются
+все обязательные GitHub identity поля (`run_id`, `run_attempt`, `sha`, `job`,
+`runner_environment`); отсутствующее/пустое или несовпадающее поле блокирует, дополнительные
+поля разрешены. Добавлены регрессионные тесты для частичного, изменённого и расширенного
+контекста.
+
+В PR CI подготовлен отдельный `skopeo-qualification` job с `contents: read`, без секретов,
+`packages: write` и GHCR login. Он получает apt-installed executable, полный пакетный и ELF
+dependency closure, привязывает их к apt update evidence, Ubuntu runner image/source/run и
+полному rootfs scan; итоговый closure gate остаётся строгим, а артефакты загружаются при
+ошибке; отдельный итоговый artifact сообщает PASS лишь при успешном job status и scan. Job включён в обязательные `gate` needs. Он не заменяет release-time closure,
+production qualification, policy coverage или image scans и добавляет один hosted job с
+полным rootfs scan на каждый CI run. Локально прошли runner minimization (12), environment
+evidence (27), skopeo closure (27), scan policy (8), Python/shell/YAML syntax и `git diff --check`;
+два независимых security review дали APPROVE без блокирующих замечаний. GitHub Actions не запускался.
+Остальные image blockers
+не менялись, PR№1 draft, Production **NO_GO**, D5.1 не завершён.
