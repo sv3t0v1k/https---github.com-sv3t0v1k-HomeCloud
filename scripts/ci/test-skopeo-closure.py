@@ -14,6 +14,12 @@ spec.loader.exec_module(closure)
 
 
 class SkopeoClosureTests(unittest.TestCase):
+    @staticmethod
+    def compare_versions(actual, operator, expected):
+        left, right = tuple(map(int, actual.split('.'))), tuple(map(int, expected.split('.')))
+        return {'=': left == right, '>=': left >= right, '<=': left <= right,
+                '>': left > right, '<': left < right, '>>': left > right, '<<': left < right}[operator]
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -37,9 +43,9 @@ class SkopeoClosureTests(unittest.TestCase):
         apt_config = 'APT::Get::AllowUnauthenticated "false";\n'
         update_log = self.root / 'apt-update.log'
         update_log.write_text('apt-get update succeeded\n')
-        self.baseline = 'libc6:amd64\t2.39\tamd64\tinstalled\t\t\n'
-        self.installed = ('libc6:amd64\t2.39\tamd64\tinstalled\t\t\n'
-                          'skopeo:amd64\t1.16.1\tamd64\tinstalled\t\tlibc6 (>= 2.34)\n')
+        self.baseline = 'libc6:amd64\t2.39\tamd64\tinstalled\t\t\t\tno\n'
+        self.installed = ('libc6:amd64\t2.39\tamd64\tinstalled\t\t\t\tno\n'
+                          'skopeo:amd64\t1.16.1\tamd64\tinstalled\t\tlibc6 (>= 2.34)\t\tno\n')
         self.lib = self.root / 'usr/lib/x86_64-linux-gnu/libc.so.6'
         self.lib.parent.mkdir(parents=True)
         self.lib.write_bytes(b'fixture libc')
@@ -49,7 +55,7 @@ class SkopeoClosureTests(unittest.TestCase):
         self.deb = self.root / 'var/cache/apt/archives/skopeo_1.16.1_amd64.deb'
         self.deb.write_bytes(b'fixture apt archive')
         self.evidence = dict(
-            format=closure.FORMAT, source_commit='a' * 40, run_id='123', attempt='1',
+            format=closure.FORMAT, source_commit='a' * 40, run_id='123', attempt='1', native_arch='amd64',
             image_os='ubuntu24', image_version='20261018.1.0',
             baseline_packages=self.baseline,
             baseline_sha256=hashlib.sha256(self.baseline.encode()).hexdigest(),
@@ -61,10 +67,10 @@ class SkopeoClosureTests(unittest.TestCase):
             apt_update=dict(command=['apt-get', 'update', '--error-on=any'], exit_code=0,
                             log_path='apt-update.log', log_sha256=closure.sha256(update_log)),
             packages=[
-                dict(package=dict(name='libc6', package='libc6:amd64', version='2.39', arch='amd64', pre_depends='', depends=''),
+                dict(package=dict(name='libc6', package='libc6:amd64', version='2.39', arch='amd64', pre_depends='', depends='', provides=[], multi_arch='no'),
                      files=[dict(path=str(self.lib), kind='file', sha256=closure.sha256(self.lib))],
                      origin=dict(kind='github-hosted-image', image_os='ubuntu24', image_version='20261018.1.0')),
-                dict(package=dict(name='skopeo', package='skopeo:amd64', version='1.16.1', arch='amd64', pre_depends='', depends='libc6 (>= 2.34)'),
+                dict(package=dict(name='skopeo', package='skopeo:amd64', version='1.16.1', arch='amd64', pre_depends='', depends='libc6 (>= 2.34)', provides=[], multi_arch='no'),
                      files=[dict(path=str(self.binary), kind='file', sha256=closure.sha256(self.binary))],
                      origin=dict(kind='signed-apt-index', source='skopeo', filename='pool/main/s/skopeo/skopeo_1.16.1_amd64.deb',
                                  archive_sha256=closure.sha256(self.deb), repository_origins=['500 https://archive.ubuntu.com/ubuntu noble/main amd64 Packages'],
@@ -79,7 +85,7 @@ class SkopeoClosureTests(unittest.TestCase):
                                          Vulnerabilities=[dict(VulnerabilityID='CVE-PLATFORM', PkgName='bash', InstalledVersion='5.2', Severity='HIGH')])])
 
     def check(self):
-        live = dict(installed_packages=self.installed,
+        live = dict(installed_packages=self.installed, native_arch='amd64',
                     files={('libc6', 'amd64'): self.evidence['packages'][0]['files'],
                            ('skopeo', 'amd64'): self.evidence['packages'][1]['files']},
                     skopeo_sha256=self.evidence['skopeo']['sha256'], ldd=self.evidence['skopeo']['ldd'])
@@ -92,16 +98,97 @@ class SkopeoClosureTests(unittest.TestCase):
         self.assertEqual(result['gate'], 'PASS')
         self.assertEqual(result['packages'], 2)
 
+    def test_v1_evidence_is_rejected_after_closure_format_upgrade(self):
+        self.evidence['format'] = 'homecloud-skopeo-apt-closure-v1'
+        with self.assertRaisesRegex(ValueError, 'Missing or unsupported skopeo closure evidence'):
+            self.check()
+
+    def test_v1_baseline_is_rejected_explicitly(self):
+        path = self.root / 'old-baseline.json'
+        path.write_text(json.dumps(dict(format='homecloud-skopeo-apt-closure-v1')))
+        with self.assertRaisesRegex(ValueError, 'Missing or unsupported skopeo baseline evidence format'):
+            closure.capture(str(path), str(self.root / 'out.json'), str(self.binary), '0')
+
     def test_unknown_package_dependency_blocks(self):
         packages = closure.inventory(self.installed)
         packages[('skopeo', 'amd64')]['depends'] = 'libunknown (>= 1)'
-        with self.assertRaisesRegex(ValueError, 'Unresolved installed dependency'):
+        with self.assertRaisesRegex(ValueError, r'Unresolved installed dependency.*field=depends relation=libunknown \(>= 1\)'):
             closure.dependency_closure(packages, 'skopeo', compare=lambda *_: True)
 
     def test_all_elf_owner_roots_are_included(self):
-        packages = closure.inventory('skopeo\t1\tamd64\tinstalled\t\t\nlibelf\t1\tamd64\tinstalled\t\t\n')
+        packages = closure.inventory('skopeo\t1\tamd64\tinstalled\t\t\t\tno\nlibelf\t1\tamd64\tinstalled\t\t\t\tno\n')
         self.assertEqual(closure.dependency_closure(packages, ['skopeo', 'libelf']),
                          {('skopeo', 'amd64'), ('libelf', 'amd64')})
+
+    def test_ubuntu_container_network_stack_virtual_dependency_resolves_via_provides(self):
+        packages = closure.inventory(
+            'golang-github-containers-common\t0.57.4+ds1-2ubuntu0.2\tall\tinstalled\t'
+            '\tcontainer-network-stack, golang-github-containers-image\t\tno\n'
+            'containernetworking-plugins:amd64\t1.1.1+ds1-3ubuntu0.24.04.3\tamd64\tinstalled\t'
+            '\t\tcontainer-network-stack (= 1)\tno\n'
+            'golang-github-containers-image\t5.29.2\tall\tinstalled\t\t\t\tno\n')
+        self.assertEqual(
+            closure.dependency_closure(packages, 'golang-github-containers-common'),
+            {('golang-github-containers-common', 'all'),
+             ('containernetworking-plugins', 'amd64'),
+             ('golang-github-containers-image', 'all')})
+
+    def test_versioned_virtual_provides_must_satisfy_requested_version(self):
+        packages = closure.inventory(
+            'consumer\t1\tamd64\tinstalled\t\tvirtual-network (>= 2)\t\tno\n'
+            'provider:amd64\t1\tamd64\tinstalled\t\t\tvirtual-network (= 2)\tno\n')
+        self.assertEqual(closure.dependency_closure(packages, 'consumer', compare=self.compare_versions),
+                         {('consumer', 'amd64'), ('provider', 'amd64')})
+        packages[('consumer', 'amd64')]['depends'] = 'virtual-network (>= 3)'
+        with self.assertRaisesRegex(ValueError, 'Unresolved installed dependency'):
+            closure.dependency_closure(packages, 'consumer', compare=self.compare_versions)
+
+    def test_unversioned_provide_cannot_satisfy_versioned_dependency(self):
+        packages = closure.inventory(
+            'consumer\t1\tamd64\tinstalled\t\tvirtual-network (>= 1)\t\tno\n'
+            'provider:amd64\t1\tamd64\tinstalled\t\t\tvirtual-network\tno\n')
+        with self.assertRaisesRegex(ValueError, 'Unresolved installed dependency'):
+            closure.dependency_closure(packages, 'consumer', compare=self.compare_versions)
+
+    def test_native_and_any_qualifiers_enforce_architecture_metadata(self):
+        packages = closure.inventory(
+            'consumer\t1\tamd64\tinstalled\t\tlibnative:native, liballowed:any\t\tno\n'
+            'libnative:arm64\t1\tarm64\tinstalled\t\t\t\tforeign\n'
+            'liballowed:arm64\t1\tarm64\tinstalled\t\t\t\tno\n')
+        with self.assertRaisesRegex(ValueError, 'field=depends relation=libnative:native'):
+            closure.dependency_closure(packages, 'consumer', native_arch='amd64')
+        packages[('libnative', 'arm64')]['multi_arch'] = 'allowed'
+        with self.assertRaisesRegex(ValueError, 'field=depends relation=libnative:native'):
+            closure.dependency_closure(packages, 'consumer', native_arch='amd64')
+        packages[('consumer', 'amd64')]['depends'] = 'liballowed:any'
+        with self.assertRaisesRegex(ValueError, 'field=depends relation=liballowed:any'):
+            closure.dependency_closure(packages, 'consumer', native_arch='amd64')
+        packages[('liballowed', 'arm64')]['multi_arch'] = 'allowed'
+        self.assertIn(('liballowed', 'arm64'), closure.dependency_closure(
+            packages, 'consumer', native_arch='amd64'))
+
+    def test_architecture_all_is_native_arch_not_a_wildcard(self):
+        packages = closure.inventory(
+            'consumer:arm64\t1\tarm64\tinstalled\t\tvirtual-lib, virtual-lib:arm64, virtual-lib:native\t\tno\n'
+            'virtual-lib\t1\tall\tinstalled\t\t\t\tno\n')
+        with self.assertRaisesRegex(ValueError, 'field=depends relation=virtual-lib'):
+            closure.dependency_closure(packages, 'consumer', native_arch='amd64')
+        packages[('consumer', 'arm64')]['depends'] = 'virtual-lib:arm64'
+        with self.assertRaisesRegex(ValueError, 'relation=virtual-lib:arm64'):
+            closure.dependency_closure(packages, 'consumer', native_arch='amd64')
+        packages[('consumer', 'arm64')]['depends'] = 'virtual-lib:native'
+        self.assertEqual(closure.dependency_closure(packages, 'consumer', native_arch='amd64'),
+                         {('consumer', 'arm64'), ('virtual-lib', 'all')})
+
+    def test_unqualified_cross_arch_requires_multi_arch_foreign(self):
+        packages = closure.inventory(
+            'consumer:arm64\t1\tarm64\tinstalled\t\tlibcommon\t\tno\n'
+            'libcommon:amd64\t1\tamd64\tinstalled\t\t\t\tsame\n')
+        with self.assertRaisesRegex(ValueError, 'Unresolved installed dependency'):
+            closure.dependency_closure(packages, 'consumer', native_arch='amd64')
+        packages[('libcommon', 'amd64')]['multi_arch'] = 'foreign'
+        self.assertIn(('libcommon', 'amd64'), closure.dependency_closure(
+            packages, 'consumer', native_arch='amd64'))
 
     def test_unsupported_dependency_grammar_blocks(self):
         with self.assertRaisesRegex(ValueError, 'Unsupported Debian dependency expression'):

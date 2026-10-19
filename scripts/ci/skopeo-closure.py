@@ -9,8 +9,8 @@ import re
 import subprocess
 import sys
 
-FORMAT = 'homecloud-skopeo-apt-closure-v1'
-DPKG_FORMAT = '${Package}\t${Version}\t${Architecture}\t${db:Status-Status}\t${Pre-Depends}\t${Depends}\n'
+FORMAT = 'homecloud-skopeo-apt-closure-v2'
+DPKG_FORMAT = '${Package}\t${Version}\t${Architecture}\t${db:Status-Status}\t${Pre-Depends}\t${Depends}\t${Provides}\t${Multi-Arch}\n'
 
 
 def run(argv, check=True):
@@ -104,26 +104,39 @@ def sha256(path):
 def inventory(text):
     result = {}
     for line in text.splitlines():
-        fields = line.split('\t', 5)
-        if len(fields) != 6:
+        fields = line.split('\t', 7)
+        if len(fields) != 8:
             raise ValueError('Malformed dpkg package inventory')
-        package, version, arch, status, pre_depends, depends = fields
+        package, version, arch, status, pre_depends, depends, provides, multi_arch = fields
         if status != 'installed':
             continue
         base = package.rsplit(':', 1)[0] if ':' in package else package
         if not base or not version or not arch:
             raise ValueError('Incomplete installed package record')
+        multi_arch = multi_arch or 'no'
+        if multi_arch not in ('no', 'same', 'foreign', 'allowed'):
+            raise ValueError('Unsupported Multi-Arch value for ' + base)
+        parsed_provides = []
+        for item in filter(None, (part.strip() for part in provides.split(','))):
+            match = RELATION.fullmatch(item)
+            if not match:
+                raise ValueError('Unsupported Debian Provides expression: ' + item)
+            name, qualifier, operator, provided_version = match.groups()
+            if qualifier or (operator and operator != '='):
+                raise ValueError('Unsupported Debian Provides expression: ' + item)
+            parsed_provides.append((name, provided_version))
         key = (base, arch)
         if key in result:
             raise ValueError('Duplicate installed package identity')
         result[key] = dict(name=base, package=package, version=version, arch=arch,
-                           pre_depends=pre_depends, depends=depends)
+                           pre_depends=pre_depends, depends=depends,
+                           provides=parsed_provides, multi_arch=multi_arch)
     if not result:
         raise ValueError('Empty installed package inventory')
     return result
 
 
-RELATION = re.compile(r'^\s*([a-zA-Z0-9][a-zA-Z0-9+.:~-]*)(?::([a-zA-Z0-9_-]+))?(?:\s*\(\s*(<<|<=|=|>=|>>|<|>)\s*([^()\s]+)\s*\))?\s*$')
+RELATION = re.compile(r'^\s*([a-zA-Z0-9][a-zA-Z0-9+.-]*)(?::([a-zA-Z0-9_-]+))?(?:\s*\(\s*(<<|<=|=|>=|>>|<|>)\s*([^()\s]+)\s*\))?\s*$')
 
 
 def version_satisfies(actual, operator, expected):
@@ -150,7 +163,9 @@ def relation_groups(value):
     return groups
 
 
-def dependency_closure(packages, root, compare=version_satisfies):
+def dependency_closure(packages, root, compare=version_satisfies, native_arch='amd64'):
+    if not isinstance(native_arch, str) or not re.fullmatch(r'[a-z0-9][a-z0-9-]*', native_arch):
+        raise ValueError('Missing or invalid native Debian architecture')
     names = [root] if isinstance(root, str) else list(root)
     roots = []
     for name in names:
@@ -172,14 +187,31 @@ def dependency_closure(packages, root, compare=version_satisfies):
                 matches = []
                 for name, qualifier, operator, required in alternatives:
                     for candidate_key, candidate in packages.items():
-                        if candidate['name'] != name:
+                        provided_versions = [version for provided_name, version in candidate['provides']
+                                             if provided_name == name]
+                        direct = candidate['name'] == name
+                        if not direct and not provided_versions:
                             continue
-                        if qualifier and qualifier not in ('any', 'native', candidate['arch']):
+                        candidate_arch = native_arch if candidate['arch'] == 'all' else candidate['arch']
+                        if qualifier == 'native' and candidate_arch != native_arch:
                             continue
-                        if compare(candidate['version'], operator, required):
+                        if qualifier == 'any' and candidate['multi_arch'] != 'allowed':
+                            continue
+                        if qualifier and qualifier not in ('any', 'native') and candidate_arch != qualifier:
+                            continue
+                        depender_arch = native_arch if package['arch'] == 'all' else package['arch']
+                        if not qualifier and candidate_arch != depender_arch and candidate['multi_arch'] != 'foreign':
+                            continue
+                        versions = [candidate['version']] if direct else provided_versions
+                        if any(not operator or (version is not None and compare(version, operator, required))
+                               for version in versions):
                             matches.append(candidate_key)
                 if not matches:
-                    raise ValueError('Unresolved installed dependency of ' + package['name'])
+                    rendered = ' | '.join(name + ((':'+qualifier) if qualifier else '')
+                                          + ((' ('+operator+' '+required+')') if operator else '')
+                                          for name, qualifier, operator, required in alternatives)
+                    raise ValueError('Unresolved installed dependency of ' + package['name']
+                                     + ' field=' + field + ' relation=' + rendered)
                 # Include all installed satisfiers; never choose an unverified alternative.
                 pending.extend(matches)
     return included
@@ -448,10 +480,12 @@ def elf_owners(binary):
 
 def baseline(path, source_commit):
     packages = run(['dpkg-query', '-W', '-f=' + DPKG_FORMAT]).stdout
+    native_arch = run(['dpkg', '--print-architecture']).stdout.strip()
     evidence = dict(format=FORMAT, source_commit=source_commit,
                     run_id=os.environ.get('GITHUB_RUN_ID', ''), attempt=os.environ.get('GITHUB_RUN_ATTEMPT', ''),
                     image_os=os.environ.get('ImageOS', ''), image_version=os.environ.get('ImageVersion', ''),
-                    packages=packages, packages_sha256=hashlib.sha256(packages.encode()).hexdigest())
+                    native_arch=native_arch, packages=packages,
+                    packages_sha256=hashlib.sha256(packages.encode()).hexdigest())
     if not re.fullmatch(r'[a-f0-9]{40}', evidence['source_commit']) or not evidence['run_id'].isdigit() or not evidence['attempt'].isdigit():
         raise ValueError('Missing GitHub source/run identity for apt baseline')
     Path(path).write_text(json.dumps(evidence, sort_keys=True, indent=2) + '\n')
@@ -459,14 +493,19 @@ def baseline(path, source_commit):
 
 def capture(baseline_path, output, binary, update_status):
     before = json.loads(Path(baseline_path).read_text())
+    if not isinstance(before, dict) or before.get('format') != FORMAT:
+        raise ValueError('Missing or unsupported skopeo baseline evidence format')
     packages_text = run(['dpkg-query', '-W', '-f=' + DPKG_FORMAT]).stdout
+    native_arch = run(['dpkg', '--print-architecture']).stdout.strip()
+    if before.get('native_arch') != native_arch:
+        raise ValueError('Native Debian architecture changed after apt baseline')
     packages, before_packages = inventory(packages_text), inventory(before.get('packages', ''))
     executable = Path(binary).resolve(strict=True)
     if executable.name != 'skopeo' or not executable.is_file():
         raise ValueError('Expected the actual skopeo executable')
     ldd = elf_owners(executable)
     owner_names = sorted({owner.split(':', 1)[0] for library in ldd for owner in library['owners']})
-    closure_keys = dependency_closure(packages, ['skopeo', *owner_names])
+    closure_keys = dependency_closure(packages, ['skopeo', *owner_names], native_arch=native_arch)
     closure = []
     for key in sorted(closure_keys):
         package = packages[key]
@@ -493,6 +532,7 @@ def capture(baseline_path, output, binary, update_status):
         raise ValueError('skopeo executable is not owned by the qualified package')
     result = dict(format=FORMAT, source_commit=before['source_commit'], run_id=before['run_id'], attempt=before['attempt'],
                   image_os=before['image_os'], image_version=before['image_version'], baseline_sha256=before['packages_sha256'],
+                  native_arch=native_arch,
                   baseline_packages=before['packages'], installed_packages=packages_text,
                   installed_inventory_sha256=hashlib.sha256(packages_text.encode()).hexdigest(),
                   apt_metadata=apt_files(Path('/')), apt_update=apt_update_result(update_status), packages=closure,
@@ -515,10 +555,15 @@ def validate_evidence(evidence, rootfs_report, source_commit, run_id, attempt, i
     if hashlib.sha256(installed_packages.encode()).hexdigest() != evidence['installed_inventory_sha256']:
         raise ValueError('Installed package inventory hash mismatch')
     parsed_installed = inventory(installed_packages)
+    native_arch = evidence.get('native_arch')
+    if not isinstance(native_arch, str) or not re.fullmatch(r'[a-z0-9][a-z0-9-]*', native_arch):
+        raise ValueError('Missing native Debian architecture evidence')
     ldd_records = evidence.get('skopeo', {}).get('ldd', [])
     ldd_owner_names = sorted({owner.split(':', 1)[0] for item in ldd_records for owner in item.get('owners', [])})
-    expected_closure = dependency_closure(parsed_installed, ['skopeo', *ldd_owner_names], compare=compare)
-    if not isinstance(live_state, dict) or live_state.get('installed_packages') != installed_packages:
+    expected_closure = dependency_closure(parsed_installed, ['skopeo', *ldd_owner_names], compare=compare,
+                                          native_arch=native_arch)
+    if (not isinstance(live_state, dict) or live_state.get('installed_packages') != installed_packages
+            or live_state.get('native_arch') != native_arch):
         raise ValueError('Installed package inventory changed after skopeo closure capture')
     metadata = evidence.get('apt_metadata')
     if (not isinstance(metadata, dict)
@@ -683,14 +728,18 @@ def validate_evidence(evidence, rootfs_report, source_commit, run_id, attempt, i
 
 def current_state(evidence):
     packages_text = run(['dpkg-query', '-W', '-f=' + DPKG_FORMAT]).stdout
+    native_arch = run(['dpkg', '--print-architecture']).stdout.strip()
+    if evidence.get('native_arch') != native_arch:
+        raise ValueError('Native Debian architecture changed after skopeo capture')
     packages = inventory(packages_text)
     binary = evidence.get('skopeo', {}).get('path', '')
     if not binary or not Path(binary).is_file():
         raise ValueError('Missing actual skopeo executable for post-scan check')
     ldd = elf_owners(Path(evidence.get('skopeo', {}).get('path', '')))
     owner_names = sorted({owner.split(':', 1)[0] for item in ldd for owner in item['owners']})
-    files = {key: package_files(packages[key]) for key in dependency_closure(packages, ['skopeo', *owner_names])}
-    return dict(installed_packages=packages_text, files=files,
+    files = {key: package_files(packages[key]) for key in dependency_closure(
+        packages, ['skopeo', *owner_names], native_arch=native_arch)}
+    return dict(installed_packages=packages_text, native_arch=native_arch, files=files,
                 skopeo_sha256=sha256(binary), ldd=ldd)
 
 

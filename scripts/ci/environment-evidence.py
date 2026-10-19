@@ -210,7 +210,7 @@ def validate_skopeo_tool_contract(environment_id, registrations, closure_path):
     if not closure_path or not Path(closure_path).is_file():
         raise ValueError('Skopeo environment requires complete apt closure evidence')
     evidence = json.loads(Path(closure_path).read_text())
-    expected = dict(format='homecloud-skopeo-apt-closure-v1',
+    expected = dict(format='homecloud-skopeo-apt-closure-v2',
                     source_commit=subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
                     run_id=os.environ.get('GITHUB_RUN_ID'), attempt=os.environ.get('GITHUB_RUN_ATTEMPT'),
                     image_os=os.environ.get('ImageOS'), image_version=os.environ.get('ImageVersion'))
@@ -226,6 +226,8 @@ def validate_skopeo_closure_artifacts(evidence, output):
     if not closure_path.is_file() or not summary_path.is_file() or not rootfs_path.is_file():
         raise ValueError('Missing strict skopeo dependency closure result')
     closure = json.loads(closure_path.read_text())
+    if not isinstance(closure, dict) or closure.get('format') != 'homecloud-skopeo-apt-closure-v2':
+        raise ValueError('Missing or unsupported skopeo closure artifact format')
     summary = json.loads(summary_path.read_text())
     closure_hash = hashlib.sha256(closure_path.read_bytes()).hexdigest()
     tools = evidence.get('executed_tools', [])

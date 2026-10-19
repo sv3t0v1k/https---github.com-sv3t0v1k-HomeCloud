@@ -115,7 +115,7 @@ class EvidenceTests(unittest.TestCase):
     def test_release_tool_contract_requires_exact_registry_and_bound_closure(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'skopeo-closure.json'
-            closure = dict(format='homecloud-skopeo-apt-closure-v1', source_commit='a' * 40,
+            closure = dict(format='homecloud-skopeo-apt-closure-v2', source_commit='a' * 40,
                            run_id='123', attempt='1', image_os='ubuntu24', image_version='20261018.1.0')
             path.write_text(json.dumps(closure))
             with patch.dict('os.environ', dict(GITHUB_RUN_ID='123', GITHUB_RUN_ATTEMPT='1',
@@ -148,7 +148,7 @@ class EvidenceTests(unittest.TestCase):
             closure = root / 'skopeo-closure.json'
             summary = root / 'skopeo-closure-summary.json'
             rootfs = root / 'rootfs.json'
-            closure_data = dict(source_commit='a'*40, run_id='123', attempt='1',
+            closure_data = dict(format='homecloud-skopeo-apt-closure-v2', source_commit='a'*40, run_id='123', attempt='1',
                                 skopeo=dict(sha256='b'*64, path='/usr/bin/skopeo'))
             closure.write_text(json.dumps(closure_data))
             rootfs.write_text('{"Results":[]}')
@@ -162,6 +162,17 @@ class EvidenceTests(unittest.TestCase):
                                                  real_path='/usr/bin/skopeo' if name == 'skopeo' else '/usr/bin/'+name)
                                             for name in ('docker', 'gh', 'skopeo', 'trivy')])
             self.assertEqual(module.validate_skopeo_closure_artifacts(evidence, root)['gate'], 'PASS')
+            for invalid in ('missing', 'homecloud-skopeo-apt-closure-v1', 'homecloud-skopeo-apt-closure-v3'):
+                invalid_data = dict(closure_data)
+                if invalid == 'missing':
+                    invalid_data.pop('format')
+                else:
+                    invalid_data['format'] = invalid
+                closure.write_text(json.dumps(invalid_data))
+                with self.subTest(format=invalid), self.assertRaisesRegex(
+                        ValueError, 'Missing or unsupported skopeo closure artifact format'):
+                    module.validate_skopeo_closure_artifacts(evidence, root)
+            closure.write_text(json.dumps(closure_data))
             evidence['environment_id'] = 'skopeo-qualification'
             evidence['executed_tools'] = [tool for tool in evidence['executed_tools'] if tool['id'] in ('skopeo', 'trivy')]
             self.assertEqual(module.validate_skopeo_closure_artifacts(evidence, root)['gate'], 'PASS')
