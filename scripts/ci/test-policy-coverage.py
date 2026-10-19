@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 import importlib.util
 import json
 from pathlib import Path
+import shutil
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -124,10 +125,10 @@ class CoverageTests(unittest.TestCase):
                        dict(evidence_status='PASS', source_kind='remote', vulnerability_db=self.db,
                             requested_reference=ref))
 
-    def qualify(self):
+    def qualify(self, profile='release'):
         # Only the independently tested environment capture contract is abstracted here.
         with patch.object(coverage.environment, 'validate'):
-            return coverage.qualify(self.root, self.source)
+            return coverage.qualify(self.root, self.source, profile)
 
     def test_lockfile_npm_cannot_replace_physical_inventory(self):
         self.fixture()
@@ -159,6 +160,33 @@ class CoverageTests(unittest.TestCase):
         r = self.qualify()
         self.assertEqual(r['status'], 'PASS', r['errors'])
         self.assertTrue(all(x['findings']['HIGH'] == 1 and x['gate'] == 'DIAGNOSTIC' for x in r['raw_bases'].values()))
+
+    def test_pull_request_profile_omits_only_raw_base_diagnostics(self):
+        self.fixture()
+        for role in coverage.RAW_BASES:
+            report = self.root/f'image-base-{role}.json'
+            report.unlink()
+            report.with_suffix('.evidence.json').unlink()
+        for environment in coverage.BASE_ENVIRONMENTS:
+            shutil.rmtree(self.root/f'env-{environment}')
+        result = self.qualify('pull-request')
+        self.assertEqual(result['status'], 'PASS', result['errors'])
+        self.assertEqual(result['qualification_profile'], 'pull-request')
+        self.assertEqual(result['raw_bases'], {})
+        self.assertFalse(set(coverage.BASE_ENVIRONMENTS) & set(result['environments']))
+
+    def test_release_profile_still_requires_all_base_evidence(self):
+        self.fixture()
+        (self.root/'image-base-node.json').unlink()
+        (self.root/'image-base-node.evidence.json').unlink()
+        result = self.qualify('release')
+        self.assertEqual(result['status'], 'BLOCKED')
+        self.assertEqual(result['coverage'], 'INCOMPLETE')
+        self.assertTrue(any('raw_bases/node' in error for error in result['errors']))
+
+    def test_unknown_profile_fails_closed(self):
+        with self.assertRaisesRegex(ValueError, 'Unknown qualification profile'):
+            self.qualify('diagnostic')
 
     def test_runner_findings_are_retained_separately_from_application_gates(self):
         self.fixture()

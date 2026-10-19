@@ -100,7 +100,7 @@ class ReleaseTests(unittest.TestCase):
             return dict(role=role, source_commit=self.commit, platform='linux/amd64',
                         binding='ARCHIVE_MANIFEST_CONFIG_SCAN_VERIFIED', gate='PASS', findings={},
                         **{key:'sha256:'+'b'*64 for key in ('archive_sha256','platform_digest','config_digest','scan_sha256')})
-        return dict(format='homecloud-production-qualification-v1', source_commit=self.commit,
+        return dict(format='homecloud-production-qualification-v2', qualification_profile='release', source_commit=self.commit,
                     ci=dict(run_id='1',attempt='1'),
                     status='PASS', coverage='COVERED', policy='OWNER_APPROVED_NO_CVE_EXCEPTIONS',
                     production='NO_GO', errors=[], runtime={role:image(role) for role in r.RUNTIME},
@@ -135,6 +135,8 @@ class ReleaseTests(unittest.TestCase):
     def test_qualification_fails_closed(self):
         original = self.qualification()
         mutations = [lambda q:q.update(status='BLOCKED'), lambda q:q.update(coverage='INCOMPLETE'),
+                     lambda q:q.update(qualification_profile='pull-request'),
+                     lambda q:q.pop('qualification_profile'), lambda q:q.update(format='homecloud-production-qualification-v1'),
                      lambda q:q.pop('ci'),
                      lambda q:q.update(source_commit='d'*40), lambda q:q['runtime'].pop('postgres'),
                      lambda q:q['build'].pop('buildkit'), lambda q:q['environments'].pop('secrets'),

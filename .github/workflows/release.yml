@@ -53,6 +53,7 @@ jobs:
     with:
       source_sha: ${{ needs.validate.outputs.commit }}
       candidate_version: ${{ inputs.tag }}
+      qualification_profile: release
     permissions:
       contents: read
   images:

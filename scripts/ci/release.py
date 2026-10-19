@@ -29,7 +29,7 @@ SOURCE_PATHS = ('docker-compose.yml', 'docker-compose.production.yml', 'docker-c
                 'scripts/ci/oci-scan-binding.py', 'scripts/ci/policy-coverage.py',
                 'scripts/ci/stage-cache-proof.py', 'scripts/ci/qualify-stages.sh',
                 'scripts/ci/production-images.lock.json', 'scripts/ci/secret-findings.py',
-                'scripts/ci/skopeo-closure.py', 'docs/image-security-policy.md')
+                'scripts/ci/skopeo-closure.py', 'scripts/ci/ci-gate.py', 'docs/image-security-policy.md')
 RUNTIME = {'backend', 'frontend', 'postgres', 'ingress'}
 BUILD = {'backend-deps', 'backend-builder', 'frontend-deps', 'frontend-builder', 'buildkit'}
 ENVIRONMENTS = {'backend', 'frontend', 'configuration', 'image-build-backend', 'image-build-frontend',
@@ -69,7 +69,8 @@ def identity(value):
 
 
 def qualification(value, commit, run_id=None, attempt=None):
-    require(value.get('format') == 'homecloud-production-qualification-v1', 'missing production qualification')
+    require(value.get('format') == 'homecloud-production-qualification-v2', 'missing production qualification')
+    require(value.get('qualification_profile') == 'release', 'qualification is not release-profile evidence')
     require(value.get('source_commit') == commit, 'qualification/source mismatch')
     require(isinstance(value.get('ci'), dict)
             and all(isinstance(value['ci'].get(key), str) and value['ci'][key].isdigit()

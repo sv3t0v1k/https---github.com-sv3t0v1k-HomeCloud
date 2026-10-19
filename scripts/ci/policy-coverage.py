@@ -27,6 +27,9 @@ ENVIRONMENTS = ('backend', 'frontend', 'configuration', 'image-build-backend', '
                 'provenance-pair', 'base-node', 'base-nginx', 'base-postgres', 'base-node-ci',
                 'security-backend', 'security-frontend', 'secrets',
                 'support-postgres', 'support-ingress', 'support-buildkit')
+BASE_ENVIRONMENTS = ('base-node', 'base-nginx', 'base-postgres', 'base-node-ci')
+RAW_BASES = ('node', 'nginx', 'postgres', 'node-ci')
+PROFILES = ('pull-request', 'main', 'release')
 COMPONENTS = {'backend': 'backend', 'frontend': 'frontend',
               'security-backend': 'backend', 'security-frontend': 'frontend'}
 
@@ -95,11 +98,16 @@ def image(root, role, source, lock):
             'gate': policy.evaluate(report)['gate']}
 
 
-def qualify(root, source):
+def qualify(root, source, profile='release'):
     if not re.fullmatch(r'[a-f0-9]{40}', source):
         raise ValueError('Full source commit required')
+    if profile not in PROFILES:
+        raise ValueError('Unknown qualification profile')
+    required_environments = tuple(name for name in ENVIRONMENTS
+                                  if profile != 'pull-request' or name not in BASE_ENVIRONMENTS)
     lock = read(Path(__file__).with_name('production-images.lock.json'))
-    result = dict(format='homecloud-production-qualification-v1', source_commit=source, production='NO_GO',
+    result = dict(format='homecloud-production-qualification-v2', qualification_profile=profile,
+                  source_commit=source, production='NO_GO',
                   policy='OWNER_APPROVED_NO_CVE_EXCEPTIONS', runtime={}, build={}, environments={},
                   raw_bases={}, errors=[], status='BLOCKED')
 
@@ -113,7 +121,7 @@ def qualify(root, source):
         attempt('runtime', role, lambda role=role: image(root, role, source, lock))
     for role in (*STAGES, 'buildkit'):
         attempt('build', role, lambda role=role: image(root, role, source, lock))
-    for name in ENVIRONMENTS:
+    for name in required_environments:
         def check(name=name):
             paths = [p for p in root.rglob('environment.json') if read(p).get('environment_id') == name]
             if len(paths) != 1:
@@ -157,7 +165,7 @@ def qualify(root, source):
                         runner_policy='GITHUB_HOSTED_PLATFORM_ASSURANCE' if name != 'backend' else 'PINNED_CONTAINER_STRICT',
                         gate='BLOCKED' if any(s['gate'] not in accepted for s in summaries.values()) else 'PASS')
         attempt('environments', name, check)
-    for role in ('node', 'nginx', 'postgres', 'node-ci'):
+    for role in (() if profile == 'pull-request' else RAW_BASES):
         def check(role=role):
             path = one(root, 'image-base-'+role+'.json')
             report, sidecar = read(path), read(path.with_suffix('.evidence.json'))
@@ -183,8 +191,9 @@ def main():
     parser.add_argument('--directory', required=True)
     parser.add_argument('--source', required=True)
     parser.add_argument('--output', required=True)
+    parser.add_argument('--profile', choices=PROFILES, default='release')
     args = parser.parse_args()
-    result = qualify(Path(args.directory), args.source)
+    result = qualify(Path(args.directory), args.source, args.profile)
     run_id, attempt = os.environ.get("GITHUB_RUN_ID", ""), os.environ.get("GITHUB_RUN_ATTEMPT", "")
     if not run_id.isdigit() or not attempt.isdigit():
         result["errors"].append("Missing GitHub run identity")

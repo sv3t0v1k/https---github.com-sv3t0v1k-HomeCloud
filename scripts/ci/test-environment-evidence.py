@@ -183,27 +183,47 @@ class EvidenceTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'Missing strict'):
                 module.validate_skopeo_closure_artifacts(evidence, root)
 
-    def test_skopeo_pr_qualification_is_read_only_and_required_by_gate(self):
-        workflow = Path(__file__).parents[2] / '.github/workflows/ci.yml'
-        text = workflow.read_text()
-        start = text.index('  skopeo-qualification:\n')
-        end = text.index('  policy-coverage:\n', start)
-        job = text[start:end]
-        gate_start = text.index('  gate:\n', end)
-        gate = text[gate_start:]
-        self.assertIn('permissions:\n      contents: read', job)
-        self.assertIn('name: environment-skopeo-qualification-', job)
-        self.assertIn('homecloud-skopeo-qualification-start-v1', job)
-        self.assertIn('homecloud-skopeo-qualification-result-v1', job)
-        self.assertIn('status="PASS" if job == "success" and scan == "success" else "BLOCKED"', job)
-        self.assertIn('        if: always()\n        with:', job)
-        self.assertIn('skopeo-tools.json', job)
-        self.assertIn('shutil.which("skopeo")', job)
-        self.assertNotIn('packages: write', job)
-        for forbidden in ('secrets.', 'docker/login-action', 'gh api', 'GH_TOKEN', 'ghcr.io'):
-            self.assertNotIn(forbidden, job)
-        needs = next(line for line in gate.splitlines() if line.strip().startswith('needs:'))
-        self.assertIn('skopeo-qualification', needs)
+    def test_skopeo_qualification_is_release_only_before_registry_writes(self):
+        root = Path(__file__).parents[2]
+        ci = (root / '.github/workflows/ci.yml').read_text()
+        release = (root / '.github/workflows/release.yml').read_text()
+        self.assertNotIn('  skopeo-qualification:\n', ci)
+        gate_start = ci.index('  gate:\n')
+        self.assertNotIn('skopeo-qualification', ci[gate_start:])
+        images_start = release.index('  images:\n')
+        images_end = release.index('  draft:\n', images_start)
+        images = release[images_start:images_end]
+        self.assertIn('scripts/ci/skopeo-closure.py baseline', images)
+        self.assertIn('scripts/ci/skopeo-closure.py capture', images)
+        self.assertIn('scan-environment.sh', images)
+        self.assertIn('release-images none', images)
+        scan = images.index('scan-environment.sh')
+        login = images.index('docker/login-action')
+        registry_login = images.index('skopeo login')
+        self.assertLess(scan, login)
+        self.assertLess(scan, registry_login)
+        self.assertIn('Verify same-run qualified archives before registry access', images)
+
+    def test_base_image_scans_are_pr_optional_but_main_and_release_required(self):
+        workflow = (Path(__file__).parents[2] / '.github/workflows/ci.yml').read_text()
+        start = workflow.index('  base-image-scan:\n')
+        end = workflow.index('  security:\n', start)
+        job = workflow[start:end]
+        self.assertIn("github.event_name == 'push' && github.ref == 'refs/heads/main'", job)
+        self.assertIn("inputs.qualification_profile == 'release'", job)
+        self.assertIn('base: [node, nginx, postgres, node-ci]', job)
+        profile = workflow[workflow.index('  policy-coverage:\n'):workflow.index('  gate:\n')]
+        self.assertIn("'pull-request'", profile)
+        self.assertIn("'main'", profile)
+        self.assertIn("'release'", profile)
+        self.assertIn('--profile "$QUALIFICATION_PROFILE"', profile)
+        gate = workflow[workflow.index('  gate:\n'):]
+        self.assertIn('scripts/ci/ci-gate.py', gate)
+        self.assertIn('qualification_profile:\n        type: string\n        required: true', workflow)
+        release = (Path(__file__).parents[2] / '.github/workflows/release.yml').read_text()
+        call_start = release.index('  ci:\n')
+        call_end = release.index('  images:\n', call_start)
+        self.assertIn('qualification_profile: release', release[call_start:call_end])
 
     def test_checkout_exclusion_mandatory(self):
         self.evidence['rootfs_excluded_dirs'] = ['/proc']
