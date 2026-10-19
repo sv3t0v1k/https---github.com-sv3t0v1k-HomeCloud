@@ -83,8 +83,8 @@ class SecureUploadMulterOptions implements MulterOptionsFactory {
         ),
         files: 1,
         fields: 1,
-        // Busboy emits partsLimit at the limit itself; two valid parts need 3.
-        parts: 3,
+        // Multer 2.4 treats parts as an inclusive maximum: one field + one file.
+        parts: 2,
         fieldSize: 32,
         fieldNameSize: 64,
       },

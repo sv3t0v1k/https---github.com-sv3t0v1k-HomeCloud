@@ -1,0 +1,9 @@
+2026-10-14T19:41:04+10:00	INFO	[vuln] Vulnerability scanning is enabled
+2026-10-14T19:41:12+10:00	INFO	Detected OS	family="alpine" version="3.24.2"
+2026-10-14T19:41:12+10:00	INFO	[alpine] Detecting vulnerabilities...	os_version="3.24" repository="3.24" pkg_num=71
+2026-10-14T19:41:12+10:00	INFO	Number of language-specific files	num=0
+2026-10-14T19:41:12+10:00	WARN	Using severities from other vendors for some vulnerabilities. Read https://trivy.dev/docs/v0.75/guide/scanner/vulnerability#severity-selection for details.
+{"artifact": "docker.io/library/nginx:1.30.5-alpine@sha256:0985e772fb9f729e6fa0980da05fca5d9c468e870eed43071545afa9d2e27d94", "findings": {"HIGH": 3, "MEDIUM": 3}, "gate": "BLOCKED"}
+Traceback (most recent call last):
+  File "<stdin>", line 10, in <module>
+AssertionError: Image contains high/critical vulnerabilities; report retained

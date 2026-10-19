@@ -1,0 +1,14 @@
+{
+  "command": [
+    "python3",
+    "experiments/d5-1-13/test_artifact.py"
+  ],
+  "exit_code": 0,
+  "stdout": "",
+  "stderr": "...............\n----------------------------------------------------------------------\nRan 15 tests in 0.015s\n\nOK\n",
+  "source_sha256": {
+    "experiments/d5-1-13/artifact.py": "4676dc9ebffb6971b25b25d425cfad8f7c41608b4947032e9f98f8f06d7f1ca9",
+    "experiments/d5-1-13/test_artifact.py": "83fa8e605b41989741631cc73792a65add927fb0f69fe146160fa72c8e864a5c"
+  },
+  "fixture": "synthetic in-memory HTTP responses; no Docker or external requests"
+}

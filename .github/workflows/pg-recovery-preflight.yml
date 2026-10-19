@@ -1,0 +1,112 @@
+name: D5.1.13 — изолированный PostgreSQL recovery drill
+on:
+  workflow_dispatch:
+    inputs:
+      approved_sha:
+        description: Полный SHA отдельно согласованного владельцем checkout
+        required: true
+        type: string
+      run_drill:
+        description: Выполнить synthetic drill только после всех обязательных gates
+        required: false
+        default: false
+        type: boolean
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: homecloud-d513-preflight
+  cancel-in-progress: false
+jobs:
+  preflight:
+    name: d513-preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ inputs.run_drill && 55 || 35 }}
+    steps:
+      - name: Создать evidence до checkout
+        env:
+          APPROVED_SHA: ${{ inputs.approved_sha }}
+          D513_EVIDENCE: ${{ runner.temp }}/d513-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          D513_DOWNLOAD: ${{ runner.temp }}/d513-download-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          echo "D513_EVIDENCE=$D513_EVIDENCE" >> "$GITHUB_ENV"
+          echo "D513_DOWNLOAD=$D513_DOWNLOAD" >> "$GITHUB_ENV"
+          mkdir -m 700 "$D513_EVIDENCE"
+          printf '%s\n' '{"status":"BLOCKED_BEFORE_RUNTIME","drill":"NOT_RUN","rpo":null,"rto":null,"production":"NO_GO"}' > "$D513_EVIDENCE/status.json"
+          [[ "$APPROVED_SHA" =~ ^[a-f0-9]{40}$ ]]
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$RUNNER_OS/$RUNNER_ARCH" = Linux/X64
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.approved_sha }}
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /.github/workflows/pg-recovery-preflight.yml
+            /experiments/d5-1-13/*.py
+            /ops/postgres/prepare.py
+            /ops/postgres/qualification.lock.json
+            /deploy/linux/startup-gate.sh
+            /scripts/ci/*.py
+            /scripts/ci/*.sh
+      - name: Проверить hosted identity и существующие ресурсы без контейнеров
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPROVED_SHA: ${{ inputs.approved_sha }}
+        run: python3 experiments/d5-1-13/preflight.py context
+      - name: Проверить exact artifact и official metadata без загрузки в Docker
+        timeout-minutes: 12
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 experiments/d5-1-13/preflight.py images
+      - name: Сохранить существующую минимизацию hosted runner
+        run: python3 scripts/ci/minimize-runner.py
+      - name: Установить runtime tooling до обязательного actual rootfs scan
+        if: inputs.run_drill
+        timeout-minutes: 3
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends skopeo e2fsprogs util-linux
+      - name: Установить закреплённый scanner в одноразовый каталог
+        run: sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/d513-trivy"
+      - name: Проверить оба exact runtime archives действующим strict image gate
+        if: inputs.run_drill
+        timeout-minutes: 12
+        env:
+          APPROVED_SHA: ${{ inputs.approved_sha }}
+        run: python3 experiments/d5-1-13/harness.py qualify
+      - name: Квалифицировать actual rootfs и tools по действующему gate
+        timeout-minutes: 15
+        env:
+          RUN_DRILL: ${{ inputs.run_drill }}
+        run: |
+          python3 -c 'import json,os,shutil; names=["gh","docker"]+(["skopeo"] if os.environ["RUN_DRILL"]=="true" else []); tools=[dict(id=n,path=shutil.which(n)) for n in names]; json.dump(tools,open(os.environ["RUNNER_TEMP"]+"/d513-tools.json","w"))'
+          timeout --signal=TERM --kill-after=15s 14m sh scripts/ci/scan-environment.sh \
+            "$RUNNER_TEMP/d513-trivy/trivy" d513-preflight none "$D513_EVIDENCE/environment" "$RUNNER_TEMP/d513-tools.json"
+      - name: Выполнить admitted synthetic DB и HDD recovery
+        if: inputs.run_drill
+        timeout-minutes: 8
+        env:
+          APPROVED_SHA: ${{ inputs.approved_sha }}
+        run: python3 experiments/d5-1-13/harness.py run
+      - name: Зафиксировать блокировку и hashes даже после ошибки
+        if: always()
+        run: |
+          if test -f experiments/d5-1-13/preflight.py; then
+            python3 experiments/d5-1-13/preflight.py finish
+          fi
+          printf '%s\n' 'D5.1.13: результат в status.json/matrix.json; Production NO_GO; COMPLETE не установлен.' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: d513-preflight-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.D513_EVIDENCE }}
+            !${{ env.D513_EVIDENCE }}/environment/executed-tools/**
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 9
+      - name: Не выдавать preflight за выполненный drill
+        if: always()
+        run: |
+          python3 -c 'import json,os; d=json.load(open(os.environ["D513_EVIDENCE"]+"/status.json")); assert d["status"]=="SYNTHETIC_DRILL_PASSED" and d["production"]=="NO_GO" and d["complete"] is False'

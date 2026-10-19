@@ -1,0 +1,17 @@
+{
+  "source_directory": "/Users/aleksejkozemakin/.codex/.chatgpt-projects/g-p-6aaa72ceff208191895b0fd466f3e892/outputs/d5-1-11-resume-20261017",
+  "original_qualification_run": 39020086966,
+  "hashes": {
+    "attempt-3/identity.json": "f69a7d98b81a569e326c91e16ad3464c807595a082eb9f19651f1c9adcc27f78",
+    "attempt-3/provenance.json": "0e0e98539fb670d4900ded34f29342fcabaeddcb77bb16ef20d0108b6d7e29d9",
+    "attempt-3/compatibility.json": "54560ce84a21d326095bc2d05a3e26cbb9715b3f0ebcf91e15909d1a4e2eb056",
+    "attempt-3/migrations.json": "4d909a1acd015df98d794b5ab02eb3a78607709672e648dcf7232653690be564",
+    "attempt-3/layer-members.json": "e0429448837816f2bfe5c14c9384376b226bf8ec877d7886991f263b1722b881",
+    "attempt-3/apk-scripts-comparison.json": "906aba3b71361ab7d3a987a1f73b999994b563199ff1f0b0773110f1f7eb8715",
+    "attempt-3/package-inventory.json": "7b9a3a4dfa3e44ca5ef40fcfb2fb4e95fb6feee57d81c2f7491c1d76c90a7887",
+    "sbom-only/binding.json": "72e7685009a0a1836ac215f45a53fda1ccffc68863509f7cbb285d20e0001d16",
+    "sbom-only/candidate-sbom.cdx.json": "24004d905b756af5d3ac15c7eb4df482a284b2c02298e0185866e7f63d4f8f47",
+    "final-security-review.md": "468e07210893bbe994439b03880c1e15a8766a2efbbdc347ca1d138426bc9b92"
+  },
+  "no_successful_tests_repeated": true
+}

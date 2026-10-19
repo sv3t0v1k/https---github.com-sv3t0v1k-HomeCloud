@@ -1,0 +1,12 @@
+{
+  "remote_zip_sha256": "c0af0e9a0871b0bc2e7618ba36f16b7afc8f92e8e9918912ec69349d1bb89a83",
+  "tar_sha256": "392dfe5ab7ce5fdfd77b4c32884ab8700a72124d783fd20b244cba6135d5c645",
+  "helper_source_hash_verified": true,
+  "remote_source": "Range proof and source-bound helper evidence independently read; no second network transfer",
+  "local_host_refusal": {
+    "exit_code": 1,
+    "error": "hosted Linux/amd64 required",
+    "docker_calls": 0
+  },
+  "production": "NO_GO"
+}

@@ -208,18 +208,41 @@ describe('SSD upload queue regression gates', () => {
   })
 
   it('retries definite busy503 admission with Retry-After, then admits exactly one server session', async () => {
+    // Проверяем границу Retry-After виртуальным временем, независимо от часов и нагрузки CI.
+    vi.useFakeTimers()
+    vi.setSystemTime(0)
+    vi.stubGlobal('window', { setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout })
     const backend = server()
     backend.failAdmissions(2, rejected503('Upload buffer is busy', '1'))
     const q = queue()
-    const [id] = q.enqueue([makeFile(bytesFor(100))])
-    await vi.waitFor(() => expect(item(q, id).state).toBe('completed'), { timeout: 4000 })
-    const admissions = backend.admissionCalls()
-    expect(admissions).toHaveLength(3)
-    expect(admissions[1].calledAt - admissions[0].calledAt).toBeGreaterThanOrEqual(1000)
-    expect(admissions[2].calledAt - admissions[1].calledAt).toBeGreaterThanOrEqual(1000)
-    expect(admissions.every((call) => call.data.expectedSha256 === sha256(bytesFor(100)))).toBe(true)
-    expect(backend.sessions.size).toBe(1)
-    expect(backend.publications).toBe(1)
+    try {
+      const [id] = q.enqueue([makeFile(bytesFor(100))])
+      await vi.waitFor(() => expect(item(q, id).state).toBe('retrying'))
+      const firstAdmissionAt = backend.admissionCalls()[0].calledAt
+      await vi.advanceTimersByTimeAsync(firstAdmissionAt + 999 - Date.now())
+      expect(backend.admissionCalls()).toHaveLength(1)
+      expect(backend.sessions.size).toBe(0)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(backend.admissionCalls()).toHaveLength(2)
+      expect(backend.sessions.size).toBe(0)
+      await vi.advanceTimersByTimeAsync(999)
+      expect(backend.admissionCalls()).toHaveLength(2)
+      expect(backend.sessions.size).toBe(0)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(backend.admissionCalls()).toHaveLength(3)
+      await vi.waitFor(() => expect(item(q, id).state).toBe('completed'))
+      const admissions = backend.admissionCalls()
+      expect(admissions[1].calledAt - admissions[0].calledAt).toBe(1000)
+      expect(admissions[2].calledAt - admissions[1].calledAt).toBe(1000)
+      expect(admissions.every((call) => call.data.expectedSha256 === sha256(bytesFor(100)))).toBe(true)
+      expect(backend.sessions.size).toBe(1)
+      expect(backend.publications).toBe(1)
+    } finally {
+      q.dispose()
+      vi.clearAllTimers()
+      vi.useRealTimers()
+      vi.stubGlobal('window', { setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout })
+    }
   })
 
   it('stops persistent busy503 admission after three attempts without creating a session', async () => {

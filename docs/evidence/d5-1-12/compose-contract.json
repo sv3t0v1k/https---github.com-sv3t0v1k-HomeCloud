@@ -1,0 +1,25 @@
+{
+  "status": "PASS_STATIC_CONTRACT_ONLY",
+  "candidate_manifest": "sha256:83b8b00eca9cb7e77dc6c6bbb3fd4bef197853afa0c2cd104991d7a9673abbe8",
+  "exact_config_checked": "sha256:e8f72c13539571329d433e4d0ea475dc42a6407b36f9332cfe3fd790fe81a7d2",
+  "yaml_parser": "PyYAML 6.0.3",
+  "production_base_unchanged": true,
+  "entrypoint_chain": "startup-gate.sh db -> /usr/local/bin/docker-entrypoint.sh postgres",
+  "PGDATA": "/var/lib/postgresql/data",
+  "PG_VERSION": "16.15",
+  "root_entrypoint_preserved": true,
+  "production_storage": "existing SSD bind; create_host_path=false; unchanged gate/marker mounts",
+  "mac_storage": "named db_data; not interchangeable with production SSD bind",
+  "db_healthcheck_env_mem_network_logging_preserved": true,
+  "db_published_ports": false,
+  "compose_cli_merge_interpolation": "NOT_RUN",
+  "startup_gate_in_candidate_runtime": "NOT_RUN",
+  "direct_candidate_to_official_rollback": "NOT_RUN",
+  "production": "NO_GO",
+  "input_sha256": {
+    "docker-compose.yml": "07e5028c1d30c75a5798a1c8a15f805b075c03d1a53bd392418e322474279404",
+    "docker-compose.production.yml": "5b92b5b86e1bb68acc213e74f02f278be02f340f2538649c0882bd56115130f2",
+    "deploy/linux/startup-gate.sh": "a0bec0d0d1338dbab7ba21c388cc3e9683ca28ed380349b08f67f18f5c3dd1d6",
+    "scripts/ci/production-images.lock.json": "60f43ddd5d395c5bdc2bb6ad5f8d28ba498a7dd0fad9fbf960bfb210f64be54b"
+  }
+}

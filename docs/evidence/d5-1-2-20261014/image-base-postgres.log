@@ -1,0 +1,10 @@
+2026-10-14T19:41:12+10:00	INFO	[vuln] Vulnerability scanning is enabled
+2026-10-14T19:41:32+10:00	INFO	Detected OS	family="alpine" version="3.24.2"
+2026-10-14T19:41:32+10:00	INFO	[alpine] Detecting vulnerabilities...	os_version="3.24" repository="3.24" pkg_num=45
+2026-10-14T19:41:32+10:00	INFO	Number of language-specific files	num=1
+2026-10-14T19:41:32+10:00	INFO	[gobinary] Detecting vulnerabilities...
+2026-10-14T19:41:32+10:00	WARN	Using severities from other vendors for some vulnerabilities. Read https://trivy.dev/docs/v0.75/guide/scanner/vulnerability#severity-selection for details.
+{"artifact": "docker.io/library/postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea", "findings": {"CRITICAL": 1, "HIGH": 24, "LOW": 3, "MEDIUM": 28, "UNKNOWN": 5}, "gate": "BLOCKED"}
+Traceback (most recent call last):
+  File "<stdin>", line 10, in <module>
+AssertionError: Image contains high/critical vulnerabilities; report retained

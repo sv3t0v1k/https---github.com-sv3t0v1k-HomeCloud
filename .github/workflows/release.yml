@@ -1,0 +1,230 @@
+name: Подготовить релиз HomeCloud
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Утверждённый annotated beta tag (v0.x.x-beta.N)'
+        required: true
+        type: string
+      commit:
+        description: 'Полный SHA утверждённого commit текущей main'
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: homecloud-release
+  cancel-in-progress: false
+jobs:
+  validate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      commit: ${{ steps.source.outputs.commit }}
+      tag_object: ${{ steps.source.outputs.tag_object }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: source
+        env:
+          TAG: ${{ inputs.tag }}
+          COMMIT: ${{ inputs.commit }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/ci/release.py verify-tag --tag "$TAG" --commit "$COMMIT"
+          git merge-base --is-ancestor 48fb9c0e8982f23dea835cf1a2e36f83d4e38f3b "$COMMIT"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq .commit.sha)" = "$COMMIT"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq .protected)" = true
+          echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
+          echo "tag_object=$(git rev-parse "refs/tags/$TAG")" >> "$GITHUB_OUTPUT"
+      - name: Refuse existing release; API failures also block
+        env:
+          TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases" > "$RUNNER_TEMP/releases.json"
+          python3 -c 'import json,os; r=json.load(open(os.environ["RUNNER_TEMP"]+"/releases.json")); assert not any(x["tag_name"]==os.environ["TAG"] for x in r), "Release already exists"'
+  ci:
+    needs: validate
+    uses: ./.github/workflows/ci.yml
+    with:
+      source_sha: ${{ needs.validate.outputs.commit }}
+      candidate_version: ${{ inputs.tag }}
+      qualification_profile: release
+    permissions:
+      contents: read
+  images:
+    needs: [validate, ci]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 85
+    permissions:
+      contents: read
+      packages: write
+    env:
+      TAG: ${{ inputs.tag }}
+      COMMIT: ${{ needs.validate.outputs.commit }}
+      TAG_OBJECT: ${{ needs.validate.outputs.tag_object }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ needs.validate.outputs.commit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Remove unused hosted .NET SDK before release workload; retain evidence
+        run: python3 scripts/ci/minimize-runner.py
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: production-qualification-${{ github.run_attempt }}
+          path: qualified
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: production-oci-backend-${{ github.run_attempt }}
+          path: qualified
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: production-oci-frontend-${{ github.run_attempt }}
+          path: qualified
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: offline-provenance-backend-${{ github.run_attempt }}
+          path: qualified
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: offline-provenance-frontend-${{ github.run_attempt }}
+          path: qualified
+      - id: names
+        run: echo "repository=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - name: Verify same-run qualified archives before registry access
+        env:
+          REPOSITORY: ${{ steps.names.outputs.repository }}
+        run: |
+          python3 scripts/ci/release.py verify-qualified --qualification qualified/production-qualification.json --commit "$COMMIT" --tag "$TAG" --repository "$REPOSITORY" --backend-archive qualified/backend.oci.tar --frontend-archive qualified/frontend.oci.tar --backend-proof qualified/offline-backend.json --frontend-proof qualified/offline-frontend.json --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT"
+      - name: Prepare publication tools and qualify actual publication environment
+        run: |
+          mkdir -p release-environment
+          python3 scripts/ci/skopeo-closure.py baseline --source "$COMMIT" --output release-environment/skopeo-baseline.json
+          set -o pipefail
+          sudo apt-get update --error-on=any 2>&1 | tee release-environment/apt-update.log
+          python3 -c 'import hashlib,json,sys; p=sys.argv[1]; json.dump({"command":["apt-get","update","--error-on=any"],"exit_code":0,"log_path":p,"log_sha256":hashlib.sha256(open(p,"rb").read()).hexdigest()},open(sys.argv[2],"w"),sort_keys=True)' release-environment/apt-update.log release-environment/apt-update.json
+          sudo apt-get install --download-only --no-install-recommends -y skopeo
+          sudo apt-get install --no-install-recommends -y skopeo
+          python3 scripts/ci/skopeo-closure.py capture --baseline release-environment/skopeo-baseline.json --output release-environment/skopeo-closure.json --binary "$(command -v skopeo)" --apt-update-status release-environment/apt-update.json
+          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/homecloud-trivy"
+          python3 -c 'import json,shutil,sys; names=("docker","gh","skopeo"); tools=[dict(id=name,path=shutil.which(name)) for name in names]; assert all(tool["path"] for tool in tools), "missing publication tool"; json.dump(tools,open(sys.argv[1],"w"))' "$RUNNER_TEMP/release-tools.json"
+          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/homecloud-trivy/trivy" release-images none release-environment "$RUNNER_TEMP/release-tools.json" release-environment/skopeo-closure.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: release-publication-environment-${{ github.run_attempt }}
+          path: release-environment
+          if-no-files-found: error
+          retention-days: 90
+      - name: Recheck tag immediately before registry writes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/ci/release.py verify-tag --tag "$TAG" --commit "$COMMIT"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq .object.sha)" = "$TAG_OBJECT"
+          test "$(git rev-parse "refs/tags/$TAG")" = "$TAG_OBJECT"
+      - uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Publish the qualified archives without rebuilding
+        id: publish
+        env:
+          REPOSITORY: ${{ steps.names.outputs.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          printf '%s' "$GH_TOKEN" | skopeo login --authfile "$RUNNER_TEMP/registry-auth.json" --username "$GITHUB_ACTOR" --password-stdin ghcr.io
+          for role in backend frontend; do
+            destination="ghcr.io/$REPOSITORY/$role:$TAG-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+            skopeo copy --authfile "$RUNNER_TEMP/registry-auth.json" --all --preserve-digests "oci-archive:qualified/$role.oci.tar" "docker://$destination"
+            digest=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["index_digest"])' "qualified/offline-$role.json")
+            echo "$role=$digest" >> "$GITHUB_OUTPUT"
+          done
+      - name: Verify registry digests and prepare candidate lock
+        env:
+          REPOSITORY: ${{ steps.names.outputs.repository }}
+          BACKEND_DIGEST: ${{ steps.publish.outputs.backend }}
+          FRONTEND_DIGEST: ${{ steps.publish.outputs.frontend }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/ci/release.py create --tag "$TAG" --commit "$COMMIT" --repository "$REPOSITORY" --backend "$BACKEND_DIGEST" --frontend "$FRONTEND_DIGEST" --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --qualification qualified/production-qualification.json --output release-lock.json
+      - name: Scan exact published digests before any draft is created
+        env:
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ github.token }}
+          REPOSITORY: ${{ steps.names.outputs.repository }}
+          BACKEND_DIGEST: ${{ steps.publish.outputs.backend }}
+          FRONTEND_DIGEST: ${{ steps.publish.outputs.frontend }}
+        run: |
+          set +e
+          sh scripts/ci/scan-image.sh "$RUNNER_TEMP/homecloud-trivy/trivy" remote "ghcr.io/$REPOSITORY/backend@$BACKEND_DIGEST" image-backend.json
+          backend_result=$?
+          sh scripts/ci/scan-image.sh "$RUNNER_TEMP/homecloud-trivy/trivy" remote "ghcr.io/$REPOSITORY/frontend@$FRONTEND_DIGEST" image-frontend.json
+          frontend_result=$?
+          postgres=$(python3 -c 'import json; print(json.load(open("scripts/ci/production-images.lock.json"))["postgres"])')
+          ingress=$(python3 -c 'import json; print(json.load(open("scripts/ci/production-images.lock.json"))["ingress"])')
+          sh scripts/ci/scan-image.sh "$RUNNER_TEMP/homecloud-trivy/trivy" remote "$postgres" image-postgres.json
+          postgres_result=$?
+          sh scripts/ci/scan-image.sh "$RUNNER_TEMP/homecloud-trivy/trivy" remote "$ingress" image-ingress.json
+          ingress_result=$?
+          set -e
+          test "$backend_result" -eq 0 && test "$frontend_result" -eq 0 && test "$postgres_result" -eq 0 && test "$ingress_result" -eq 0
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: release-image-scan-${{ github.run_attempt }}
+          path: image-*.json
+          if-no-files-found: error
+          retention-days: 90
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-lock-${{ github.run_attempt }}
+          path: release-lock.json
+          if-no-files-found: error
+          retention-days: 90
+  draft:
+    needs: [validate, images]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ inputs.tag }}
+      COMMIT: ${{ needs.validate.outputs.commit }}
+      TAG_OBJECT: ${{ needs.validate.outputs.tag_object }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ needs.validate.outputs.commit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-lock-${{ github.run_attempt }}
+      - name: Create draft only; never overwrite
+        run: |
+          python3 scripts/ci/release.py verify-tag --tag "$TAG" --commit "$COMMIT"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq .object.sha)" = "$TAG_OBJECT"
+          test "$(git rev-parse "refs/tags/$TAG")" = "$TAG_OBJECT"
+          python3 -c 'import json,sys; sys.path.insert(0,"scripts/ci"); import release; x=json.load(open("release-lock.json")); release.shape(x); assert x["tag"]==__import__("os").environ["TAG"] and x["commit"]==__import__("os").environ["COMMIT"] and x["tag_object"]==__import__("os").environ["TAG_OBJECT"]'
+          cat > "$RUNNER_TEMP/notes.md" <<NOTES
+          Этап D5.1 — кандидат HomeCloud $TAG.
+
+          Исходный commit: $COMMIT.
+          Тесты, Compose, dependency и secret gates успешно выполнены в текущем CI run.
+          Linux/amd64 backend/frontend опубликованы в GHCR и проверены по digest и OCI revision.
+          Неизменяемые ссылки и source contract записаны в release-lock.json.
+          BuildKit provenance проверен по index/subject, VCS, Dockerfile и базовым материалам; криптографическая подпись не заявляется.
+
+          Статус: NOT_DEPLOYED. Mini-PC не обновлялся. Production NO_GO.
+          Это кандидат CI, не квалифицированный D1 release-manifest и не доказательство target health/backup/rollback.
+          NOTES
+          gh release create "$TAG" release-lock.json --verify-tag --draft --prerelease --target "$COMMIT" --title "HomeCloud $TAG — кандидат этапа D5.1" --notes-file "$RUNNER_TEMP/notes.md"

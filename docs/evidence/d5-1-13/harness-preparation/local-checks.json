@@ -1,0 +1,43 @@
+{
+  "recorded_at": "2026-10-18T16:36:04.501775+10:00",
+  "tests": {
+    "command": [
+      "/Library/Developer/CommandLineTools/usr/bin/python3",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "experiments/d5-1-13",
+      "-p",
+      "test_*.py",
+      "-v"
+    ],
+    "exit_code": 0,
+    "transcript": "test_600_second_maximum_and_420_override (test_artifact.TransferTests) ... ok\ntest_bad_length_encoding_oversize_and_digest (test_artifact.TransferTests) ... ok\ntest_candidate_created_during_transfer_is_preserved (test_artifact.TransferTests) ... ok\ntest_complete_first_session (test_artifact.TransferTests) ... ok\ntest_deadline_exhaustion_performs_no_transfer (test_artifact.TransferTests) ... ok\ntest_existing_candidate_is_never_deleted (test_artifact.TransferTests) ... ok\ntest_fetch_requires_pins_and_inner_verifier (test_artifact.TransferTests) ... ok\ntest_first_session_slice_reserves_time_for_resume (test_artifact.TransferTests) ... ok\ntest_ignored_range_restarts_without_appending (test_artifact.TransferTests) ... ok\ntest_no_strong_etag_restarts (test_artifact.TransferTests) ... ok\ntest_resume_only_strong_matching_etag_and_exact_range (test_artifact.TransferTests) ... ok\ntest_timeout_bound_and_no_overwrite (test_artifact.TransferTests) ... ok\ntest_two_sessions_bound_and_error_redaction (test_artifact.TransferTests) ... ok\ntest_wrong_etag_or_range_never_passes (test_artifact.TransferTests) ... ok\ntest_zip_path_names_duplicates_and_cap_rejected (test_artifact.TransferTests) ... ok\ntest_developer_host_and_self_hosted_are_rejected (test_preflight.Boundaries) ... ok\ntest_expired_changed_or_wrong_origin_artifact_rejected (test_preflight.Boundaries) ... ok\ntest_finish_never_promotes_runtime_or_invents_measurements (test_preflight.Boundaries) ... ok\ntest_finish_preserves_partial_runtime_after_interruption (test_preflight.Boundaries) ... ok\ntest_official_accepts_pinned_child_and_selects_unique_amd64_from_index (test_preflight.Boundaries) ... ok\ntest_registry_bytes_must_match_requested_digest (test_preflight.Boundaries) ... ok\ntest_reruns_remote_daemons_credentials_and_wrong_events_rejected (test_preflight.Boundaries) ... ok\ntest_absent_db_or_hdd_backup_stops_before_root_commands (test_recovery.AdmissionBoundaries) ... ok\ntest_cleanup_on_partial_setup_failure_is_not_reported_as_pass (test_recovery.AdmissionBoundaries) ... ok\ntest_failed_gate_never_loads_image_or_constructs_fixture (test_recovery.AdmissionBoundaries) ... ok\ntest_source_run_attempt_and_job_cannot_reuse_other_runner_pass (test_recovery.AdmissionBoundaries) ... ok\ntest_temporary_bootstrap_server_cannot_satisfy_final_readiness (test_recovery.AdmissionBoundaries) ... ok\ntest_consistent_pair_has_exact_file_count_and_bytes (test_recovery.Integrity) ... ok\ntest_corrupt_and_missing_backup_components_rejected_before_restore (test_recovery.Integrity) ... ok\ntest_dangling_reference_wrong_owner_duplicate_and_unsafe_path_rejected (test_recovery.Integrity) ... ok\ntest_external_symlink_and_hardlink_not_followed (test_recovery.Integrity) ... ok\ntest_inventory_binds_root_directory_owner_and_permissions (test_recovery.Integrity) ... ok\ntest_metrics_reject_holes_mutated_events_and_invalid_clock (test_recovery.Integrity) ... ok\ntest_metrics_separate_lost_confirmed_events_bytes_and_rto (test_recovery.Integrity) ... ok\ntest_missing_corrupt_extra_or_generation_mismatch_rejected (test_recovery.Integrity) ... ok\ntest_cleanup_exact_resources_and_no_prune (test_runtime_fixture.FixtureTests) ... ok\ntest_cleanup_observes_success_when_umount_and_detach_results_lost (test_runtime_fixture.FixtureTests) ... ok\ntest_cleanup_recovers_loop_allocation_with_lost_stdout (test_runtime_fixture.FixtureTests) ... ok\ntest_cleanup_recovers_mount_sideeffect_with_lost_result (test_runtime_fixture.FixtureTests) ... ok\ntest_cleanup_refuses_foreign_container_bind_or_labels (test_runtime_fixture.FixtureTests) ... ok\ntest_cleanup_refuses_foreign_loop_or_mount (test_runtime_fixture.FixtureTests) ... ok\ntest_cleanup_refuses_unknown_submount_even_when_flags_false (test_runtime_fixture.FixtureTests) ... ok\ntest_cleanup_retains_root_if_unmount_or_detach_not_proven (test_runtime_fixture.FixtureTests) ... ok\ntest_container_requires_loaded_image_and_explicit_fresh_permission (test_runtime_fixture.FixtureTests) ... ok\ntest_copy_rejects_escape_symlink_and_existing_target (test_runtime_fixture.FixtureTests) ... ok\ntest_create_exclusive_actual_metadata_recorded (test_runtime_fixture.FixtureTests) ... ok\ntest_environment_revalidated_before_each_command (test_runtime_fixture.FixtureTests) ... ok\ntest_failed_docker_attempt_also_consumes_fresh_permission (test_runtime_fixture.FixtureTests) ... ok\ntest_fresh_initialization_permission_consumed_by_first_container_intent (test_runtime_fixture.FixtureTests) ... ok\ntest_fresh_nonempty_or_wrong_version_refuses_before_docker (test_runtime_fixture.FixtureTests) ... ok\ntest_local_or_unadmitted_refuses_before_any_command (test_runtime_fixture.FixtureTests) ... ok\ntest_only_reviewed_fault_modes_and_no_anonymous_volume_path (test_runtime_fixture.FixtureTests) ... ok\ntest_real_gate_entrypoint_and_bounded_isolation_flags (test_runtime_fixture.FixtureTests) ... ok\ntest_restore_bootstrap_does_not_precreate_target_database (test_runtime_fixture.FixtureTests) ... ok\ntest_run_and_source_receipt_cannot_be_reused (test_runtime_fixture.FixtureTests) ... ok\ntest_single_writer_refuses_running_slot_and_allows_after_stop (test_runtime_fixture.FixtureTests) ... ok\ntest_slot_identity_and_gate_use_real_loop_uuid (test_runtime_fixture.FixtureTests) ... ok\n\n----------------------------------------------------------------------\nRan 57 tests in 0.170s\n\nOK\n"
+  },
+  "actionlint": {
+    "version": "1.7.12",
+    "exit_code": 0,
+    "shellcheck": "UNAVAILABLE_EXPLICITLY_DISABLED"
+  },
+  "bash_syntax": "PASS",
+  "python_compilation": "PASS",
+  "registration_patch_apply": "PASS",
+  "full_app_suite": "NOT_RUN_APP_UNCHANGED_AND_PROHIBITED_SCOPE",
+  "app_lint_build": "NOT_RUN_APP_UNCHANGED",
+  "runtime": "NOT_RUN",
+  "production": "NO_GO",
+  "source_sha256": {
+    ".github/workflows/pg-recovery-preflight.yml": "a472e227dd3e86ac410581d9007baf267aba64ad7a0d5bb84298d0f082bbd950",
+    "experiments/d5-1-13/admission.py": "3023750f0581f98891da1b3730cabde81f36706ccc15efef5f608db4499e104d",
+    "experiments/d5-1-13/artifact.py": "4676dc9ebffb6971b25b25d425cfad8f7c41608b4947032e9f98f8f06d7f1ca9",
+    "experiments/d5-1-13/harness.py": "ab7072ffaa61c6e498a0e06e3b222e6acb1d76985c7e63b3045235a2f17d58e8",
+    "experiments/d5-1-13/preflight.py": "766f3aeff589af2b854853815215aafccf7b714797876061d9056f8c4c1f63e3",
+    "experiments/d5-1-13/recovery_model.py": "bf583888448f1c0c3acaf7899946da7fa11d03e3aa40840bbc339f1e57ee47fe",
+    "experiments/d5-1-13/runtime_fixture.py": "25cf754f2a9c3a908e2ffbd710a6d80622cb003534c8620e5ce70600a015e67e",
+    "experiments/d5-1-13/test_artifact.py": "83fa8e605b41989741631cc73792a65add927fb0f69fe146160fa72c8e864a5c",
+    "experiments/d5-1-13/test_preflight.py": "ce345d7e6414a472becfaacc35d5d60fba98056ad169e0982a27e76e12f257d4",
+    "experiments/d5-1-13/test_recovery.py": "9e268bb1b34d318ea98d581de4abb7d34a93a862c4d72a19d31e50eca692d29a",
+    "experiments/d5-1-13/test_runtime_fixture.py": "9374866db8e09561db7655321ba67831f76d45bafb2486b101d6520a28fb65fc"
+  }
+}

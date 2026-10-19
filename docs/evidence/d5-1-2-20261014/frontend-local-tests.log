@@ -1,0 +1,13 @@
+
+> homecloud-frontend@0.0.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /Users/aleksejkozemakin/.codex/.chatgpt-projects/g-p-6aaa72ceff208191895b0fd466f3e892/d5-ci/frontend
+
+
+ Test Files  22 passed (22)
+      Tests  278 passed (278)
+   Start at  19:41:58
+   Duration  7.55s (transform 1.94s, setup 2.29s, import 5.82s, tests 25.64s, environment 10.93s)
+

@@ -1,0 +1,29 @@
+{
+  "extracted_symbol_records": 2962,
+  "named_packages": 51,
+  "critical_crypto_tls_package_present": false,
+  "package_symbol_counts": {
+    "crypto/tls": 0,
+    "crypto/x509": 0,
+    "net": 0,
+    "net/http": 0,
+    "net/url": 0,
+    "os": 45
+  },
+  "main_symbols": [
+    "SetupUser",
+    "exit",
+    "init.0",
+    "main",
+    "usage",
+    "version"
+  ],
+  "osRootSymbols": [],
+  "osOpenSymbols": [
+    "Open",
+    "OpenFile"
+  ],
+  "per25_matching_affected_symbols": 0,
+  "govulncheck_symbol_findings": 0,
+  "method": "exact pkgSymbols records only; no defaultdict lookup-created package keys"
+}

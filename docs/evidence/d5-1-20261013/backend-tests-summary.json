@@ -1,0 +1,20 @@
+{
+  "numTotalTestSuites": 79,
+  "numPassedTestSuites": 63,
+  "numFailedTestSuites": 4,
+  "numPendingTestSuites": 12,
+  "numTotalTests": 1148,
+  "numPassedTests": 956,
+  "numFailedTests": 38,
+  "numPendingTests": 154,
+  "platform": "darwin/arm64",
+  "full_suite_status": "FAIL_NOT_LINUX_QUALIFIED",
+  "failed_suites": [
+    "src/uploads/upload-rate-limit.spec.ts",
+    "src/uploads/upload-workspace.spec.ts",
+    "src/uploads/ingress-file-cleanup.interceptor.spec.ts",
+    "src/uploads/secure-filesystem.spec.ts"
+  ],
+  "postgres": "SKIPPED_NO_TEST_DATABASE",
+  "process": "Assertions complete; Jest open handles, own process terminated"
+}

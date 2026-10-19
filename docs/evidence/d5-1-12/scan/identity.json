@@ -1,0 +1,6 @@
+{
+  "manifest": "sha256:83b8b00eca9cb7e77dc6c6bbb3fd4bef197853afa0c2cd104991d7a9673abbe8",
+  "config": "sha256:e8f72c13539571329d433e4d0ea475dc42a6407b36f9332cfe3fd790fe81a7d2",
+  "archive_sha256": "392dfe5ab7ce5fdfd77b4c32884ab8700a72124d783fd20b244cba6135d5c645",
+  "scan_layout": "/Users/aleksejkozemakin/.codex/.chatgpt-projects/g-p-6aaa72ceff208191895b0fd466f3e892/outputs/d5-1-11-resume-20261017/candidate.oci.tar.scan-layout"
+}

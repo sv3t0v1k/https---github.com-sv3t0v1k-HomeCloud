@@ -1,0 +1,25 @@
+{
+  "numPassedTests": 1148,
+  "numFailedTests": 0,
+  "numPendingTests": 0,
+  "numPassedTestSuites": 79,
+  "numFailedTestSuites": 0,
+  "postgres_suites": 12,
+  "postgres_tests": 154,
+  "audit_backend": {
+    "info": 0,
+    "low": 0,
+    "moderate": 25,
+    "high": 0,
+    "critical": 0,
+    "total": 25
+  },
+  "audit_frontend": {
+    "info": 0,
+    "low": 0,
+    "moderate": 0,
+    "high": 0,
+    "critical": 0,
+    "total": 0
+  }
+}

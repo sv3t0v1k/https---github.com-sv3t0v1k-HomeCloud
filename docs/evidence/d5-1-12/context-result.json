@@ -1,0 +1,12 @@
+{
+  "status": "CONTEXT_PREPARED_NO_BUILD",
+  "path": "../outputs/d5-1-12-20261018/context",
+  "production": "NO_GO",
+  "full_oci_reproducibility": "UNPROVEN",
+  "context_sha256": {
+    ".dockerignore": "ecd65c9b7bc31701bbac3c234b46e94ab569695f7f5ba5d4d11c6752c2ff19bf",
+    "Dockerfile": "808a88be496295434ed3e11caa9f26dc6ae2f5af76a94752606da857536df81f",
+    "gosu": "3d0088b3cfedd7fa76869768b140db58dd6e52b30343c54000fa9fd92a904085",
+    "zlib.apk": "63aeea03c15a2f9018f81805cfc8aa926bdf5cd68921f22149c2fbb5d0ee9f47"
+  }
+}

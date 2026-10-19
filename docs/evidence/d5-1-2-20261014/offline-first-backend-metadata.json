@@ -1,0 +1,318 @@
+{
+  "buildx.build.provenance": {
+    "builder": {
+      "id": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38545262386/attempts/1"
+    },
+    "buildType": "https://mobyproject.org/buildkit@v1",
+    "materials": [
+      {
+        "uri": "pkg:docker/node@24.21.0-alpine?digest=sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1&platform=linux%2Famd64",
+        "digest": {
+          "sha256": "ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1"
+        }
+      }
+    ],
+    "invocation": {
+      "configSource": {
+        "entryPoint": "Dockerfile"
+      },
+      "parameters": {
+        "frontend": "dockerfile.v0",
+        "args": {
+          "build-arg:NGINX_IMAGE": "docker.io/library/nginx:1.30.5-alpine@sha256:0985e772fb9f729e6fa0980da05fca5d9c468e870eed43071545afa9d2e27d94",
+          "build-arg:NODE_IMAGE": "docker.io/library/node:24.21.0-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1",
+          "label:io.homecloud.pair": "8a9add6fab55298c3397ea01b65e4f2d7512b92c",
+          "label:io.homecloud.role": "backend",
+          "label:org.opencontainers.image.revision": "8a9add6fab55298c3397ea01b65e4f2d7512b92c",
+          "label:org.opencontainers.image.source": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-homecloud",
+          "label:org.opencontainers.image.version": "dry-run"
+        },
+        "locals": [
+          {
+            "name": "context"
+          },
+          {
+            "name": "dockerfile"
+          }
+        ],
+        "root": {
+          "configSource": {
+            "path": "Dockerfile"
+          },
+          "request": {
+            "args": {
+              "build-arg:NGINX_IMAGE": "docker.io/library/nginx:1.30.5-alpine@sha256:0985e772fb9f729e6fa0980da05fca5d9c468e870eed43071545afa9d2e27d94",
+              "build-arg:NODE_IMAGE": "docker.io/library/node:24.21.0-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1",
+              "label:io.homecloud.pair": "8a9add6fab55298c3397ea01b65e4f2d7512b92c",
+              "label:io.homecloud.role": "backend",
+              "label:org.opencontainers.image.revision": "8a9add6fab55298c3397ea01b65e4f2d7512b92c",
+              "label:org.opencontainers.image.source": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-homecloud",
+              "label:org.opencontainers.image.version": "dry-run",
+              "vcs:localdir:context": "backend",
+              "vcs:localdir:dockerfile": "backend",
+              "vcs:revision": "8a9add6fab55298c3397ea01b65e4f2d7512b92c",
+              "vcs:source": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud"
+            }
+          }
+        },
+        "compatibilityVersion": 30
+      },
+      "environment": {
+        "dockerfileVersion": "1.27.0",
+        "github_actor": "sv3t0v1k",
+        "github_actor_id": "122977177",
+        "github_event_name": "push",
+        "github_event_payload": {
+          "after": "8a9add6fab55298c3397ea01b65e4f2d7512b92c",
+          "base_ref": null,
+          "before": "79f8e4b72883b775d6fa2fac8f1209da26843f9f",
+          "commits": [
+            {
+              "author": {
+                "email": "dev@homecloud.local",
+                "name": "HomeCloud Dev"
+              },
+              "committer": {
+                "email": "dev@homecloud.local",
+                "name": "HomeCloud Dev"
+              },
+              "distinct": true,
+              "id": "f81f48f8cbed9819cf30cf2750ac37450ff53de2",
+              "message": "Устранить достижимые уязвимости file-type и вложенного uuid",
+              "timestamp": "2026-10-14T19:48:48+10:00",
+              "tree_id": "45b3455617a653616560d2cd909e0e4388c8f9f8",
+              "url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/commit/f81f48f8cbed9819cf30cf2750ac37450ff53de2"
+            },
+            {
+              "author": {
+                "email": "dev@homecloud.local",
+                "name": "HomeCloud Dev"
+              },
+              "committer": {
+                "email": "dev@homecloud.local",
+                "name": "HomeCloud Dev"
+              },
+              "distinct": true,
+              "id": "87c5e913a36ae9b4f52f026bed49d4cca3de7da1",
+              "message": "Перевести CI на Node LTS и проверять образы и происхождение релиза",
+              "timestamp": "2026-10-14T19:48:48+10:00",
+              "tree_id": "fb41a1d22792f9017b7bf4ef7933f9ffabed3954",
+              "url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/commit/87c5e913a36ae9b4f52f026bed49d4cca3de7da1"
+            },
+            {
+              "author": {
+                "email": "dev@homecloud.local",
+                "name": "HomeCloud Dev"
+              },
+              "committer": {
+                "email": "dev@homecloud.local",
+                "name": "HomeCloud Dev"
+              },
+              "distinct": true,
+              "id": "8a9add6fab55298c3397ea01b65e4f2d7512b92c",
+              "message": "Зафиксировать проверки готовности релиза и реальные блокеры D5.1.2",
+              "timestamp": "2026-10-14T19:49:36+10:00",
+              "tree_id": "0ae02c5cf870608a05a046cffd9fa52fe5a09531",
+              "url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/commit/8a9add6fab55298c3397ea01b65e4f2d7512b92c"
+            }
+          ],
+          "compare": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/compare/79f8e4b72883...8a9add6fab55",
+          "created": false,
+          "deleted": false,
+          "forced": false,
+          "head_commit": {
+            "author": {
+              "email": "dev@homecloud.local",
+              "name": "HomeCloud Dev"
+            },
+            "committer": {
+              "email": "dev@homecloud.local",
+              "name": "HomeCloud Dev"
+            },
+            "distinct": true,
+            "id": "8a9add6fab55298c3397ea01b65e4f2d7512b92c",
+            "message": "Зафиксировать проверки готовности релиза и реальные блокеры D5.1.2",
+            "timestamp": "2026-10-14T19:49:36+10:00",
+            "tree_id": "0ae02c5cf870608a05a046cffd9fa52fe5a09531",
+            "url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/commit/8a9add6fab55298c3397ea01b65e4f2d7512b92c"
+          },
+          "pusher": {
+            "email": "122977177+sv3t0v1k@users.noreply.github.com",
+            "name": "sv3t0v1k"
+          },
+          "ref": "refs/heads/этап/d5-1-ci",
+          "repository": {
+            "allow_forking": true,
+            "archive_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/{archive_format}{/ref}",
+            "archived": false,
+            "assignees_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/assignees{/user}",
+            "blobs_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/git/blobs{/sha}",
+            "branches_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/branches{/branch}",
+            "clone_url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud.git",
+            "collaborators_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/collaborators{/collaborator}",
+            "comments_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/comments{/number}",
+            "commits_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/commits{/sha}",
+            "compare_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/compare/{base}...{head}",
+            "contents_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/contents/{+path}",
+            "contributors_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/contributors",
+            "created_at": 1788861621,
+            "default_branch": "main",
+            "deployments_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/deployments",
+            "description": null,
+            "disabled": false,
+            "downloads_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/downloads",
+            "events_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/events",
+            "fork": false,
+            "forks": 0,
+            "forks_count": 0,
+            "forks_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/forks",
+            "full_name": "sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud",
+            "git_commits_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/git/commits{/sha}",
+            "git_refs_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/git/refs{/sha}",
+            "git_tags_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/git/tags{/sha}",
+            "git_url": "git://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud.git",
+            "has_discussions": false,
+            "has_downloads": true,
+            "has_issues": true,
+            "has_pages": false,
+            "has_projects": true,
+            "has_pull_requests": true,
+            "has_wiki": true,
+            "homepage": null,
+            "hooks_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/hooks",
+            "html_url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud",
+            "id": 1361208027,
+            "is_template": false,
+            "issue_comment_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/issues/comments{/number}",
+            "issue_events_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/issues/events{/number}",
+            "issues_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/issues{/number}",
+            "keys_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/keys{/key_id}",
+            "labels_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/labels{/name}",
+            "language": "TypeScript",
+            "languages_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/languages",
+            "license": {
+              "key": "mit",
+              "name": "MIT License",
+              "node_id": "MDc6TGljZW5zZTEz",
+              "spdx_id": "MIT",
+              "url": "https://api.github.com/licenses/mit"
+            },
+            "master_branch": "main",
+            "merges_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/merges",
+            "milestones_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/milestones{/number}",
+            "mirror_url": null,
+            "name": "https---github.com-sv3t0v1k-HomeCloud",
+            "node_id": "R_kgDOUSJi2w",
+            "notifications_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/notifications{?since,all,participating}",
+            "open_issues": 1,
+            "open_issues_count": 1,
+            "owner": {
+              "avatar_url": "https://avatars.githubusercontent.com/u/122977177?v=4",
+              "email": "122977177+sv3t0v1k@users.noreply.github.com",
+              "events_url": "https://api.github.com/users/sv3t0v1k/events{/privacy}",
+              "followers_url": "https://api.github.com/users/sv3t0v1k/followers",
+              "following_url": "https://api.github.com/users/sv3t0v1k/following{/other_user}",
+              "gists_url": "https://api.github.com/users/sv3t0v1k/gists{/gist_id}",
+              "gravatar_id": "",
+              "html_url": "https://github.com/sv3t0v1k",
+              "id": 122977177,
+              "login": "sv3t0v1k",
+              "name": "sv3t0v1k",
+              "node_id": "U_kgDOB1R7mQ",
+              "organizations_url": "https://api.github.com/users/sv3t0v1k/orgs",
+              "received_events_url": "https://api.github.com/users/sv3t0v1k/received_events",
+              "repos_url": "https://api.github.com/users/sv3t0v1k/repos",
+              "site_admin": false,
+              "starred_url": "https://api.github.com/users/sv3t0v1k/starred{/owner}{/repo}",
+              "subscriptions_url": "https://api.github.com/users/sv3t0v1k/subscriptions",
+              "type": "User",
+              "url": "https://api.github.com/users/sv3t0v1k",
+              "user_view_type": "public"
+            },
+            "private": false,
+            "pull_request_creation_policy": "all",
+            "pulls_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/pulls{/number}",
+            "pushed_at": 1791971411,
+            "releases_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/releases{/id}",
+            "size": 7698,
+            "ssh_url": "git@github.com:sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud.git",
+            "stargazers": 0,
+            "stargazers_count": 0,
+            "stargazers_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/stargazers",
+            "statuses_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/statuses/{sha}",
+            "subscribers_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/subscribers",
+            "subscription_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/subscription",
+            "svn_url": "https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud",
+            "tags_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/tags",
+            "teams_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/teams",
+            "topics": [],
+            "trees_url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/git/trees{/sha}",
+            "updated_at": "2026-10-13T11:51:45Z",
+            "url": "https://api.github.com/repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud",
+            "visibility": "public",
+            "watchers": 0,
+            "watchers_count": 0,
+            "web_commit_signoff_required": false
+          },
+          "sender": {
+            "avatar_url": "https://avatars.githubusercontent.com/u/122977177?v=4",
+            "events_url": "https://api.github.com/users/sv3t0v1k/events{/privacy}",
+            "followers_url": "https://api.github.com/users/sv3t0v1k/followers",
+            "following_url": "https://api.github.com/users/sv3t0v1k/following{/other_user}",
+            "gists_url": "https://api.github.com/users/sv3t0v1k/gists{/gist_id}",
+            "gravatar_id": "",
+            "html_url": "https://github.com/sv3t0v1k",
+            "id": 122977177,
+            "login": "sv3t0v1k",
+            "node_id": "U_kgDOB1R7mQ",
+            "organizations_url": "https://api.github.com/users/sv3t0v1k/orgs",
+            "received_events_url": "https://api.github.com/users/sv3t0v1k/received_events",
+            "repos_url": "https://api.github.com/users/sv3t0v1k/repos",
+            "site_admin": false,
+            "starred_url": "https://api.github.com/users/sv3t0v1k/starred{/owner}{/repo}",
+            "subscriptions_url": "https://api.github.com/users/sv3t0v1k/subscriptions",
+            "type": "User",
+            "url": "https://api.github.com/users/sv3t0v1k",
+            "user_view_type": "public"
+          }
+        },
+        "github_job": "image-build",
+        "github_ref": "refs/heads/этап/d5-1-ci",
+        "github_ref_name": "этап/d5-1-ci",
+        "github_ref_protected": "false",
+        "github_ref_type": "branch",
+        "github_repository": "sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud",
+        "github_repository_id": "1361208027",
+        "github_repository_owner": "sv3t0v1k",
+        "github_repository_owner_id": "122977177",
+        "github_run_attempt": "1",
+        "github_run_id": "38545262386",
+        "github_run_number": "13",
+        "github_runner_arch": "X64",
+        "github_runner_environment": "github-hosted",
+        "github_runner_image_os": "ubuntu24",
+        "github_runner_image_version": "20261004.327.1",
+        "github_runner_name": "GitHub Actions 1000000216",
+        "github_runner_os": "Linux",
+        "github_runner_tracking_id": "github_7066e340-11f8-4f56-8af3-d36067ad3413",
+        "github_server_url": "https://github.com",
+        "github_triggering_actor": "sv3t0v1k",
+        "github_workflow": "HomeCloud CI",
+        "github_workflow_ref": "sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/.github/workflows/ci.yml@refs/heads/этап/d5-1-ci",
+        "github_workflow_sha": "8a9add6fab55298c3397ea01b65e4f2d7512b92c",
+        "platform": "linux/amd64"
+      }
+    }
+  },
+  "buildx.build.ref": "builder-5e49e0af-1476-4ea9-897a-dc6686b8472f/builder-5e49e0af-1476-4ea9-897a-dc6686b8472f0/kqaicm3d8m66xoqq9g8obs9od",
+  "containerimage.descriptor": {
+    "mediaType": "application/vnd.oci.image.index.v1+json",
+    "digest": "sha256:e5f266071b5d3044a79fdee94d6ac926f2687214f7c7532d562e1919a3624b06",
+    "size": 856,
+    "annotations": {
+      "org.opencontainers.image.created": "2026-10-14T09:51:21Z"
+    }
+  },
+  "containerimage.digest": "sha256:e5f266071b5d3044a79fdee94d6ac926f2687214f7c7532d562e1919a3624b06",
+  "image.name": "ghcr.io/sv3t0v1k/https---github.com-sv3t0v1k-homecloud/backend:dry-run"
+}

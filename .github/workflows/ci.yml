@@ -1,0 +1,668 @@
+name: HomeCloud CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+    inputs:
+      candidate_version:
+        type: string
+        default: dry-run
+        required: false
+      source_sha:
+        type: string
+        required: true
+      qualification_profile:
+        type: string
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    container: node:24.21.0-bookworm-slim@sha256:51b1100cc2a83d370c6a60952e3f2989c8a43159d0e38586e090f3b3326efefd
+    services:
+      postgres:
+        image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+        env:
+          POSTGRES_DB: homecloud_ci
+          POSTGRES_USER: homecloud_ci
+          POSTGRES_PASSWORD: disposable-ci-only
+        options: >-
+          --health-cmd "pg_isready -U homecloud_ci -d homecloud_ci"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      HOMECLOUD_TEST_DATABASE_URL: postgres://homecloud_ci:disposable-ci-only@postgres:5432/homecloud_ci
+    steps:
+      - name: Patch CI Perl and install toolchain
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates curl gcc libc6-dev git python3 util-linux perl-base=5.36.0-7+deb12u4
+          test "$(dpkg-query -W -f='${Version}' perl-base)" = 5.36.0-7+deb12u4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Install checksum-pinned compatible npm before dependency commands
+        run: python3 scripts/ci/install-npm.py
+      - run: npm ci --no-audit
+        working-directory: backend
+      - run: sh native/build.sh
+        working-directory: backend
+      - run: python3 scripts/ci/test-release.py
+      - run: python3 scripts/ci/test-provenance.py
+      - run: python3 scripts/ci/test-scan-evidence.py
+      - run: python3 scripts/ci/test-scan-policy.py
+      - run: python3 scripts/ci/test-environment-evidence.py
+      - run: python3 scripts/ci/test-skopeo-closure.py
+      - run: python3 scripts/ci/test-runner-minimization.py
+      - run: python3 scripts/ci/test-gosu-disposition.py
+      - run: python3 scripts/ci/test-oci-scan-binding.py
+      - run: python3 scripts/ci/test-policy-coverage.py
+      - run: python3 scripts/ci/test-ci-gate.py
+      - run: python3 scripts/ci/test-stage-cache-proof.py
+      - run: python3 scripts/ci/test-secret-findings.py
+      - run: python3 scripts/ci/test-install-npm.py
+      - name: Retain actual CI toolchain inventory after apt changes
+        run: dpkg-query -W -f='${binary:Package}\t${Version}\n' > ci-toolchain-packages.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: ci-toolchain-packages-${{ github.run_attempt }}
+          path: ci-toolchain-packages.txt
+          if-no-files-found: error
+          retention-days: 14
+      - name: Full suite as unprivileged user
+        run: |
+          chown -R node:node "$GITHUB_WORKSPACE"
+          runuser -u node -- npm test -- --runInBand --json --outputFile=../backend-tests.json
+        working-directory: backend
+      - name: PostgreSQL suites must execute
+        run: |
+          node -e 'const r=require("./backend-tests.json");const s=r.testResults.filter(x=>x.name.endsWith(".postgres.spec.ts"));if(s.length<12||s.some(x=>x.status!=="passed"||!x.assertionResults.length||x.assertionResults.some(t=>t.status!=="passed")))process.exit(1)'
+      - run: npm run lint
+        working-directory: backend
+      - run: npm run test:file-type:compiled
+        working-directory: backend
+      - name: Patched dependency runtime and multipart boundaries
+        run: runuser -u node -- node --test --test-timeout=10000 test/dependency-security-runtime.cjs
+        working-directory: backend
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: backend-tests-${{ github.run_attempt }}
+          path: backend-tests.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Mandatory actual CI environment qualification
+        if: always()
+        run: |
+          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy"
+          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "backend" "backend" "environment-backend"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: environment-backend-${{ github.run_attempt }}
+          path: environment-backend
+          if-no-files-found: error
+          retention-days: 14
+  frontend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Remove unused hosted .NET SDK before workload; retain evidence
+        run: python3 scripts/ci/minimize-runner.py
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24.21.0'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install checksum-pinned compatible npm before dependency commands
+        run: python3 scripts/ci/install-npm.py
+      - run: npm ci --no-audit
+        working-directory: frontend
+      - run: npm test
+        working-directory: frontend
+      - run: npm run lint
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+      - name: Mandatory actual CI environment qualification
+        if: always()
+        run: |
+          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy"
+          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "frontend" "frontend" "environment-frontend"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: environment-frontend-${{ github.run_attempt }}
+          path: environment-frontend
+          if-no-files-found: error
+          retention-days: 14
+  configuration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Remove unused hosted .NET SDK before workload; retain evidence
+        run: python3 scripts/ci/minimize-runner.py
+      - name: Pin normalized Compose API; preserve explicit false bind flags
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/homecloud-compose-bin"
+          curl --fail --silent --show-error --location https://github.com/docker/compose/releases/download/v5.6.0/docker-compose-linux-x86_64 -o "$RUNNER_TEMP/homecloud-compose-bin/docker-compose"
+          echo "40343e21ca777173e69cff5dbafeb37c6f81f3b0d57d9e597f036e95eb63e76a  $RUNNER_TEMP/homecloud-compose-bin/docker-compose" | sha256sum --check
+          chmod +x "$RUNNER_TEMP/homecloud-compose-bin/docker-compose"
+          cat > "$RUNNER_TEMP/homecloud-compose-bin/docker" <<'SHIM'
+          #!/bin/sh
+          set -eu
+          [ "$#" -ge 1 ] && [ "$1" = compose ] || { echo 'CI configuration helper supports compose only' >&2; exit 1; }
+          shift
+          exec "$(dirname "$0")/docker-compose" "$@"
+          SHIM
+          chmod +x "$RUNNER_TEMP/homecloud-compose-bin/docker"
+          echo "$RUNNER_TEMP/homecloud-compose-bin" >> "$GITHUB_PATH"
+          test "$("$RUNNER_TEMP/homecloud-compose-bin/docker" compose version --short)" = 5.6.0
+      - run: docker compose version && python3 scripts/ci/compose-check.py
+      - run: python3 deploy/linux/test_startup_gate.py
+      - run: python3 scripts/ci/test-entrypoint.py
+      - run: python3 deploy/linux/test_preflight.py
+        env:
+          HOMECLOUD_TEST_ROOT: ${{ github.workspace }}
+      - name: Mandatory actual CI environment qualification
+        if: always()
+        run: |
+          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy"
+          python3 -c "import os,json; temp=os.environ['RUNNER_TEMP']; print(json.dumps([dict(id='compose', path=temp+'/homecloud-compose-bin/docker-compose', version_args=['version','--short'])]))" > "$RUNNER_TEMP/environment-tools.json"
+          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "configuration" "none" "environment-configuration" "$RUNNER_TEMP/environment-tools.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: environment-configuration-${{ github.run_attempt }}
+          path: environment-configuration
+          if-no-files-found: error
+          retention-days: 14
+  image-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    strategy:
+      fail-fast: false
+      matrix:
+        component: [backend, frontend]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Remove unused hosted .NET SDK before workload; retain evidence
+        run: python3 scripts/ci/minimize-runner.py
+      - id: bases
+        run: |
+          python3 -c 'import json,os; d=json.load(open("scripts/ci/images.lock.json")); f=open(os.environ["GITHUB_OUTPUT"],"a"); [f.write(k+"="+v+"\n") for k,v in d.items()]'
+      - id: source
+        run: |
+          git diff --quiet HEAD -- . ':(exclude)scripts/tests/PHASE-5.3.1-TEST-AUDIT.md'
+          test -z "$(git ls-files --others --exclude-standard -- backend frontend)"
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "repository=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+        with:
+          version: v0.38.0
+          driver-opts: image=moby/buildkit@sha256:98cc6a3fc46220d00f8224ae483f3274fc874e9be8d7dd1e2e2c5481209228b5
+      - name: Build offline OCI provenance candidate
+        id: offline
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        env:
+          BUILDX_GIT_CHECK_DIRTY: 'false'
+          BUILDX_GIT_INFO: 'true'
+          BUILDX_GIT_LABELS: 'false'
+        with:
+          context: ./${{ matrix.component }}
+          platforms: linux/amd64
+          push: false
+          load: false
+          outputs: type=oci,dest=${{ runner.temp }}/${{ matrix.component }}.oci.tar
+          provenance: mode=max,version=v0.2
+          tags: ghcr.io/${{ steps.source.outputs.repository }}/${{ matrix.component }}:${{ inputs.candidate_version || 'dry-run' }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ steps.source.outputs.repository }}
+            org.opencontainers.image.revision=${{ steps.source.outputs.commit }}
+            org.opencontainers.image.version=${{ inputs.candidate_version || 'dry-run' }}
+            io.homecloud.role=${{ matrix.component }}
+            io.homecloud.pair=${{ steps.source.outputs.commit }}
+          build-args: |
+            NODE_IMAGE=${{ steps.bases.outputs.node }}
+            NGINX_IMAGE=${{ steps.bases.outputs.nginx }}
+      - name: Verify offline OCI digest, source and attestation
+        env:
+          BUILD_METADATA: ${{ steps.offline.outputs.metadata }}
+          SOURCE_COMMIT: ${{ steps.source.outputs.commit }}
+          REPOSITORY: ${{ steps.source.outputs.repository }}
+        run: |
+          python3 -c 'import os; open("offline-${{ matrix.component }}-metadata.json", "w").write(os.environ["BUILD_METADATA"])'
+          python3 scripts/ci/provenance.py dry-run --archive "$RUNNER_TEMP/${{ matrix.component }}.oci.tar" --metadata "offline-${{ matrix.component }}-metadata.json" --component "${{ matrix.component }}" --version "${{ inputs.candidate_version || 'dry-run' }}" --commit "$SOURCE_COMMIT" --repository "$REPOSITORY" --output "offline-${{ matrix.component }}.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: offline-provenance-${{ matrix.component }}-${{ github.run_attempt }}
+          path: offline-${{ matrix.component }}*.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Load the exact OCI candidate for runtime smoke
+        id: runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends skopeo
+          skopeo copy --override-os linux --override-arch amd64 "oci-archive:$RUNNER_TEMP/${{ matrix.component }}.oci.tar" "docker-daemon:homecloud-ci-${{ matrix.component }}:${{ github.sha }}"
+          docker image inspect "homecloud-ci-${{ matrix.component }}:${{ github.sha }}" > "${{ matrix.component }}.loaded.inspect.json"
+          python3 scripts/ci/oci-scan-binding.py --archive "$RUNNER_TEMP/${{ matrix.component }}.oci.tar" --loaded-inspect "${{ matrix.component }}.loaded.inspect.json" --role "${{ matrix.component }}" --source "$(git rev-parse HEAD)" --output "${{ matrix.component }}.loaded.binding.json"
+      - name: Backend production image native dependencies, without mounts or startup
+        if: matrix.component == 'backend'
+        env:
+          IMAGE: homecloud-ci-backend:${{ github.sha }}
+        run: |
+          docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --entrypoint node "$IMAGE" -e '
+          const assert=require("node:assert/strict");
+          const fs=require("node:fs");
+          const {spawnSync}=require("node:child_process");
+          const sharp=require("sharp");
+          assert.equal(process.getuid(),1001);
+          assert.equal(process.version,"v24.21.0");
+          for(const path of ["/usr/local/lib/node_modules/npm","/usr/local/bin/npm","/usr/local/bin/npx"]){assert.equal(fs.existsSync(path),false);}
+          for(const path of ["/storage","/storage/.tmp"]){const stat=fs.statSync(path);assert.equal(stat.uid,1001);assert.equal(stat.mode & 0o777,0o700);}
+          const cli=spawnSync(process.execPath,["./node_modules/typeorm/cli.js","migration:run","--help"],{encoding:"utf8",timeout:10000});
+          assert.ifError(cli.error);assert.equal(cli.status,0);assert.match(cli.stdout,/transaction/);
+          assert.equal(sharp.versions.sharp,"0.35.5");
+          require("./native/secure-fs.node");
+          sharp({create:{width:20,height:10,channels:3,background:"#336699"}}).jpeg().toBuffer()
+          .then(input=>sharp(input).resize(10,10,{fit:"inside"}).png().toBuffer())
+          .then(output=>sharp(output).metadata())
+          .then(meta=>{assert.equal(meta.width,10);assert.equal(meta.height,5);console.log("PASS: linux/amd64 musl native addon and image decoder");})
+          .catch(error=>{console.error(error.message);process.exitCode=1;});'
+      - name: Frontend nginx template compatibility, without mounts or service startup
+        if: matrix.component == 'frontend'
+        env:
+          IMAGE: homecloud-ci-frontend:${{ github.sha }}
+        run: |
+          docker run --rm --network none --cap-drop ALL --cap-add CHOWN --security-opt no-new-privileges --add-host backend:127.0.0.1 --env INGRESS_PROXY_IP=127.0.0.2 "$IMAGE" nginx -t
+      - name: Verify runtime image architecture
+        env:
+          IMAGE: homecloud-ci-${{ matrix.component }}:${{ github.sha }}
+        run: test "$(docker image inspect "$IMAGE" --format '{{.Os}}/{{.Architecture}}')" = linux/amd64
+      - name: Install checksum-pinned scanner
+        id: scanner
+        if: always() && steps.runtime.outcome == 'success'
+        run: sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/homecloud-trivy"
+      - name: Scan the exact retained production OCI candidate, including unfixed vulnerabilities
+        if: always() && steps.runtime.outcome == 'success' && steps.scanner.outcome == 'success'
+        run: sh scripts/ci/scan-image.sh "$RUNNER_TEMP/homecloud-trivy/trivy" archive "$RUNNER_TEMP/${{ matrix.component }}.oci.tar" "image-${{ matrix.component }}.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: image-scan-${{ matrix.component }}-${{ github.run_attempt }}
+          path: image-${{ matrix.component }}*.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Bind production scan to archive, manifest, config and source
+        if: always() && steps.offline.outcome == 'success'
+        run: |
+          python3 scripts/ci/oci-scan-binding.py --archive "$RUNNER_TEMP/${{ matrix.component }}.oci.tar" --report "image-${{ matrix.component }}.json" --role "${{ matrix.component }}" --source "$(git rev-parse HEAD)" --provenance "offline-${{ matrix.component }}.json" --output "${{ matrix.component }}.binding.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: production-binding-${{ matrix.component }}-${{ github.run_attempt }}
+          path: |
+            ${{ matrix.component }}.binding.json
+            ${{ matrix.component }}.loaded.binding.json
+            ${{ matrix.component }}.loaded.inspect.json
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always() && steps.offline.outcome == 'success'
+        with:
+          name: production-oci-${{ matrix.component }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/${{ matrix.component }}.oci.tar
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+      - name: Qualify actual cached dependency and builder stages
+        if: always() && steps.offline.outcome == 'success'
+        run: |
+          sh scripts/ci/qualify-stages.sh "$RUNNER_TEMP/homecloud-trivy/trivy" "${{ matrix.component }}" "$(git rev-parse HEAD)" "stages-${{ matrix.component }}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: stage-scans-${{ matrix.component }}-${{ github.run_attempt }}
+          path: stages-${{ matrix.component }}
+          if-no-files-found: error
+          retention-days: 14
+      - name: Mandatory actual CI environment qualification
+        if: always()
+        env:
+          IMAGE_SCANNER_INSTALL_RESULT: ${{ steps.scanner.outcome }}
+        run: |
+          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy"
+          if [ "$IMAGE_SCANNER_INSTALL_RESULT" != "success" ]; then
+            sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/homecloud-trivy"
+          fi
+          python3 -c "import os,json; temp=os.environ['RUNNER_TEMP']; print(json.dumps([dict(id='image-trivy', path=temp+'/homecloud-trivy/trivy')]))" > "$RUNNER_TEMP/environment-tools.json"
+          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "image-build-${{ matrix.component }}" "none" "environment-image-build-${{ matrix.component }}" "$RUNNER_TEMP/environment-tools.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: environment-image-build-${{ matrix.component }}-${{ github.run_attempt }}
+          path: environment-image-build-${{ matrix.component }}
+          if-no-files-found: error
+          retention-days: 14
+  provenance-pair:
+    if: always()
+    needs: [image-build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Remove unused hosted .NET SDK before workload; retain evidence
+        run: python3 scripts/ci/minimize-runner.py
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: offline-provenance-backend-${{ github.run_attempt }}
+          path: offline-backend
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: offline-provenance-frontend-${{ github.run_attempt }}
+          path: offline-frontend
+      - name: Bind verified image pair to synthetic tag and dry-run manifest
+        run: |
+          python3 scripts/ci/provenance-pair.py --backend offline-backend/offline-backend.json --frontend offline-frontend/offline-frontend.json --commit "$(git rev-parse HEAD)" --repository "${GITHUB_REPOSITORY,,}" --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --version "${{ inputs.candidate_version || 'dry-run' }}" --output provenance-dry-run.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: provenance-dry-run-${{ github.run_attempt }}
+          path: provenance-dry-run.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Mandatory actual CI environment qualification
+        if: always()
+        run: |
+          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy"
+          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "provenance-pair" "none" "environment-provenance-pair"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: environment-provenance-pair-${{ github.run_attempt }}
+          path: environment-provenance-pair
+          if-no-files-found: error
+          retention-days: 14
+  base-image-scan:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' || inputs.qualification_profile == 'release' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    strategy:
+      fail-fast: false
+      matrix:
+        base: [node, nginx, postgres, node-ci]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Remove unused hosted .NET SDK before workload; retain evidence
+        run: python3 scripts/ci/minimize-runner.py
+      - name: Install checksum-pinned scanner
+        run: sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/homecloud-trivy"
+      - name: Scan pinned linux/amd64 base, including unfixed vulnerabilities
+        env:
+          BASE: ${{ matrix.base }}
+        run: |
+          if [ "$BASE" = node-ci ]; then
+            IMAGE=node:24.21.0-bookworm-slim@sha256:51b1100cc2a83d370c6a60952e3f2989c8a43159d0e38586e090f3b3326efefd
+          else
+            IMAGE=$(python3 -c 'import json,os; print(json.load(open("scripts/ci/images.lock.json"))[os.environ["BASE"]])')
+          fi
+          sh scripts/ci/scan-image.sh "$RUNNER_TEMP/homecloud-trivy/trivy" remote "$IMAGE" "image-base-$BASE.json" diagnostic
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: image-scan-base-${{ matrix.base }}-${{ github.run_attempt }}
+          path: image-base-${{ matrix.base }}*.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Mandatory actual CI environment qualification
+        if: always()
+        run: |
+          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy"
+          python3 -c "import os,json; temp=os.environ['RUNNER_TEMP']; print(json.dumps([dict(id='image-trivy', path=temp+'/homecloud-trivy/trivy')]))" > "$RUNNER_TEMP/environment-tools.json"
+          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "base-${{ matrix.base }}" "none" "environment-base-${{ matrix.base }}" "$RUNNER_TEMP/environment-tools.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: environment-base-${{ matrix.base }}-${{ github.run_attempt }}
+          path: environment-base-${{ matrix.base }}
+          if-no-files-found: error
+          retention-days: 14
+  security:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    strategy:
+      fail-fast: false
+      matrix:
+        component: [backend, frontend]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Remove unused hosted .NET SDK before workload; retain evidence
+        run: python3 scripts/ci/minimize-runner.py
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24.21.0'
+      - name: Install checksum-pinned compatible npm before dependency commands
+        run: python3 scripts/ci/install-npm.py
+      - run: npm ci --ignore-scripts --no-audit
+        working-directory: ${{ matrix.component }}
+      - name: Capture audit response, reject infrastructure errors
+        shell: bash
+        working-directory: ${{ matrix.component }}
+        run: |
+          set +e
+          npm audit --json > ../audit-${{ matrix.component }}.json
+          result=$?
+          set -e
+          test "$result" -le 1
+      - run: python3 scripts/ci/audit-gate.py audit-${{ matrix.component }}.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: audit-${{ matrix.component }}-${{ github.run_attempt }}
+          path: audit-${{ matrix.component }}.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Mandatory actual CI environment qualification
+        if: always()
+        run: |
+          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy"
+          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "security-${{ matrix.component }}" "${{ matrix.component }}" "environment-security-${{ matrix.component }}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: environment-security-${{ matrix.component }}-${{ github.run_attempt }}
+          path: environment-security-${{ matrix.component }}
+          if-no-files-found: error
+          retention-days: 14
+  secrets:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Remove unused hosted .NET SDK before workload; retain evidence
+        run: python3 scripts/ci/minimize-runner.py
+      - name: Pinned gitleaks; full reachable history, forbidden audit excluded before reading
+        shell: bash
+        run: |
+          curl --fail --silent --show-error --location https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz -o "$RUNNER_TEMP/gitleaks.tar.gz"
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  $RUNNER_TEMP/gitleaks.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP" gitleaks
+          mkdir "$RUNNER_TEMP/gitleaks-evidence"
+          set +e
+          "$RUNNER_TEMP/gitleaks" git --redact=100 --exit-code 42 --report-format json --report-path "$RUNNER_TEMP/gitleaks-evidence/raw-redacted.json" --log-opts="--all -- . :(exclude)scripts/tests/PHASE-5.3.1-TEST-AUDIT.md" .
+          scanner_result=$?
+          set -e
+          python3 scripts/ci/secret-findings.py --report "$RUNNER_TEMP/gitleaks-evidence/raw-redacted.json" --scanner-exit "$scanner_result" --output "$RUNNER_TEMP/gitleaks-evidence/classification.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: secret-evidence-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/gitleaks-evidence
+          if-no-files-found: error
+          retention-days: 90
+      - name: Mandatory actual CI environment qualification
+        if: always()
+        run: |
+          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy"
+          python3 -c "import os,json; temp=os.environ['RUNNER_TEMP']; print(json.dumps([dict(id='gitleaks', path=temp+'/gitleaks', version_args=['version'])]))" > "$RUNNER_TEMP/environment-tools.json"
+          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "secrets" "none" "environment-secrets" "$RUNNER_TEMP/environment-tools.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: environment-secrets-${{ github.run_attempt }}
+          path: environment-secrets
+          if-no-files-found: error
+          retention-days: 14
+  support-images:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    strategy:
+      fail-fast: false
+      matrix:
+        role: [postgres, ingress, buildkit]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Remove unused hosted .NET SDK before workload; retain evidence
+        run: python3 scripts/ci/minimize-runner.py
+      - name: Export exact pinned amd64 artifact without registry writes
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends skopeo
+          IMAGE=$(python3 -c 'import json; print(json.load(open("scripts/ci/production-images.lock.json"))["${{ matrix.role }}"])')
+          SOURCE=$(python3 -c 'import sys; name,digest=sys.argv[1].split("@"); tail=name.rsplit("/",1)[-1]; name=name.rsplit(":",1)[0] if ":" in tail else name; print(name+"@"+digest)' "$IMAGE")
+          skopeo copy --preserve-digests "docker://$SOURCE" "oci-archive:$RUNNER_TEMP/${{ matrix.role }}.oci.tar"
+      - name: Validate production ingress configuration on disposable CI runner
+        if: matrix.role == 'ingress'
+        shell: bash
+        run: |
+          fixture=$(mktemp -d "$RUNNER_TEMP/ingress-config.XXXXXX")
+          trap 'rm -rf "$fixture"' EXIT
+          mkdir -p "$fixture/tls/current" "$fixture/acme"
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=cloud.example.invalid \
+            -keyout "$fixture/tls/current/privkey.pem" -out "$fixture/tls/current/fullchain.pem"
+          IMAGE=$(python3 -c 'import json; print(json.load(open("scripts/ci/production-images.lock.json"))["ingress"])')
+          docker run --rm --network none --add-host frontend:127.0.0.1 --memory 128m \
+            -e PUBLIC_HOST=cloud.example.invalid -e 'NGINX_ENVSUBST_FILTER=^PUBLIC_HOST$' \
+            -v "$GITHUB_WORKSPACE/deploy/ingress/19-validate-public-host.sh:/docker-entrypoint.d/19-validate-public-host.sh:ro" \
+            -v "$GITHUB_WORKSPACE/deploy/ingress/default.conf.template:/etc/nginx/templates/default.conf.template:ro" \
+            -v "$GITHUB_WORKSPACE/deploy/ingress/upgrade.conf:/etc/nginx/conf.d/upgrade.conf:ro" \
+            -v "$fixture/tls:/etc/nginx/tls:ro" -v "$fixture/acme:/var/www/acme:ro" \
+            "$IMAGE" nginx -t
+      - name: Install checksum-pinned scanner
+        run: sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/homecloud-trivy"
+      - name: Mandatory actual production or build-worker scan
+        run: sh scripts/ci/scan-image.sh "$RUNNER_TEMP/homecloud-trivy/trivy" archive "$RUNNER_TEMP/${{ matrix.role }}.oci.tar" "${{ matrix.role }}.scan.json"
+      - name: Bind scan to exact locked platform digest
+        if: always()
+        run: |
+          EXPECTED=$(python3 -c 'import json; print(json.load(open("scripts/ci/production-images.lock.json"))["${{ matrix.role }}"].split("@")[1])')
+          python3 scripts/ci/oci-scan-binding.py --archive "$RUNNER_TEMP/${{ matrix.role }}.oci.tar" --report "${{ matrix.role }}.scan.json" --role "${{ matrix.role }}" --source "$(git rev-parse HEAD)" --expected "$EXPECTED" --output "${{ matrix.role }}.binding.json"
+      - name: Qualify owner-approved exact gosu binary disposition; preserve raw severity gate
+        if: always() && matrix.role == 'postgres'
+        run: python3 scripts/ci/gosu-disposition.py --archive "$RUNNER_TEMP/postgres.oci.tar" --source "$(git rev-parse HEAD)" --output postgres.disposition.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: support-image-${{ matrix.role }}-${{ github.run_attempt }}
+          path: |
+            ${{ matrix.role }}.scan*.json
+            ${{ matrix.role }}.binding.json
+            ${{ matrix.role }}.disposition.json
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: production-oci-${{ matrix.role }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/${{ matrix.role }}.oci.tar
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+      - name: Mandatory actual CI environment qualification
+        if: always()
+        run: |
+          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy"
+          python3 -c "import os,json; temp=os.environ['RUNNER_TEMP']; print(json.dumps([dict(id='image-trivy', path=temp+'/homecloud-trivy/trivy')]))" > "$RUNNER_TEMP/environment-tools.json"
+          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "support-${{ matrix.role }}" "none" "environment-support-${{ matrix.role }}" "$RUNNER_TEMP/environment-tools.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: environment-support-${{ matrix.role }}-${{ github.run_attempt }}
+          path: environment-support-${{ matrix.role }}
+          if-no-files-found: error
+          retention-days: 14
+  policy-coverage:
+    if: always()
+    needs: [backend, frontend, configuration, image-build, provenance-pair, base-image-scan, security, secrets, support-images]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      QUALIFICATION_PROFILE: ${{ inputs.qualification_profile == 'release' && 'release' || github.event_name == 'pull_request' && 'pull-request' || github.event_name == 'push' && github.ref == 'refs/heads/main' && 'main' || 'invalid' }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: '{image-scan-*,production-binding-*,support-image-*,stage-scans-*,environment-*}'
+          path: coverage-input
+      - name: Require complete exact-artifact and actual-environment coverage
+        run: python3 scripts/ci/policy-coverage.py --directory coverage-input --source "$(git rev-parse HEAD)" --profile "$QUALIFICATION_PROFILE" --output production-qualification.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: production-qualification-${{ github.run_attempt }}
+          path: production-qualification.json
+          if-no-files-found: error
+          retention-days: 14
+  gate:
+    if: always()
+    needs: [backend, frontend, configuration, image-build, provenance-pair, base-image-scan, security, secrets, support-images, policy-coverage]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    env:
+      QUALIFICATION_PROFILE: ${{ inputs.qualification_profile == 'release' && 'release' || github.event_name == 'pull_request' && 'pull-request' || github.event_name == 'push' && github.ref == 'refs/heads/main' && 'main' || 'invalid' }}
+    steps:
+      - name: Require every gate
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 scripts/ci/ci-gate.py --profile "$QUALIFICATION_PROFILE" --results "$RESULTS"

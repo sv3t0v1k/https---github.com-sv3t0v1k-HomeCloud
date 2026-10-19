@@ -1,0 +1,14 @@
+
+> homecloud-backend@1.0.0 test
+> jest --runInBand src/uploads/uploads.service.spec.ts src/uploads/ssd-uploads.service.spec.ts src/common/health.controller.spec.ts src/sharing/sharing.service.spec.ts
+
+[Nest] 81909  - 10/14/2026, 7:39:50 PM    WARN [UploadsService] MIME metadata detection failed; storing as binary
+[Nest] 81909  - 10/14/2026, 7:39:51 PM   ERROR [UploadsService] Orphaned temp dir cleanup failed
+[Nest] 81909  - 10/14/2026, 7:39:51 PM    WARN [SsdUploadsService] Cancelled SSD chunk retained for inspection
+[Nest] 81909  - 10/14/2026, 7:39:51 PM    WARN [SsdUploadsService] SSD startup recovery retained operation for inspection
+
+Test Suites: 4 passed, 4 total
+Tests:       163 passed, 163 total
+Snapshots:   0 total
+Time:        3.506 s, estimated 7 s
+Ran all test suites matching src/uploads/uploads.service.spec.ts|src/uploads/ssd-uploads.service.spec.ts|src/common/health.controller.spec.ts|src/sharing/sharing.service.spec.ts.

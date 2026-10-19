@@ -1,0 +1,184 @@
+{
+  "recorded_at": "2026-10-18T09:00:26.994205+10:00",
+  "status": "BLOCKED_ENVIRONMENT",
+  "production": "NO_GO",
+  "release": "BLOCKED",
+  "complete": false,
+  "git": {
+    "head_before": "9c550bea6da8a119ae9a5c526049c7177658f003",
+    "branch": "этап/d5-1-ci",
+    "cached_upstream": "cbb74d22db9b0309f030b6a85738df0d88c2c935",
+    "ahead_behind_cached": "5\t0",
+    "tracked_changes_before": "",
+    "untracked_other_before": "",
+    "prohibited_path_explicitly_excluded": true
+  },
+  "host": {
+    "os": "Darwin",
+    "architecture": "arm64",
+    "binaries": {
+      "docker": "/usr/local/bin/docker",
+      "podman": null,
+      "limactl": null,
+      "colima": null,
+      "qemu-system-x86_64": null,
+      "qemu-system-aarch64": null,
+      "ssh": "/usr/bin/ssh",
+      "gh": "/opt/homebrew/bin/gh",
+      "skopeo": "/opt/homebrew/bin/skopeo",
+      "ctr": null,
+      "nerdctl": null
+    },
+    "runtime_environment_keys_present": []
+  },
+  "artifact_identity_from_verified_lock": {
+    "platform": "linux/amd64",
+    "postgres_version": "16.15",
+    "base": "docker.io/library/postgres:16.15-alpine@sha256:1a66d744c1b459e13b05a8fca341da84cb63383e99ce262210efee5a319d4551",
+    "manifest": "sha256:83b8b00eca9cb7e77dc6c6bbb3fd4bef197853afa0c2cd104991d7a9673abbe8",
+    "config": "sha256:e8f72c13539571329d433e4d0ea475dc42a6407b36f9332cfe3fd790fe81a7d2",
+    "archive_sha256": "392dfe5ab7ce5fdfd77b4c32884ab8700a72124d783fd20b244cba6135d5c645",
+    "full_oci_reproducibility": "UNPROVEN",
+    "risk_acceptance": false,
+    "signature": "UNSIGNED"
+  },
+  "archive": {
+    "path_relative_to_repo": "../outputs/d5-1-11-resume-20261017/candidate.oci.tar",
+    "present": true,
+    "symlink": false,
+    "hash_verification": "REUSED_D5_1_12_NOT_REPEATED",
+    "runtime_loaded": false
+  },
+  "minimal_input_sha256": {
+    "ops/postgres/qualification.lock.json": "3ffba611aa8aa40055b656a51c4b29181cad7afbee4ac3415fa4348624be1b18",
+    "docs/evidence/d5-1-12/report.md": "071f2e6ffcd43b09dc0b9c92fc6efbd1264e50af732bde88f3d704220e418839",
+    "docs/evidence/d5-1-12/independent-review.md": "d7c228cde60798490060a2303f5cd5537318e492a18eb51a21b2ef4f34e88ae4",
+    "ops/postgres/README.md": "0ba863d149ab38d40ff58b793bdc9aff9ff6b42b8f15d6cbc26fda2789c9e5ce",
+    "docs/postgres-image-rollback.md": "5b1a4f5dd52fb0b30a975e677fece57196c126b8b0bbe2ad86c16ffe344105c3",
+    "docs/evidence/d5-1-12/compose-contract.json": "519b633b0689bee9621b941463503057814c1636febd86284af24ee5060ec311",
+    ".github/workflows/pg-residual-experiment.yml": "d6ff7a876f863a0d3b4e955b21621c043c74d2430af6ed82b80b529f52e23f6a",
+    ".github/workflows/pg-gosu-experiment.yml": "189d6fcb03ac4932f76ab7d2869a4f19a0eb9a053cd83011d4b027ae204eb837",
+    ".github/workflows/ci.yml": "570c2e6ede5391fc773cf158b0b5c67f362de6311955aafec5a611bb7218a524",
+    ".github/workflows/release.yml": "36507cf4c1ddd57a4d316c595f159d7cd07f96cf0732e7e5053ff4a8e23571e2"
+  },
+  "hash_comparison_with_d5_1_12_review": {
+    "ops/postgres/qualification.lock.json": "MATCH",
+    "ops/postgres/README.md": "MATCH",
+    "docs/postgres-image-rollback.md": "MATCH",
+    "docs/evidence/d5-1-12/compose-contract.json": "MATCH"
+  },
+  "commands": [
+    {
+      "argv": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "exit_code": 0,
+      "stdout": "9c550bea6da8a119ae9a5c526049c7177658f003\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "git",
+        "branch",
+        "--show-current"
+      ],
+      "exit_code": 0,
+      "stdout": "этап/d5-1-ci\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "git",
+        "rev-parse",
+        "@{upstream}"
+      ],
+      "exit_code": 0,
+      "stdout": "cbb74d22db9b0309f030b6a85738df0d88c2c935\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "git",
+        "rev-list",
+        "--left-right",
+        "--count",
+        "HEAD...@{upstream}"
+      ],
+      "exit_code": 0,
+      "stdout": "5\t0\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "git",
+        "status",
+        "--short",
+        "--untracked-files=no"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "git",
+        "ls-files",
+        "--others",
+        "--exclude-standard",
+        "--",
+        ":(exclude)scripts/tests/PHASE-5.3.1-TEST-AUDIT.md",
+        ":(exclude)docs/evidence/d5-1-13/**"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "isolation": {
+    "status": "NOT_PROVEN_NO_RUNTIME_STARTED",
+    "allocated_containers": [],
+    "allocated_volumes": [],
+    "allocated_networks": [],
+    "allocated_runtime_paths": [],
+    "docker_api_calls": 0,
+    "ssh_connections": 0,
+    "workflow_dispatches": 0,
+    "runtime_test_attempts": 0,
+    "reason": "No selected, reachable, gate-compliant disposable Linux/amd64 execution endpoint. Local host is Darwin/arm64; local Docker prohibited; historical runners were ephemeral GitHub-hosted jobs. Existing experiment workflows are push-triggered; push forbidden. No dedicated manually dispatchable drill workflow found in inspected local workflow files. No claim that all possible external runners are unavailable."
+  },
+  "measurements": {
+    "rpo": null,
+    "rto": null,
+    "reason": "NOT_MEASURED_NO_DRILL"
+  },
+  "network_observations": {
+    "initial_sandbox_github_requests": "PR and historical jobs read requests failed connecting; historical jobs not retried",
+    "readonly_pr_request_after_network_permission": {
+      "exit_code": 0,
+      "draft": true,
+      "state": "open",
+      "number": 1,
+      "head": "cbb74d22db9b0309f030b6a85738df0d88c2c935",
+      "ref": "этап/d5-1-ci"
+    },
+    "raw_readonly_pr_response": "pr-readonly.json",
+    "readonly_pr_command": [
+      "gh",
+      "api",
+      "repos/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/pulls/1",
+      "--jq",
+      "{number,state,draft,head:.head.sha,ref:.head.ref}"
+    ]
+  },
+  "discovery_commands": [
+    [
+      "rg",
+      "-n",
+      "workflow_dispatch|workflow_call|runs-on:|pull_request:|push:|inputs:|qualif|recover|drill",
+      ".github/workflows"
+    ]
+  ],
+  "discovery_method": "Host OS/architecture via Python platform; executable paths via shutil.which; only presence of DOCKER_HOST/DOCKER_CONTEXT/CONTAINER_HOST environment keys recorded. No runtime executable invoked. Workflow headers inspected by exact path; historical runner type reused from D5.1.11 report. This file records observations, not a verbatim transcript of every tool call."
+}

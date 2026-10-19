@@ -1,0 +1,9 @@
+
+> homecloud-backend@1.0.0 test:file-type:compiled
+> npm run build && node test/file-type-compiled-runtime.cjs
+
+
+> homecloud-backend@1.0.0 build
+> nest build
+
+compiled ESM loader: PNG/ASF/ZIP PASS; Nest validator acceptance/rejection PASS; TypeORM UUID generation PASS

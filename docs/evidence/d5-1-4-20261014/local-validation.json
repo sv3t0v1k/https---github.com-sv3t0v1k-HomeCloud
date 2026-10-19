@@ -1,0 +1,19 @@
+{
+  "source_base": "745bfebcd422ab8be39d29d58c977458f5fe44da",
+  "implementation_commit": "6531a5c",
+  "checks": {
+    "scan_evidence_tests": 7,
+    "release_tests": 16,
+    "provenance_tests": 8,
+    "shell_syntax": "PASS",
+    "actionlint_ci_and_release": "PASS",
+    "evidence_json": "PASS"
+  },
+  "application_full_suite": "Not repeated locally; application source unchanged; one final publication to existing PR will execute full GitHub CI. D5.1.3 baseline backend1148/frontend278 retained, not claimed as new results.",
+  "candidate_scan_attempts": {
+    "postgres_bookworm": 1,
+    "node_trixie": 2,
+    "node_trixie_first": "Failed before scan due shared cache lock; sequential retry succeeded"
+  },
+  "prohibited_actions": "No Mac Docker daemon, SSH, deployment, database/data access, image publishing, gate weakening or CVE exclusions."
+}

@@ -1,0 +1,11 @@
+{
+  "observed_at": "2026-10-17T22:32:00.506583+00:00",
+  "authorization": "One additional scan only after DB age <24h; stop without scanning if unavailable. No push/CI/rebuild/successful test repetitions.",
+  "scan_attempts": 1,
+  "db_availability_checks": 1,
+  "archive_sha256": "392dfe5ab7ce5fdfd77b4c32884ab8700a72124d783fd20b244cba6135d5c645",
+  "trivy_archive_sha256": "e7ec0d21fe842553f59af99aba2efbcc822369fbaed27019c575408b6d135fce",
+  "trivy_binary_sha256": "6b2f54b179c68f329370836a1e116aab7b7effa1bcfa3cd1e57fb28af550ecc2",
+  "production": "NO_GO",
+  "scan_started_at": "2026-10-17T22:34:26.715921+00:00"
+}

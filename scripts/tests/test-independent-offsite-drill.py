@@ -94,7 +94,7 @@ try:
  for iteration in range(2):
   source=BASE/('source-'+str(iteration));s=configured(source,PREFIX+'-source-'+str(iteration));(source/'recipient').write_bytes(recipient);(source/'recipient').chmod(0o600);config(s,source)
   assert not (source/'identity').exists()
-  compose(s,'up','-d','db');dbwait(s);compose(s,'run','--rm','backend','npm','run','migration:run')
+  compose(s,'up','-d','db');dbwait(s);compose(s,'run','--rm','backend','node','./node_modules/typeorm/cli.js','migration:run','-d','dist/data-source.js','--transaction','all')
   sql="INSERT INTO users(id,email,password,name,\"storageQuota\",\"storageUsed\") SELECT n,'dr'||n||'@example.invalid','fixture','DR',268435456,67108864 FROM generate_series(1,2)n;\nINSERT INTO folders(id,name,\"userId\") VALUES(1,'root',1),(2,'root',2);\n"
   for n in range(1,9):
    user=1 if n<=4 else 2

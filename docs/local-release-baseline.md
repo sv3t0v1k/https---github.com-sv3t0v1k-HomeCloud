@@ -24,6 +24,12 @@ Dev auth хранится в приватном local config; release не со�
 
 Local self-signed TLS имеет SAN и проходит проверку с явным local CA; не установлен в системное доверие. Public CA не квалифицирована. Docker Desktop/macOS atomic symlink activation требует ingress recreate; Linux lifecycle qualification не переносится автоматически на Mac.
 
+## Локальная приёмка перед публикацией
+
+Из корня репозитория запустите `sh scripts/local-acceptance.sh`. Команда использует уже установленные зависимости и останавливается на первой ошибке. Она запускает CI security/policy regression tests, backend/frontend tests, lint и build, backend runtime security test и тот же `npm audit` gate, что используется в CI. Frontend build включает TypeScript (`tsc -b`). Локальный audit использует текущие Node/npm и установленные зависимости, поэтому не заменяет CI с закреплённым toolchain и чистой установкой. Если dependencies не установлены, выполните `npm ci --no-audit` отдельно в `backend/` и `frontend/`.
+
+Команда очищает `HOMECLOUD_TEST_DATABASE_URL` для backend tests, чтобы исключить случайное обращение к данным. Поэтому PostgreSQL integration suites пропускаются и остаются обязательными в CI. На macOS явно пропускаются `secure-filesystem.spec.ts`, `upload-workspace.spec.ts`, `upload-rate-limit.spec.ts` и `ingress-file-cleanup.interceptor.spec.ts`: все четыре напрямую или через `UploadWorkspaceResolver`/`IngressFileCleanupInterceptor` создают native `SecureFilesystem`, реализация которого требует Linux. Это точечное исключение относится только к локальному запуску на macOS; Linux CI продолжает запускать эти suites и полный обязательный набор. Локальная команда ограничена 60 минутами и при timeout, сигнале или ошибке завершает группу дочерних процессов. Она не запускает Compose и не заменяет Gitleaks, Trivy scans, runner qualification или итоговый CI gate; локальный PASS не означает release/production approval.
+
 ## Квалификация и реальные границы
 
 [50 ГиБ IAB E2E 2026-10-06](./evidence/browser-50gib-qualification-20261006/report.md): 53 687 091 200 байт, исходник/сервер/browser saved copy имеют одинаковый SHA-256; 5120 частей, Pause, точечный transport interruption, reload/reselect с сохранением 479 частей, отдельный Cancel, сохранность исходных данных и cleanup. Независимый review ACCEPT. Обрыв относился к chunk connection, полное отключение сети браузера не проверялось. Память отдельной вкладки и recreate со всем файлом 50 ГиБ не квалифицированы.

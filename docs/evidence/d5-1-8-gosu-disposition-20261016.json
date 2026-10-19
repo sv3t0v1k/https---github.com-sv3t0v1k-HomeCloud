@@ -1,0 +1,30 @@
+{
+  "format": "homecloud-individual-gosu-disposition-v1",
+  "cve": "CVE-2025-68121",
+  "authorized_disposition": "not_affected",
+  "justification": "vulnerable_code_not_present",
+  "status": "PENDING_ACTUAL_CI_ARCHIVE",
+  "target": "usr/local/bin/gosu",
+  "binary_sha256": "52c8749d0142edd234e9d6bd5237dff2d81e71f43537e2f4f66f75dd4b243dd0",
+  "platform": "linux/amd64",
+  "platform_digest": "sha256:1a66d744c1b459e13b05a8fca341da84cb63383e99ce262210efee5a319d4551",
+  "config_digest": "sha256:81bd698b4594e751a3269e4dcd3e03a4a0ec0daf7b72e7aa1abd43cce9887542",
+  "expires_at": "2026-11-15T00:00:00+00:00",
+  "owner_authorization": "D5.1.8 owner conditionally authorized this individual CVE for this exact binary after actual SHA256 and binary evidence verification.",
+  "actual_retained_binary_verified": "/private/tmp/homecloud-d515-pg/gosu-linux-amd64",
+  "proof": "Frozen D5.1.5 binary extraction contains 2962 symbol records and 51 named packages; crypto/tls is absent, positive main and os symbols are present. GO-2026-4337 aliases this CVE and affects only crypto/tls; raw govulncheck finding is module-level only.",
+  "activation": "Only the standalone qualifier may emit ACTIVE_EXACT_BINARY_NOT_AFFECTED after validating actual CI OCI archive, exact target bytes, current lock, frozen evidence and expiry. No filtering of raw findings or release/security gates.",
+  "invalidation": "Any binary, manifest, config, lock or frozen evidence mismatch; target-relevant whiteout, override, ancestor mutation; missing inputs; or expiry makes qualification INVALID.",
+  "other_cves_covered": [],
+  "raw_findings_retained": true,
+  "other_postgres_high_findings_open": 24,
+  "limitations": "Binary symbols including retained inline metadata do not reconstruct runtime call graphs. Recorded Go DB last modified 2026-10-08; no fresh scan. Applies only to linux/amd64 exact artifact and this CVE.",
+  "production": "NO_GO",
+  "proof_sha256": {
+    "docs/evidence/d5-1-5-20261014/pg-per-cve-binary-evidence.json": "07dc1d87b24e4175b4fb989a7bad41e59d450208f092b5cf28d0cb4e79ba2f0b",
+    "docs/evidence/d5-1-5-20261014/pg-extraction-evidence.json": "83aae46f824d1c735708ae4b2113ac003e8c666fb33526827b9da9d22936b3fa",
+    "docs/evidence/d5-1-5-20261014/pg-govulncheck-summary.json": "2b5272fdedde4e3b7151169966e08a352c299d835da3e6af1d523b89ca8a2bdd",
+    "docs/evidence/d5-1-5-20261014/pg-extracted-symbols.txt": "aabf87b37f2571aea1b4b5ae0fb471ff7ccdb6de8fc790ca20cca49ad244e593",
+    "docs/evidence/d5-1-5-20261014/pg-govulncheck.json": "0d60de75490fbd9ba2f2ef0e1327e4fd9e2e4fa4bb1de5159d6e7575aa6c7d7b"
+  }
+}

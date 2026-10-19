@@ -83,7 +83,7 @@ DR_EOF
 cd "$DR_ROOT"
 docker compose up -d db
 for attempt in $(seq 1 30); do docker compose exec -T db pg_isready -U homecloud -d homecloud >/dev/null 2>&1 && break; sleep 1; done
-docker compose run --rm backend npm run migration:run > migrations.log 2>&1
+docker compose run --rm backend node ./node_modules/typeorm/cli.js migration:run -d dist/data-source.js --transaction all > migrations.log 2>&1
 docker compose exec -T db psql -v ON_ERROR_STOP=1 -U homecloud -d homecloud < fixtures.sql > fixtures.log
 docker run --rm --user root -v "$STORAGE_VOLUME:/storage" "$IMAGE" sh -c 'mkdir -p /storage/1 /storage/.tmp; printf "alpha-bytes!!\n" > /storage/1/alpha.txt; printf "beta--bytes!!\n" > /storage/1/beta.txt; chown -R 1001:1001 /storage'
 snapshot() {

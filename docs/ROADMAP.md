@@ -33,6 +33,7 @@
 | Failure & Security Testing — ненумерованный checkpoint | `COMPLETE` | [evidence и границы](./failure-security-checkpoint.md) |
 | Универсальное хранение и докачка — ненумерованный checkpoint | `COMPLETE` | [IAB/Safari functional evidence](./evidence/universal-storage-upload-ux-20261005/report.md) |
 | Единый локальный Docker baseline — ненумерованный checkpoint | `COMPLETE` | `bf97bef` / `f578030`; [runbook и preservation boundaries](./operations-runbook.md) |
+| D5.1 — Release Management & CI Foundation | `RELEASE_BLOCKED; local runner/skopeo model implemented, hosted confirmation pending` | [Image security policy](./image-security-policy.md) |
 | Полный 50 ГиБ IAB Browser E2E — ненумерованный checkpoint | `PASS` | `167498d`; [scope/evidence](./evidence/browser-50gib-qualification-20261006/report.md); Safari 50 ГиБ UNQUALIFIED |
 
 ## Completed
@@ -1219,3 +1220,332 @@ Mini-PC не подключали; actual Linux UUID/udev/proc/mount/reboot/fail
 на HDD до reviewed SSD forward enrollment; SSD uploads OFF/manual/mapping absent.
 **COMPLETE не установлен; production NOT_READY / NO_GO.** Работа остановлена после
 этой коррекции, последующие этапы автоматически не начинать.
+
+## D4 — сохранённая версия испытаний mini-PC (отчёт 2026-10-13)
+
+Исходная Mac main `b5c954f35b7ea9d81ffc4aa41d78e56fc7fc8ec4`; отдельная история
+`испытания/d4-проект`: `e6551678a219f1f08bce563c1a338ae97a6ef2ce` →
+`48fb9c0e8982f23dea835cf1a2e36f83d4e38f3b`. По переданному отчёту последняя ревизия — source export
+работающего тестового mini-PC, migration520, четыре healthy контейнера и smoke/restart проверки.
+В D5.1 сервер не опрашивался: это **REPORTED**, не новое подтверждение live health/полной квалификации.
+[Источник и границы evidence](./evidence/d5-1-20261013/report.md). Production NO_GO сохранён.
+
+## D5.1 — Release Management & CI Foundation (2026-10-13)
+
+**IMPLEMENTED_LOCALLY / GITHUB_ACCEPTANCE_PENDING; release BLOCKED; COMPLETE не установлен.**
+
+Согласованный этап: аудит Mac/GitHub refs, сохранение D4 ancestry, SemVer beta candidates, PR/push CI,
+Linux/amd64 GHCR build/publish только после gates и manual approved tag+SHA, draft prerelease provenance,
+immutable image locks и offline reconciliation. [Политика и release команды](./release-management.md),
+[фактические проверки и blockers](./evidence/d5-1-20261013/report.md).
+
+Mac main и GitHub main проверены на b5c954f; D4 впереди на 2 коммита, remote D4 отсутствует.
+Работа подготовлена в отдельной ветке `этап/d5-1-ci` от 48fb9c0; исходный Mac checkout/Compose/данные
+и посторонние untracked сохранены. Действующие refs не переписывались, force push отсутствует.
+
+Локально: release negative tests 16, actionlint, четыре Compose config merges, startup 43 / preflight 72,
+frontend 278 tests, оба lint/build и compiled file-type PASS. Backend Mac full suite **FAIL**:
+956 PASS / 38 FAIL / 154 SKIP; native Linux/PG CI и Docker image/registry runtime **NOT_RUN**.
+Нельзя считать эти gates успешными до реального GitHub evidence. Backend lint имеет 15 existing warnings.
+
+Security: 17 backend production advisories; 55 backend full; 12 frontend. High/critical hard-block release,
+нет uncontrolled upgrades или silent exceptions. Historical secret findings independently classified;
+38 exact fingerprints для 48 findings, новых broad exclusions нет. Node20 EOL/base image CVE qualification
+остаётся открытым риском. GitHub main пока unprotected, CI runs ещё отсутствуют, GHCR writes не проверены.
+
+Acceptance pending: owner-approved public push/PR, реальные CI runs, advisory remediation/review,
+настройка protected main, утверждённый tag/SHA, remote build→digest→candidate manifest→draft prerelease.
+Связь обязательна для успешно завершённых этапов: **этап → commit → CI → release → image digests →
+deployment evidence**. Release candidate и deployment имеют отдельные статусы; draft/CI green не даёт
+DEPLOYED или Production GO. D1 qualification manifests не подменяются CI candidate.
+
+### D5.2 — CD & Safe Deployment — NOT_STARTED
+
+Только отдельное разрешение после D5.1 gates: approved deployment manifest/digests, target preflight,
+backup/restore evidence, scoped update, health/smoke и rollback с учётом schema compatibility.
+В D5.1 нет SSH к mini-PC, автоматического CD, изменений общих Docker/DNS/mounts/volumes/data.
+
+
+### D5.1 — публикация на review и исправление CI (2026-10-13)
+
+По отдельному разрешению опубликована ветка `этап/d5-1-ci`, создан
+[draft PR №1](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/pull/1). Main/tags не менялись.
+Первый Linux CI: native compile и12PostgreSQL suites выполнялись; полный backend1121PASS/27FAIL/0SKIP
+из-за корректного отказа root. Frontend/secrets PASS; security BLOCKED по high/critical; preflight2errors
+воспроизводятся перестановкой serialized mounts. [Факты](./evidence/d5-1-20261013/github-ci-initial.json).
+
+Подготовлены reviewed corrections: backend CI tests под unprivileged node; preflight exact6unique
+mount targets с сохранением всех safety checks,4новых regression tests. Локально76preflight и16release
+negative tests PASS; actionlint PASS. Новый CI результат pending; failures не объявлены исправленными
+до фактического выполнения. COMPLETE не установлен, GHCR/новый release не выполнялись. D5.2 NOT_STARTED.
+
+
+D5.1 второй PR CI на b0a8439: Linux backend1148/1148tests,79/79suites,0SKIP;12PostgreSQL suites,
+lint/compiled build PASS; frontend/secrets PASS. Configuration остаётся FAIL из-за Compose2.38.2
+omitempty false bind flag, причина воспроизведена отдельно. CI pin Compose5.1.3/checksum подготовлен;
+production false flag gate не ослаблен. [Evidence](./evidence/d5-1-20261013/github-ci-backend-pass.json).
+Security/release BLOCKED сохраняется; COMPLETE и D5.2 не меняются.
+
+
+### D5.1.1 — Security Remediation (2026-10-14)
+
+**HIGH_CRITICAL_REMEDIATED / REVIEWED; release BLOCKED; COMPLETE не установлен.**
+[Аудит всех 55 backend / 12 frontend записей, версии/пути и review](./evidence/d5-1-1-20261014/report.md).
+Backend full 55→30 moderate, production 17→9 moderate; frontend 12→0. High/critical/low backend 0,
+frontend всех severity 0; all-tree security gate не ослаблен. Scoped compatible patches, Multer2.4
+inclusive bounds, Sharp0.35.5, dev-only CLI11/Vitest4 и удаление неиспользуемого Tailwind compiler.
+Авторский CSS сохранён; 279-node parity / 4 Chromium-WebKit probes PASS. Independent security review APPROVE.
+Локально runtime7/targeted61/frontend278/build/lint/actionlint, release16/preflight76/startup43 и4Compose PASS.
+Свежий [PR CI38482225216](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38482225216) и [push CI38482221084](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/38482221084) на2f671f1: все9jobs PASS; backend1148/1148,79suites,0FAIL/0SKIP,12PG/154tests;
+frontend278; runtime7; Compose4/preflight76/startup43/release16; Linux-amd642images/musl-native smoke PASS.
+[Точные source/merge refs и raw results](./evidence/d5-1-1-20261014/github-ci.json).
+Остаточные4leaf/5GHSA включают untrusted file-type ASF risk; Node20EOL/base CVE qualification,
+main/tag protection и registry/provenance/release acceptance открыты. Draft PR№1 обновлён,
+main/tags/release/GHCR/deployment/мини-ПК не меняются. Production NO_GO; D5.2 NOT_STARTED.
+
+На documentation head864c55c PR CI38482861251PASS, push CI38482857360FAIL: frontend Retry-After
+real Date.now999ms vs1000ms (277PASS/1FAIL), gateFAIL сохранён в [incident evidence](./evidence/d5-1-1-20261014/github-ci-timing-incident.json).
+Исправлен только тест: fake timers с отрицательными999ms/положительными1000ms assertions,
+SHA/session/publication не ослаблены; SSD13/fullfrontend278/lint/build и independentreview PASS.
+Production код не менялся. Финальный source HEAD проверяется новым PR/push CI; фактические checks
+на PR не подменяются прежним source2f671f1. D5.1 release acceptance остаётся открытым; D5.2 NOT_STARTED.
+
+### D5.1.4 — Image Security Policy & Base Qualification (2026-10-14)
+
+**BLOCKED; Production NO_GO.** [Политика и CVE](./image-security-policy.md).
+Runtime D5.1.3 backend/frontend0H/0C; base PostgreSQL1C/24H — Go stdlib в gosu,
+source-inferred недостижимость не является разрешённым исключением. Node8H/nginx3H/
+CI Node4C60H остаются блокерами. Совместимые теги сохранили прежние digests;
+PG16Bookworm4C87H и Node24Trixie0C51H не приняты. CI Perl обновляется адресно,
+scan DB freshness/identity сохраняются отдельно; raw severity gate не ослаблен.
+Production floating PostgreSQL/ingress и post-install build/CI coverage не закрыты.
+COMPLETE/Production GO не установлены; D5.2 NOT_STARTED.
+
+### D5.1.2 — Release Readiness (2026-10-14)
+
+**BLOCKED; Production NO_GO; COMPLETE не установлен.** Исправлены достижимые ASF/ZIP
+в file-type21.3.2, uuid9 удалён через совместимые Nest10 adapters, Node24.21.0 LTS,
+pinned Node/nginx/Postgres bases и amd64 mapping. Audit30→25moderate full/9→4production;
+SSE/dev sprintf остаются с предметным triage/owner/deadline, acceptance pending, gate не ослаблен.
+Реальный Trivy scan всех4bases содержит high/critical; PR CI добавляет обязательный scan runtime images.
+Согласованные3GitHub rulesets применены: main protected + gate/review, immutable v* и admin-only creation.
+Независимое GitHub approval отсутствует (сейчас collaborator только владелец).
+Provenance unsigned OCI verifier/dry-run и pair manifest PASS на9d33bd2, adversarial8PASS.
+Свежие PR/push CI FAILURE только по image scans/gate: backend1148/1148(12PG suites),frontend278/278,
+lint/build/config/audit/secrets/smokesPASS. Результаты в [evidence](./evidence/d5-1-2-20261014/report.md).
+GHCR/tag/release/merge/deployment не выполнялись; D5.2 NOT_STARTED.
+
+
+### D5.1.7 — Security Findings Triage & Release Decision (2026-10-16)
+
+**BLOCKED / Production NO_GO; COMPLETE не установлен.** [Реестр, evidence и точные решения владельца](./evidence/d5-1-7-security-triage-20261016.md).
+Сгруппированы production/build/CI findings D5.1.6; никаких CVE dispositions или изменений gates.
+Закреплён ingress nginx1.30.6 exact amd64; targeted remote scan0C/0H/1M.
+Trivy0.76 candidate0C/0H; Compose5.6 уменьшает49H→4H. Новый source требует CI qualification и независимого review.
+PostgreSQL1C/24H (gosu), build/CI и остаточные Compose findings остаются блокерами. D5.2 NOT_STARTED.
+
+D5.1.7: первый run38755110763 выявил frontend rootfs timeout45мин с Trivy0.76 и остановлен как INCOMPLETE.
+Разрешённый предел двух попыток: одна корректировка existing rootfs budget до60мин при неизменных gates, затем окончательная фиксация результата без третьего цикла.
+
+### D5.1.8 — CI Environment Minimization (2026-10-16)
+
+**BLOCKED / Production NO_GO; COMPLETE не установлен.**
+[Scope, evidence и условия проверки](./evidence/d5-1-8-ci-minimization-20261016.md).
+До workload удаляется только неиспользуемый hosted .NET SDK; полный host-rootfs
+scan и прежние16 окружений/gates сохранены, timeout60мин не увеличен.
+Единственный exact-binary gosu/CVE-2025-68121 qualifier проверяет фактический OCI,
+SHA256/evidence/expiry2026-11-15; raw findings и24H PostgreSQL не подавляются.
+52 целевых tests и actionlint PASS; итоговый CI/coverage/actual disposition PENDING.
+Остаточные инструменты/build/CI findings остаются блокирующими. D5.2 NOT_STARTED.
+
+
+### D5.1.9 — Security Remediation & Gate Closure (2026-10-16)
+
+**BLOCKED / Production NO_GO; COMPLETE не установлен.** Исходный checkpoint
+`372bb1d`, CI38873878408:16/16 COVERED,9/9 образов,27/27 tools.
+Узкое восстановление проверки публичных Go FIX references: максимум две сетевые
+попытки на уникальный exact reference только при временном сбое; source/span,
+исторический FIX context, TLS и точное commit equality остаются обязательными.
+На сохранённых122 raw findings новый classifier122/122 PASS; прежний CI120/122 FAIL
+не переписывается. Регрессии на реальные/соседние credentials и fail-closed сохранены.
+
+Подготовлено совместимое обновление global npm11.19.0→11.21.1 только в build/CI,
+без изменения app dependencies. Immutable official bundle закреплён SHA256,
+проверен до установки; candidate scan144packages/0findings со свежей БД.
+Фактические стадии, installed inventory и полные16 окружений нового source
+требуют единственного итогового CI; candidate scan не заменяет их квалификацию.
+PostgreSQL24H(gosu), Gitleaks1C/35H, Compose4H, esbuild1C/24H, BuildKit107H и
+mandatory runner rootfs остаются BLOCKED без новых dispositions или suppressions.
+Exact gosu/CVE-2025-68121 approval не расширен, expiry2026-11-15T00:00:00Z сохранена.
+Итоговые HEAD/CI/review и остаточные пакетные группы фиксируются в
+`outputs/d5-1-9-20261016/report.md` mirror проекта. D5.2 NOT_STARTED.
+
+
+D5.1.9: первый run38880466381 остановлен после точного отказа stage cache proof:
+remote ADD создал дополнительный некешированный transfer vertex; все actual RUN/COPY
+были cached, backend stagesnpm11.21.1/0C/0H, runtime smoke/provenance PASS.
+Единственная корректировка переносит загрузку+checksum+offline install в обычный RUN;
+strict cache gate не меняется. Разрешённый предел — одна исправляющая попытка,
+без третьего CI цикла; итоговые coverage/review остаются PENDING.
+
+### D5.1.10 — экспериментальная квалификация PostgreSQL/gosu (2026-10-17)
+
+**Эксперимент PASS; Release BLOCKED / Production NO_GO; COMPLETE не установлен.**
+От подтверждённого `1c7d242` отдельно квалифицирован exact PostgreSQL16.15/linux-amd64
+с gosu1.19 на исправленном Go1.26.9. Только experimental manifest
+`sha256:fd2e86b5b1a2d9381d6e6018feacda382e6b669dda0a519dbc4744aa46980f95`:
+парные raw scans на одной свежей БД дают1C/24H→0C/0H, остаток2M/1UNKNOWN без исключений.
+154/154 PostgreSQL tests,26 migrations+повторный no-op, SQL backup/restore мигрированной
+fixture-схемы, startup/shutdown/restart и official↔candidate на disposable PGDATA PASS.
+Независимый security review APPROVE только эксперименту. Production image/Compose/locks
+сохранены; прежняя disposition не переносилась на новый SHA. Остальные build/CI/rootfs
+блокеры D5.1.9 сохраняются. D5.2 NOT_STARTED.
+[Точные identities, evidence, ограничения и одно решение владельца](./evidence/d5-1-10-postgres-gosu-20261017.md).
+
+
+### D5.1.11 — узкая квалификация остаточных PostgreSQL findings (2026-10-17)
+
+**INCOMPLETE; Release BLOCKED / Production NO_GO; COMPLETE не установлен.**
+Подтверждены zlib/CVE-2026-85091 (Trivy Medium, CNA High), moby/user/CVE-2026-61801
+(Medium) и x/sys/CVE-2026-39824 (UNKNOWN без severity, Windows-only; raw finding сохранён).
+Moby/user0.4.1 отклонён: upstream parser tests FAIL, обходов нет. Собран только
+zlib1.3.2-r1, gosu побайтово прежний; все прочие44packageversions/config сохранены.
+Manifest `sha256:83b8b00eca9cb7e77dc6c6bbb3fd4bef197853afa0c2cd104991d7a9673abbe8`
+не квалифицирован. Exact-image resume39016144800 подтвердил неизменность10apk scripts,
+но второй отказ filesystem allowlist наvar/log/apk.log завершил эксперимент в лимите.
+Третьей попытки нет. Новые scans/SBOM/runtime не выполнены;154/26 не переносились.
+Review одобряет отчёт INCOMPLETE, итогового APPROVE image нет. Production не менялся;
+dispositions/exceptions/gates не расширены. D5.2 NOT_STARTED.
+[Квалификация, evidence, ограничения и решение владельцу](./evidence/d5-1-11-postgres-residual-20261017.md).
+
+
+### D5.1.12 — подготовка интеграции собственного PostgreSQL image (2026-10-18)
+
+**PREPARATION ONLY; Release BLOCKED / Production NO_GO; COMPLETE не установлен.**
+Обновление D5.1.11: сохранённый exact manifest
+`sha256:83b8b00eca9cb7e77dc6c6bbb3fd4bef197853afa0c2cd104991d7a9673abbe8`
+получил экспериментальный PASS: один scan с DB около4ч, 0C/0H/1M/1UNKNOWN,
+zlib CVE отсутствует; независимый PASS только эксперименту. Это последующее
+свидетельство уточняет исторические INCOMPLETE выше, не меняя release status.
+Подготовлены pins/25 retained evidence, минимальный Dockerfile, offline verifier и
+сборочный протокол; образ не пересобирался. Provenance/SBOM UNSIGNED, весь OCI
+UNPROVEN reproducible; новый результат рецепта не наследует квалификацию.
+Статический Compose contract PASS; runtime production gate и прямой rollback на
+official ещё UNQUALIFIED. Runbook различает возврат образа и recovery DB+HDD.
+Независимый review нового пакета — PASS только preparation;8/8 новых tests PASS.
+Medium/UNKNOWN не приняты; Gitleaks/Compose/esbuild/BuildKit/CI rootfs blockers
+сохраняются. Production Compose/locks/deployed images не менялись, D5.2 NOT_STARTED.
+[Пакет подготовки, проверки и решение владельцу](./evidence/d5-1-12/report.md).
+
+### D5.1.13 — PostgreSQL Integration & Recovery Drill (2026-10-18)
+
+**BLOCKED_ENVIRONMENT до первого runtime-теста; Release BLOCKED / Production NO_GO;
+COMPLETE не установлен.** Исходный HEAD `9c550be`, ahead5/behind0; PR№1 draft
+подтверждён read-only API. Четыре hashes preparation inputs совпали с D5.1.12 review.
+Доступный host Darwin/arm64; отдельный gate-compliant Linux/amd64 runner с доказанной
+изоляцией не установлен. Mac Docker/mini-PC/реальные данные не использованы,
+production Compose не затронут; containers/volumes/network не создавались.
+Exact OCI↔official, startup gate и DB+HDD recovery **NOT_RUN**, RPO/RTO
+**NOT_MEASURED**. Старые tests/scans не повторялись; push/CI/publish/deploy отсутствуют.
+Medium/UNKNOWN не приняты, OCI reproducibility UNPROVEN, прежние security/tooling
+блокеры сохранены. Нужен одноразовый изолированный Linux/amd64 runner; до этого
+drill не запускать. [Evidence, матрица и решение владельцу](./evidence/d5-1-13/report.md).
+
+D5.1.13, продолжение18.10: владелец выбрал GitHub-hosted Linux/amd64 вместо
+отдельной машины. **PREPARATION_READY / RUNTIME_BLOCKED**, Production NO_GO;
+COMPLETE не установлен. Подготовлен manual-only preflight (1job/25мин,
+contents/actions read, fail-closed без контейнеров, always evidence). Exact OCI
+проверяется без rebuild; official и actual runner/tools security gates не сняты.
+Полный recovery harness пока не реализован; исходная матрица и контракт его
+исполнения сохранены, все сценарии NOT_RUN, RPO/RTO NOT_MEASURED.
+До отдельного согласия нет push/dispatch/GitHub writes. Публикация текущей ветки
+затронет накопленные6commits и ожидаемо запустит2CI+1residual experiment;
+новый workflow требует отдельной reviewed регистрации на protected main.
+PR№1 draft. [Подготовка, ограничения, расходы и план согласования](./evidence/d5-1-13/actions-preparation/report.md).
+
+D5.1.13, локальная реализация18.10: push HEAD95d3deb владельцем не разрешён.
+Подготовлен исполнимый hosted-only synthetic DB+HDD harness:18сценариев,
+single writer, real startup gate, direct/cold/logical recovery, integrity/RPO/RTO
+и cleanup с проверкой фактического отсутствия owned resources. Exact remote OCI
+подтверждён полным pinned ZIP SHA и прежним tar/manifest/config/14layers verifier
+после bounded Range resume, без rebuild. Локальные pure/mock tests и независимый
+review квалифицируют только подготовку; **runtime UNQUALIFIED/NOT_RUN**, реальные
+RPO/RTO NOT_MEASURED. Manual workflow:1job,run_drill=false по умолчанию,
+runtime вариант≤55мин, обязательные image+actual runner/tool gates до контейнеров.
+Регистрация на main всё ещё BLOCKED настоящим required gate; bypass не добавлен.
+Medium/UNKNOWN не приняты, UNSIGNED/UNPROVEN и **Production NO_GO** сохранены;
+COMPLETE не установлен, PR№1 draft. [Код, evidence, ограничения и минимальный план](./evidence/d5-1-13/harness-preparation/report.md).
+
+### D5.1 — устранение дублирующего CI на рабочих ветках (2026-10-18)
+
+Локально `ci.yml` ограничен push-триггером в `main`; полный `pull_request` и
+`workflow_call` сохранены. PR на открытие/обновление, включая синхронизацию с
+`main`, получает прежний полный CI; push в `main` также получает полный CI.
+Сохранены обязательный `gate`, все18 expanded jobs, permissions, security checks,
+артефакты и `concurrency` с `cancel-in-progress: false`; release и recovery workflows
+не менялись. Рабочие push без PR больше не запускают CI, а push рабочей ветки с PR
+не дублирует PR-run. При ручной отмене run статус gate не считается PASS; защита
+`main` продолжает требовать успешный `gate` для актуального SHA. При быстром потоке
+событий GitHub concurrency может заменить ожидающий, но не текущий run; проверка
+последнего PR SHA остаётся обязательной.
+Статическая проверка сценариев и YAML-инвариантов PASS; independent review APPROVE.
+CI **NOT_RUN**, push **NOT_AUTHORIZED**. PR№1 draft, Production **NO_GO**.
+
+### D5.1 — локальная проверка runner и skopeo apt closure (2026-10-19)
+
+**IMPLEMENTED_LOCALLY / HOSTED_CONFIRMATION_PENDING; RELEASE BLOCKED; Production NO_GO.**
+Сохранена provider-managed граница для ephemeral GitHub-hosted Ubuntu 24.04 host rootfs:
+полный scan/inventory и все findings удерживаются в evidence; установленное workflow ПО и
+pinned job containers остаются под строгим scan gate. Добавлена строгая closure-проверка
+apt-installed `skopeo`: baseline/final dpkg inventories, рекурсивные Depends/Pre-Depends,
+ELF shared-library owners, точные package versions и SHA-256 `.deb`/установленных файлов,
+проверенный origin против enabled apt source, точные `Signed-By` keyring hashes,
+хеши apt source/config/index/trust store,
+успешный `apt-get update --error-on=any` с привязанным log hash, bind к source/run/attempt/
+runner identity и строгая оценка closure findings по полному rootfs report. Используется
+APT-secure, предоставленный идентифицированным GitHub Ubuntu image; отдельный verifier
+подписей не реализован. Insecure/trusted overrides, неподтверждённый origin, неполная/
+неизвестная зависимость, отчёт или hash блокируют до GHCR login/write. Локальные targeted
+tests и независимый review подтверждают только модель; hosted release run не выполнялся,
+поэтому runtime evidence схемы отсутствует. Открыты BuildKit 107H, PostgreSQL/gosu 1C/24H, ingress
+`libexpat` High, esbuild 1C/24H без byte-verified npm binary и runtime/recovery квалификация
+D5.1.13. Security gates и CVE exception policy не ослаблялись. PR№1 draft;
+push/CI/release/deployment не запускались; D5.2 NOT_STARTED.
+
+### D5.1 — runner evidence binding и PR qualification `skopeo` (2026-10-19)
+
+Локально исправлена проверка контекста minimization/environment evidence: сравниваются
+все обязательные GitHub identity поля (`run_id`, `run_attempt`, `sha`, `job`,
+`runner_environment`); отсутствующее/пустое или несовпадающее поле блокирует, дополнительные
+поля разрешены. Добавлены регрессионные тесты для частичного, изменённого и расширенного
+контекста.
+
+В PR CI подготовлен отдельный `skopeo-qualification` job с `contents: read`, без секретов,
+`packages: write` и GHCR login. Он получает apt-installed executable, полный пакетный и ELF
+dependency closure, привязывает их к apt update evidence, Ubuntu runner image/source/run и
+полному rootfs scan; итоговый closure gate остаётся строгим, а артефакты загружаются при
+ошибке; отдельный итоговый artifact сообщает PASS лишь при успешном job status и scan. Job включён в обязательные `gate` needs. Он не заменяет release-time closure,
+production qualification, policy coverage или image scans и добавляет один hosted job с
+полным rootfs scan на каждый CI run. Локально прошли runner minimization (12), environment
+evidence (27), skopeo closure (27), scan policy (8), Python/shell/YAML syntax и `git diff --check`;
+два независимых security review дали APPROVE без блокирующих замечаний. GitHub Actions не запускался.
+Остальные image blockers
+не менялись, PR№1 draft, Production **NO_GO**, D5.1 не завершён.
+
+### D5.1 — skopeo dependency closure and hosted Platform boundary (2026-10-19)
+
+Run `39236137424` exposed a `skopeo-qualification` failure: `Unresolved installed dependency of golang-github-containers-common`; the job skipped the scan and uploaded artifact `12179251219`. The resolver matched only package names and did not read dpkg `Provides`, so installed virtual-package providers could not enter the assessed closure. Ubuntu Noble package metadata identifies `container-network-stack` as a virtual dependency of `golang-github-containers-common`, provided by `containernetworking-plugins`; the saved job log does not print the exact relation, and the artifact payload was not readable through the available GitHub connector. Therefore this is the evidence-supported root-cause explanation, but the exact edge was not directly extracted from run evidence.
+
+Locally, the resolver now includes installed `Provides`, checks versioned virtual provisions, and applies Debian native/explicit/`any` architecture and `Multi-Arch` rules. `Architecture: all` is treated as the native architecture, not as a wildcard. Native architecture is recorded and bound into `homecloud-skopeo-apt-closure-v2`; v1 evidence and baseline inputs are explicitly rejected. Unsupported syntax, unknown dependencies, missing providers, and unsatisfied versions remain blocking. The CI failure now includes package, dependency field, and unresolved relation for diagnosis. No image, severity gate, CVE disposition, or publication permission changed. Targeted closure tests: 35 passed; environment evidence 27, release 21, policy coverage 12 passed; Python syntax and `git diff --check` passed.
+
+`policy-coverage` is not shown to have a coverage defect: the run downloaded and verified 30 artifacts; `errors: []` represents evidence-validation errors, not successful environment qualification. Fifteen of sixteen environments were reported BLOCKED, which keeps overall qualification and required `gate` blocked. The report JSON was not independently parsed from the artifact in this environment; no coverage logic was changed.
+
+The agreed runner boundary currently applies `PLATFORM_ASSURANCE` to the full provider-owned rootfs while retaining its raw findings and requiring runner identity/completeness checks. Strict qualification still scans global npm and executed tools, so findings there block even when the identical host rootfs findings are classified as Platform. Proposed, not implemented: retain host scan and evidence checks; classify packages by verifiable ownership/provenance. Only provider-preinstalled packages bound to the runner image identity and explicit inventory could use the Platform boundary. Workflow-installed/HomeCloud-managed tools remain under strict gates; unknown ownership blocks. This requires policy-owner review before implementation. PR№1 remains draft, Production **NO_GO**, D5.1 is not complete; no push or CI rerun was performed.
+
+### D5.1 — локальное разделение PR и release qualification (2026-10-19)
+
+Локально отдельный PR `skopeo-qualification` удалён из workflow и `gate`. Строгая closure-квалификация `skopeo` в release job `images` сохранена в том же job до Docker/Skopeo registry login и GHCR writes. Сканирование других jobs, production OCI digest binding, scan policy и release validator не изменялись. Следует учитывать: прежний standalone job был на другом ephemeral runner и не удостоверял apt-installed `skopeo` в `image-build`/`support-images`; эти jobs не имеют registry-write permission, а их OCI outputs уже проверяются digest/manifest/config/scan/source/provenance bindings. Per-job closure для этих экземпляров не заявляется.
+
+Прямые base-image diagnostic scans `node`, `nginx`, `postgres`, `node-ci` условно оставлены обязательными для push в `main` и reusable release CI, но пропускаются на PR. Release caller явно передаёт обязательный `qualification_profile: release`; profile не зависит от `github.event_name`, который в reusable workflow принадлежит вызывающему workflow. `policy-coverage` выпускает qualification v2 с профилем (`pull-request`, `main`, `release`): PR требует полные runtime/build evidence и 12 не-base execution environments; main/release — прежние 16 environments плюс все четыре raw base reports. `release.py` принимает только profile `release` и продолжает требовать точный прежний набор raw reports/evidence. Новый fail-closed gate разрешает только skip `base-image-scan` в PR и отвергает неизвестный профиль, любое другое отсутствие/skip, failure или изменение required job set.
+
+Ожидаемое PR-состояние jobs: 14 jobs выполняются, `base-image-scan` пропускается целиком до раскрытия matrix (обычно один skipped job result). Условие `jobs.<job_id>.if` в GitHub Actions оценивается до применения matrix; hosted отображение не подтверждено этим локальным изменением. Удалены четыре фактических base scan executions и один отдельный Skopeo job — на пять меньше выполняемых jobs на PR (без оценки тарифицируемых минут). Release сохраняет все base scans и strict pre-publication Skopeo closure. Целевые локальные проверки и independent review завершены без блокеров; GitHub CI не запускался, push отсутствует. PR№1 draft, Production **NO_GO**, D5.1 не завершён.

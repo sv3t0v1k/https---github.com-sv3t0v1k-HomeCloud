@@ -1,0 +1,18 @@
+{
+  "checked_at": "2026-10-17T22:34:04.095988+00:00",
+  "repository": "ghcr.io/aquasecurity/trivy-db:2",
+  "metadata": {
+    "Version": 2,
+    "NextUpdate": "2026-10-18T18:34:28.174846475Z",
+    "UpdatedAt": "2026-10-17T18:34:28.174846796Z",
+    "DownloadedAt": "2026-10-17T22:33:31.5983Z"
+  },
+  "age_seconds": 14375.921141204,
+  "age_seconds_decimal": "14375.921141204",
+  "db_sha256": "53ec1bdd7717514174ed808d43464deab895ce6e32924f8224b2a68b0c244125",
+  "fresh": true,
+  "scan_permitted": true,
+  "scan_attempts": 0,
+  "threshold_seconds": 86400,
+  "note": "RFC3339 nanosecond timestamp parsed exactly with Decimal; original DB download reused, no second download"
+}

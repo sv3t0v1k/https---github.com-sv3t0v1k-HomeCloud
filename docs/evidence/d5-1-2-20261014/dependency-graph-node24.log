@@ -1,0 +1,11 @@
+homecloud-backend@1.0.0 /Users/aleksejkozemakin/.codex/.chatgpt-projects/g-p-6aaa72ceff208191895b0fd466f3e892/d5-ci/backend
+├─┬ @nestjs/common@10.4.22
+│ └── file-type@21.3.2 deduped
+├─┬ @nestjs/terminus@11.1.1
+│ └── @nestjs/typeorm@11.0.3 deduped
+├── @nestjs/typeorm@11.0.3
+├── file-type@21.3.2
+├─┬ typeorm@0.3.31
+│ └── uuid@11.1.1 deduped
+└── uuid@11.1.1
+
