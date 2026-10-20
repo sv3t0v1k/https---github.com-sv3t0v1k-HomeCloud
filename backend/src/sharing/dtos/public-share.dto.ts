@@ -1,5 +1,6 @@
 import { Type } from "class-transformer";
 import {
+  Equals,
   IsInt,
   IsOptional,
   IsString,
@@ -32,6 +33,11 @@ export class SharedChildrenQueryDto {
 }
 
 export class DownloadShareDto {
+  // Explicit browser-form opt-in; JSON API clients keep their HTTP errors.
+  @IsOptional()
+  @Equals("1")
+  browserDownload?: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(1024)

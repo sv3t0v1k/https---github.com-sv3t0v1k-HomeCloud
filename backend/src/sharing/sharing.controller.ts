@@ -16,6 +16,7 @@ import {
   Query,
   Headers,
   Header,
+  HttpException,
 } from "@nestjs/common";
 import { Request as ExpressRequest, Response } from "express";
 import * as fs from "fs";
@@ -192,6 +193,29 @@ export class SharingController {
     @Res() res: Response,
     @Req() req?: ExpressRequest,
   ) {
+    const browserForm =
+      dto.browserDownload === "1" &&
+      req?.is("application/x-www-form-urlencoded") ===
+        "application/x-www-form-urlencoded" &&
+      req.headers.accept?.includes("text/html") === true;
+    try {
+      return await this.streamPublicDownload(token, dto, res, req, browserForm);
+    } catch (error) {
+      if (browserForm && !res.headersSent && !res.writableEnded) {
+        this.redirectBrowserDownloadError(res, token, error);
+        return;
+      }
+      throw error;
+    }
+  }
+
+  private async streamPublicDownload(
+    token: string,
+    dto: DownloadShareDto,
+    res: Response,
+    req: ExpressRequest | undefined,
+    browserForm: boolean,
+  ) {
     const share = await this.sharingService.findShareByToken(token);
 
     if (share.password && !dto.password) {
@@ -212,7 +236,7 @@ export class SharingController {
       } else {
         // Folder share without fileId → stream a ZIP of the whole shared
         // subtree. Admission is atomic: exactly one slot per archive request.
-        return this.streamFolderArchive(token, share, dto, res);
+        return this.streamFolderArchive(token, share, dto, res, browserForm);
       }
     } else if (dto.fileId !== undefined && dto.fileId !== share.file.id) {
       throw new NotFoundException("Shared file not found");
@@ -263,6 +287,14 @@ export class SharingController {
       const parsed = parseRangeHeader(rangeHeader, fileSize);
 
       if (parsed.type === "unsatisfiable") {
+        if (browserForm) {
+          this.redirectBrowserDownloadError(
+            res,
+            token,
+            new BadRequestException("Invalid range"),
+          );
+          return;
+        }
         res.status(416).set({
           "Content-Type": mimeType,
           "Content-Disposition": `attachment; filename="${safeFileName}"`,
@@ -292,7 +324,7 @@ export class SharingController {
 
       if (parsed.type === "none") {
         res.set({ ...baseHeaders, "Content-Length": String(fileSize) });
-        this.streamFile(safePath, res, fd);
+        this.streamFile(safePath, res, fd, token, browserForm);
         streamOwnsDescriptor = true;
         return;
       }
@@ -304,7 +336,7 @@ export class SharingController {
         "Content-Range": `bytes ${start}-${end}/${fileSize}`,
         "Content-Length": String(length),
       });
-      this.streamFile(safePath, res, fd, start, end);
+      this.streamFile(safePath, res, fd, token, browserForm, start, end);
       streamOwnsDescriptor = true;
     } finally {
       if (!streamOwnsDescriptor) fs.closeSync(fd);
@@ -324,6 +356,7 @@ export class SharingController {
     share: ShareLinkEntity,
     dto: DownloadShareDto,
     res: Response,
+    browserForm = false,
   ) {
     // Validate the archive plan before admission: any scope/integrity
     // failure here must consume zero slots.
@@ -347,7 +380,8 @@ export class SharingController {
       await this.sharingService.streamFolderArchive(share, res);
     } catch {
       if (!res.headersSent) {
-        res.status(500).end();
+        if (browserForm) this.redirectBrowserDownloadError(res, token);
+        else res.status(500).end();
       } else {
         res.destroy();
       }
@@ -366,6 +400,8 @@ export class SharingController {
     filePath: string,
     res: Response,
     fd: number,
+    token: string,
+    browserForm: boolean,
     start?: number,
     end?: number,
   ): void {
@@ -378,7 +414,8 @@ export class SharingController {
 
     stream.on("error", () => {
       if (!res.headersSent) {
-        res.status(500).end();
+        if (browserForm) this.redirectBrowserDownloadError(res, token);
+        else res.status(500).end();
       } else {
         res.destroy();
       }
@@ -390,6 +427,37 @@ export class SharingController {
     });
 
     stream.pipe(res);
+  }
+
+  private redirectBrowserDownloadError(
+    res: Response,
+    token: string,
+    error?: unknown,
+  ): void {
+    if (res.headersSent || res.writableEnded) return;
+    for (const header of [
+      "Content-Disposition",
+      "Content-Type",
+      "Content-Length",
+      "Content-Range",
+      "Accept-Ranges",
+    ]) res.removeHeader(header);
+    const status = error instanceof HttpException ? error.getStatus() : 500;
+    const code =
+      status === 404 || status === 410
+        ? "unavailable"
+        : status === 401 || status === 403
+          ? "forbidden"
+          : status === 400
+            ? "invalid"
+            : status === 429
+              ? "busy"
+              : "failed";
+    res.set("Cache-Control", "no-store");
+    res.redirect(
+      303,
+      `/share/${encodeURIComponent(token)}?downloadError=${code}`,
+    );
   }
 }
 
