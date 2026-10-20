@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { Icon } from '../ui/Icon'
 import { formatBytes } from '../ui/formatBytes'
 import { ApiError } from '../api/errors'
@@ -11,6 +11,8 @@ export function PublicSharePage() {
 }
 
 function PublicShareContent({ token }: { token: string }) {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const redirectedError = browserDownloadError(searchParams.get('downloadError'))
   const [share, setShare] = useState<PublicShare | null>(null)
   const [password, setPassword] = useState('')
   const [verifiedPassword, setVerifiedPassword] = useState<string | null>(null)
@@ -23,7 +25,6 @@ function PublicShareContent({ token }: { token: string }) {
   const requestEpoch = useRef(0)
   const mutationController = useRef<AbortController | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
   const [retry, setRetry] = useState(0)
   const parentId = trail[trail.length - 1]?.id
 
@@ -31,7 +32,7 @@ function PublicShareContent({ token }: { token: string }) {
     const controller = new AbortController()
     requestEpoch.current += 1
     mutationController.current?.abort(); lock.current = false; setBusy(false); setChildren(null)
-    setShare(null); setVerifiedPassword(null); setPassword(''); setTrail([]); setOffset(0); setLoading(true); setError(null); setNotice(null)
+    setShare(null); setVerifiedPassword(null); setPassword(''); setTrail([]); setOffset(0); setLoading(true); setError(null)
     getPublicShare(token, controller.signal).then((data) => {
       if (controller.signal.aborted) return
       setShare(data)
@@ -52,9 +53,17 @@ function PublicShareContent({ token }: { token: string }) {
     return () => controller.abort()
   }, [share, token, verifiedPassword, parentId, offset])
 
+  function clearRedirectError() {
+    if (!searchParams.has('downloadError')) return
+    const next = new URLSearchParams(searchParams)
+    next.delete('downloadError')
+    setSearchParams(next, { replace: true })
+  }
+
   async function verify(event: FormEvent) {
     event.preventDefault()
     if (lock.current) return
+    clearRedirectError()
     lock.current = true; setBusy(true); setError(null)
     const epoch = requestEpoch.current
     const controller = new AbortController(); mutationController.current = controller
@@ -69,14 +78,15 @@ function PublicShareContent({ token }: { token: string }) {
   }
   async function download(fileId?: number, name?: string) {
     if (lock.current || verifiedPassword === null) return
-    lock.current = true; setBusy(true); setError(null); setNotice(null)
+    clearRedirectError()
+    lock.current = true; setBusy(true); setError(null)
     const epoch = requestEpoch.current
     const controller = new AbortController(); mutationController.current = controller
-    try { await downloadPublicShare(token, verifiedPassword, fileId, name, controller.signal); if (epoch !== requestEpoch.current) return; setNotice('Передано браузеру. Состояние смотрите в загрузках браузера.') }
+    try { await downloadPublicShare(token, verifiedPassword, fileId, name, controller.signal) }
     catch (cause) { if (epoch === requestEpoch.current) setError(publicError(cause)) }
     finally { if (epoch === requestEpoch.current) { lock.current = false; setBusy(false); mutationController.current = null } }
   }
-  function navigate(depth: number) { setTrail((current) => current.slice(0, depth)); setOffset(0); setNotice(null) }
+  function navigate(depth: number) { setTrail((current) => current.slice(0, depth)); setOffset(0) }
 
   const protectedResource = share?.requiresPassword && verifiedPassword === null
   const title = share?.resource?.name || (protectedResource ? 'Доступ защищён паролем' : share?.isFolder ? 'Общая папка' : !share && !loading ? 'Ссылка недоступна' : 'Файл по ссылке')
@@ -89,12 +99,11 @@ function PublicShareContent({ token }: { token: string }) {
         <h1 id="share-title" className="public-share-title" title={title}>{title}</h1>
         {share?.resource && !protectedResource ? <p className="public-share-metadata">{share.isFolder ? 'Скачивание папки архивом ZIP' : <>{share.resource.size !== null ? formatBytes(share.resource.size) : 'Размер не указан'}{share.resource.mimeType ? <> · <span>{share.resource.mimeType}</span></> : null}</>}</p> : null}
         {loading ? <p className="muted" role="status">Загружаем…</p> : null}
-        {error ? <p id="share-error" className="alert alert--danger" role="alert">{error}</p> : null}
-        {notice ? <p className="alert alert--success" role="status">{notice}</p> : null}
-        {!share && !loading ? <button className="button button--ghost" type="button" onClick={() => setRetry((value) => value + 1)}>Повторить</button> : null}
+        {error || redirectedError ? <p id="share-error" className="alert alert--danger" role="alert">{redirectedError ?? error}</p> : null}
+        {!share && !loading ? <button className="button button--ghost" type="button" onClick={() => { clearRedirectError(); setRetry((value) => value + 1) }}>Повторить</button> : null}
         {protectedResource ? <form className="public-share-password" onSubmit={(event) => void verify(event)}>
           <p className="muted">Введите пароль, который передал владелец ссылки.</p>
-          <label className="field">Пароль ссылки<input className="input" type="password" autoComplete="current-password" aria-invalid={error ? true : undefined} aria-describedby={error ? 'share-error' : undefined} required maxLength={1024} disabled={busy} value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+          <label className="field">Пароль ссылки<input className="input" type="password" autoComplete="current-password" aria-invalid={error || redirectedError ? true : undefined} aria-describedby={error || redirectedError ? 'share-error' : undefined} required maxLength={1024} disabled={busy} value={password} onChange={(event) => setPassword(event.target.value)} /></label>
           <button className="button button--primary" type="submit" disabled={busy}>{busy ? 'Проверяем…' : 'Открыть доступ'}</button>
         </form> : null}
         {share && verifiedPassword !== null ? <>
@@ -133,4 +142,15 @@ function publicError(cause: unknown): string {
     if (cause.status === 400) return 'Скачивание недоступно. Проверьте пароль и ограничения ссылки.'
   }
   return 'Не удалось выполнить действие. Проверьте соединение и попробуйте ещё раз.'
+}
+
+function browserDownloadError(code: string | null): string | null {
+  switch (code) {
+    case 'unavailable': return 'Ссылка недоступна: срок действия истёк, доступ закрыт или лимит скачиваний исчерпан.'
+    case 'forbidden': return 'Пароль неверен или доступ по ссылке ограничен.'
+    case 'invalid': return 'Скачивание недоступно. Проверьте пароль и ограничения ссылки.'
+    case 'busy': return 'Слишком много попыток. Попробуйте позже.'
+    case 'failed': return 'Не удалось начать скачивание. Попробуйте позже.'
+    default: return null
+  }
 }

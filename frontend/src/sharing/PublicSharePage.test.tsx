@@ -48,7 +48,25 @@ describe('PublicSharePage', () => {
   it('downloads anonymously without requiring an account', async () => {
     page(); await userEvent.click(await screen.findByRole('button', { name: 'Скачать файл' }))
     expect(api.downloadPublicShare).toHaveBeenCalledWith('token', '', undefined, undefined, expect.any(AbortSignal))
-    expect(await screen.findByRole('status')).toHaveTextContent('Передано браузеру')
+    expect(screen.queryByText(/Передано браузеру|Скачивание завершено/)).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Файл по ссылке' })).toBeInTheDocument()
+  })
+  it('keeps HomeCloud open and shows a safe error after browser redirect for an exhausted link', async () => {
+    render(<MemoryRouter initialEntries={['/share/token?downloadError=unavailable']}><Routes><Route path="/share/:token" element={<PublicSharePage />} /></Routes></MemoryRouter>)
+    expect(await screen.findByRole('alert')).toHaveTextContent('лимит скачиваний исчерпан')
+    expect(screen.getByText('Безопасный доступ через HomeCloud')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Скачать файл' }))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Передано браузеру|Скачивание завершено/)).not.toBeInTheDocument()
+  })
+  it.each([
+    ['forbidden', 'Пароль неверен'],
+    ['invalid', 'Скачивание недоступно'],
+    ['failed', 'Не удалось начать скачивание'],
+  ])('shows only a safe browser redirect message for %s', async (code, message) => {
+    render(<MemoryRouter initialEntries={[`/share/token?downloadError=${code}`]}><Routes><Route path="/share/:token" element={<PublicSharePage />} /></Routes></MemoryRouter>)
+    expect(await screen.findByRole('alert')).toHaveTextContent(message)
+    expect(screen.getByRole('alert')).not.toHaveTextContent('statusCode')
   })
   it('verifies password, handles incorrect input and prevents duplicate requests', async () => {
     vi.mocked(api.getPublicShare).mockResolvedValue({ fileId: 1, isFolder: false, requiresPassword: true, expiresAt: null })

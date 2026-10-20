@@ -34,7 +34,7 @@ export async function downloadPublicShare(token: string, password: string, fileI
   // ingress blocks framing and a hidden iframe can consume a download slot.
   form.target = '_self'
   form.style.display = 'none'
-  for (const [name, value] of Object.entries({ password, ...(fileId === undefined ? {} : { fileId: String(fileId) }) })) {
+  for (const [name, value] of Object.entries({ browserDownload: '1', password, ...(fileId === undefined ? {} : { fileId: String(fileId) }) })) {
     const input = document.createElement('input')
     input.type = 'hidden'; input.name = name; input.value = value
     form.append(input)

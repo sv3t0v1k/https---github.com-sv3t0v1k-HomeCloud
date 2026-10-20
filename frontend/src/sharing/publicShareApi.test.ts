@@ -28,6 +28,7 @@ describe('public sharing transport', () => {
     await downloadPublicShare('token', 'private-password', 7)
     expect(new URL(action).pathname).toBe('/api/v1/sharing/public/token/download')
     expect(new URL(action).search).toBe('')
+    expect(body?.get('browserDownload')).toBe('1')
     expect(body?.get('password')).toBe('private-password'); expect(body?.get('fileId')).toBe('7')
     expect(fetchMock).not.toHaveBeenCalled(); expect(document.querySelector('form')).toBeNull()
     expect(document.getElementById('homecloud-native-download')).toBeNull()
