@@ -23,6 +23,7 @@ import * as fs from "fs";
 import { IsOptional, IsString, MaxLength } from "class-validator";
 import { JwtGuard } from "../auth/guards/jwt.guard";
 import { SharingService } from "./sharing.service";
+import { browserDownloadErrorLocation } from "./browser-download-redirect";
 import { StorageService } from "../storage/storage.service";
 import { ShareLinkEntity } from "../entities/share-link.entity";
 import { CreateShareDto } from "./dtos/create-share.dto";
@@ -454,10 +455,7 @@ export class SharingController {
               ? "busy"
               : "failed";
     res.set("Cache-Control", "no-store");
-    res.redirect(
-      303,
-      `/share/${encodeURIComponent(token)}?downloadError=${code}`,
-    );
+    res.redirect(303, browserDownloadErrorLocation(token, code));
   }
 }
 

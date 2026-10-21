@@ -96,6 +96,70 @@ describe("Public sharing security middleware (HTTP)", () => {
       .expect(404);
   });
 
+  it("redirects only a native public download form when the attempt limit is exceeded", async () => {
+    const token = "11111111-1111-5678-9abc-def012345678";
+    const url = `/api/v1/sharing/public/${token}/download`;
+    for (let index = 0; index < 10; index++) {
+      await request(app.getHttpServer())
+        .post(`/api/v1/sharing/public/token-${index}/verify`)
+        .send({ password: "x" })
+        .expect(404);
+    }
+    const browser = await request(app.getHttpServer())
+      .post(`${url}?browserDownload=1`)
+      .set("Accept", "text/html")
+      .type("form")
+      .send({ browserDownload: "1", password: "secret" })
+      .expect(303);
+    expect(browser.headers.location).toBe(`/share/${token}?downloadError=busy`);
+    expect(browser.headers["cache-control"]).toBe("no-store");
+    expect(browser.headers["retry-after"]).toMatch(/^\d+$/);
+    expect(browser.text).not.toContain("secret");
+    await request(app.getHttpServer())
+      .post(`${url}?browserDownload=1&next=https://example.invalid/`)
+      .set("Accept", "text/html")
+      .type("form")
+      .send({ browserDownload: "1" })
+      .expect("Location", `/share/${token}?downloadError=busy`)
+      .expect(303);
+    await request(app.getHttpServer())
+      .post(`${url}?browserDownload=1&browserDownload=1`)
+      .set("Accept", "text/html")
+      .type("form")
+      .send({ browserDownload: "1" })
+      .expect(429);
+    await request(app.getHttpServer())
+      .post(url)
+      .set("Accept", "application/json")
+      .send({ browserDownload: "1" })
+      .expect(429, { statusCode: 429, message: "Too many share access attempts" });
+    await request(app.getHttpServer())
+      .post(`${url}?browserDownload=1`)
+      .set("Accept", "text/html")
+      .send({ browserDownload: "1" })
+      .expect(429);
+    await request(app.getHttpServer())
+      .post(`/api/v1/sharing/public/${token}/verify?browserDownload=1`)
+      .set("Accept", "text/html")
+      .type("form")
+      .send({ browserDownload: "1" })
+      .expect(429);
+  });
+
+  it("redirects a native download form when the global budget is exhausted", async () => {
+    for (let index = 0; index < 100; index++) {
+      await request(app.getHttpServer()).get("/api/v1/files").expect(404);
+    }
+    await request(app.getHttpServer())
+      .post("/api/v1/sharing/public/token/download?browserDownload=1")
+      .set("Accept", "text/html")
+      .type("form")
+      .send({ browserDownload: "1" })
+      .expect("Location", "/share/token?downloadError=busy")
+      .expect(303);
+    await request(app.getHttpServer()).get("/api/v1/files").expect(429);
+  });
+
   it("preserves no-store when the global limiter rejects a public request", async () => {
     for (let index = 0; index < 100; index++) {
       await request(app.getHttpServer()).get("/api/v1/files").expect(404);
@@ -142,6 +206,24 @@ describe("per-token rate limiting", () => {
       .expect(429);
   });
 
+  it("redirects only the download form when the public token budget is exceeded", async () => {
+    for (let index = 0; index < 30; index++) {
+      await request(app.getHttpServer())
+        .get(`/api/v1/sharing/public/${TOK_A}`)
+        .expect(404);
+    }
+    await request(app.getHttpServer())
+      .post(`/api/v1/sharing/public/${TOK_A}/download?browserDownload=1`)
+      .set("Accept", "text/html")
+      .type("form")
+      .send({ browserDownload: "1" })
+      .expect("Location", `/share/${TOK_A}?downloadError=busy`)
+      .expect(303);
+    await request(app.getHttpServer())
+      .get(`/api/v1/sharing/public/${TOK_A}`)
+      .expect(429);
+  });
+
   it("different token keeps an independent bucket", async () => {
     for (let i = 0; i < 30; i++) {
       await request(app.getHttpServer())
@@ -179,6 +261,24 @@ describe("per-token rate limiting", () => {
     }
     await request(app.getHttpServer())
       .get("/api/v1/sharing/public/finaltoken-0000000")
+      .expect(429);
+  });
+
+  it("redirects the download form when the public IP budget is exceeded", async () => {
+    for (let index = 0; index < 60; index++) {
+      await request(app.getHttpServer())
+        .get(`/api/v1/sharing/public/token-${index}`)
+        .expect(404);
+    }
+    await request(app.getHttpServer())
+      .post(`/api/v1/sharing/public/${TOK_A}/download?browserDownload=1`)
+      .set("Accept", "text/html")
+      .type("form")
+      .send({ browserDownload: "1" })
+      .expect("Location", `/share/${TOK_A}?downloadError=busy`)
+      .expect(303);
+    await request(app.getHttpServer())
+      .get(`/api/v1/sharing/public/${TOK_A}`)
       .expect(429);
   });
 
@@ -267,6 +367,29 @@ describe("per-token attempt rate limiting (verify/download/children)", () => {
       .post(`/api/v1/sharing/public/${TOKEN_A}/verify`)
       .set("X-Forwarded-For", "10.0.0.1")
       .send({ password: "x" })
+      .expect(429);
+  });
+
+  it("redirects the download form when the per-token attempt budget is exceeded", async () => {
+    for (let index = 0; index < 10; index++) {
+      await request(app.getHttpServer())
+        .post(`/api/v1/sharing/public/${TOKEN_A}/verify`)
+        .set("X-Forwarded-For", `10.8.${index}.1`)
+        .send({ password: "x" })
+        .expect(404);
+    }
+    await request(app.getHttpServer())
+      .post(`/api/v1/sharing/public/${TOKEN_A}/download?browserDownload=1`)
+      .set("X-Forwarded-For", "10.8.99.1")
+      .set("Accept", "text/html")
+      .type("form")
+      .send({ browserDownload: "1" })
+      .expect("Location", `/share/${TOKEN_A}?downloadError=busy`)
+      .expect(303);
+    await request(app.getHttpServer())
+      .post(`/api/v1/sharing/public/${TOKEN_A}/download`)
+      .set("X-Forwarded-For", "10.8.100.1")
+      .send({})
       .expect(429);
   });
 

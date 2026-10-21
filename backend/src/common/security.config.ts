@@ -1,12 +1,13 @@
 import { INestApplication } from "@nestjs/common";
 import helmet from "helmet";
 import cors from "cors";
-import rateLimit from "express-rate-limit";
+import rateLimit, { RateLimitExceededEventHandler } from "express-rate-limit";
 import { ConfigService } from "@nestjs/config";
 import { NextFunction, Request, Response } from "express";
 import { clientIp } from "./trusted-proxy";
 import * as crypto from "crypto";
 import { JwtService } from "@nestjs/jwt";
+import { browserDownloadErrorLocation } from "../sharing/browser-download-redirect";
 import {
   UploadRateLimitService,
   UploadThrottleException,
@@ -58,6 +59,7 @@ export function getGlobalRateLimitOptions() {
     windowMs: 60 * 1000,
     max: 100,
     message: { statusCode: 429, message: "Too many requests" },
+    handler: publicDownloadRateLimitHandler,
   };
 }
 
@@ -76,6 +78,7 @@ export function getPublicSharingRateLimitOptions() {
     windowMs: 60 * 1000,
     max: 60,
     message: { statusCode: 429, message: "Too many public sharing requests" },
+    handler: publicDownloadRateLimitHandler,
   };
 }
 
@@ -85,6 +88,7 @@ export function getPublicSharingAttemptRateLimitOptions() {
     windowMs: 60 * 1000,
     max: 10,
     message: { statusCode: 429, message: "Too many share access attempts" },
+    handler: publicDownloadRateLimitHandler,
   };
 }
 
@@ -99,6 +103,7 @@ export function getPublicSharingAttemptTokenRateLimitOptions() {
     windowMs: 60 * 1000,
     max: 10,
     message: { statusCode: 429, message: "Too many requests for this share" },
+    handler: publicDownloadRateLimitHandler,
     keyGenerator: (req: Request) => {
       const url = (req.originalUrl || req.url || "").split("?")[0];
       const match = /sharing\/public\/([^/]+)/.exec(url);
@@ -121,6 +126,7 @@ export function getPublicSharingTokenRateLimitOptions() {
     windowMs: 60 * 1000,
     max: 30,
     message: { statusCode: 429, message: "Too many requests for this share" },
+    handler: publicDownloadRateLimitHandler,
     keyGenerator: (req: Request) => {
       const url = (req.originalUrl || req.url || "").split("?")[0];
       const match = /sharing\/public\/([^/]+)/.exec(url);
@@ -131,6 +137,35 @@ export function getPublicSharingTokenRateLimitOptions() {
     },
   };
 }
+
+const publicDownloadRateLimitHandler: RateLimitExceededEventHandler = (
+  req,
+  res,
+  _next,
+  options,
+) => {
+  // Body parsing follows the limiters, so the native form also marks its URL.
+  // Never use a client-supplied redirect destination.
+  const [pathname, query = ""] = req.originalUrl.split("?", 2);
+  const match = /^\/api\/v1\/sharing\/public\/([A-Za-z0-9-]{1,128})\/download$/.exec(
+    pathname,
+  );
+  const browserMarker = new URLSearchParams(query).getAll("browserDownload");
+  if (
+    req.method === "POST" &&
+    match &&
+    browserMarker.length === 1 &&
+    browserMarker[0] === "1" &&
+    req.is("application/x-www-form-urlencoded") ===
+      "application/x-www-form-urlencoded" &&
+    req.headers.accept?.includes("text/html") === true
+  ) {
+    res.set("Cache-Control", "no-store");
+    res.redirect(303, browserDownloadErrorLocation(match[1], "busy"));
+    return;
+  }
+  res.status(options.statusCode).send(options.message);
+};
 
 export function applySecurityMiddleware(
   app: INestApplication,

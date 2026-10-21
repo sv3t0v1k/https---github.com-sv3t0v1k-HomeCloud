@@ -29,7 +29,7 @@ export async function downloadPublicShare(token: string, password: string, fileI
   if (signal?.aborted) throw new DOMException('Download aborted', 'AbortError')
   const form = document.createElement('form')
   form.method = 'POST'
-  form.action = nativeDownloadUrl(`${path(token)}/download`)
+  form.action = nativeDownloadUrl(`${path(token)}/download?browserDownload=1`)
   // Attachment responses must reach the top-level browsing context: the
   // ingress blocks framing and a hidden iframe can consume a download slot.
   form.target = '_self'

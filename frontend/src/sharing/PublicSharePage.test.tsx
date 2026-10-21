@@ -63,6 +63,7 @@ describe('PublicSharePage', () => {
     ['forbidden', 'Пароль неверен'],
     ['invalid', 'Скачивание недоступно'],
     ['failed', 'Не удалось начать скачивание'],
+    ['busy', 'Слишком много попыток'],
   ])('shows only a safe browser redirect message for %s', async (code, message) => {
     render(<MemoryRouter initialEntries={[`/share/token?downloadError=${code}`]}><Routes><Route path="/share/:token" element={<PublicSharePage />} /></Routes></MemoryRouter>)
     expect(await screen.findByRole('alert')).toHaveTextContent(message)
