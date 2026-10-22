@@ -76,6 +76,8 @@ describePostgres("SharingService — реальный PostgreSQL", () => {
     await migration.up(migrationRunner);
     await new AddShareFailedAttempts1746825100000().up(migrationRunner);
     await new ShareLockedUntilTimestamptz1746825120000().up(migrationRunner);
+    // This historical migration fixture is also read by the current entity.
+    await migrationRunner.query(`ALTER TABLE share_links ADD COLUMN "allowUpload" boolean NOT NULL DEFAULT false`);
     await migrationRunner.query(`ALTER TABLE files ADD COLUMN "storageLocationId" uuid, ADD COLUMN "relativeObjectKey" text`);
     await dataSource.query(
       `INSERT INTO "${schema}"."users" ("id", "email", "password", "isActive") VALUES ($1, $2, $3, $4)`,

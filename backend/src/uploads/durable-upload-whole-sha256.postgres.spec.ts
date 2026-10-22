@@ -63,6 +63,8 @@ postgres("Durable SHA256 admission and production SSD journal contract", () => {
     });
     await db.initialize();
     await db.runMigrations();
+    // Keep the pre-SHA migration fixture compatible with the current owner-only store selector.
+    await db.query(`ALTER TABLE upload_sessions ADD COLUMN origin varchar(6) NOT NULL DEFAULT 'owner'`);
     await db.query(
       `INSERT INTO users (id,email,password,"storageUsed","storageQuota") VALUES (1,'sha256@example.test','hash',7,1000)`,
     );

@@ -702,6 +702,36 @@ Directory picker/entries — feature-detected: bounded manifest, mkdir свер�
 
 **Независимый архитектурный review (2026-10-22).** Один отдельный read-only reviewer проверил решения по коду; итог: пригодно для PLANNED, не разрешение реализации. В план внесены его замечания: immutable origin + SET NULL вместо RESTRICT; safe public DTO/reconcile scope; auth/admission до multipart; password concurrency и scoped proof; общий namespace lock с owner operations; отдельный design gate lock order/fencing из-за existing session→quota/FK lifecycle. Блокеры дизайна оставлены явными критериями первого этапа, runtime безопасность без реализации/тестов не заявляется. Старые аудиты/регрессия не повторялись. В этой задаче не выполняются код, миграции, CI/CD, push/merge/release/deployment; после плана остановка до согласования реализации.
 
+### Public Folder Sharing — этап 3.0: разделение сборки и публикации (2026-10-23)
+
+**COMPLETE**, локально; checkpoint core `9c873dc`. Устранён блокер
+session→user / user→session: legacy assembly
+вынесена из транзакции, session advisory fence удерживается выделенным соединением;
+короткие операции используют shared fence и прежний session row lock. Публикация
+и удаление согласованы по user-first порядку. Повторно проверяются живой каталог
+с ancestors/mirrors, исходная цель и состояние сессии, владелец, TTL и квота.
+Уникальные attempt paths, recovery hard link, SHA-256, атомарное имя и преобразование
+reservation→usage сохраняют retry/abort/TTL cleanup и историческое восстановление.
+Миграций нет. [Протокол и ограничения](legacy-upload-publication.md).
+
+Linux Node20.20.2 / PostgreSQL16.15, зависимости по текущему package-lock:
+адресные4 suites/199 tests и полный backend84 suites/1195 tests без skips — PASS.
+Новый набор15 проверок включает реальные complete↔hard-delete/empty-trash/ancestor
+trash, test-only FK SET NULL для исходной session dependency, pg_terminate_backend
+с повтором до завершения старой попытки, pool.max=1, неоднозначный COMMIT,
+неопубликованный hard link с последующей TTL cleanup, SHA-256, quota и коллизии.
+Backend lint — PASS (0 errors, 19 существующих warnings); build — PASS.
+Исторические fixtures дополнены только полями allowUpload/origin для совместимости
+с текущими entity/selectors. Изменений production Multi-Storage нет.
+
+Независимый security/architecture review ACCEPT: найденный обход trusted-path guard
+при error cleanup исправлен и перепроверен; блокирующих замечаний нет. Ограничения:
+соединение БД занято во время assembly, hard link только на одной FS, аварийная
+очистка при retry/TTL/startup; power-loss/физический диск не квалифицированы.
+Публичные upload endpoints не добавлены, контракт этапа1 не изменён. Домашний сервер,
+CI/CD, frontend и Multi-Storage не менялись; Production NO_GO сохранён. Публичная
+загрузка и следующий этап начинаются только по отдельному согласованию.
+
 ## Deferred
 
 - **Multi-Storage и пользовательский выбор хранилища — DEFERRED; реализация возможна только после отдельного решения владельца.** Исторические записи сохраняют факты и точные статусы ограниченных checkpoint’ов (Schema & Legacy Compatibility, MS-2, MS-3A, SSD→HDD этапы 1–2.3 и API integration, Frontend SSD Integration); это не разрешение продолжать и не означает завершения всего workstream. Датированные формулировки `следующий gate/action` отражают план на дату записи и заменяются этой текущей отсрочкой.
