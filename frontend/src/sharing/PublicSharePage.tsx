@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
+import { PublicUploadPanel } from './PublicUploadPanel'
 import { Icon } from '../ui/Icon'
 import { formatBytes } from '../ui/formatBytes'
 import { ApiError } from '../api/errors'
@@ -25,7 +26,14 @@ function PublicShareContent({ token }: { token: string }) {
   const requestEpoch = useRef(0)
   const mutationController = useRef<AbortController | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [listingRevision, setListingRevision] = useState(0)
   const [retry, setRetry] = useState(0)
+  const refreshTimer = useRef<ReturnType<typeof setTimeout>>()
+  function refreshListing() {
+    clearTimeout(refreshTimer.current)
+    refreshTimer.current = setTimeout(() => setListingRevision((value) => value + 1), 1500)
+  }
+  useEffect(() => () => clearTimeout(refreshTimer.current), [])
   const parentId = trail[trail.length - 1]?.id
 
   useEffect(() => {
@@ -51,7 +59,7 @@ function PublicShareContent({ token }: { token: string }) {
       .catch((cause: unknown) => { if (!controller.signal.aborted) setError(publicError(cause)) })
       .finally(() => { if (!controller.signal.aborted) setLoading(false) })
     return () => controller.abort()
-  }, [share, token, verifiedPassword, parentId, offset])
+  }, [share, token, verifiedPassword, parentId, offset, listingRevision])
 
   function clearRedirectError() {
     if (!searchParams.has('downloadError')) return
@@ -109,12 +117,14 @@ function PublicShareContent({ token }: { token: string }) {
         {share && verifiedPassword !== null ? <>
           <div className="public-share-actions"><button className="button button--primary" type="button" disabled={busy} onClick={() => void download()}><Icon name="download" />{busy ? 'Подготавливаем…' : share.isFolder ? 'Скачать папку ZIP' : 'Скачать файл'}</button></div>
           <p className="public-share-limit">{'Файлы и архивы сохраняет браузер. Состояние смотрите в его загрузках.'}</p>
+          {share.isFolder ? <PublicUploadPanel token={token} password={verifiedPassword} parentId={children?.parentId}
+            targetName={trail.slice(-1)[0]?.name ?? share.resource?.name ?? 'Общая папка'} onCommit={refreshListing} /> : null}
           {share.isFolder ? <div className="public-share-folder">
             <nav aria-label="Путь общей папки" className="public-share-navigation">
               <button className="button button--ghost" type="button" disabled={loading || busy} onClick={() => navigate(0)}>Общая папка</button>
               {trail.map((entry, index) => <button className="button button--ghost" key={entry.id} type="button" disabled={loading || busy} onClick={() => navigate(index + 1)}>{entry.name}</button>)}
             </nav>
-            {error && !loading ? <button className="button button--ghost" type="button" onClick={() => setRetry((value) => value + 1)}>Повторить загрузку</button> : null}
+            {error && !loading ? <button className="button button--ghost" type="button" onClick={() => setListingRevision((value) => value + 1)}>Повторить загрузку</button> : null}
             {children?.items.length === 0 ? <p className="muted">Папка пуста.</p> : null}
             <ul className="public-share-items">{children?.items.map((item) => <li key={`${item.kind}-${item.id}`} className="public-share-item">
               <Icon name={item.kind === 'folder' ? 'folder' : 'file'} />

@@ -343,3 +343,8 @@ h1, h2, h3, h4, p { margin-top: 0; }
 .upload-queue-item { padding: 0.8rem 0; border-top: 1px solid var(--border, #383e3b); overflow-wrap: anywhere; }
 .upload-queue-title { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; align-items: baseline; }
 .upload-queue-item .state-actions { flex-wrap: wrap; }
+
+.public-upload { margin-block: 1.5rem; padding-block: 1rem; border-block: 1px solid var(--border-subtle); }
+.public-upload-result { display: grid; gap: .4rem; padding-block: .65rem; overflow-wrap: anywhere; }
+.public-upload-result progress { width: 100%; }
+.public-upload .public-share-actions { flex-wrap: wrap; }

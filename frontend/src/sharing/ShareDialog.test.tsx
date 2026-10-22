@@ -116,7 +116,26 @@ describe('ShareDialog', () => {
     await screen.findByText('Для этого объекта пока нет ссылок.')
     await user.click(screen.getByRole('button', { name: 'Создать ссылку' }))
     await screen.findByText('Ссылка создана.')
-    expect(payload).toEqual({ fileId: 91, isFolder: true, expiresInDays: 7 })
+    expect(payload).toEqual({ fileId: 91, isFolder: true, allowUpload: false, expiresInDays: 7 })
+  })
+
+  it('passes upload permission only for folder links while retaining other options', async () => {
+    let payload: unknown
+    apiClient.defaults.adapter = async (config) => {
+      if (config.method === 'get') return ok(config, [])
+      payload = JSON.parse(String(config.data)); return ok(config, share(6, 'folder-token', 91, true))
+    }
+    render(<ShareDialog onClose={() => undefined} target={{ fileId: 91, name: 'Docs', isFolder: true }} />)
+    const user = userEvent.setup()
+    const toggle = await screen.findByRole('checkbox', { name: /Разрешить загрузку/ })
+    expect(toggle).not.toBeChecked()
+    await user.click(toggle)
+    await user.type(screen.getByLabelText('Пароль (необязательно)'), 'secret')
+    await user.type(screen.getByLabelText('Лимит скачиваний (необязательно)'), '3')
+    await user.click(screen.getByRole('button', { name: 'Создать ссылку' }))
+    await screen.findByText('Ссылка создана.')
+    expect(payload).toEqual({ fileId: 91, isFolder: true, allowUpload: true, expiresInDays: 7, password: 'secret', maxDownloads: 3 })
+    expect(toggle).not.toBeChecked()
   })
 
   it('copies, opens, and revokes an existing share before refreshing', async () => {

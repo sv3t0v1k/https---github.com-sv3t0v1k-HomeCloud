@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../api/errors'
 import { PublicSharePage } from './PublicSharePage'
 import * as api from './publicShareApi'
+vi.mock('./publicUploadTransport', () => ({ PublicUploadTransport: class { authorize = vi.fn().mockRejectedValue(new ApiError('readonly', 'authorization', 403)); dispose = vi.fn() } }))
 vi.mock('./publicShareApi', () => ({ getPublicShare: vi.fn(), verifyPublicShare: vi.fn(), getSharedChildren: vi.fn(), downloadPublicShare: vi.fn() }))
 function page() { return render(<MemoryRouter initialEntries={['/share/token']}><Routes><Route path="/share/:token" element={<PublicSharePage />} /></Routes></MemoryRouter>) }
 beforeEach(() => { vi.mocked(api.getPublicShare).mockResolvedValue({ fileId: 1, isFolder: false, requiresPassword: false, expiresAt: null }); vi.mocked(api.downloadPublicShare).mockResolvedValue(undefined) })

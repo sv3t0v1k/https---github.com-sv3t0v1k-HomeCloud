@@ -11,6 +11,7 @@ export interface OwnerShare {
   token: string
   fileId: number
   isFolder: boolean
+  allowUpload?: boolean
   isActive: boolean
   expiresAt: string | null
   downloadCount: string | number
@@ -23,6 +24,7 @@ export interface OwnerShare {
 export interface CreateShareInput {
   fileId: number
   isFolder: boolean
+  allowUpload?: boolean
   password?: string
   expiresInDays?: number
   maxDownloads?: number

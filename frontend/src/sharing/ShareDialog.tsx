@@ -10,6 +10,7 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose(
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [allowUpload, setAllowUpload] = useState(false)
   const [password, setPassword] = useState('')
   const [expiresInDays, setExpiresInDays] = useState('7')
   const [maxDownloads, setMaxDownloads] = useState('')
@@ -60,12 +61,14 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose(
       await createShare({
         fileId: target.fileId,
         isFolder: target.isFolder,
+        ...(target.isFolder ? { allowUpload } : {}),
         expiresInDays: expiry,
         ...(password ? { password } : {}),
         ...(limit === undefined ? {} : { maxDownloads: limit }),
       })
       setPassword('')
       await refresh()
+      setAllowUpload(false)
       setNotice('Ссылка создана.')
     } catch (cause) {
       setPassword('')
@@ -124,6 +127,7 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose(
             <label className="field">Срок действия, дней<input className="input mono" max={36500} min={1} onChange={(event) => setExpiresInDays(event.target.value)} required type="number" value={expiresInDays} /></label>
             <label className="field">Лимит скачиваний (необязательно)<input className="input mono" min={1} onChange={(event) => setMaxDownloads(event.target.value)} placeholder="Без ограничений" type="number" value={maxDownloads} /></label>
             <label className="field">Пароль (необязательно)<input autoComplete="new-password" className="input" maxLength={1024} onChange={(event) => setPassword(event.target.value)} type="password" value={password} /></label>
+            {target.isFolder ? <label className="field"><span><input type="checkbox" checked={allowUpload} disabled={busy} onChange={(event) => setAllowUpload(event.target.checked)} /> Разрешить загрузку</span><small>Все обладатели ссылки смогут создавать папки и загружать файлы за счёт вашей квоты. Для изменения прав отзовите ссылку и создайте новую.</small></label> : null}
             <button className="button button--primary share-create" disabled={busy} type="submit">{busy ? 'Сохраняем…' : 'Создать ссылку'}</button>
           </form>
           {error ? <p className="alert alert--danger" role="alert">{error}</p> : null}
@@ -136,7 +140,7 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose(
               {shares.map((share) => {
                 const url = publicShareUrl(share.token)
                 return <li className="share-card" key={share.id}>
-                  <p className="share-status">{shareStatus(share)}</p>
+                  <p className="share-status">{shareStatus(share)}</p><p className="muted">{share.allowUpload ? 'Загрузка разрешена' : 'Только просмотр и скачивание'}</p>
                   <input aria-label={`Публичная ссылка: ${target.name}`} className="input mono" readOnly value={url} />
                   <p className="muted mono">Скачиваний: {String(share.downloadCount)}{share.maxDownloads === null ? '' : ` из ${String(share.maxDownloads)}`}</p>
                   <div className="share-actions"><button className="button button--ghost" onClick={() => void copy(share)} type="button">Копировать ссылку</button><button className="button button--ghost" onClick={() => open(share)} type="button">Открыть</button><button className="button button--danger" disabled={busy || !share.isActive} onClick={() => void revoke(share)} type="button">Закрыть доступ</button></div>
