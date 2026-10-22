@@ -449,6 +449,7 @@ export class FilesService {
       await queryRunner.connect();
       await queryRunner.startTransaction();
       transactionStarted = true;
+      await queryRunner.manager.query(`SELECT id FROM users WHERE id=$1 FOR UPDATE`, [userId]);
       const folder = await queryRunner.manager.findOne(FolderEntity, {
         where: { id, userId },
         lock: { mode: "pessimistic_write" },
@@ -558,6 +559,7 @@ export class FilesService {
     let fileToDelete: FileEntity | null = null;
 
     try {
+      await queryRunner.manager.query(`SELECT id FROM users WHERE id=$1 FOR UPDATE`, [userId]);
       const file = await queryRunner.manager.findOne(FileEntity, {
         where: { id, userId },
       });
@@ -605,6 +607,7 @@ export class FilesService {
       await queryRunner.connect();
       await queryRunner.startTransaction("SERIALIZABLE");
       transactionStarted = true;
+      await queryRunner.manager.query(`SELECT id FROM users WHERE id=$1 FOR UPDATE`, [userId]);
       const folder = await queryRunner.manager.findOne(FolderEntity, {
         where: { id, userId },
         lock: { mode: "pessimistic_write" },
@@ -738,6 +741,7 @@ export class FilesService {
       await queryRunner.connect();
       await queryRunner.startTransaction("SERIALIZABLE");
       transactionStarted = true;
+      await queryRunner.manager.query(`SELECT id FROM users WHERE id=$1 FOR UPDATE`, [userId]);
       const folderRows: { id: number }[] = await queryRunner.manager.query(
         `
         WITH RECURSIVE trash_folders AS (

@@ -46,6 +46,7 @@ describe("large upload operation complexity", () => {
       ),
     };
     const manager = {
+      query: jest.fn(async () => [{ locked: true }]),
       findOne: jest.fn(async () => session),
       getRepository: jest.fn(() => chunkRepository),
       save: jest.fn(async (value: UploadSessionEntity) => {

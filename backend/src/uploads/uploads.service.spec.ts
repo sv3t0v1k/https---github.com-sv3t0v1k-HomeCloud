@@ -3,6 +3,7 @@ import { UploadsService } from "./uploads.service";
 import { SecureFilesystem } from "./secure-filesystem";
 import { UploadChunkEntity } from "../entities/upload-chunk.entity";
 import { UploadSessionEntity } from "../entities/upload-session.entity";
+import { UserEntity } from "../entities/user.entity";
 import { FileEntity } from "../entities/file.entity";
 import { FolderEntity } from "../entities/folder.entity";
 import { StorageService } from "../storage/storage.service";
@@ -97,9 +98,10 @@ describe("UploadsService - Post-Review Fixes", () => {
     };
     mockQueryRunner = {
       connect: jest.fn(),
-      startTransaction: jest.fn(),
-      commitTransaction: jest.fn(),
-      rollbackTransaction: jest.fn(),
+      isTransactionActive: false,
+      startTransaction: jest.fn(async () => { mockQueryRunner.isTransactionActive = true; }),
+      commitTransaction: jest.fn(async () => { mockQueryRunner.isTransactionActive = false; }),
+      rollbackTransaction: jest.fn(async () => { mockQueryRunner.isTransactionActive = false; }),
       release: jest.fn(),
       manager: {
         findOne: jest.fn(),
@@ -108,6 +110,7 @@ describe("UploadsService - Post-Review Fixes", () => {
         createQueryBuilder: jest.fn(() => mockQueryBuilder),
         delete: jest.fn(),
         query: jest.fn(async (sql: string, params: unknown[]) => {
+          if (sql.includes("pg_try_advisory")) return [{ locked: true }];
           if (sql.includes("SELECT id FROM users WHERE")) return [{ id: params[0] }];
           if (sql.includes("SELECT id FROM folders WHERE")) return [{ id: params[0] }];
           return [];
@@ -115,6 +118,22 @@ describe("UploadsService - Post-Review Fixes", () => {
         getRepository: jest.fn(() => chunkRepository),
       },
     };
+    const queuedFindOne = mockQueryRunner.manager.findOne;
+    let assemblySession: any;
+    mockQueryRunner.manager.findOne = new Proxy(queuedFindOne, {
+      apply(target, receiver, args: any[]) {
+        const [entity, options] = args;
+        if (assemblySession && entity === UserEntity)
+          return Promise.resolve({ id: 1, isActive: true, storageUsed: 0, storageQuota: Number.MAX_SAFE_INTEGER });
+        if (assemblySession && entity === UploadSessionEntity && options?.lock)
+          return Promise.resolve(assemblySession);
+        const result = Reflect.apply(target, receiver, args);
+        return Promise.resolve(result).then(value => {
+          if (entity === UploadSessionEntity && !options?.lock && value) assemblySession = value;
+          return value;
+        });
+      },
+    });
     mockUploadSessionRepository = {
       create: jest.fn(),
       save: jest.fn(),
@@ -337,7 +356,7 @@ describe("UploadsService - Post-Review Fixes", () => {
       workspaceId: LEGACY_UPLOAD_WORKSPACE.id, tempPath: temp, totalSize: 4, chunkSize: 4,
       totalChunks: 1, status: "uploading", expiresAt: new Date(Date.now() - 1000) };
     (service as any).ssdUploads = { enabled: false };
-    mockQueryRunner.manager.query = jest.fn().mockResolvedValue([{ id: "pending-operation" }]);
+    mockQueryRunner.manager.query = jest.fn(async (sql: string) => sql.includes("pg_try_advisory") ? [{ locked: true }] : [{ id: "pending-operation" }]);
     mockUploadSessionRepository.manager.query = mockQueryRunner.manager.query;
     mockQueryRunner.manager.findOne.mockResolvedValue(session);
     mockUploadSessionRepository.findOne.mockResolvedValue({ ...session, expiresAt: null });
@@ -1085,14 +1104,15 @@ describe("UploadsService - Post-Review Fixes", () => {
         if (written.length === 1) signalFirstWrite();
         return written.length !== 1;
       });
+      let assemblyPath: string;
       stream.end = jest.fn(() => {
-        fs.writeFileSync(finalPath, Buffer.concat(written));
+        fs.writeFileSync(assemblyPath, Buffer.concat(written));
         queueMicrotask(() => stream.emit("finish"));
       });
       stream.destroy = jest.fn();
       const originalCreateWriteStream = mutableFs.createWriteStream;
       mutableFs.createWriteStream = jest.fn(
-        () => stream as unknown as fs.WriteStream,
+        (target: fs.PathLike) => { assemblyPath = String(target); return stream as unknown as fs.WriteStream; },
       ) as typeof fs.createWriteStream;
 
       try {
@@ -1275,7 +1295,7 @@ describe("UploadsService - Post-Review Fixes", () => {
         await destinationClosed;
 
         expect(error).toMatchObject({ code: "ENOENT" });
-        expect(mockQueryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
+        expect(mockQueryRunner.startTransaction).not.toHaveBeenCalled();
         expect(mockUsersService.updateStorageUsed).not.toHaveBeenCalled();
         expect(fs.existsSync(finalPath)).toBe(false);
         expect(fs.existsSync(tempDir)).toBe(true);
@@ -1422,7 +1442,7 @@ describe("UploadsService - Post-Review Fixes", () => {
         await expect(service.completeUpload(1, "many-chunks")).rejects.toBe(
           sourceError,
         );
-        expect(mockQueryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
+        expect(mockQueryRunner.startTransaction).not.toHaveBeenCalled();
         expect(mockUsersService.updateStorageUsed).not.toHaveBeenCalled();
         expect(fs.existsSync(finalPath)).toBe(false);
         expect(fs.existsSync(tempDir)).toBe(true);
