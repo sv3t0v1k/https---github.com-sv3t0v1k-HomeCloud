@@ -12,6 +12,7 @@ import { FileEntity } from "../entities/file.entity";
 import { FolderEntity } from "../entities/folder.entity";
 import { StorageService } from "../storage/storage.service";
 import { UsersService } from "../users/users.service";
+import { allocateNamespaceName } from "./namespace-name";
 
 @Injectable()
 export class FilesService {
@@ -190,8 +191,12 @@ export class FilesService {
     await queryRunner.startTransaction();
 
     try {
+      await queryRunner.manager.query(`SELECT id FROM users WHERE id=$1 FOR UPDATE`, [userId]);
+      const chosenName = await allocateNamespaceName(
+        queryRunner.manager, userId, parentId, displayName, "file",
+      );
       const file = queryRunner.manager.create(FileEntity, {
-        name: displayName,
+        name: chosenName,
         ...this.storageService.placementForPath(this.storageService.generatePath(userId, safeName)),
         size,
         mimeType,
@@ -232,8 +237,15 @@ export class FilesService {
     await queryRunner.startTransaction();
 
     try {
+      await queryRunner.manager.query(
+        `SELECT id FROM users WHERE id=$1 FOR SHARE`,
+        [userId],
+      );
+      const chosenName = await allocateNamespaceName(
+        queryRunner.manager, userId, parentId, name, "folder",
+      );
       const folder = queryRunner.manager.create(FolderEntity, {
-        name,
+        name: chosenName,
         isDeleted: false,
         parentId,
         userId,
@@ -242,7 +254,7 @@ export class FilesService {
       await queryRunner.manager.save(folder);
 
       const file = queryRunner.manager.create(FileEntity, {
-        name,
+        name: chosenName,
         isFolder: true,
         isDeleted: false,
         parentId,
@@ -833,6 +845,9 @@ export class FilesService {
         userId,
         size,
         queryRunner.manager,
+      );
+      copy.name = await allocateNamespaceName(
+        queryRunner.manager, userId, targetParentId, displayName, "file",
       );
       await queryRunner.manager.save(copy);
       commitAttempted = true;

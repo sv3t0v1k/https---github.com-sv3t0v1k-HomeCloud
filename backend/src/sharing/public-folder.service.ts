@@ -11,6 +11,7 @@ import { ConfigService } from "@nestjs/config";
 import { DataSource, EntityManager } from "typeorm";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { SharingService } from "./sharing.service";
+import { allocateNamespaceName } from "../files/namespace-name";
 
 interface UploadProof {
   aud: "public-folder-write";
@@ -226,6 +227,9 @@ export class PublicFolderService {
         link.root !== authorization.rootId
       )
         throw new NotFoundException("Share link unavailable");
+      // Foreign-key inserts also need a user KEY SHARE lock. Acquire it before
+      // folder locks, matching owner upload finalization's user -> folder order.
+      await manager.query(`SELECT id FROM users WHERE id=$1 FOR SHARE`, [link.userId]);
       // Lock the live chain and mirrors, then recheck after possible concurrent moves.
       await this.lockLivePath(manager, link.userId, parentId, link.root);
       const prior = await manager.query(
@@ -269,21 +273,7 @@ export class PublicFolderService {
           "Public folder creation limit reached",
           HttpStatus.TOO_MANY_REQUESTS,
         );
-      // The parent row lock in lockLivePath serializes public writers.
-      const occupied: { name: string }[] = await manager.query(
-        `SELECT name FROM files
-        WHERE "userId"=$1 AND "parentId"=$2 AND NOT "isDeleted"
-        UNION SELECT name FROM folders WHERE "userId"=$1 AND "parentId"=$2 AND NOT "isDeleted"`,
-        [link.userId, parentId],
-      );
-      const names = new Set(occupied.map((row) => row.name));
-      let chosen = name;
-      for (let suffix = 1; names.has(chosen); suffix++) {
-        if (suffix > 10000)
-          throw new ConflictException("Folder name space exhausted");
-        const addition = ` (${suffix})`;
-        chosen = name.slice(0, 255 - addition.length) + addition;
-      }
+      const chosen = await allocateNamespaceName(manager, link.userId, parentId, name, "folder");
       // The previous path check remains valid because every ancestor and mirror is locked.
       const [folder] = await manager.query(
         `INSERT INTO folders(name,"parentId","userId")

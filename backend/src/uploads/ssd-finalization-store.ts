@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import { DataSource, EntityManager } from "typeorm";
 import { FileEntity } from "../entities/file.entity";
+import { allocateNamespaceName } from "../files/namespace-name";
 import {
   LEGACY_UPLOAD_WORKSPACE_ID,
   SSD_UPLOAD_WORKSPACE_ID,
@@ -615,6 +616,9 @@ export class PostgresSsdFinalizationStore implements RecoveryStore {
         ).length
       )
         throw new Error("Upload already has a File");
+      const chosenName = await allocateNamespaceName(
+        manager, row.userId, row.parentId, row.filename, "file",
+      );
       const [{ id }]: Array<{ id: number }> = await manager.query(
         `SELECT nextval(pg_get_serial_sequence('files','id'))::int AS id`,
       );
@@ -628,7 +632,7 @@ export class PostgresSsdFinalizationStore implements RecoveryStore {
         VALUES ($1,$2,$3,$4,$5,$6,$11,$7,$8,$9,$10) RETURNING *`,
         [
           id,
-          row.filename,
+          chosenName,
           row.binding.storagePath,
           row.binding.targetStorageId,
           row.binding.relativeObjectKey,

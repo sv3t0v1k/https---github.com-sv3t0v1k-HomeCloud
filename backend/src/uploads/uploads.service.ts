@@ -34,6 +34,7 @@ import { UserEntity } from "../entities/user.entity";
 import { EntityManager } from "typeorm";
 import { StorageService } from "../storage/storage.service";
 import { UsersService } from "../users/users.service";
+import { allocateNamespaceName } from "../files/namespace-name";
 import {
   IngressChunkFile,
   cleanupIngressFile,
@@ -932,8 +933,12 @@ export class UploadsService {
         }
 
         // Create the file entity and update storage quota atomically.
+        await manager.query(`SELECT id FROM users WHERE id=$1 FOR UPDATE`, [userId]);
+        const chosenName = await allocateNamespaceName(
+          manager, userId, session.parentId, session.filename, "file",
+        );
         const file = manager.create(FileEntity, {
-          name: session.filename,
+          name: chosenName,
           ...this.storageService.placementForPath(finalPath),
           size: actualSize,
           mimeType,
