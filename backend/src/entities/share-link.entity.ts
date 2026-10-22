@@ -7,6 +7,7 @@ import {
   ManyToOne,
   JoinColumn,
   Index,
+  Check,
 } from "typeorm";
 import { UserEntity } from "./user.entity";
 import { FileEntity } from "./file.entity";
@@ -15,6 +16,7 @@ import { FileEntity } from "./file.entity";
 @Index(["userId"])
 @Index(["fileId"])
 @Index(["token"], { unique: true })
+@Check("CHK_share_links_allowUpload_folder", `NOT "allowUpload" OR "isFolder"`)
 export class ShareLinkEntity {
   @PrimaryGeneratedColumn()
   id!: number;
@@ -45,6 +47,9 @@ export class ShareLinkEntity {
 
   @Column({ default: false, name: "isFolder" })
   isFolder!: boolean;
+
+  @Column({ type: "boolean", default: false, name: "allowUpload" })
+  allowUpload!: boolean;
 
   @CreateDateColumn()
   createdAt!: Date;

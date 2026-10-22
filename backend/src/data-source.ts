@@ -9,6 +9,7 @@ import { UploadSessionEntity } from "./entities/upload-session.entity";
 import { UploadChunkEntity } from "./entities/upload-chunk.entity";
 import { DownloadCapabilityEntity } from "./entities/download-capability.entity";
 import { RefreshTokenEntity } from "./entities/refresh-token.entity";
+import { PublicShareOperationEntity } from "./entities/public-share-operation.entity";
 
 export default new DataSource({
   type: "postgres",
@@ -26,6 +27,7 @@ export default new DataSource({
     UploadChunkEntity,
     DownloadCapabilityEntity,
     RefreshTokenEntity,
+    PublicShareOperationEntity,
   ],
   migrations: [__dirname + "/migrations/*{.ts,.js}"],
 });

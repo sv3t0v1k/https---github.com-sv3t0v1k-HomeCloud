@@ -6,9 +6,13 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
+  Check,
 } from "typeorm";
 import { UserEntity } from "./user.entity";
 import { UploadWorkspaceEntity } from "./upload-workspace.entity";
+import { ShareLinkEntity } from "./share-link.entity";
+import { FolderEntity } from "./folder.entity";
 
 const safeBigintNumberTransformer = {
   to: (value: number): number => value,
@@ -24,6 +28,11 @@ const safeBigintNumberTransformer = {
 };
 
 @Entity("upload_sessions")
+@Index("idx_upload_sessions_shareLinkId", ["shareLinkId"])
+@Check(
+  "CHK_upload_sessions_public_origin",
+  `"origin" IN ('owner', 'public') AND ("origin" <> 'owner' OR ("shareLinkId" IS NULL AND "shareRootFolderId" IS NULL))`,
+)
 export class UploadSessionEntity {
   @PrimaryGeneratedColumn()
   id!: number;
@@ -90,6 +99,29 @@ export class UploadSessionEntity {
 
   @Column({ type: "int", nullable: true, name: "parentId" })
   parentId!: number | null;
+
+  @Column({ type: "varchar", length: 6, default: "owner" })
+  origin!: "owner" | "public";
+
+  @Column({ type: "int", nullable: true, name: "shareLinkId" })
+  shareLinkId!: number | null;
+
+  @ManyToOne(() => ShareLinkEntity, { nullable: true, onDelete: "SET NULL" })
+  @JoinColumn({
+    name: "shareLinkId",
+    foreignKeyConstraintName: "FK_upload_sessions_shareLink",
+  })
+  shareLink!: ShareLinkEntity | null;
+
+  @Column({ type: "int", nullable: true, name: "shareRootFolderId" })
+  shareRootFolderId!: number | null;
+
+  @ManyToOne(() => FolderEntity, { nullable: true, onDelete: "SET NULL" })
+  @JoinColumn({
+    name: "shareRootFolderId",
+    foreignKeyConstraintName: "FK_upload_sessions_shareRootFolder",
+  })
+  shareRootFolder!: FolderEntity | null;
 
   @Column({ default: "pending" })
   status!: string;

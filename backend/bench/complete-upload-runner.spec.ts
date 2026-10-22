@@ -1,4 +1,7 @@
-import { UploadWorkspaceEntity, LEGACY_UPLOAD_WORKSPACE } from "../src/entities/upload-workspace.entity";
+import {
+  UploadWorkspaceEntity,
+  LEGACY_UPLOAD_WORKSPACE,
+} from "../src/entities/upload-workspace.entity";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -49,6 +52,11 @@ function makeUploadSession(
     uploadedChunks: [],
     tempPath: "/tmp/bench/sess-1",
     parentId: null,
+    origin: "owner",
+    shareLinkId: null,
+    shareRootFolderId: null,
+    shareLink: null,
+    shareRootFolder: null,
     status: "pending",
     expiresAt: null,
     createdAt: now,
@@ -64,7 +72,10 @@ function makeFile(overrides: Partial<FileEntity> = {}): FileEntity {
   return {
     id: 1,
     name: "test.bin",
-    storagePath: "/tmp/bench/final.bin", storageLocationId: "f2f5c4b0-8d57-4c49-9f8c-0d095b344601", relativeObjectKey: "final.bin", storageLocation: null,
+    storagePath: "/tmp/bench/final.bin",
+    storageLocationId: "f2f5c4b0-8d57-4c49-9f8c-0d095b344601",
+    relativeObjectKey: "final.bin",
+    storageLocation: null,
     size: 100,
     mimeType: "application/octet-stream",
     checksum: "bench-checksum",
