@@ -187,6 +187,20 @@ describe("UploadsService - Post-Review Fixes", () => {
   });
 
   describe("universal filename admission and reconciliation", () => {
+    it("never selects public sessions through owner get, complete, abort or reconcile", async () => {
+      mockUploadSessionRepository.findOne.mockResolvedValue(null);
+      mockQueryRunner.manager.findOne.mockResolvedValue(null);
+      await expect(service.getUploadSession(1, "public-id")).rejects.toThrow("Upload session not found");
+      expect(mockUploadSessionRepository.findOne).toHaveBeenCalledWith({ where: { userId: 1, uploadId: "public-id", origin: "owner" } });
+      for (const operation of [
+        () => service.completeUpload(1, "public-id"),
+        () => service.abortUpload(1, "public-id"),
+        () => service.reconcileUploadSession(1, "public-id"),
+      ]) await expect(operation()).rejects.toThrow();
+      const selections = mockQueryRunner.manager.findOne.mock.calls.filter(([entity]: [unknown]) => entity === UploadSessionEntity);
+      expect(selections).toHaveLength(3);
+      for (const [, options] of selections) expect(options.where).toMatchObject({ userId: 1, uploadId: "public-id", origin: "owner" });
+    });
     it.each(["", " ", ".", "..", "../x.bin", "x/y.bin", "x\\y.bin", "x\r\nInjected", "x\0.bin", "a".repeat(256)])(
       "rejects unsafe filename %p before quota reservation", async (name) => {
         await expect(service.createUploadSession(1, name, 1, 1)).rejects.toThrow("Invalid filename");
@@ -223,7 +237,7 @@ describe("UploadsService - Post-Review Fixes", () => {
       expect(result).not.toHaveProperty("tempPath");
       expect(result).not.toHaveProperty("userId");
       expect(mockQueryRunner.manager.findOne).toHaveBeenCalledWith(UploadSessionEntity,
-        { where: { uploadId: "owned", userId: 1 }, lock: { mode: "pessimistic_write" } });
+        { where: { uploadId: "owned", userId: 1, origin: "owner" }, lock: { mode: "pessimistic_write" } });
     });
     it("rejects absent or foreign sessions without revealing metadata", async () => {
       mockQueryRunner.manager.findOne.mockResolvedValueOnce(null);
@@ -248,7 +262,7 @@ describe("UploadsService - Post-Review Fixes", () => {
       const result = await service.listUploadSessions(1);
       expect(result[0].status).toBe("uploading");
       expect(result[0]).not.toHaveProperty("tempPath");
-      expect(mockUploadSessionRepository.find.mock.calls[0][0]).toMatchObject({ where: { userId: 1 }, take: 200 });
+      expect(mockUploadSessionRepository.find.mock.calls[0][0]).toMatchObject({ where: { userId: 1, origin: "owner" }, take: 200 });
     });
   });
 

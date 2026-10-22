@@ -47,7 +47,7 @@ describe("SSD upload service portable API orchestration", () => {
     hdd = fs.mkdtempSync(path.join(os.tmpdir(), "hc-hdd-service-"));
     sessions = []; chunks = []; inTransaction = false; reserved = false; free = 1000000n; quota = 1000000;
     const sessionRepository = {
-      create: jest.fn((data: any) => ({ ...data, id: sessions.length + 1, createdAt: new Date() })),
+      create: jest.fn((data: any) => ({ origin: "owner", ...data, id: sessions.length + 1, createdAt: new Date() })),
       save: jest.fn(async (session: UploadSessionEntity) => { if (!sessions.includes(session)) sessions.push(session); return session; }),
       findOneBy: jest.fn(async (criteria: any) => sessions.find((session) => Object.entries(criteria).every(([key, value]) => session[key as keyof UploadSessionEntity] === value)) ?? null),
       findOneByOrFail: jest.fn(async ({ id }: any) => sessions.find((session) => session.id === id)),

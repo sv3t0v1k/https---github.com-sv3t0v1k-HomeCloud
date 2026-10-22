@@ -408,7 +408,7 @@ export class PostgresSsdFinalizationStore implements RecoveryStore {
     return this.db.transaction(async (manager) => {
       await this.requireDurability(manager);
       const sessions = await manager.query(
-        `SELECT ${this.selectedSessionColumns} FROM upload_sessions WHERE "userId"=$1 AND "uploadId"=$2 FOR UPDATE`,
+        `SELECT ${this.selectedSessionColumns} FROM upload_sessions WHERE "userId"=$1 AND "uploadId"=$2 AND origin='owner' FOR UPDATE`,
         [input.userId, input.uploadId],
       );
       if (sessions.length !== 1)

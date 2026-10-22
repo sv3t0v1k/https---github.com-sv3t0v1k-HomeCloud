@@ -342,7 +342,7 @@ export class UploadsService {
 
   private async isSsdSession(userId: number, uploadId: string): Promise<boolean> {
     if (!this.ssdUploads?.enabled) return false;
-    const session = await this.uploadSessionRepository.findOne({ where: { userId, uploadId } });
+    const session = await this.uploadSessionRepository.findOne({ where: { userId, uploadId, origin: "owner" } });
     return session?.workspaceId === SSD_UPLOAD_WORKSPACE_ID;
   }
 
@@ -352,7 +352,7 @@ export class UploadsService {
   ): Promise<UploadSessionEntity> {
     if (await this.isSsdSession(userId, uploadId)) return this.ssdUploads!.getUploadSession(userId, uploadId);
     const session = await this.uploadSessionRepository.findOne({
-      where: { uploadId, userId },
+      where: { uploadId, userId, origin: "owner" },
     });
 
     if (!session) {
@@ -404,7 +404,7 @@ export class UploadsService {
       }
       return await this.withTransaction(async (manager) => {
         const session = await manager.findOne(UploadSessionEntity, {
-          where: { uploadId, userId },
+          where: { uploadId, userId, origin: "owner" },
           lock: { mode: "pessimistic_write" },
         });
 
@@ -751,7 +751,7 @@ export class UploadsService {
 
     const result = await this.withTransaction(async (manager) => {
       const session = await manager.findOne(UploadSessionEntity, {
-        where: { uploadId, userId },
+        where: { uploadId, userId, origin: "owner" },
         lock: { mode: "pessimistic_write" },
       });
 
@@ -997,7 +997,7 @@ export class UploadsService {
     if (await this.isSsdSession(userId, uploadId)) { await this.ssdUploads!.abortUpload(userId, uploadId); return; }
     await this.withTransaction(async (manager) => {
       const session = await manager.findOne(UploadSessionEntity, {
-        where: { uploadId, userId },
+        where: { uploadId, userId, origin: "owner" },
         lock: { mode: "pessimistic_write" },
       });
 
@@ -1060,7 +1060,7 @@ export class UploadsService {
     return this.withTransaction(async (manager) => {
       // Serializes with chunk commit, finalization, abort, and expiry cleanup.
       const session = await manager.findOne(UploadSessionEntity, {
-        where: { uploadId, userId },
+        where: { uploadId, userId, origin: "owner" },
         lock: { mode: "pessimistic_write" },
       });
       if (!session) throw new NotFoundException("Upload session not found");
@@ -1126,6 +1126,7 @@ export class UploadsService {
       where: {
         userId,
         status: In(["pending", "uploading"]),
+        origin: "owner",
         expiresAt: MoreThan(new Date()),
       },
       order: { createdAt: "DESC" },

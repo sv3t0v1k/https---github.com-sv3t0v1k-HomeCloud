@@ -109,7 +109,7 @@ export class SsdUploadsService {
   }
   private async ownedSession(userId: number, uploadId: string): Promise<UploadSessionEntity> {
     this.requireEnabled();
-    const session = await this.db.getRepository(UploadSessionEntity).findOneBy({ userId, uploadId, workspaceId: SSD_UPLOAD_WORKSPACE.id });
+    const session = await this.db.getRepository(UploadSessionEntity).findOneBy({ userId, uploadId, workspaceId: SSD_UPLOAD_WORKSPACE.id, origin: "owner" });
     if (!session) throw new NotFoundException("Upload session not found");
     return session;
   }
