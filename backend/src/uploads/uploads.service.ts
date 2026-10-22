@@ -1,3 +1,5 @@
+import { PublicUploadAccess } from "./public-upload-access";
+import { UploadThrottleException } from "./upload-rate-limit";
 import { SsdUploadsService } from "./ssd-uploads.service";
 import { SSD_UPLOAD_WORKSPACE_ID } from "../entities/upload-workspace.entity";
 import { UploadWorkspaceEntity } from "../entities/upload-workspace.entity";
@@ -52,6 +54,7 @@ export class UploadsService {
   private readonly sessionTtlMs: number;
   private readonly workspaceResolver: UploadWorkspaceResolver;
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
+  private static readonly assemblies = new WeakMap<object, number>();
 
   private static readonly DEFAULT_MAX_FILE_SIZE = 1099511627776;
   private static readonly DEFAULT_MAX_TOTAL_SIZE = 2199023255552;
@@ -215,28 +218,38 @@ export class UploadsService {
     }
   }
 
-  private async withAssemblyFence<T>(uploadId: string, fn: (runner: QueryRunner) => Promise<T>): Promise<T> {
-    const runner = this.uploadSessionRepository.manager.connection.createQueryRunner();
+  private async withAssemblyFence<T>(uploadId: string, fn: (runner: QueryRunner) => Promise<T>, publicUpload = false): Promise<T> {
+    const source = this.uploadSessionRepository.manager.connection;
+    const options = source.options as { poolSize?: number; extra?: { max?: number } };
+    const poolMax = options?.extra?.max ?? options?.poolSize ?? 10;
+    const limit = Math.max(1, Math.min(2, poolMax - 2));
+    const active = UploadsService.assemblies.get(source) ?? 0;
+    if ((publicUpload && poolMax < 3) || active >= limit) throw new UploadThrottleException(1);
+    UploadsService.assemblies.set(source, active + 1);
+    let runner: QueryRunner | undefined;
     let locked = false;
     try {
+      runner = source.createQueryRunner();
       await runner.connect();
       locked = await this.trySessionFence(runner.manager, uploadId, false);
       if (!locked) throw new ConflictException("Upload is being finalized; retry later");
       return await fn(runner);
     } finally {
-      if (locked) {
-        try {
-          await runner.manager.query(`SELECT pg_advisory_unlock($1,hashtext($2))`,
-            [UploadsService.ASSEMBLY_LOCK_NAMESPACE, uploadId]);
-        } catch {
-          // A pooled connection must never retain a session advisory lock.
-          // TypeORM has no public destroy(error) API. Its PostgreSQL release path
-          // removes the runner and destroys the underlying pool client.
-          await (runner as unknown as { releasePostgresConnection(error: Error): Promise<void> })
-            .releasePostgresConnection(new Error("Upload fence connection lost"));
+      try {
+        if (locked && runner) {
+          try {
+            await runner.manager.query(`SELECT pg_advisory_unlock($1,hashtext($2))`,
+              [UploadsService.ASSEMBLY_LOCK_NAMESPACE, uploadId]);
+          } catch {
+            // A pooled connection must never retain a session advisory lock.
+            // TypeORM has no public destroy(error) API. Its PostgreSQL release path
+            // removes the runner and destroys the underlying pool client.
+            await (runner as unknown as { releasePostgresConnection(error: Error): Promise<void> })
+              .releasePostgresConnection(new Error("Upload fence connection lost"));
+          }
         }
-      }
-      if (!runner.isReleased) await runner.release();
+        if (runner && !runner.isReleased) await runner.release();
+      } finally { UploadsService.assemblies.set(source, Math.max(0, (UploadsService.assemblies.get(source) ?? 1) - 1)); }
     }
   }
 
@@ -260,6 +273,25 @@ export class UploadsService {
       [chain.map(folder => folder.id)]);
   }
 
+  assertPublicLegacy(): void {
+    if (this.ssdUploads?.enabled) throw new ServiceUnavailableException("Public uploads require legacy storage");
+  }
+
+  private sessionWhere(userId: number, uploadId: string, access?: PublicUploadAccess) {
+    return access
+      ? { userId, uploadId, origin: "public" as const, shareLinkId: access.shareLinkId, shareRootFolderId: access.shareRootFolderId }
+      : { userId, uploadId, origin: "owner" as const };
+  }
+
+  private async authorizeSession(manager: EntityManager, session: UploadSessionEntity, access?: PublicUploadAccess, lock = false): Promise<void> {
+    if (!access) return;
+    this.assertPublicLegacy();
+    if (session.origin !== "public" || session.userId !== access.userId ||
+        session.shareLinkId !== access.shareLinkId || session.shareRootFolderId !== access.shareRootFolderId || !session.parentId)
+      throw new NotFoundException("Upload session unavailable");
+    await access.authorize(manager, session.parentId, lock);
+  }
+
   async createUploadSession(
     userId: number,
     filename: string,
@@ -267,8 +299,10 @@ export class UploadsService {
     chunkSize: number,
     parentId?: number,
     expectedSha256?: string,
+    access?: PublicUploadAccess,
   ): Promise<UploadSessionEntity> {
-    if (this.ssdUploads?.enabled)
+    if (access) this.assertPublicLegacy();
+    if (!access && this.ssdUploads?.enabled)
       return this.ssdUploads.createUploadSession(userId, filename, totalSize, chunkSize, parentId, expectedSha256);
     if (expectedSha256 !== undefined && !/^[0-9a-f]{64}$/.test(expectedSha256))
       throw new BadRequestException("Invalid whole SHA256");
@@ -345,6 +379,15 @@ export class UploadsService {
         throw new ForbiddenException("User not found");
       }
 
+      if (access) {
+        await access.authorize(manager, parentId!, true);
+        const prior = await access.replay?.(manager);
+        if (prior) {
+          await this.authorizeSession(manager, prior, access);
+          return prior;
+        }
+      }
+
       // Sum totalSize of active (pending/uploading) sessions for this user.
       const activeResult = await manager
         .createQueryBuilder(UploadSessionEntity, "session")
@@ -388,11 +431,18 @@ export class UploadsService {
         status: "pending",
         expiresAt,
         userId,
+        origin: access ? "public" : "owner",
+        shareLinkId: access?.shareLinkId ?? null,
+        shareRootFolderId: access?.shareRootFolderId ?? null,
       });
 
-      return await manager.save(session);
+      const saved = await manager.save(session);
+      await access?.receipt?.(manager, saved);
+      return saved;
     });
 
+    if (savedSession.status === "completed" || savedSession.status === "aborted") return savedSession;
+    sessionTempDir = savedSession.tempPath;
     // Create the temp directory AFTER the transaction commits.
     // This prevents orphaned directories when DB save fails (O-15).
     try {
@@ -402,7 +452,7 @@ export class UploadsService {
     } catch {
       this.logger.error("Failed to create temp dir for session");
       // Best-effort cleanup of the orphaned session row.
-      await this.uploadSessionRepository.delete(savedSession!.id);
+      if (!access) await this.uploadSessionRepository.delete(savedSession!.id);
       throw new BadRequestException("Failed to prepare upload session");
     }
 
@@ -418,10 +468,12 @@ export class UploadsService {
   async getUploadSession(
     userId: number,
     uploadId: string,
+    access?: PublicUploadAccess,
   ): Promise<UploadSessionEntity> {
-    if (await this.isSsdSession(userId, uploadId)) return this.ssdUploads!.getUploadSession(userId, uploadId);
+    if (access) this.assertPublicLegacy();
+    if (!access && await this.isSsdSession(userId, uploadId)) return this.ssdUploads!.getUploadSession(userId, uploadId);
     const session = await this.uploadSessionRepository.findOne({
-      where: { uploadId, userId, origin: "owner" },
+      where: this.sessionWhere(userId, uploadId, access),
     });
 
     if (!session) {
@@ -432,6 +484,7 @@ export class UploadsService {
       throw new BadRequestException("Upload session expired");
     }
 
+    await this.authorizeSession(this.uploadSessionRepository.manager, session, access);
     await this.assertLegacyUnreserved(this.uploadSessionRepository.manager, session.id);
     await this.resolveSessionWorkspace(session);
     return session;
@@ -443,8 +496,10 @@ export class UploadsService {
     chunkIndex: number,
     chunkData: Buffer | IngressChunkFile,
     capability?: import("./ssd-uploads.service").SsdIngressCapability,
+    access?: PublicUploadAccess,
   ): Promise<UploadSessionEntity> {
-    if (await this.isSsdSession(userId, uploadId))
+    if (access) this.assertPublicLegacy();
+    if (!access && await this.isSsdSession(userId, uploadId))
       return this.ssdUploads!.uploadChunk(userId, uploadId, chunkIndex, chunkData, capability);
     // Validate chunkIndex as a finite safe nonnegative integer.
     if (
@@ -473,7 +528,7 @@ export class UploadsService {
       }
       return await this.withTransaction(async (manager) => {
         const session = await manager.findOne(UploadSessionEntity, {
-          where: { uploadId, userId, origin: "owner" },
+          where: this.sessionWhere(userId, uploadId, access),
           lock: { mode: "pessimistic_write" },
         });
 
@@ -481,6 +536,7 @@ export class UploadsService {
           throw new NotFoundException("Upload session not found");
         }
 
+        await this.authorizeSession(manager, session, access);
         await this.assertLegacyUnreserved(manager, session.id);
         await this.resolveSessionWorkspace(session, manager);
         bindingValidated = true;
@@ -603,6 +659,7 @@ export class UploadsService {
             session.uploadedSize + chunkSize,
           );
         }
+        await this.authorizeSession(manager, session, access);
         session.status = "uploading";
         await manager.save(session);
         return session;
@@ -834,18 +891,20 @@ export class UploadsService {
     return resolved;
   }
 
-  async completeUpload(userId: number, uploadId: string): Promise<FileEntity> {
-    if (await this.isSsdSession(userId, uploadId)) return this.ssdUploads!.completeUpload(userId, uploadId);
+  async completeUpload(userId: number, uploadId: string, access?: PublicUploadAccess): Promise<FileEntity> {
+    if (access) this.assertPublicLegacy();
+    if (!access && await this.isSsdSession(userId, uploadId)) return this.ssdUploads!.completeUpload(userId, uploadId);
     const result = await this.withAssemblyFence(uploadId, async (runner) => {
       const manager = runner.manager;
       const session = await manager.findOne(UploadSessionEntity, {
-        where: { uploadId, userId, origin: "owner" },
+        where: this.sessionWhere(userId, uploadId, access),
       });
 
       if (!session) {
         throw new NotFoundException("Upload session not found");
       }
 
+      await this.authorizeSession(manager, session, access);
       await this.assertLegacyUnreserved(manager, session.id);
       await this.resolveSessionWorkspace(session, manager);
       let attemptPath: string | undefined;
@@ -862,6 +921,7 @@ export class UploadsService {
             where: { uploadId, userId, isDeleted: false },
           });
           if (existing) {
+            if (access) await access.authorize(manager, existing.parentId!, false);
             try {
               await this.cleanupUnpublishedAssembly(manager, session);
               this.deleteTempFiles(session.tempPath);
@@ -888,9 +948,10 @@ export class UploadsService {
               where: { id: userId }, lock: { mode: "pessimistic_write" },
             });
             if (!user?.isActive) throw new ForbiddenException("User unavailable");
+            await this.authorizeSession(publication, session, access, true);
             await this.lockPublicationDestination(publication, userId, session.parentId ?? null);
             const current = await publication.findOne(UploadSessionEntity, {
-              where: { uploadId, userId, origin: "owner" }, lock: { mode: "pessimistic_write" },
+              where: this.sessionWhere(userId, uploadId, access), lock: { mode: "pessimistic_write" },
             });
             const file = await publication.findOne(FileEntity, { where: { id: recovered.id, userId, uploadId, isDeleted: false } });
             if (!current || !["pending", "uploading"].includes(current.status) ||
@@ -900,6 +961,7 @@ export class UploadsService {
             if (current.expiresAt && current.expiresAt <= new Date())
               throw new BadRequestException("Upload session expired");
             await this.assertLegacyUnreserved(publication, current.id);
+            await this.authorizeSession(publication, current, access);
             current.status = "completed";
             await publication.getRepository(UploadChunkEntity).delete({ sessionId: current.id });
             await publication.save(current);
@@ -913,6 +975,8 @@ export class UploadsService {
         attemptFinalPath = this.storageService.generateFinalPath(userId, `${uploadId}.${attemptId}`, session.filename);
         const finalPath = attemptPath;
         this.assertUploadPath(finalPath);
+        if (access && fs.statSync(session.tempPath).dev !== fs.statSync(path.dirname(attemptFinalPath)).dev)
+          throw new BadRequestException("Upload workspace and destination must share a filesystem");
 
         let actualSize = 0;
         const wholeHash = createHash("sha256");
@@ -1043,9 +1107,10 @@ export class UploadsService {
             where: { id: userId }, lock: { mode: "pessimistic_write" },
           });
           if (!user?.isActive) throw new ForbiddenException("User unavailable");
+          await this.authorizeSession(publication, session, access, true);
           await this.lockPublicationDestination(publication, userId, session.parentId ?? null);
           const current = await publication.findOne(UploadSessionEntity, {
-            where: { uploadId, userId, origin: "owner" }, lock: { mode: "pessimistic_write" },
+            where: this.sessionWhere(userId, uploadId, access), lock: { mode: "pessimistic_write" },
           });
           if (!current || current.parentId !== session.parentId ||
               current.workspaceId !== session.workspaceId || current.filename !== session.filename ||
@@ -1072,9 +1137,10 @@ export class UploadsService {
           await this.syncDirectory(path.dirname(attemptFinalPath!));
           const file = publication.create(FileEntity, {
             name: chosenName, ...this.storageService.placementForPath(attemptFinalPath!),
-            size: actualSize, mimeType, checksum: session.expectedSha256 ? wholeDigest : undefined,
+            size: actualSize, mimeType, checksum: session.expectedSha256 || access ? wholeDigest : undefined,
             isFolder: false, parentId: current.parentId || undefined, userId, uploadId,
           });
+          await this.authorizeSession(publication, current, access);
           await publication.save(file);
           await this.usersService.updateStorageUsed(userId, actualSize, publication);
           current.status = "completed";
@@ -1082,6 +1148,7 @@ export class UploadsService {
           current.uploadedCount = current.totalChunks;
           current.accountingInitialized = true;
           await publication.getRepository(UploadChunkEntity).delete({ sessionId: current.id });
+          await this.authorizeSession(publication, current, access);
           await publication.save(current);
           // From this point a lost COMMIT acknowledgement must preserve the object.
           commitAttempted = true;
@@ -1103,16 +1170,17 @@ export class UploadsService {
         }
         throw error;
       }
-    });
+    }, !!access);
 
     return result.file;
   }
 
-  async abortUpload(userId: number, uploadId: string): Promise<void> {
-    if (await this.isSsdSession(userId, uploadId)) { await this.ssdUploads!.abortUpload(userId, uploadId); return; }
+  async abortUpload(userId: number, uploadId: string, access?: PublicUploadAccess): Promise<void> {
+    if (access) this.assertPublicLegacy();
+    if (!access && await this.isSsdSession(userId, uploadId)) { await this.ssdUploads!.abortUpload(userId, uploadId); return; }
     await this.withTransaction(async (manager) => {
       const session = await manager.findOne(UploadSessionEntity, {
-        where: { uploadId, userId, origin: "owner" },
+        where: this.sessionWhere(userId, uploadId, access),
         lock: { mode: "pessimistic_write" },
       });
 
@@ -1120,6 +1188,7 @@ export class UploadsService {
         throw new NotFoundException("Upload session not found");
       }
 
+      await this.authorizeSession(manager, session, access);
       await this.resolveSessionWorkspace(session, manager);
       if (session.status === "completed") {
         throw new BadRequestException("Cannot abort a completed upload");
@@ -1170,15 +1239,17 @@ export class UploadsService {
     };
   }
 
-  async reconcileUploadSession(userId: number, uploadId: string) {
-    if (await this.isSsdSession(userId, uploadId)) return this.ssdUploads!.reconcileUploadSession(userId, uploadId);
+  async reconcileUploadSession(userId: number, uploadId: string, access?: PublicUploadAccess) {
+    if (access) this.assertPublicLegacy();
+    if (!access && await this.isSsdSession(userId, uploadId)) return this.ssdUploads!.reconcileUploadSession(userId, uploadId);
     return this.withTransaction(async (manager) => {
       // Serializes with chunk commit, finalization, abort, and expiry cleanup.
       const session = await manager.findOne(UploadSessionEntity, {
-        where: { uploadId, userId, origin: "owner" },
+        where: this.sessionWhere(userId, uploadId, access),
         lock: { mode: "pessimistic_write" },
       });
       if (!session) throw new NotFoundException("Upload session not found");
+      await this.authorizeSession(manager, session, access);
       await this.resolveSessionWorkspace(session, manager);
       if (
         session.status !== "completed" &&
@@ -1191,7 +1262,8 @@ export class UploadsService {
         const file = await manager.findOne(FileEntity, {
           where: { uploadId, userId },
         });
-        if (!file)
+        if (access && file) await access.authorize(manager, file.parentId!, false);
+        if (!file || file.isDeleted)
           throw new NotFoundException("Completed upload file not found");
         return {
           ...this.toSessionMetadata(session),

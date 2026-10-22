@@ -13,7 +13,7 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { SharingService } from "./sharing.service";
 import { allocateNamespaceName } from "../files/namespace-name";
 
-interface UploadProof {
+export interface UploadProof {
   aud: "public-folder-write";
   shareId: number;
   rootId: number;
@@ -132,7 +132,7 @@ export class PublicFolderService {
     targetId: number,
     rootId: number,
   ) {
-    const rows: { id: number }[] = await manager.query(
+    const rows: { id: number; parentId: number | null }[] = await manager.query(
       `WITH RECURSIVE ancestors AS (
       SELECT f.id,f."parentId",ARRAY[f.id] AS path FROM folders f
       JOIN files mirror ON mirror."folderId"=f.id
@@ -145,11 +145,11 @@ export class PublicFolderService {
       WHERE f."userId"=$2 AND NOT f."isDeleted" AND mirror."userId"=$2
         AND mirror."isFolder" AND NOT mirror."isDeleted"
         AND NOT f.id=ANY(ancestors.path) AND cardinality(ancestors.path)<128
-    ) SELECT id FROM ancestors`,
+    ) SELECT id,"parentId" FROM ancestors`,
       [targetId, userId],
     );
     const ids = rows.map((row) => row.id);
-    if (!ids.includes(rootId))
+    if (!ids.includes(rootId) || !rows.some(row => row.parentId === null))
       throw new NotFoundException("Folder unavailable");
     return ids;
   }
@@ -170,6 +170,27 @@ export class PublicFolderService {
       [ids],
     );
     await this.livePath(manager, userId, targetId, rootId);
+  }
+
+  uploadProof(proof: string | undefined): UploadProof { return this.verifyProof(proof); }
+
+  async authorizeUpload(manager: EntityManager, token: string, proof: string | undefined, parentId: number, lock = false): Promise<UploadProof> {
+    const auth = this.verifyProof(proof);
+    if (!Number.isSafeInteger(parentId) || parentId <= 0) throw new NotFoundException("Folder unavailable");
+    const [link] = await manager.query(`SELECT link.id,link."userId",mirror."folderId" AS root
+      FROM share_links link JOIN files mirror ON mirror.id=link."fileId"
+      JOIN users owner ON owner.id=link."userId"
+      JOIN folders root ON root.id=mirror."folderId"
+      WHERE link.token=$1 AND link."isActive" AND link."allowUpload" AND link."isFolder"
+        AND (link."expiresAt" IS NULL OR link."expiresAt">clock_timestamp())
+        AND mirror."userId"=link."userId" AND mirror."isFolder" AND NOT mirror."isDeleted"
+        AND root."userId"=link."userId" AND NOT root."isDeleted" AND owner."isActive"
+      ${lock ? "FOR UPDATE OF link" : ""}`, [token]);
+    if (!link || link.id !== auth.shareId || link.userId !== auth.userId || link.root !== auth.rootId)
+      throw new NotFoundException("Share link unavailable");
+    if (lock) await this.lockLivePath(manager, auth.userId, parentId, auth.rootId);
+    else await this.livePath(manager, auth.userId, parentId, auth.rootId);
+    return auth;
   }
 
   async createFolder(
@@ -206,6 +227,8 @@ export class PublicFolderService {
       )
       .digest("hex");
     return this.db.transaction(async (manager) => {
+      // Upload publication and all owner metadata mutations acquire user first.
+      await manager.query(`SELECT id FROM users WHERE id=$1 FOR UPDATE`, [authorization.userId]);
       // The share row serializes revoke, retry, and concurrent public creations.
       const links = await manager.query(
         `SELECT link.id,link."userId",mirror."folderId" AS root
@@ -229,7 +252,7 @@ export class PublicFolderService {
         throw new NotFoundException("Share link unavailable");
       // Foreign-key inserts also need a user KEY SHARE lock. Acquire it before
       // folder locks, matching owner upload finalization's user -> folder order.
-      await manager.query(`SELECT id FROM users WHERE id=$1 FOR SHARE`, [link.userId]);
+
       // Lock the live chain and mirrors, then recheck after possible concurrent moves.
       await this.lockLivePath(manager, link.userId, parentId, link.root);
       const prior = await manager.query(
