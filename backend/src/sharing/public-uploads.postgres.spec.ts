@@ -7,7 +7,7 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 import { Test } from "@nestjs/testing";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { JwtService } from "@nestjs/jwt";
-import { ValidationPipe } from "@nestjs/common";
+import { ValidationPipe, ServiceUnavailableException } from "@nestjs/common";
 import { NestExpressApplication } from "@nestjs/platform-express";
 import { DataSource, QueryRunner } from "typeorm";
 import request from "supertest";
@@ -131,7 +131,8 @@ pg(
         }),
       );
       app.setGlobalPrefix("api/v1");
-      await app.init();
+      // Keep one listener alive: Supertest auto-close races with parallel requests.
+      await app.listen(0, "127.0.0.1");
     }, 30000);
     afterEach(() => jest.restoreAllMocks());
     afterAll(async () => {
@@ -222,6 +223,674 @@ pg(
         restore: () => spy.mockRestore(),
       };
     }
+
+    describe("tree protocol over the existing public endpoints", () => {
+      type Node = {
+        path: string;
+        kind: "directory" | "file";
+        key: ReturnType<typeof randomUUID>;
+        id?: number;
+        actualName?: string;
+        uploadId?: string;
+        state?: "succeeded" | "failed" | "blocked";
+        code?: number;
+        errorCode?: string;
+      };
+      function plan(directories: string[], filePaths: string[]): Node[] {
+        const nodes: Node[] = [
+          ...directories.map((p) => ({
+            path: p,
+            kind: "directory" as const,
+            key: randomUUID(),
+          })),
+          ...filePaths.map((p) => ({
+            path: p,
+            kind: "file" as const,
+            key: randomUUID(),
+          })),
+        ];
+        // This is a bounded synthetic caller, not a server manifest endpoint.
+        expect(nodes.length).toBeLessThanOrEqual(1000);
+        for (const node of nodes) {
+          expect(node.path.split("/").length).toBeLessThanOrEqual(32);
+          expect(Buffer.byteLength(node.path, "utf8")).toBeLessThanOrEqual(
+            4096,
+          );
+        }
+        return nodes.sort(
+          (a, b) => a.path.split("/").length - b.path.split("/").length,
+        );
+      }
+      function parentPath(p: string) {
+        return p.slice(0, Math.max(0, p.lastIndexOf("/")));
+      }
+      function name(p: string) {
+        return p.slice(p.lastIndexOf("/") + 1);
+      }
+      async function json(
+        f: Fixture,
+        suffix: string,
+        body?: unknown,
+        key?: string,
+      ) {
+        const call = request(app.getHttpServer())
+          .post(`/api/v1/sharing/public/${f.link.token}${suffix}`)
+          .set("X-Forwarded-For", `198.51.100.${f.user.id}`)
+          .set("X-Forwarded-Proto", "https")
+          .set("X-Share-Upload-Proof", f.proof);
+        if (key) call.set("Idempotency-Key", key);
+        const result = await call.send(body ?? {});
+        if (result.status >= 400) throw { status: result.status };
+        expect(result.headers["cache-control"]).toBe("no-store");
+        return result.body;
+      }
+      async function runTree(f: Fixture, nodes: Node[]) {
+        const ids = new Map<string, number>([["", f.mirror.folderId!]]);
+        const operate = async (node: Node) => {
+          const parentId = ids.get(parentPath(node.path));
+          node.code = undefined;
+          node.errorCode = undefined;
+          if (!parentId) {
+            node.state = "blocked";
+            return;
+          }
+          try {
+            if (node.kind === "directory") {
+              const result = await json(
+                f,
+                "/folders",
+                { parentId, name: name(node.path) },
+                node.key,
+              );
+              node.id = result.id;
+              node.actualName = result.name;
+              ids.set(node.path, result.id);
+            } else {
+              // Replay the exact create even when its response was lost.
+              const session = await json(
+                f,
+                "/uploads/session",
+                {
+                  parentId,
+                  filename: name(node.path),
+                  totalSize: bytes.length,
+                  chunkSize: 2,
+                  expectedSha256: sha,
+                },
+                node.key,
+              );
+              node.uploadId = session.uploadId;
+              const status = await uploads.status(
+                f.link.token,
+                f.proof,
+                session.uploadId,
+              );
+              if (status.status !== "completed") {
+                for (const index of [0, 1, 2]) {
+                  if (status.chunks.some((chunk) => chunk.chunkIndex === index))
+                    continue;
+                  const received = await request(app.getHttpServer())
+                    .post(http(f, `/${session.uploadId}/chunk`))
+                    .set("X-Forwarded-For", `198.51.100.${f.user.id}`)
+                    .set("X-Forwarded-Proto", "https")
+                    .set("X-Share-Upload-Proof", f.proof)
+                    .field("chunkIndex", index)
+                    .attach(
+                      "chunk",
+                      bytes.subarray(index * 2, index * 2 + 2),
+                      "chunk",
+                    );
+                  if (received.status >= 400) throw { status: received.status };
+                }
+              }
+              const result = await json(
+                f,
+                `/uploads/session/${session.uploadId}/complete`,
+              );
+              node.id = result.id;
+              node.actualName = result.name;
+            }
+            node.state = "succeeded";
+          } catch (error) {
+            node.state = "failed";
+            node.code = (error as { status?: number }).status;
+            node.errorCode = (error as { code?: string }).code;
+          }
+        };
+        // Directory dependencies are replayed top-down on every resume. File queue is bounded to two.
+        for (const node of nodes.filter((n) => n.kind === "directory"))
+          await operate(node);
+        const fileNodes = nodes.filter((n) => n.kind === "file");
+        for (let i = 0; i < fileNodes.length; i += 2)
+          await Promise.all(fileNodes.slice(i, i + 2).map(operate));
+        return nodes.map(
+          ({
+            path: sourcePath,
+            state,
+            code,
+            errorCode,
+            id,
+            actualName,
+            uploadId,
+          }) => ({
+            sourcePath,
+            state,
+            code,
+            errorCode,
+            id,
+            actualName,
+            uploadId,
+          }),
+        );
+      }
+      async function verifyTree(f: Fixture, nodes: Node[]) {
+        const ids = new Map(
+          nodes
+            .filter((n) => n.kind === "directory")
+            .map((n) => [n.path, n.id!]),
+        );
+        ids.set("", f.mirror.folderId!);
+        for (const node of nodes) {
+          expect({
+            path: node.path,
+            state: node.state,
+            code: node.code,
+            errorCode: node.errorCode,
+          }).toMatchObject({
+            state: "succeeded",
+            code: undefined,
+            errorCode: undefined,
+          });
+          if (node.kind === "directory") {
+            const folder = await db
+              .getRepository(FolderEntity)
+              .findOneByOrFail({ id: node.id });
+            expect(folder.parentId).toBe(ids.get(parentPath(node.path)));
+          } else {
+            const stored = await db
+              .getRepository(FileEntity)
+              .findOneByOrFail({ id: node.id });
+            expect(stored.parentId).toBe(ids.get(parentPath(node.path)));
+            expect(stored.checksum).toBe(sha);
+            expect(
+              createHash("sha256")
+                .update(fs.readFileSync(stored.storagePath))
+                .digest("hex"),
+            ).toBe(sha);
+            const downloaded = await request(app.getHttpServer())
+              .post(`/api/v1/sharing/public/${f.link.token}/download`)
+              .set("X-Forwarded-For", `198.51.100.${f.user.id}`)
+              .send({ fileId: stored.id })
+              .buffer(true)
+              .parse((response, done) => {
+                const parts: Buffer[] = [];
+                response.on("data", (chunk) => parts.push(Buffer.from(chunk)));
+                response.on("end", () => done(null, Buffer.concat(parts)));
+              })
+              .expect(200);
+            expect(
+              createHash("sha256").update(downloaded.body).digest("hex"),
+            ).toBe(sha);
+          }
+        }
+      }
+
+      it("preserves five levels, empty directories, separate branches and collision IDs with an idempotent whole-tree replay", async () => {
+        const f = await fixture();
+        const existing = await files.createFolder(
+          f.user.id,
+          "tree",
+          f.mirror.folderId!,
+        );
+        const nodes = plan(
+          ["tree", "tree/a", "tree/b", "tree/a/c", "tree/a/c/d", "tree/empty"],
+          ["tree/a/c/d/data.bin", "tree/b/data.bin", "tree/a/data.bin"],
+        );
+        await runTree(f, nodes);
+        await verifyTree(f, nodes);
+        expect(nodes.find((n) => n.path === "tree")!.actualName).toBe(
+          "tree (1)",
+        );
+        expect(
+          await db
+            .getRepository(FolderEntity)
+            .countBy({ parentId: existing.folderId! }),
+        ).toBe(0);
+        const checkpoint = nodes.map((n) => [n.path, n.id, n.uploadId]);
+        await runTree(f, nodes);
+        await verifyTree(f, nodes);
+        expect(nodes.map((n) => [n.path, n.id, n.uploadId])).toEqual(
+          checkpoint,
+        );
+        expect(await used(f)).toBe(18);
+        expect(
+          await db
+            .getRepository(UploadSessionEntity)
+            .countBy({ userId: f.user.id }),
+        ).toBe(3);
+        expect(
+          await db.getRepository(FolderEntity).countBy({ userId: f.user.id }),
+        ).toBe(8);
+      }, 15000);
+
+      it("separates parallel imports with identical source names and preserves owner bytes", async () => {
+        const f = await fixture();
+        const owner = await core.createUploadSession(
+          f.user.id,
+          "tree",
+          bytes.length,
+          2,
+          f.mirror.folderId!,
+        );
+        for (const index of [0, 1, 2])
+          await core.uploadChunk(
+            f.user.id,
+            owner.uploadId,
+            index,
+            bytes.subarray(index * 2, index * 2 + 2),
+          );
+        const old = await core.completeUpload(f.user.id, owner.uploadId);
+        const a = plan(["tree", "tree/sub"], ["tree/sub/data.bin"]);
+        const b = plan(["tree", "tree/sub"], ["tree/sub/data.bin"]);
+        await Promise.all([runTree(f, a), runTree(f, b)]);
+        await verifyTree(f, a);
+        await verifyTree(f, b);
+        expect(a[0].id).not.toBe(b[0].id);
+        expect(new Set([a[0].actualName, b[0].actualName])).toEqual(
+          new Set(["tree (1)", "tree (2)"]),
+        );
+        expect((await files.findOne(f.user.id, old.id)).name).toBe("tree");
+        expect(fs.readFileSync(old.storagePath)).toEqual(bytes);
+        expect(await used(f)).toBe(18);
+      }, 15000);
+
+      it("resumes lost mkdir/session/complete responses and interrupted chunks using the original receipts", async () => {
+        const f = await fixture(),
+          nodes = plan(["tree", "tree/empty"], ["tree/a.bin", "tree/b.bin"]);
+        const top = await folders.createFolder(
+          f.link.token,
+          f.proof,
+          nodes[0].key,
+          { parentId: f.mirror.folderId, name: "tree" },
+        );
+        const fileNodes = nodes.filter((n) => n.kind === "file");
+        const first = await start(f, fileNodes[0].key, {
+          parentId: top.id,
+          filename: "a.bin",
+        });
+        await uploads.chunk(
+          f.link.token,
+          f.proof,
+          first.uploadId,
+          0,
+          bytes.subarray(0, 2),
+        );
+        const second = await start(f, fileNodes[1].key, {
+          parentId: top.id,
+          filename: "b.bin",
+        });
+        for (const index of [0, 1, 2])
+          await uploads.chunk(
+            f.link.token,
+            f.proof,
+            second.uploadId,
+            index,
+            bytes.subarray(index * 2, index * 2 + 2),
+          );
+        const published = await uploads.complete(
+          f.link.token,
+          f.proof,
+          second.uploadId,
+        );
+        await runTree(f, nodes);
+        await verifyTree(f, nodes);
+        expect(fileNodes[0].uploadId).toBe(first.uploadId);
+        expect(fileNodes[1].id).toBe(published.id);
+        expect(await used(f)).toBe(12);
+      }, 15000);
+
+      it("reports partial quota failure and resumes without duplicating successful nodes", async () => {
+        const f = await fixture(),
+          nodes = plan(["tree", "tree/empty"], ["tree/a.bin", "tree/b.bin"]);
+        await db
+          .getRepository(UserEntity)
+          .update(f.user.id, { storageQuota: 6 });
+        const result = await runTree(f, nodes);
+        expect(result.filter((n) => n.state === "succeeded")).toHaveLength(3);
+        expect(result.filter((n) => n.state === "failed")).toMatchObject([
+          { code: 403 },
+        ]);
+        expect(await used(f)).toBe(6);
+        const firstId = nodes.find(
+          (n) => n.kind === "file" && n.state === "succeeded",
+        )!.id;
+        await db
+          .getRepository(UserEntity)
+          .update(f.user.id, { storageQuota: 128 });
+        await runTree(f, nodes);
+        await verifyTree(f, nodes);
+        expect(nodes.some((n) => n.id === firstId)).toBe(true);
+        expect(await used(f)).toBe(12);
+      }, 15000);
+
+      it("blocks descendants after a directory failure and retries the same keys after recovery", async () => {
+        const f = await fixture(),
+          nodes = plan(
+            ["tree", "tree/child", "tree/child/empty"],
+            ["tree/child/data.bin"],
+          );
+        const original = folders.createFolder.bind(folders);
+        jest
+          .spyOn(folders, "createFolder")
+          .mockImplementation(async (...args) => {
+            if (args[3].name === "child")
+              throw new Error("synthetic transient database failure");
+            return original(...args);
+          });
+        const result = await runTree(f, nodes);
+        expect(result.map((n) => n.state)).toEqual([
+          "succeeded",
+          "failed",
+          "blocked",
+          "blocked",
+        ]);
+        const firstId = nodes[0].id;
+        jest.restoreAllMocks();
+        await runTree(f, nodes);
+        await verifyTree(f, nodes);
+        expect(nodes[0].id).toBe(firstId);
+        expect(await used(f)).toBe(6);
+      }, 15000);
+
+      it.each(["revoke", "move-out", "delete"])(
+        "keeps partial success but refuses tree continuation after %s",
+        async (mode) => {
+          const f = await fixture(),
+            nodes = plan(["tree", "tree/empty"], ["tree/a.bin", "tree/b.bin"]);
+          await runTree(f, nodes.slice(0, 3));
+          const committed = nodes.filter((n) => n.kind === "file" && n.id)[0];
+          expect(committed).toBeDefined();
+          const topId = nodes[0].id!;
+          if (mode === "revoke") await shares.revokeShare(f.user.id, f.link.id);
+          if (mode === "move-out") {
+            const outside = await files.createFolder(f.user.id, "outside");
+            await files.updateFolder(f.user.id, topId, {
+              parentId: outside.folderId,
+            });
+          }
+          if (mode === "delete") await files.removeFolder(f.user.id, topId);
+          const result = await runTree(f, nodes);
+          expect(result[0]).toMatchObject({ state: "failed", code: 404 });
+          expect(result.filter((n) => n.state === "blocked")).toHaveLength(3);
+          expect(await used(f)).toBe(6);
+          expect(
+            await db
+              .getRepository(UploadSessionEntity)
+              .countBy({ userId: f.user.id }),
+          ).toBe(1);
+        },
+        15000,
+      );
+
+      it("rejects within-tree directory moves on replay and blocks dependent branches", async () => {
+        const f = await fixture(),
+          nodes = plan(["tree", "tree/child"], ["tree/child/a.bin"]);
+        await runTree(f, nodes);
+        const other = await files.createFolder(
+          f.user.id,
+          "other",
+          f.mirror.folderId!,
+        );
+        await files.updateFolder(f.user.id, nodes[0].id!, {
+          parentId: other.folderId,
+        });
+        const result = await runTree(f, nodes);
+        expect(result[0]).toMatchObject({ state: "failed", code: 409 });
+        expect(result.slice(1).every((n) => n.state === "blocked")).toBe(true);
+        expect(await used(f)).toBe(6);
+      });
+
+      it("refuses moved completed files through create replay, status and complete without changing bytes or quota", async () => {
+        const f = await fixture(),
+          nodes = plan(["tree"], ["tree/a.bin"]);
+        await runTree(f, nodes);
+        const fileNode = nodes.find((n) => n.kind === "file")!;
+        await files.moveFile(f.user.id, fileNode.id!, f.mirror.folderId!);
+        await expect(
+          start(f, fileNode.key, { parentId: nodes[0].id, filename: "a.bin" }),
+        ).rejects.toMatchObject({ status: 409 });
+        await expect(
+          uploads.status(f.link.token, f.proof, fileNode.uploadId!),
+        ).rejects.toMatchObject({ status: 409 });
+        await expect(
+          uploads.complete(f.link.token, f.proof, fileNode.uploadId!),
+        ).rejects.toMatchObject({ status: 409 });
+        const stored = await files.findOne(f.user.id, fileNode.id!);
+        expect(stored.parentId).toBe(f.mirror.folderId);
+        expect(fs.readFileSync(stored.storagePath)).toEqual(bytes);
+        expect(await used(f)).toBe(6);
+      });
+
+      it("shares the operation budget between file receipts and mkdir, while allowing exact replay at the cap", async () => {
+        const f = await fixture(),
+          key = randomUUID();
+        const folder = await folders.createFolder(f.link.token, f.proof, key, {
+          parentId: f.mirror.folderId,
+          name: "tree",
+        });
+        const session = await start(f);
+        await db.query(
+          `INSERT INTO public_share_operations
+          ("shareLinkId","shareRootFolderId","userId",kind,"idempotencyKey","requestSha256","resultUploadSessionId","expiresAt")
+          SELECT $1,$2,$3,'upload_session',md5(g::text)::uuid,$4,$5,clock_timestamp()+interval '1 day'
+          FROM generate_series(1,998) g`,
+          [
+            f.link.id,
+            f.mirror.folderId,
+            f.user.id,
+            "a".repeat(64),
+            (
+              await db
+                .getRepository(UploadSessionEntity)
+                .findOneByOrFail({ uploadId: session.uploadId })
+            ).id,
+          ],
+        );
+        await expect(
+          folders.createFolder(f.link.token, f.proof, randomUUID(), {
+            parentId: folder.id,
+            name: "over",
+          }),
+        ).rejects.toMatchObject({ status: 429 });
+        await expect(start(f)).rejects.toMatchObject({ status: 429 });
+        expect(
+          await folders.createFolder(f.link.token, f.proof, key, {
+            parentId: f.mirror.folderId,
+            name: "tree",
+          }),
+        ).toEqual(folder);
+        expect(
+          await db.getRepository(FolderEntity).countBy({ parentId: folder.id }),
+        ).toBe(0);
+      });
+
+      it("reports a partial chunk failure accurately and resumes missing chunks with the same session", async () => {
+        const f = await fixture(),
+          nodes = plan(["tree"], ["tree/a.bin", "tree/b.bin"]);
+        let failedOnce = false;
+        const original = uploads.chunk.bind(uploads);
+        const spy = jest
+          .spyOn(uploads, "chunk")
+          .mockImplementation(async (...args) => {
+            if (args[3] === 1 && !failedOnce) {
+              failedOnce = true;
+              throw new ServiceUnavailableException(
+                "Synthetic storage failure",
+              );
+            }
+            return original(...args);
+          });
+        const result = await runTree(f, nodes);
+        expect(result.filter((n) => n.state === "failed")).toMatchObject([
+          { code: 503 },
+        ]);
+        expect(result.filter((n) => n.state === "succeeded")).toHaveLength(2);
+        const interrupted = nodes.find((n) => n.state === "failed")!;
+        expect(
+          (await uploads.status(f.link.token, f.proof, interrupted.uploadId!))
+            .chunks,
+        ).toHaveLength(1);
+        const sessionId = interrupted.uploadId;
+        spy.mockRestore();
+        await runTree(f, nodes);
+        await verifyTree(f, nodes);
+        expect(interrupted.uploadId).toBe(sessionId);
+        expect(await used(f)).toBe(12);
+      }, 15000);
+
+      it("applies the existing per-token request budget to directory operations without partial extra writes", async () => {
+        const f = await fixture();
+        for (let i = 0; i < 30; i++)
+          await json(
+            f,
+            "/folders",
+            { parentId: f.mirror.folderId, name: `node-${i}` },
+            randomUUID(),
+          );
+        const result = await request(app.getHttpServer())
+          .post(`/api/v1/sharing/public/${f.link.token}/folders`)
+          .set("X-Forwarded-For", `198.51.100.${f.user.id}`)
+          .set("X-Forwarded-Proto", "https")
+          .set("X-Share-Upload-Proof", f.proof)
+          .set("Idempotency-Key", randomUUID())
+          .send({ parentId: f.mirror.folderId, name: "over-budget" })
+          .expect(429);
+        expect(Number(result.headers["retry-after"])).toBeGreaterThan(0);
+        expect(
+          await db.getRepository(FolderEntity).countBy({ userId: f.user.id }),
+        ).toBe(31);
+      });
+
+      it("serializes concurrent mixed creates at the shared operation cap", async () => {
+        const f = await fixture(),
+          session = await start(f);
+        await db.query(
+          `INSERT INTO public_share_operations
+          ("shareLinkId","shareRootFolderId","userId",kind,"idempotencyKey","requestSha256","resultUploadSessionId","expiresAt")
+          SELECT $1,$2,$3,'upload_session',md5(g::text)::uuid,$4,$5,clock_timestamp()+interval '1 day'
+          FROM generate_series(1,998) g`,
+          [
+            f.link.id,
+            f.mirror.folderId,
+            f.user.id,
+            "a".repeat(64),
+            (
+              await db
+                .getRepository(UploadSessionEntity)
+                .findOneByOrFail({ uploadId: session.uploadId })
+            ).id,
+          ],
+        );
+        const results = await Promise.allSettled([
+          start(f),
+          folders.createFolder(f.link.token, f.proof, randomUUID(), {
+            parentId: f.mirror.folderId,
+            name: "last-slot",
+          }),
+        ]);
+        expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+        expect(results.filter((r) => r.status === "rejected")).toMatchObject([
+          { reason: { status: 429 } },
+        ]);
+        expect(
+          (
+            await db.query(
+              `SELECT count(*)::int AS count FROM public_share_operations WHERE "shareLinkId"=$1`,
+              [f.link.id],
+            )
+          )[0].count,
+        ).toBe(1000);
+      });
+
+      it("refuses a proof aged beyond five minutes at publication and resumes with a renewed proof", async () => {
+        const f = await fixture(),
+          session = await staged(f),
+          barrier = pause(session.uploadId);
+        const completion = uploads
+          .complete(f.link.token, f.proof, session.uploadId)
+          .catch((error) => error);
+        try {
+          await barrier.entered();
+          const clock = jest
+            .spyOn(Date, "now")
+            .mockReturnValue(Date.now() + 6 * 60_000);
+          barrier.resume();
+          expect(await bounded(completion)).toMatchObject({ status: 403 });
+          clock.mockRestore();
+          barrier.restore();
+          expect(await used(f)).toBe(0);
+          f.proof = (await folders.authorize(f.link.token)).proof;
+          expect(
+            (await uploads.status(f.link.token, f.proof, session.uploadId))
+              .chunks,
+          ).toHaveLength(3);
+          const file = await uploads.complete(
+            f.link.token,
+            f.proof,
+            session.uploadId,
+          );
+          expect(file.checksum).toBe(sha);
+          expect(await used(f)).toBe(6);
+          expect(
+            await db
+              .getRepository(FileEntity)
+              .countBy({ uploadId: session.uploadId }),
+          ).toBe(1);
+        } finally {
+          barrier.resume();
+          await completion;
+          barrier.restore();
+        }
+      });
+
+      it.each([
+        "../escape",
+        "/absolute",
+        "C:\\absolute",
+        "\\\\host\\share",
+        ".",
+        "..",
+        "a/b",
+        "a\\b",
+        "",
+        "nul\0",
+        "control\u001f",
+        "control\u0085",
+        "x".repeat(256),
+      ])(
+        "rejects path-like/invalid single names at both write boundaries: %j",
+        async (invalid) => {
+          const f = await fixture();
+          await expect(
+            folders.createFolder(f.link.token, f.proof, randomUUID(), {
+              parentId: f.mirror.folderId,
+              name: invalid,
+            }),
+          ).rejects.toMatchObject({ status: 400 });
+          await expect(
+            start(f, randomUUID(), { filename: invalid }),
+          ).rejects.toMatchObject({ status: 400 });
+          expect(
+            await db.getRepository(FolderEntity).countBy({ userId: f.user.id }),
+          ).toBe(1);
+          expect(
+            await db
+              .getRepository(UploadSessionEntity)
+              .countBy({ userId: f.user.id }),
+          ).toBe(0);
+        },
+      );
+    });
 
     it("keeps public targets immutable while migrated FK deletion invalidates orphan sessions", async () => {
       const f = await fixture(),

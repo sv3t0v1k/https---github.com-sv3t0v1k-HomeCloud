@@ -921,7 +921,11 @@ export class UploadsService {
             where: { uploadId, userId, isDeleted: false },
           });
           if (existing) {
-            if (access) await access.authorize(manager, existing.parentId!, false);
+            if (access) {
+              await access.authorize(manager, existing.parentId!, false);
+              if (existing.parentId !== session.parentId)
+                throw new ConflictException("Uploaded file moved; tree resume requires review");
+            }
             try {
               await this.cleanupUnpublishedAssembly(manager, session);
               this.deleteTempFiles(session.tempPath);
@@ -1262,7 +1266,11 @@ export class UploadsService {
         const file = await manager.findOne(FileEntity, {
           where: { uploadId, userId },
         });
-        if (access && file) await access.authorize(manager, file.parentId!, false);
+        if (access && file) {
+          await access.authorize(manager, file.parentId!, false);
+          if (file.parentId !== session.parentId)
+            throw new ConflictException("Uploaded file moved; tree resume requires review");
+        }
         if (!file || file.isDeleted)
           throw new NotFoundException("Completed upload file not found");
         return {

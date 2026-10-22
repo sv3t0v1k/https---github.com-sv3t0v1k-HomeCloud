@@ -73,6 +73,8 @@ export class PublicUploadsService {
       });
       if (!file?.parentId) throw new NotFoundException("File unavailable");
       await access.authorize(manager, file.parentId, false);
+      if (file.parentId !== session.parentId)
+        throw new ConflictException("Uploaded file moved; tree resume requires review");
     } else if (session.expiresAt && session.expiresAt <= new Date())
       throw new ConflictException("Upload expired");
   }

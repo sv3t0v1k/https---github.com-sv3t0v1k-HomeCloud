@@ -119,7 +119,7 @@ export class PublicFolderService {
       name.includes("\\") ||
       [...name].some((character) => {
         const code = character.charCodeAt(0);
-        return code < 32 || code === 127;
+        return code < 32 || (code >= 127 && code <= 159);
       })
     )
       throw new BadRequestException("Invalid folder name");
@@ -280,6 +280,8 @@ export class PublicFolderService {
           [prior[0].resultFolderId, link.userId],
         );
         if (!existing.length) throw new NotFoundException("Folder unavailable");
+        if (existing[0].parentId !== parentId)
+          throw new ConflictException("Created folder moved; tree resume requires review");
         return {
           id: existing[0].id,
           parentId: existing[0].parentId,
@@ -288,7 +290,7 @@ export class PublicFolderService {
       }
       const [{ used }] = await manager.query(
         `SELECT count(*)::int AS used FROM public_share_operations
-         WHERE "shareLinkId"=$1 AND kind='mkdir'`,
+         WHERE "shareLinkId"=$1`,
         [link.id],
       );
       if (used >= 1000)
