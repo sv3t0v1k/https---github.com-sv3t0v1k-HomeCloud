@@ -1,3 +1,4 @@
+import { PublicUploadsService } from "./sharing/public-uploads.service";
 import { NestExpressApplication } from "@nestjs/platform-express";
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
@@ -29,6 +30,7 @@ async function bootstrap() {
   applySecurityMiddleware(app, configService, {
     jwtService: app.get(JwtService),
     uploads: app.get(UploadRateLimitService),
+    publicUploads: app.get(PublicUploadsService),
   });
   app.useBodyParser("json");
   app.useBodyParser("urlencoded", { extended: true });

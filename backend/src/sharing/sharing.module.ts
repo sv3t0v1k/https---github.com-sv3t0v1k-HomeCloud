@@ -1,3 +1,6 @@
+import { UploadsModule } from "../uploads/uploads.module";
+import { PublicUploadsService } from "./public-uploads.service";
+import { PublicUploadsController, PublicUploadGuard } from "./public-uploads.controller";
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { UserEntity } from "../entities/user.entity";
@@ -17,9 +20,10 @@ import { PublicFolderService } from "./public-folder.service";
     FilesModule,
     AuthModule,
     StorageModule,
+    UploadsModule,
   ],
-  providers: [SharingService, PublicFolderService],
-  controllers: [SharingController, PublicFolderController],
-  exports: [SharingService],
+  providers: [SharingService, PublicFolderService, PublicUploadsService, PublicUploadGuard],
+  controllers: [SharingController, PublicFolderController, PublicUploadsController],
+  exports: [SharingService, PublicUploadsService],
 })
 export class SharingModule {}

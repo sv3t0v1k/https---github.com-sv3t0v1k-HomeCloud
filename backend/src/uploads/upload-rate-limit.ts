@@ -1,3 +1,4 @@
+import { PUBLIC_UPLOAD, PublicUploadAdmission } from "./public-upload-access";
 import {
   CallHandler,
   ExecutionContext,
@@ -100,6 +101,9 @@ export class UploadRateLimitService {
         : UPLOAD_RATE_POLICY.admissionAbort,
     );
   }
+  admitShare(digest: string, kind: UploadRequestKind): void {
+    this.admitIp(`share:${digest}`, kind);
+  }
   enter(userId: number, kind: UploadRequestKind): () => void {
     if (!Number.isSafeInteger(userId) || userId <= 0)
       throw new UnauthorizedException();
@@ -136,6 +140,7 @@ export class UploadRateLimitService {
   }
 }
 
+const VERIFIED_PUBLIC_TRANSFER = Symbol("verified-public-transfer");
 const VERIFIED_TRANSFER = Symbol("verified-transfer");
 const TRANSFER_LEASE = Symbol("upload-transfer-lease");
 type Lease = {
@@ -145,8 +150,10 @@ type Lease = {
 };
 type UploadRequest = Request & {
   [VERIFIED_TRANSFER]?: number;
+  [VERIFIED_PUBLIC_TRANSFER]?: boolean;
   [TRANSFER_LEASE]?: Lease;
   user?: { userId: number };
+  [PUBLIC_UPLOAD]?: PublicUploadAdmission;
 };
 
 /** Only these exact, normally generated routes can bypass the ordinary API bucket. */
@@ -167,6 +174,20 @@ export function uploadRequestKind(
     return "abort";
   return undefined;
 }
+export function publicUploadRequestKind(request: Request): UploadRequestKind | undefined {
+  const base = "/api/v1/sharing/public/[A-Za-z0-9-]{1,128}/uploads/session/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+  if (request.method === "POST" && new RegExp(`^${base}/chunk/?$`, "i").test(request.path)) return "chunk";
+  if (request.method === "DELETE" && new RegExp(`^${base}/?$`, "i").test(request.path)) return "abort";
+  return undefined;
+}
+export function markVerifiedPublicTransfer(request: Request, userId: number): void {
+  markVerifiedTransfer(request, userId);
+  (request as UploadRequest)[VERIFIED_PUBLIC_TRANSFER] = true;
+}
+export function hasVerifiedPublicTransfer(request: Request): boolean {
+  return (request as UploadRequest)[VERIFIED_PUBLIC_TRANSFER] === true;
+}
+
 export function markVerifiedTransfer(request: Request, userId: number): void {
   (request as UploadRequest)[VERIFIED_TRANSFER] = userId;
 }
@@ -193,7 +214,7 @@ export class UploadRateLimitInterceptor implements NestInterceptor {
       request.method === "DELETE" ? "abort" : "chunk";
     let release: () => void;
     try {
-      release = this.limits.enter(request.user?.userId ?? 0, kind);
+      release = this.limits.enter(request[PUBLIC_UPLOAD]?.userId ?? request.user?.userId ?? 0, kind);
     } catch (error) {
       if (error instanceof UploadThrottleException)
         response.setHeader("Retry-After", String(error.retryAfter));

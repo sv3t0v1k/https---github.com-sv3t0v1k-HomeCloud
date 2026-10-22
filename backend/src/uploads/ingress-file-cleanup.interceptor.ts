@@ -1,3 +1,4 @@
+import { PUBLIC_UPLOAD, PublicUploadAdmission } from "./public-upload-access";
 import { SSD_UPLOAD_WORKSPACE_ID } from "../entities/upload-workspace.entity";
 import { SsdUploadsService, SsdIngressCapability } from "./ssd-uploads.service";
 import {
@@ -52,20 +53,21 @@ export class IngressFileCleanupInterceptor implements NestInterceptor {
     const request = http.getRequest<RequestEvents & { ssdIngress?: SsdIngressCapability; ingressFinalizePending?: boolean; closeIngress?: () => void }>();
     const response = http.getResponse<ResponseEvents>();
     const ingressRequest = request as RequestEvents & {
-      user: { userId: number };
+      user?: { userId: number };
+      [PUBLIC_UPLOAD]?: PublicUploadAdmission;
       params: { uploadId: string };
     };
     // JWT and rate admission precede this interceptor. Resolve the immutable
     // session binding before Multer creates any ingress bytes.
-    const session = await this.uploadsService.getUploadSession(
-      ingressRequest.user.userId,
+    const session = ingressRequest[PUBLIC_UPLOAD]?.session ?? await this.uploadsService.getUploadSession(
+      ingressRequest.user!.userId,
       ingressRequest.params.uploadId,
     );
     if (session.status !== "pending" && session.status !== "uploading")
       throw new BadRequestException("Upload session is not writable");
     if (session.workspaceId === SSD_UPLOAD_WORKSPACE_ID) {
       if (!this.ssdUploads?.enabled) throw new BadRequestException("SSD uploads unavailable");
-      request.ssdIngress = await this.ssdUploads.acquireIngress(ingressRequest.user.userId, ingressRequest.params.uploadId);
+      request.ssdIngress = await this.ssdUploads.acquireIngress(ingressRequest.user!.userId, ingressRequest.params.uploadId);
     } else this.workspaceResolver.root(LEGACY_UPLOAD_WORKSPACE);
     let cleaned = false;
     const cleanup = () => {

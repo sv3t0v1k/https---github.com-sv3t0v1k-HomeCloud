@@ -33,7 +33,7 @@ import {
 import { abortableDiskStorage } from "./abortable-disk-storage";
 
 @Injectable()
-class SecureUploadMulterOptions implements MulterOptionsFactory {
+export class SecureUploadMulterOptions implements MulterOptionsFactory {
   private readonly resolver: UploadWorkspaceResolver;
   constructor(
     private readonly configService: ConfigService,
@@ -117,6 +117,6 @@ class SecureUploadMulterOptions implements MulterOptionsFactory {
     UploadRateLimitInterceptor,
   ],
   controllers: [UploadsController],
-  exports: [UploadsService, UploadRateLimitService],
+  exports: [UploadsService, UploadRateLimitService, UploadRateLimitInterceptor, IngressFileCleanupInterceptor, MulterModule],
 })
 export class UploadsModule {}

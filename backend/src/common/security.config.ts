@@ -14,6 +14,7 @@ import {
   uploadRequestKind,
   markVerifiedTransfer,
   hasVerifiedTransfer,
+  publicUploadRequestKind, markVerifiedPublicTransfer, hasVerifiedPublicTransfer,
 } from "../uploads/upload-rate-limit";
 
 export function buildCorsOptions(configService: ConfigService) {
@@ -40,6 +41,8 @@ export function buildCorsOptions(configService: ConfigService) {
       "Authorization",
       "X-Requested-With",
       "X-Share-Password",
+      "X-Share-Upload-Proof",
+      "Idempotency-Key",
       "Range",
     ],
     exposedHeaders: [
@@ -170,7 +173,7 @@ const publicDownloadRateLimitHandler: RateLimitExceededEventHandler = (
 export function applySecurityMiddleware(
   app: INestApplication,
   configService: ConfigService,
-  transfer?: { jwtService: JwtService; uploads: UploadRateLimitService },
+  transfer?: { jwtService: JwtService; uploads: UploadRateLimitService; publicUploads?: { admit(token: string, proof: string | undefined, uploadId: string): Promise<{ userId: number }> } },
 ): void {
   app.use(
     helmet({
@@ -192,7 +195,28 @@ export function applySecurityMiddleware(
   app.use(cors(buildCorsOptions(configService)));
 
   if (transfer) {
-    app.use((req: Request, res: Response, next: NextFunction) => {
+    app.use(async (req: Request, res: Response, next: NextFunction) => {
+      const publicKind = publicUploadRequestKind(req);
+      if (publicKind) {
+        try {
+          transfer.uploads.admitIp(clientIp(req), publicKind);
+          const [, token, uploadId] = /^\/api\/v1\/sharing\/public\/([^/]+)\/uploads\/session\/([^/]+)/.exec(req.path)!;
+          transfer.uploads.admitShare(crypto.createHash("sha256").update(token).digest("hex"), publicKind);
+          if (req.secure && transfer.publicUploads) {
+            const proof = req.headers["x-share-upload-proof"];
+            const admitted = await transfer.publicUploads.admit(token, typeof proof === "string" ? proof : undefined, uploadId);
+            markVerifiedPublicTransfer(req, admitted.userId);
+          }
+        } catch (error) {
+          if (error instanceof UploadThrottleException) {
+            res.setHeader("Retry-After", String(error.retryAfter));
+            res.status(429).json({ statusCode: 429, message: "Upload busy; retry later" });
+            return;
+          }
+          // Invalid capability retains ordinary public limits; the route guard refuses it.
+        }
+        return next();
+      }
       const kind = uploadRequestKind(req);
       if (!kind) return next();
       // Cheap bounded admission precedes signature checks, and all payload parsing.
@@ -232,14 +256,14 @@ export function applySecurityMiddleware(
   // Multiple replicas need a shared store; never key the store by share tokens.
   app.use(
     "/api/v1/sharing/public",
-    rateLimit(getPublicSharingRateLimitOptions()),
+    rateLimit({ ...getPublicSharingRateLimitOptions(), skip: hasVerifiedPublicTransfer }),
   );
   // Per-token limiter: same IP can't exhaust one token across many IPs, and
   // many IPs can't exhaust one token. Raw token is SHA-256 digested — never
   // stored as key. Applied AFTER the IP limiter so both protections hold.
   app.use(
     "/api/v1/sharing/public",
-    rateLimit(getPublicSharingTokenRateLimitOptions()),
+    rateLimit({ ...getPublicSharingTokenRateLimitOptions(), skip: hasVerifiedPublicTransfer }),
   );
   // Children and download also verify passwords. Share one budget across all routes and
   // all tokens, including passwordless downloads, before body parsing occurs.
