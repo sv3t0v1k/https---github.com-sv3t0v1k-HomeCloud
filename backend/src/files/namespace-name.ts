@@ -8,6 +8,7 @@ export async function allocateNamespaceName(
   parentId: number | null | undefined,
   requested: string,
   kind: "file" | "folder",
+  exclude?: { fileId?: number; folderId?: number },
 ): Promise<string> {
   if (parentId != null) {
     const [parent] = await manager.query(
@@ -18,10 +19,10 @@ export async function allocateNamespaceName(
   }
   const names: { name: string }[] = await manager.query(
     `SELECT name FROM files WHERE "userId"=$1 AND "parentId" IS NOT DISTINCT FROM $2
-       AND NOT "isDeleted"
+       AND NOT "isDeleted" AND ($3::int IS NULL OR id <> $3)
      UNION SELECT name FROM folders WHERE "userId"=$1 AND "parentId" IS NOT DISTINCT FROM $2
-       AND NOT "isDeleted"`,
-    [userId, parentId ?? null],
+       AND NOT "isDeleted" AND ($4::int IS NULL OR id <> $4)`,
+    [userId, parentId ?? null, exclude?.fileId ?? null, exclude?.folderId ?? null],
   );
   const occupied = new Set(names.map((row) => row.name));
   if (!occupied.has(requested)) return requested;

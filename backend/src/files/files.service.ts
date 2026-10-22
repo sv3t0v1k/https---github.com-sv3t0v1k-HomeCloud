@@ -238,7 +238,7 @@ export class FilesService {
 
     try {
       await queryRunner.manager.query(
-        `SELECT id FROM users WHERE id=$1 FOR SHARE`,
+        `SELECT id FROM users WHERE id=$1 FOR UPDATE`,
         [userId],
       );
       const chosenName = await allocateNamespaceName(
@@ -281,22 +281,62 @@ export class FilesService {
     id: number,
     data: { name?: string; parentId?: number | null },
   ) {
-    const file = await this.findOne(userId, id);
-    if (file.isFolder) {
-      throw new BadRequestException("Cannot update folder via files endpoint");
-    }
+    const name = data.name === undefined ? undefined : this.validateDisplayName(data.name);
+    if (data.parentId !== undefined) await this.assertFolderOwnership(userId, data.parentId);
+    return this.changeFilePlacement(userId, id, name, data.parentId, false);
+  }
 
-    if (data.name !== undefined) {
-      file.name = this.validateDisplayName(data.name);
-    }
+  private async changeFilePlacement(
+    userId: number,
+    id: number,
+    name: string | undefined,
+    parentId: number | null | undefined,
+    restore: boolean,
+  ): Promise<FileEntity> {
+    const runner = this.fileRepository.manager.connection.createQueryRunner();
+    try {
+      await runner.connect();
+      await runner.startTransaction();
+      // Owner writers take the user lock before object and destination locks.
+      await runner.manager.query('SELECT id FROM users WHERE id=$1 FOR UPDATE', [userId]);
+      const file = await runner.manager.findOne(FileEntity, {
+        where: { id, userId },
+        lock: { mode: "pessimistic_write" },
+      });
+      if (!file) throw new NotFoundException("File not found");
+      if (file.isFolder) throw new BadRequestException("Cannot update folder via files endpoint");
 
-    if (data.parentId !== undefined) {
-      await this.assertFolderOwnership(userId, data.parentId);
-      file.parentId = data.parentId ?? null;
+      let destination = parentId === undefined ? file.parentId : parentId;
+      if (restore && destination != null) {
+        const [active] = await runner.manager.query(
+          'SELECT id FROM folders WHERE id=$1 AND "userId"=$2 AND NOT "isDeleted"',
+          [destination, userId],
+        );
+        if (!active) destination = null;
+      }
+      if (
+        (restore && file.isDeleted) ||
+        (name !== undefined && name !== file.name) ||
+        destination !== file.parentId
+      ) {
+        file.name = await allocateNamespaceName(
+          runner.manager, userId, destination, name ?? file.name, "file", { fileId: id },
+        );
+      }
+      file.parentId = destination ?? null;
+      if (restore) {
+        file.isDeleted = false;
+        file.deletedAt = null;
+      }
+      await runner.manager.save(file);
+      await runner.commitTransaction();
+      return file;
+    } catch (error) {
+      if (runner.isTransactionActive) await runner.rollbackTransaction();
+      throw error;
+    } finally {
+      await runner.release();
     }
-
-    await this.fileRepository.save(file);
-    return file;
   }
 
   async updateFolder(
@@ -323,6 +363,7 @@ export class FilesService {
       await queryRunner.startTransaction();
       transactionStarted = true;
 
+      await queryRunner.manager.query(`SELECT id FROM users WHERE id=$1 FOR UPDATE`, [userId]);
       const folder = await queryRunner.manager.findOne(FolderEntity, {
         where: { id, userId },
         lock: { mode: "pessimistic_write" },
@@ -339,14 +380,17 @@ export class FilesService {
         throw new NotFoundException("Folder mirror not found");
       }
 
-      if (data.name && data.name.trim()) {
-        folder.name = data.name;
-        mirror.name = data.name;
-      }
-
-      if (data.parentId !== undefined) {
-        folder.parentId = data.parentId ?? null;
-        mirror.parentId = data.parentId ?? null;
+      const destination = data.parentId !== undefined ? data.parentId : folder.parentId;
+      if (data.parentId != null) await this.assertNoCycle(id, data.parentId);
+      const requested = data.name && data.name.trim() ? data.name : folder.name;
+      if (requested !== folder.name || destination !== folder.parentId) {
+        folder.name = await allocateNamespaceName(
+          queryRunner.manager, userId, destination, requested, "folder",
+          { folderId: id, fileId: mirror.id },
+        );
+        folder.parentId = destination;
+        mirror.name = folder.name;
+        mirror.parentId = destination;
       }
 
       await queryRunner.manager.save(folder);
@@ -440,17 +484,7 @@ export class FilesService {
   }
 
   async restoreFile(userId: number, id: number) {
-    const file = await this.findOne(userId, id);
-    if (file.parentId !== null) {
-      const activeParent = await this.folderRepository.findOne({
-        where: { id: file.parentId, userId, isDeleted: false },
-      });
-      if (!activeParent) file.parentId = null;
-    }
-    file.isDeleted = false;
-    file.deletedAt = null;
-    await this.fileRepository.save(file);
-
+    await this.changeFilePlacement(userId, id, undefined, undefined, true);
     return { message: "File restored" };
   }
 
@@ -463,6 +497,7 @@ export class FilesService {
       await queryRunner.connect();
       await queryRunner.startTransaction();
       transactionStarted = true;
+      await queryRunner.manager.query(`SELECT id FROM users WHERE id=$1 FOR UPDATE`, [userId]);
       const folder = await queryRunner.manager.findOne(FolderEntity, {
         where: { id, userId },
         lock: { mode: "pessimistic_write" },
@@ -486,6 +521,14 @@ export class FilesService {
           folder.parentId = null;
           mirror.parentId = null;
         }
+      }
+
+      if (folder.isDeleted) {
+        folder.name = await allocateNamespaceName(
+          queryRunner.manager, userId, folder.parentId, folder.name, "folder",
+          { folderId: id, fileId: mirror.id },
+        );
+        mirror.name = folder.name;
       }
 
       folder.isDeleted = false;
@@ -894,11 +937,13 @@ export class FilesService {
   }
 
   async moveFile(userId: number, id: number, targetParentId?: number) {
-    const file = await this.findOne(userId, id);
     await this.assertFolderOwnership(userId, targetParentId);
-    file.parentId = targetParentId ?? null;
-    await this.fileRepository.save(file);
-    return file;
+    const current = await this.findOne(userId, id);
+    if (current.isFolder) {
+      if (current.folderId == null) throw new NotFoundException("Folder not found");
+      return this.updateFolder(userId, current.folderId, { parentId: targetParentId ?? null });
+    }
+    return this.changeFilePlacement(userId, id, undefined, targetParentId ?? null, false);
   }
 
   async search(userId: number, query: string) {
