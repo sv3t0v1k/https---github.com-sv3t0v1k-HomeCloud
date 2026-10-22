@@ -109,6 +109,19 @@ describe("SharingService - Authorization Boundary", () => {
   });
 
   describe("createShareLink", () => {
+    it("defaults write access off and permits it only for folder shares", async () => {
+      const user = { id: 1, isActive: true };
+      mockUserRepository.findOne.mockResolvedValue(user);
+      mockFileRepository.findOne.mockResolvedValue({ id: 10, userId: 1, isDeleted: false, isFolder: true });
+      mockShareLinkRepository.create.mockImplementation((value: unknown) => value);
+      mockShareLinkRepository.save.mockImplementation((value: unknown) => value);
+      await service.createShareLink(1, 10, {});
+      expect(mockShareLinkRepository.create).toHaveBeenCalledWith(expect.objectContaining({ allowUpload: false }));
+      await service.createShareLink(1, 10, { allowUpload: true });
+      expect(mockShareLinkRepository.create).toHaveBeenLastCalledWith(expect.objectContaining({ allowUpload: true, isFolder: true }));
+      mockFileRepository.findOne.mockResolvedValue({ id: 11, userId: 1, isDeleted: false, isFolder: false, size: 1, mimeType: "image/png" });
+      await expect(service.createShareLink(1, 11, { allowUpload: true })).rejects.toThrow(BadRequestException);
+    });
     it.each([
       ["deleted file", { id: 1, userId: 1, isDeleted: true }],
       ["foreign file", { id: 1, userId: 2, isDeleted: false }],

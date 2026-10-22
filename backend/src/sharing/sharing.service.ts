@@ -62,6 +62,7 @@ export class SharingService {
       expiresInDays?: number;
       maxDownloads?: number | null; // null/undefined = unlimited
       isFolder?: boolean;
+      allowUpload?: boolean;
     },
   ) {
     const file = await this.fileRepository.findOne({
@@ -77,6 +78,9 @@ export class SharingService {
 
     if (!file.isFolder && options.isFolder === true) {
       throw new BadRequestException("Cannot share file as folder");
+    }
+    if (options.allowUpload && !file.isFolder) {
+      throw new BadRequestException("Only folders can allow public uploads");
     }
 
     if (!file.isFolder && file.size > this.maxShareSize) {
@@ -107,6 +111,7 @@ export class SharingService {
       password: passwordHash,
       expiresAt,
       isFolder: options.isFolder ?? file.isFolder,
+      allowUpload: options.allowUpload ?? false,
       isActive: true,
       downloadCount: 0,
       maxDownloads: options.maxDownloads ?? null,

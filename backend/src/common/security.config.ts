@@ -248,6 +248,7 @@ export function applySecurityMiddleware(
       "/api/v1/sharing/public/:token/verify",
       "/api/v1/sharing/public/:token/download",
       "/api/v1/sharing/public/:token/children",
+      "/api/v1/sharing/public/:token/upload-authorizations",
     ],
     rateLimit(getPublicSharingAttemptRateLimitOptions()),
   );
@@ -259,6 +260,7 @@ export function applySecurityMiddleware(
       "/api/v1/sharing/public/:token/verify",
       "/api/v1/sharing/public/:token/download",
       "/api/v1/sharing/public/:token/children",
+      "/api/v1/sharing/public/:token/upload-authorizations",
     ],
     rateLimit(getPublicSharingAttemptTokenRateLimitOptions()),
   );

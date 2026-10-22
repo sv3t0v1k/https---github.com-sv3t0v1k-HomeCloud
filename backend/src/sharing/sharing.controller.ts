@@ -128,6 +128,7 @@ export class SharingController {
         expiresInDays: dto.expiresInDays,
         maxDownloads: dto.maxDownloads,
         isFolder: dto.isFolder,
+        allowUpload: dto.allowUpload,
       },
     );
     return toOwnerShareResponse(share);
@@ -442,7 +443,8 @@ export class SharingController {
       "Content-Length",
       "Content-Range",
       "Accept-Ranges",
-    ]) res.removeHeader(header);
+    ])
+      res.removeHeader(header);
     const status = error instanceof HttpException ? error.getStatus() : 500;
     const code =
       status === 404 || status === 410
@@ -465,6 +467,7 @@ function toOwnerShareResponse(share: ShareLinkEntity) {
     token: share.token,
     fileId: share.fileId,
     isFolder: share.isFolder,
+    allowUpload: share.allowUpload,
     isActive: share.isActive,
     expiresAt: share.expiresAt,
     downloadCount: share.downloadCount,

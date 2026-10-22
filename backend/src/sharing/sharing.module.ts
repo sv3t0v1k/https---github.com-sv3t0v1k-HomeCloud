@@ -8,6 +8,8 @@ import { AuthModule } from "../auth/auth.module";
 import { StorageModule } from "../storage/storage.module";
 import { SharingService } from "./sharing.service";
 import { SharingController } from "./sharing.controller";
+import { PublicFolderController } from "./public-folder.controller";
+import { PublicFolderService } from "./public-folder.service";
 
 @Module({
   imports: [
@@ -16,8 +18,8 @@ import { SharingController } from "./sharing.controller";
     AuthModule,
     StorageModule,
   ],
-  providers: [SharingService],
-  controllers: [SharingController],
+  providers: [SharingService, PublicFolderService],
+  controllers: [SharingController, PublicFolderController],
   exports: [SharingService],
 })
 export class SharingModule {}

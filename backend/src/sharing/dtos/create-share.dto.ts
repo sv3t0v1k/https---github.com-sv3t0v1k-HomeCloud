@@ -1,4 +1,12 @@
-import { IsBoolean, IsInt, IsOptional, IsString, Max, MaxLength, Min } from "class-validator";
+import {
+  IsBoolean,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from "class-validator";
 
 export class CreateShareDto {
   @IsInt()
@@ -27,4 +35,8 @@ export class CreateShareDto {
   @IsOptional()
   @IsBoolean()
   isFolder?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  allowUpload?: boolean;
 }
