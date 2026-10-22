@@ -1,6 +1,9 @@
 # Public Folder Sharing — загрузка одного файла, этап 3
 
-Локальная backend-реализация, без frontend, импорта дерева и rollout. Домашний сервер
+Протокол дерева и уточнения повторов/общего budget этапа 4:
+[загрузка дерева](public-folder-tree-upload.md). Ниже — API одиночного файла.
+
+Объём этапа 3: локальная backend-реализация без frontend, импорта дерева и rollout. Домашний сервер
 не обновлялся; Production NO_GO, Multi-Storage DEFERRED. Утверждённый контракт
 `public-folder-sharing-v1-contract.md` сохранён; пустые файлы отклоняются.
 

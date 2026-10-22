@@ -35,7 +35,7 @@
 | Единый локальный Docker baseline — ненумерованный checkpoint | `COMPLETE` | `bf97bef` / `f578030`; [runbook и preservation boundaries](./operations-runbook.md) |
 | D5.1 — Release Management & CI Foundation | `RELEASE_BLOCKED; local runner/skopeo model implemented, hosted confirmation pending` | [Image security policy](./image-security-policy.md) |
 | Полный 50 ГиБ IAB Browser E2E — ненумерованный checkpoint | `PASS` | `167498d`; [scope/evidence](./evidence/browser-50gib-qualification-20261006/report.md); Safari 50 ГиБ UNQUALIFIED |
-| Public Folder Sharing v1.0 — анонимная загрузка в общую папку | `IN_PROGRESS` | Backend этапы 1–3 COMPLETE локально; frontend и загрузка дерева не начаты |
+| Public Folder Sharing v1.0 — анонимная загрузка в общую папку | `IN_PROGRESS` | Backend этапы 1–4 COMPLETE локально; протокол дерева готов, frontend этап 5 NOT_STARTED |
 | Multi-Storage и выбор пользователем места хранения | `DEFERRED` | Исторические checkpoint’ы и зависимости сохранены в соответствующих разделах; продолжение только после отдельного решения |
 
 ## Completed
@@ -624,7 +624,7 @@ Evidence: focused 64/64 PASS; full backend 609 PASS / 15 SKIPPED (51 suites PASS
 
 ### Public Folder Sharing v1.0 — исторический план (2026-10-22)
 
-**Текущий статус IN_PROGRESS: backend этап 3 COMPLETE локально; frontend и импорт дерева не начаты.** Ниже сохранён исторический план. База изучения: локальный `17d77c9f967cfaf98ac31717142f9fb7a772bc45`, рабочее дерево до изменения документа чистое. Сервер `17d77c9` и регрессия Public Sharing **PASS** — входные результаты предыдущей работы, повторно не проверялись. Production **NO_GO**, Multi-Storage **DEFERRED**, CI/CD и действующие этапы/история сохраняются. Новая Phase не вводится; реализация требует отдельного согласования.
+**Текущий статус IN_PROGRESS: backend этапы 1–4 COMPLETE локально; протокол дерева готов, frontend этап 5 NOT_STARTED.** Ниже сохранён исторический план. База изучения: локальный `17d77c9f967cfaf98ac31717142f9fb7a772bc45`, рабочее дерево до изменения документа чистое. Сервер `17d77c9` и регрессия Public Sharing **PASS** — входные результаты предыдущей работы, повторно не проверялись. Production **NO_GO**, Multi-Storage **DEFERRED**, CI/CD и действующие этапы/история сохраняются. Новая Phase не вводится; реализация требует отдельного согласования.
 
 **Цель и scope.** Как владелец, я хочу выдавать ссылку на папку с разрешением «Разрешить загрузку», чтобы получать материалы без регистрации отправителей. Как посетитель, я хочу просматривать дерево, скачивать файлы, загружать отдельные файлы и папки с вложенностью, создавать каталоги. Must: эти действия, create-only, квоты, целостность и изоляция дерева. Все обладатели ссылки равноправны; отдельных анонимных личностей/ACL нет. Вне v1: удаление, переименование, перемещение объектов посетителем, overwrite, новый storage placement и SSD activation. «Перемещаться внутри дерева» означает навигацию.
 
@@ -769,6 +769,48 @@ Frontend/загрузка дерева не реализованы. Домашн
 Multi-Storage не изменялись; push/merge/release/deployment не выполнялись.
 Production NO_GO, Multi-Storage DEFERRED сохраняются. После этапа3 остановка;
 продолжение только после отдельного согласования владельца.
+
+### Public Folder Sharing — этап 4: дерево через существующие API (2026-10-23)
+
+**COMPLETE**, локально в границах backend-протокола. Checkpoint `b038438`.
+Дерево передаётся последовательностью scoped mkdir сверху вниз с mapping исходного
+пути к возвращённому folder ID и individual chunk upload sessions. Существующие
+папки при коллизии не объединяются с импортом; actual suffix не меняет parent mapping.
+Пустые directory entries создаются явно. Массовый endpoint, server job и второй
+upload engine не добавлены. Клиентские manifest/picker/очередь/UI в продукте — этап 5;
+здесь протокол проверен синтетическим HTTP caller с очередью двух файлов.
+
+Исправлены два пробела resume: общий cap1000 receipts ссылки учитывает и mkdir,
+и file-session creates; replay созданного результата после перемещения в другую
+ветвь внутри ссылки возвращает409, включая mkdir и completed create/status/complete.
+Live scope checks сохранены; outside/deleted/revoked отказывают. Folder names теперь
+отклоняют C1 controls, согласованно с upload core. Новых миграций нет.
+
+Linux arm64 Node20.20.2 / PostgreSQL16.15, UID1001, точный текущий package-lock:
+targeted9 suites/257 tests и full85 suites/1254 tests без skipped — PASS.
+Новые28 cases покрывают дерево с пятью уровнями компонентов, разные ветви/пустые
+каталоги, коллизии и параллельные импорты, SHA-256 stored/downloaded каждого файла,
+потерянные create/complete ответы, прерванные chunks, partial quota/503/transient
+failure и resume, revoke/move/delete, внутрикорневое перемещение результата,
+конкурентный mixed operation cap и HTTP429/Retry-After, traversal/control names.
+Отдельно20/20 параллельных импортов и single-file HTTP с реальным pool.max=3 — PASS.
+Эти выбранные диагностические прогоны не прибавляются к1254. Устранена гонка
+жизненного цикла test listener в Supertest; backend для этого не менялся.
+Lint — PASS (0 errors,19 прежних warnings), build — PASS.
+
+Независимый read-only security review **ACCEPT**, блокирующих замечаний нет.
+Импорт не атомарен целиком; partial result ведётся вызывающей стороной по каждому
+пути, successful objects не откатываются, retry сохраняет ключи/session/ID mapping.
+Manifest bounds1000/depth32/path4096 — клиентский протокол, backend без manifest
+endpoint не гарантирует размер одного импорта. Process-local admission, pool>=3,
+same-FS hard link и proof<=5мин сохраняются. Перевод часов на6мин проверяет отказ
+публикации и retry после нового proof, но реальная успешная assembly>5мин,
+домашний mount/NAS/power-loss не квалифицированы. Пустые файлы не поддерживаются.
+[Протокол, partial result и ограничения](public-folder-tree-upload.md).
+
+Домашний сервер, CI/CD, frontend и production Multi-Storage не изменялись;
+push/merge/release/deployment отсутствуют. Production **NO_GO**, Multi-Storage
+**DEFERRED**. После этапа4 остановка; этап5 не начат и требует отдельного согласования.
 
 ## Deferred
 
