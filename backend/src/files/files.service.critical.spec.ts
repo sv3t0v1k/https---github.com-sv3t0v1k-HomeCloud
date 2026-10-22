@@ -552,6 +552,9 @@ describe("FilesService - Critical Findings (F-01, F-02, MISS-01, MISS-02, MISS-0
         Promise.resolve(entity === FolderEntity ? folder : mirror),
       );
       qr.manager.save.mockImplementation((entity: any) => Promise.resolve(entity));
+      qr.manager.query.mockImplementation((sql: string) =>
+        Promise.resolve(sql.includes('SELECT id FROM folders') ? [{ id: 3 }] : []),
+      );
       (service as any).assertNoCycle = jest.fn().mockResolvedValue(undefined);
 
       const result = await service.updateFolder(1, 1, { parentId: 3 });

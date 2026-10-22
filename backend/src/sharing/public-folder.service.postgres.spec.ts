@@ -283,6 +283,72 @@ postgres("public folder creation — PostgreSQL", () => {
     }
   });
 
+  it("keeps names distinct when owner renames, moves, and restores folders", async () => {
+    const owner = new FilesService(
+      db.getRepository(FileEntity), db.getRepository(FolderEntity),
+      {} as any, {} as any,
+    );
+    const auth = await proof();
+    const publicFolder = await service.createFolder(token, auth, randomUUID(), {
+      parentId: 10, name: "target",
+    });
+    const renamed = await owner.updateFolder(1, 11, { name: "target" });
+    expect(renamed.name).toBe("target (1)");
+    const moved = await owner.updateFolder(1, 12, { parentId: 10, name: "target" });
+    expect(moved.name).toBe("target (2)");
+    await db.query(`UPDATE folders SET "isDeleted"=true WHERE id=$1`, [publicFolder.id]);
+    await db.query(`UPDATE files SET "isDeleted"=true WHERE "folderId"=$1`, [publicFolder.id]);
+    await service.createFolder(token, auth, randomUUID(), { parentId: 10, name: "target" });
+    await owner.restoreFolder(1, publicFolder.id);
+    const [restored] = await db.query(`SELECT name FROM folders WHERE id=$1`, [publicFolder.id]);
+    expect(restored.name).toBe("target (3)");
+  });
+
+  it("keeps names distinct when a file rename races with public folder creation", async () => {
+    const owner = new FilesService(
+      db.getRepository(FileEntity), db.getRepository(FolderEntity),
+      {} as any, {} as any,
+    );
+    const storageRoot = process.env.HOMECLOUD_TEST_STORAGE_PATH;
+    if (!storageRoot) throw new Error("HOMECLOUD_TEST_STORAGE_PATH is required");
+    await db.query(`INSERT INTO files(id,name,"isFolder","userId","parentId",version,
+      "storageLocationId","relativeObjectKey","storagePath")
+      VALUES (120,'old',false,1,10,1,$1,'qa-old',$2)`,
+      [LEGACY_STORAGE_ID, `${storageRoot}/qa-old`]);
+    const auth = await proof();
+    const [file, folder] = await Promise.all([
+      owner.updateFile(1, 120, { name: "concurrent" }),
+      service.createFolder(token, auth, randomUUID(), { parentId: 10, name: "concurrent" }),
+    ]);
+    expect(new Set([file.name, folder.name])).toEqual(
+      new Set(["concurrent", "concurrent (1)"]),
+    );
+  });
+
+  it("serializes folder rename with public creation and opposite owner moves", async () => {
+    const owner = new FilesService(
+      db.getRepository(FileEntity), db.getRepository(FolderEntity),
+      {} as any, {} as any,
+    );
+    const auth = await proof();
+    const [renamed, created] = await Promise.all([
+      owner.updateFolder(1, 11, { name: "folder-race" }),
+      service.createFolder(token, auth, randomUUID(), { parentId: 10, name: "folder-race" }),
+    ]);
+    expect(new Set([renamed.name, created.name])).toEqual(
+      new Set(["folder-race", "folder-race (1)"]),
+    );
+    const moves = await Promise.allSettled([
+      owner.updateFolder(1, 11, { parentId: created.id }),
+      owner.updateFolder(1, created.id, { parentId: 11 }),
+    ]);
+    expect(moves.filter(result => result.status === "fulfilled")).toHaveLength(1);
+    expect(moves.filter(result => result.status === "rejected")).toHaveLength(1);
+    const rejected = moves.find(result => result.status === "rejected");
+    if (rejected?.status !== "rejected") throw new Error("Expected one rejected move");
+    expect(rejected.reason.message).toBe("Cannot move folder into its own subtree");
+  });
+
   it("bounds folder metadata per public link", async () => {
     const auth = await proof();
     await db.query(

@@ -138,12 +138,15 @@ describe("FilesService - Authorization Boundary", () => {
           isFolder: false,
         };
         mockFileRepository.findOne.mockResolvedValue(file);
+        const runner = mockFileRepository.manager.connection.createQueryRunner();
+        runner.manager.findOne.mockResolvedValue(file);
+        runner.manager.save.mockImplementation(async (value: any) => value);
         const result = await service.updateFile(1, 1, { name });
         expect(result.name).toBe(name);
         expect(result.storagePath).toBe("/storage/1/immutable.png");
         expect(mockStorageService.generateSafeFilename).not.toHaveBeenCalled();
         expect(mockStorageService.generatePath).not.toHaveBeenCalled();
-        expect(mockFileRepository.save).toHaveBeenCalledWith(file);
+        expect(runner.manager.save).toHaveBeenCalledWith(file);
       },
     );
 
@@ -635,10 +638,13 @@ describe("FilesService - Authorization Boundary", () => {
         deletedAt: new Date(),
       };
       mockFileRepository.findOne.mockResolvedValue(file);
-      mockFolderRepository.findOne.mockResolvedValue(null);
-      mockFileRepository.save.mockImplementation((value: any) =>
-        Promise.resolve(value),
-      );
+      const runner = mockFileRepository.manager.connection.createQueryRunner();
+      runner.manager.findOne.mockResolvedValue(file);
+      runner.manager.save.mockImplementation(async (value: any) => value);
+      runner.manager.query.mockImplementation(async (sql: string, params: unknown[]) => {
+        if (sql.includes("SELECT id FROM users WHERE")) return [{ id: params[0] }];
+        return [];
+      });
 
       await service.restoreFile(3, 9);
 
