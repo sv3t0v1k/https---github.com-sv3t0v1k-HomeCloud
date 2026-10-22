@@ -35,7 +35,7 @@
 | Единый локальный Docker baseline — ненумерованный checkpoint | `COMPLETE` | `bf97bef` / `f578030`; [runbook и preservation boundaries](./operations-runbook.md) |
 | D5.1 — Release Management & CI Foundation | `RELEASE_BLOCKED; local runner/skopeo model implemented, hosted confirmation pending` | [Image security policy](./image-security-policy.md) |
 | Полный 50 ГиБ IAB Browser E2E — ненумерованный checkpoint | `PASS` | `167498d`; [scope/evidence](./evidence/browser-50gib-qualification-20261006/report.md); Safari 50 ГиБ UNQUALIFIED |
-| Public Folder Sharing v1.0 — анонимная загрузка в общую папку | `PLANNED` | План от 2026-10-22 в разделе Planned; реализация после согласования |
+| Public Folder Sharing v1.0 — анонимная загрузка в общую папку | `IN_PROGRESS` | Backend этапы 1–3 COMPLETE локально; frontend и загрузка дерева не начаты |
 | Multi-Storage и выбор пользователем места хранения | `DEFERRED` | Исторические checkpoint’ы и зависимости сохранены в соответствующих разделах; продолжение только после отдельного решения |
 
 ## Completed
@@ -622,9 +622,9 @@ Evidence: focused 64/64 PASS; full backend 609 PASS / 15 SKIPPED (51 suites PASS
 
 Ни одно planned-направление не разрешено начинать автоматически.
 
-### Public Folder Sharing v1.0 — PLANNED (2026-10-22)
+### Public Folder Sharing v1.0 — исторический план (2026-10-22)
 
-**Только план; реализация NOT_STARTED.** База изучения: локальный `17d77c9f967cfaf98ac31717142f9fb7a772bc45`, рабочее дерево до изменения документа чистое. Сервер `17d77c9` и регрессия Public Sharing **PASS** — входные результаты предыдущей работы, повторно не проверялись. Production **NO_GO**, Multi-Storage **DEFERRED**, CI/CD и действующие этапы/история сохраняются. Новая Phase не вводится; реализация требует отдельного согласования.
+**Текущий статус IN_PROGRESS: backend этап 3 COMPLETE локально; frontend и импорт дерева не начаты.** Ниже сохранён исторический план. База изучения: локальный `17d77c9f967cfaf98ac31717142f9fb7a772bc45`, рабочее дерево до изменения документа чистое. Сервер `17d77c9` и регрессия Public Sharing **PASS** — входные результаты предыдущей работы, повторно не проверялись. Production **NO_GO**, Multi-Storage **DEFERRED**, CI/CD и действующие этапы/история сохраняются. Новая Phase не вводится; реализация требует отдельного согласования.
 
 **Цель и scope.** Как владелец, я хочу выдавать ссылку на папку с разрешением «Разрешить загрузку», чтобы получать материалы без регистрации отправителей. Как посетитель, я хочу просматривать дерево, скачивать файлы, загружать отдельные файлы и папки с вложенностью, создавать каталоги. Must: эти действия, create-only, квоты, целостность и изоляция дерева. Все обладатели ссылки равноправны; отдельных анонимных личностей/ACL нет. Вне v1: удаление, переименование, перемещение объектов посетителем, overwrite, новый storage placement и SSD activation. «Перемещаться внутри дерева» означает навигацию.
 
@@ -731,6 +731,44 @@ Backend lint — PASS (0 errors, 19 существующих warnings); build �
 Публичные upload endpoints не добавлены, контракт этапа1 не изменён. Домашний сервер,
 CI/CD, frontend и Multi-Storage не менялись; Production NO_GO сохранён. Публичная
 загрузка и следующий этап начинаются только по отдельному согласованию.
+
+### Public Folder Sharing — этап 3: публичный файл (2026-10-23)
+
+**COMPLETE**, локально. Checkpoint API `63bca1f`, core `1e28600`, FK guard `aca461e`.
+Реализованы POST session/chunk/complete, GET status и DELETE session под
+`/api/v1/sharing/public/:token/uploads/session`. JWT посетителю не нужен;
+используются существующие scoped proofs, обязательны allowUpload/live share и HTTPS.
+Upload/Storage core, SHA-256, quota reservations, resumable chunks, stage3.0 publication,
+atomic namespace и cleanup переиспользованы. Все public selectors требуют exact
+share/root/user binding; owner API сохраняет origin=owner. Responses/errors безопасны
+и no-store; completed/create replays повторно проверяют живое дерево и результат.
+
+Новая аддитивная миграция исправляет обнаруженный реальными мигрированными тестами
+конфликт parent FK SET NULL с immutable public guard. Допускается только nested FK
+обнуление уже удалённого target; direct NULL/rebind запрещены. Переноса данных нет;
+up/down/up, public orphan fail-closed и TTL cleanup проверены только в disposable DB.
+
+Linux Node20.20.2 / PostgreSQL16.15, точный текущий package-lock: targeted8 suites/227
+и полный backend85 suites/1226 без skipped — PASS. Новый набор31 case покрывает
+реальные HTTP modules/secure multipart, upload/download SHA-256, resume/replays,
+revoke/expiry/move/delete/proof expiry во время сборки, owner/public isolation,
+конкурентные имена/квоты, отказ workspace preparation, неопределённый COMMIT,
+receipt/metadata bounds и cleanup. 121 HTTP chunk проходит отдельный verified бюджет.
+Две одновременные сборки оставляют возможность revoke; третья отклоняется429,
+connect failure освобождает admission. EXDEV не запускает copy/fallback. Lint — PASS
+(0 errors, 19 существующих warnings), build — PASS.
+
+Независимый security/architecture review **ACCEPT**; исправлены замечания к abort
+owner-rate и FK invalidation, блокирующих findings нет. Admission process-local;
+public complete требует pool>=3 и делит с owner лимит до2 сборок. Hard link только
+в пределах одной FS; домашний mount/power-loss не квалифицированы. Proof до5мин
+проверяется и перед публикацией; успешность более долгой сборки не заявляется.
+Подробности: [API, ресурсы и ограничения](public-folder-upload-operations.md).
+
+Frontend/загрузка дерева не реализованы. Домашний сервер, CI/CD и production
+Multi-Storage не изменялись; push/merge/release/deployment не выполнялись.
+Production NO_GO, Multi-Storage DEFERRED сохраняются. После этапа3 остановка;
+продолжение только после отдельного согласования владельца.
 
 ## Deferred
 

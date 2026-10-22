@@ -1,6 +1,9 @@
 # Public Folder Sharing v1.0 — контракт этапа 1
 
-Статус: **контракт и metadata schema; публичных write routes нет**. Этот документ не разрешает включать upload на сервере. Действующие public read/download и owner upload API сохраняются.
+Исторический контракт этапа 1. Реализованные локальные upload API этапа 3 описаны
+в [операторском документе](public-folder-upload-operations.md); ниже сохранены согласованные требования.
+
+Статус на момент этапа 1: **контракт и metadata schema; публичных write routes нет**. Этот документ не разрешает включать upload на сервере. Действующие public read/download и owner upload API сохраняются.
 
 ## Права и привязка
 
