@@ -1,7 +1,8 @@
+import type { AxiosRequestConfig } from 'axios'
 import { apiRequest } from '../api/client'
 import { ApiError, isUploadCapacityError, isUploadBusyError } from '../api/errors'
 import type { FileItem } from '../types/files'
-import { getUploadLimits, UPLOAD_CHUNK_SIZE, withChunkRetry, withAdmissionRetry, completeUploadSession, type RetryBudget } from './upload'
+import { getUploadLimits, UPLOAD_CHUNK_SIZE, withChunkRetry, withAdmissionRetry, completeUploadSession, type RetryBudget, type UploadLimits } from './upload'
 
 import { hashFileSha256 } from './wholeSha256'
 
@@ -52,7 +53,16 @@ interface SavedUpload {
   cancellationPending?: boolean
 }
 
+export interface UploadTransport {
+  errorMessage?(error: unknown): string
+  request<T>(config: AxiosRequestConfig): Promise<T>
+  limits(): Promise<UploadLimits>
+  complete(uploadId: string, signal?: AbortSignal, onReceipt?: (file: FileItem) => void, timeout?: number): Promise<FileItem>
+}
+
 interface Job {
+  createKey?: string
+  createDeadline?: number
   view: UploadQueueItem
   file?: File
   session?: Session
@@ -88,9 +98,9 @@ export class UploadQueue {
   private sequence = 0
   private discovery?: Promise<void>
 
-  constructor(ownerId: number, storage?: Storage | null) {
+  constructor(ownerId: number, storage?: Storage | null, private transport?: UploadTransport) {
     this.storageKey = `homecloud.uploads.v${STORAGE_VERSION}.owner.${ownerId}`
-    this.storage = storage === undefined ? safeStorage() : storage
+    this.storage = transport ? null : storage === undefined ? safeStorage() : storage
     this.restore()
   }
 
@@ -107,6 +117,7 @@ export class UploadQueue {
       const id = `local-${Date.now()}-${++this.sequence}`
       const valid = Number.isSafeInteger(file.size) && file.size > 0
       this.jobs.set(id, {
+        createKey: this.transport ? crypto.randomUUID() : undefined,
         view: { id, name: file.name, size: file.size, parentId, state: valid ? (start ? 'queued' : 'selected') : 'error',
           committedBytes: 0, percent: 0, needsFile: false,
           error: valid ? undefined : 'Пустые файлы пока не поддерживаются. Размер должен быть положительным.' },
@@ -142,7 +153,7 @@ export class UploadQueue {
     const job = this.jobs.get(id)
     if (!job || this.disposed || terminal(job) || job.busy) return
     if (job.cancellationPending) { this.cancel(id); return }
-    if (job.creationUncertain) {
+    if (job.creationUncertain && !this.transport) {
       job.view.error = 'Ответ создания сессии потерян. Найденные серверные загрузки показаны отдельно: выберите исходный файл в нужной строке. Отмените эту локальную строку.'
       this.publish()
       void this.discover().catch(() => { /* Retry is explicit; no duplicate create request. */ })
@@ -204,6 +215,7 @@ export class UploadQueue {
 
   /** Discover owner-authorized server sessions, including a creation response lost to interruption. */
   discover(): Promise<void> {
+    if (this.transport) return Promise.resolve()
     // Explicit authenticated remount reactivates the instance after StrictMode effect replay.
     this.disposed = false
     if (this.discovery) return this.discovery
@@ -242,6 +254,14 @@ export class UploadQueue {
     this.listeners.clear()
   }
 
+  private request<T>(config: AxiosRequestConfig): Promise<T> {
+    return this.transport ? this.transport.request<T>(config) : apiRequest<T>(config)
+  }
+
+  private complete(uploadId: string, signal?: AbortSignal, onReceipt?: (file: FileItem) => void, timeout?: number) {
+    return this.transport ? this.transport.complete(uploadId, signal, onReceipt, timeout) : completeUploadSession(uploadId, signal, onReceipt, timeout)
+  }
+
   private pump() {
     if (this.disposed) return
     for (const job of this.jobs.values()) {
@@ -270,7 +290,7 @@ export class UploadQueue {
         job.fingerprint = await sampleFingerprint(file)
         job.lastModified = file.lastModified
         if (this.stopped(job)) return
-        const limits = await withChunkRetry(() => getUploadLimits(), job.control?.signal, 250, job.budget)
+        const limits = await withChunkRetry(() => this.transport ? this.transport.limits() : getUploadLimits(), job.control?.signal, 250, job.budget)
         if (this.stopped(job)) return
         if (!Number.isSafeInteger(limits.effectiveMaxFileBytes) || file.size > limits.effectiveMaxFileBytes) {
           throw new Error('Размер файла превышает доступную квоту или предел загрузки.')
@@ -284,9 +304,14 @@ export class UploadQueue {
           if (this.stopped(job)) return
         }
         const session = await withAdmissionRetry(async () => {
+          if (this.transport) {
+            job.createDeadline ??= Date.now() + 23 * 60 * 60_000
+            if (Date.now() >= job.createDeadline) throw new Error('Срок безопасного повтора создания истёк. Не создавайте дубликат; уточните результат у владельца.')
+          }
           job.creationUncertain = true
           try {
-            return await apiRequest<Session>({ method: 'POST', url: '/uploads/session',
+            return await this.request<Session>({ method: 'POST', url: '/uploads/session',
+              ...(job.createKey ? { headers: { 'Idempotency-Key': job.createKey } } : {}),
               data: { filename: file.name, totalSize: file.size, chunkSize,
                 ...(job.expectedSha256 ? { expectedSha256: job.expectedSha256 } : {}),
                 ...(job.view.parentId === undefined ? {} : { parentId: job.view.parentId }) }, timeout: REQUEST_TIMEOUT_MS })
@@ -343,7 +368,7 @@ export class UploadQueue {
           const form = new FormData()
           form.append('chunkIndex', String(index))
           form.append('chunk', chunk, file.name)
-          await apiRequest({ method: 'POST', url: sessionUrl(session.uploadId, '/chunk'), data: form, timeout: REQUEST_TIMEOUT_MS })
+          await this.request({ method: 'POST', url: sessionUrl(session.uploadId, '/chunk'), data: form, timeout: REQUEST_TIMEOUT_MS })
         }, job.control?.signal, 250, job.budget, () => {
           job.view.state = 'retrying'
           this.publish()
@@ -357,7 +382,7 @@ export class UploadQueue {
       job.view.state = 'completing'
       this.publish()
       const completed = await withChunkRetry(
-        () => completeUploadSession(session.uploadId, undefined, (receipt) => {
+        () => this.complete(session.uploadId, undefined, (receipt) => {
           job.view.completedFile = receipt
           this.publish()
         }), undefined, 250, job.budget,
@@ -376,7 +401,7 @@ export class UploadQueue {
         (isUploadBusyError(error) || isUploadCapacityError(error) || !['network', 'server'].includes(error.kind))) {
         job.creationUncertain = false
       }
-      if (job.creationUncertain && !this.disposed) {
+      if (job.creationUncertain && !this.transport && !this.disposed) {
         void this.discover().catch(() => { /* Resume offers discovery again without another create. */ })
       }
       if (job.cancellationPending) return
@@ -384,7 +409,7 @@ export class UploadQueue {
         job.view.state = job.file ? 'paused' : 'needs-file'
       } else {
         job.view.state = job.file ? 'error' : 'needs-file'
-        job.view.error = `${job.view.completedFile ? 'Файл сохранён на HDD, но сервер не подтвердил завершение финализации. ' : ''}${errorMessage(error)}${job.view.uploadId && !(error instanceof ApiError && /session.*expired|сесси.*истек/i.test(error.message)) ? ' Прогресс сохранён. Нажмите «Продолжить» или отмените загрузку.' : ''}`
+        job.view.error = `${job.view.completedFile ? 'Файл сохранён на HDD, но сервер не подтвердил завершение финализации. ' : ''}${this.transport?.errorMessage?.(error) ?? errorMessage(error)}${job.view.uploadId && !(error instanceof ApiError && /session.*expired|сесси.*истек/i.test(error.message)) ? ' Прогресс сохранён. Нажмите «Продолжить» или отмените загрузку.' : ''}`
       }
       this.publish()
     }
@@ -420,7 +445,7 @@ export class UploadQueue {
     const control = timeout === undefined ? undefined : new AbortController()
     const timer = timeout === undefined ? undefined : window.setTimeout(() => control?.abort(), timeout)
     try {
-      const session = await apiRequest<Session>({ method: 'GET', url: sessionUrl(job.view.uploadId!), timeout: timeout ?? REQUEST_TIMEOUT_MS, signal: control?.signal })
+      const session = await this.request<Session>({ method: 'GET', url: sessionUrl(job.view.uploadId!), timeout: timeout ?? REQUEST_TIMEOUT_MS, signal: control?.signal })
       if (!validSession(session) || session.filename !== job.view.name || session.totalSize !== job.view.size ||
         (session.parentId ?? undefined) !== job.view.parentId) throw new Error('Параметры серверной сессии не совпадают с файлом.')
       if (session.status === 'completed' && session.file) {
@@ -431,7 +456,7 @@ export class UploadQueue {
         this.publish()
         const replayBudget = deadline === undefined ? job.budget : { remainingWaitMs: timeout!,
           deadline, notBefore: job.budget.notBefore }
-        const completed = await withChunkRetry(() => completeUploadSession(session.uploadId, control?.signal, undefined,
+        const completed = await withChunkRetry(() => this.complete(session.uploadId, control?.signal, undefined,
           deadline === undefined ? undefined : Math.max(1, deadline - Date.now())),
           control?.signal, 250, replayBudget)
         job.view.state = 'completed'
@@ -482,7 +507,7 @@ export class UploadQueue {
         const deadline = Date.now() + 10_000
         try {
           await Promise.race([
-            withChunkRetry(() => apiRequest({ method: 'DELETE', url: sessionUrl(job.view.uploadId!),
+            withChunkRetry(() => this.request({ method: 'DELETE', url: sessionUrl(job.view.uploadId!),
               signal: control.signal, timeout: Math.max(1, deadline - Date.now()) }), control.signal, 250,
             { remainingWaitMs: 10_000, deadline }),
             new Promise<never>((_resolve, reject) => {
