@@ -3,6 +3,11 @@ import { ConfigService } from "@nestjs/config";
 import { DataSource } from "typeorm";
 import { PublicFolderService } from "./public-folder.service";
 import { SharingService } from "./sharing.service";
+import { FilesService } from "../files/files.service";
+import { FileEntity } from "../entities/file.entity";
+import { FolderEntity } from "../entities/folder.entity";
+import appDataSource from "../data-source";
+import { LEGACY_STORAGE_ID } from "../storage/storage-placement";
 
 const url = process.env.HOMECLOUD_TEST_DATABASE_URL;
 const postgres = url ? describe : describe.skip;
@@ -14,7 +19,7 @@ postgres("public folder creation — PostgreSQL", () => {
   const token = "stage2-public-folder-token";
 
   beforeAll(async () => {
-    db = new DataSource({ type: "postgres", url });
+    db = new DataSource({ type: "postgres", url, entities: appDataSource.options.entities });
     await db.initialize();
     const shares = {
       findShareByToken: jest.fn(async () => share),
@@ -206,6 +211,76 @@ postgres("public folder creation — PostgreSQL", () => {
       new Set(["parallel", "parallel (1)"]),
     );
     expect(await count()).toBe(2);
+  });
+
+  it("keeps owner and public folder names distinct under concurrent requests", async () => {
+    const owner = new FilesService(db.getRepository(FileEntity), db.getRepository(FolderEntity), {} as any, {} as any);
+    const auth = await proof();
+    const original = db.transaction.bind(db);
+    let release!: () => void;
+    let selected!: () => void;
+    const paused = new Promise<void>(resolve => { selected = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    (db as any).transaction = async (callback: any) => original(async manager => {
+      const query = manager.query.bind(manager);
+      manager.query = async (sql: string, params?: any[]) => {
+        const result = await query(sql, params);
+        if (sql.includes("SELECT name FROM files")) { selected(); await gate; }
+        return result;
+      };
+      return callback(manager);
+    });
+    try {
+      const publicRequest = service.createFolder(token, auth, randomUUID(), {parentId:10,name:"simultaneous"});
+      await paused;
+      const ownerRequest = owner.createFolder(1,"simultaneous",10);
+      await new Promise(resolve => setTimeout(resolve,25));
+      release();
+      const [publicFolder, ownerMirror] = await Promise.all([publicRequest,ownerRequest]);
+      expect(new Set([publicFolder.name,ownerMirror.name]).size).toBe(2);
+    } finally {
+      release();
+      (db as any).transaction = original;
+    }
+  });
+
+  it("keeps an owner file and a public folder distinct under concurrent requests", async () => {
+    const storageRoot = process.env.HOMECLOUD_TEST_STORAGE_PATH;
+    if (!storageRoot) throw new Error("HOMECLOUD_TEST_STORAGE_PATH is required for file collision test");
+    const path = `${storageRoot}/qa-${randomUUID()}`;
+    const owner = new FilesService(db.getRepository(FileEntity), db.getRepository(FolderEntity), {
+      generateSafeFilename: (name: string) => name,
+      generatePath: () => path,
+      placementForPath: () => ({storagePath:path,storageLocationId:LEGACY_STORAGE_ID,relativeObjectKey:path.slice(storageRoot.length+1)}),
+    } as any, {findById: async () => ({id:1}),updateStorageUsed: async () => undefined} as any);
+    const auth = await proof();
+    const original = db.transaction.bind(db);
+    let release!: () => void;
+    let selected!: () => void;
+    const paused = new Promise<void>(resolve => { selected = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    (db as any).transaction = async (callback: any) => original(async manager => {
+      const query = manager.query.bind(manager);
+      manager.query = async (sql: string, params?: any[]) => {
+        const result = await query(sql, params);
+        if (sql.includes("SELECT name FROM files")) { selected(); await gate; }
+        return result;
+      };
+      return callback(manager);
+    });
+    try {
+      const publicRequest = service.createFolder(token, auth, randomUUID(), {parentId:10,name:"cross-type"});
+      await paused;
+      const ownerRequest = owner.createFile(1,"cross-type",1,"application/octet-stream",10);
+      await new Promise(resolve => setTimeout(resolve,25));
+      release();
+      const [publicFolder, ownerFile] = await Promise.all([publicRequest,ownerRequest]);
+      expect(new Set([publicFolder.name,ownerFile.name]).size).toBe(2);
+      expect((await db.query(`SELECT count(*)::int AS n FROM files WHERE "parentId"=10 AND name IN ('cross-type','cross-type (1)')`))[0].n).toBe(2);
+    } finally {
+      release();
+      (db as any).transaction = original;
+    }
   });
 
   it("bounds folder metadata per public link", async () => {

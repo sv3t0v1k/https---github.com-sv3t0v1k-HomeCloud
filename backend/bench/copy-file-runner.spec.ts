@@ -77,6 +77,7 @@ describe("copy-file benchmark harness", () => {
             rollbackTransaction: jest.fn(),
             release: jest.fn(),
             manager: {
+              query: jest.fn().mockResolvedValue([]),
               create: jest.fn((_entity, value) => value),
               save: jest.fn(async (value) => {
                 value.id = 8;

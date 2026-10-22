@@ -66,6 +66,9 @@ postgres(
       });
       await db.initialize();
       await db.runMigrations();
+      // Owner selector depends on Stage 1 metadata; keep this rollback fixture
+      // otherwise pinned to the historical journal migration under test.
+      await db.query(`ALTER TABLE upload_sessions ADD COLUMN origin varchar(6) NOT NULL DEFAULT 'owner'`);
       store = new PostgresSsdFinalizationStore(db);
       uploadId = randomUUID();
       operationId = randomUUID();

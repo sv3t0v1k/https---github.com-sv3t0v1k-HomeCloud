@@ -107,6 +107,11 @@ describe("UploadsService - Post-Review Fixes", () => {
         create: jest.fn(),
         createQueryBuilder: jest.fn(() => mockQueryBuilder),
         delete: jest.fn(),
+        query: jest.fn(async (sql: string, params: unknown[]) => {
+          if (sql.includes("SELECT id FROM users WHERE")) return [{ id: params[0] }];
+          if (sql.includes("SELECT id FROM folders WHERE")) return [{ id: params[0] }];
+          return [];
+        }),
         getRepository: jest.fn(() => chunkRepository),
       },
     };

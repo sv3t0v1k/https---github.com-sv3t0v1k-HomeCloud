@@ -27,7 +27,11 @@ describe("FilesService - Authorization Boundary", () => {
       findOne: jest.fn(),
       find: jest.fn(),
       delete: jest.fn(),
-      query: jest.fn(),
+      query: jest.fn(async (sql: string, params: unknown[]) => {
+        if (sql.includes("SELECT id FROM folders WHERE")) return [{ id: params[0] }];
+        if (sql.includes("SELECT id FROM users WHERE")) return [{ id: params[0] }];
+        return [];
+      }),
       save: jest.fn(),
       create: jest.fn(),
     },
@@ -353,7 +357,10 @@ describe("FilesService - Authorization Boundary", () => {
           findOne: jest.fn(),
           find: jest.fn(),
           delete: jest.fn(),
-          query: jest.fn(),
+          query: jest.fn(async (sql: string, params: unknown[]) => {
+            if (sql.includes("SELECT id FROM folders WHERE")) return [{ id: params[0] }];
+            return [];
+          }),
           save: jest.fn(),
           create: jest.fn(),
         },

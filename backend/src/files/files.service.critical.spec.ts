@@ -22,7 +22,7 @@ describe("FilesService - Critical Findings (F-01, F-02, MISS-01, MISS-02, MISS-0
         findOne: jest.fn(),
         find: jest.fn(),
         delete: jest.fn(),
-        query: jest.fn(),
+        query: jest.fn().mockResolvedValue([]),
         save: jest.fn(),
         create: jest.fn(),
       },
