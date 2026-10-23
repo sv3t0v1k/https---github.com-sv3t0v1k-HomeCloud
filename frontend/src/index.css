@@ -347,4 +347,5 @@ h1, h2, h3, h4, p { margin-top: 0; }
 .public-upload { margin-block: 1.5rem; padding-block: 1rem; border-block: 1px solid var(--border-subtle); }
 .public-upload-result { display: grid; gap: .4rem; padding-block: .65rem; overflow-wrap: anywhere; }
 .public-upload-result progress { width: 100%; }
-.public-upload .public-share-actions { flex-wrap: wrap; }
+.public-upload .public-share-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.public-upload form { display: grid; gap: var(--space-3); margin-top: var(--space-3); }

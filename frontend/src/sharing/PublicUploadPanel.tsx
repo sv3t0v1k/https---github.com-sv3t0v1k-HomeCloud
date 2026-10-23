@@ -120,7 +120,7 @@ export function PublicUploadPanel({ token, password, parentId, targetName, onCom
     refresh={() => { if (!batch) setAttempt((value) => value + 1) }}
     start={(entries) => void start(entries)} retry={() => batch && void execute(batch)}
     selectFolder={() => void selectFolder()} reportError={setError} onCommit={onCommit}
-    clear={() => { setAttempt((value) => value + 1); batchRef.current = undefined; setBatch(undefined); setError(undefined); setDiscardPrompt(false) }}
+    clear={() => { setCapability('loading'); setAttempt((value) => value + 1); batchRef.current = undefined; setBatch(undefined); setError(undefined); setDiscardPrompt(false) }}
     discardPrompt={discardPrompt} askDiscard={() => setDiscardPrompt(true)} />
 }
 
@@ -186,7 +186,7 @@ function Workspace({ runtime, capability, error, batch, running, parentId, folde
       <button type="button" className="button button--primary" disabled={active || completed === batch.nodes.length} onClick={retry}>Повторить неудачные операции</button>
       {!active && completed < batch.nodes.length ? <button type="button" className="button button--ghost" onClick={askDiscard}>Завершить с частичным результатом</button> : null}
       {discardPrompt ? <div role="alert"><p>Созданные объекты сохранятся. Повтор этого задания будет потерян; повторный выбор тех же файлов может создать дубликаты.</p><button type="button" className="button button--ghost" disabled={active} onClick={clear}>Подтвердить завершение задания</button></div> : null}
-      {completed === batch.nodes.length ? <button type="button" className="button button--ghost" onClick={clear}>Новая загрузка</button> : null}
+      {completed === batch.nodes.length ? <button type="button" className="button button--ghost" disabled={active} onClick={clear}>Новая загрузка</button> : null}
     </> : null}
   </section>
 }

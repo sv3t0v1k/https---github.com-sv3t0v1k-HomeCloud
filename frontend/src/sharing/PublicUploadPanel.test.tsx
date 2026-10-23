@@ -12,14 +12,15 @@ let failCreate: boolean
 let failFolder: boolean
 let failComplete: boolean
 let sequence = 0
+let authorizationGate: Promise<void> | undefined
 let createCount = 0
 const sessions = new Map<string, { uploadId: string; filename: string; totalSize: number; chunkSize: number; parentId: number }>()
 beforeEach(() => {
-  calls = []; failCreate = false; failFolder = false; failComplete = false; createCount = 0; sessions.clear()
+  authorizationGate = undefined; calls = []; failCreate = false; failFolder = false; failComplete = false; createCount = 0; sessions.clear()
   vi.stubGlobal('crypto', { randomUUID: () => `00000000-0000-4000-8000-${String(++sequence).padStart(12, '0')}`, subtle: { digest: async () => new ArrayBuffer(32) } })
   request.mockImplementation(async <T,>(config: AxiosRequestConfig) => {
     calls.push(config)
-    if (config.url?.endsWith('/upload-authorizations')) return { proof: 'proof', expiresAt: new Date(Date.now() + 300000).toISOString() } as T
+    if (config.url?.endsWith('/upload-authorizations')) { await authorizationGate; return { proof: 'proof', expiresAt: new Date(Date.now() + 300000).toISOString() } as T }
     if (config.url?.endsWith('/folders')) {
       if (failFolder) throw new ApiError('missing', 'authorization', 404)
       return { id: 30, name: 'tree (1)', parentId: config.data.parentId } as T
@@ -99,6 +100,20 @@ describe('public upload workspace', () => {
     await screen.findByText(/Конфликт операции/)
     expect(screen.queryByText(/Всё обнаруженное дерево загружено/)).not.toBeInTheDocument()
     expect(createCount).toBe(2)
+  })
+  it('removes the previous drop surface while the next workspace is authorizing', async () => {
+    panel(); await select([new File(['x'], 'x.txt')])
+    await screen.findByRole('button', { name: 'Новая загрузка' })
+    let release!: () => void
+    authorizationGate = new Promise<void>((resolve) => { release = resolve })
+    fireEvent.click(screen.getByRole('button', { name: 'Новая загрузка' }))
+    expect(screen.queryByRole('region', { name: 'Загрузка в общую папку' })).not.toBeInTheDocument()
+    release()
+    const region = await screen.findByRole('region', { name: 'Загрузка в общую папку' })
+    const empty = { name: 'empty', isDirectory: true, createReader: () => ({ readEntries: (done: (items: unknown[]) => void) => done([]) }) }
+    fireEvent.drop(region, { dataTransfer: { items: [{ webkitGetAsEntry: () => empty }], files: [] } })
+    await screen.findByText(/Всё обнаруженное дерево загружено/)
+    expect(calls.find((call) => call.url?.endsWith('/folders'))?.data).toMatchObject({ name: 'empty', parentId: 5 })
   })
   it('hides writes on readonly capability and distinguishes transport failure', async () => {
     request.mockRejectedValueOnce(new ApiError('readonly', 'authorization', 403))
