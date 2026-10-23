@@ -22,7 +22,7 @@ export function getFolder(folderId: number, signal?: AbortSignal) {
 }
 
 export function createFolder(name: string, parentId?: number) {
-  return apiRequest<FileItem>({ method: 'POST', url: '/files/folders', data: { name, ...(parentId === undefined ? {} : { parentId }) } })
+  return apiRequest<FileItem & { folderId: number }>({ method: 'POST', url: '/files/folders', data: { name, ...(parentId === undefined ? {} : { parentId }) } })
 }
 
 export function renameFile(id: number, name: string) {
