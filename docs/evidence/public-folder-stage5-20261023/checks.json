@@ -1,0 +1,41 @@
+{
+  "backendBase": "bc1a553c2600bf1fddde7bd3e0f76a2106353eac",
+  "frontendImplementation": "c93f2b2",
+  "backendUnchanged": true,
+  "backendLockSha256": "bc860443b0191b493fc636915d610d13f114318da3722f32f5918c47291a6cb2",
+  "runtimeLockSha256": "bc860443b0191b493fc636915d610d13f114318da3722f32f5918c47291a6cb2",
+  "dependencyInstallation": "npm ci --no-audit --no-fund inside disposable container from current package/package-lock",
+  "frontendTests": {
+    "targeted": 109,
+    "fullSuites": 25,
+    "fullTests": 305,
+    "lint": "PASS, 0 warnings",
+    "build": "PASS",
+    "finalSharingTargeted": 60
+  },
+  "independentReview": "ACCEPT including subsequent new-batch loading regression fix",
+  "safari": "NOT_RUN; Remote Automation disabled, WebKit absent",
+  "homeServer": "unchanged",
+  "production": "NO_GO",
+  "multiStorage": "DEFERRED",
+  "runtime": {
+    "node": "20.20.2",
+    "os": "Linux",
+    "arch": "arm64",
+    "multer": "2.4.0",
+    "sharp": "0.35.5",
+    "nestjsTypeorm": "11.0.3"
+  },
+  "visualFollowup": "CSS spacing adjusted after first visual QA; lint/build PASS; behavior unchanged",
+  "frontendJsSha256": "805e0f3a0ba06277cd9b34925e9003e28be52934e6d3bfabc4ec941f18add3eb",
+  "frontendCssSha256": "bb6309e27d4e40f3b829674bd01eb9c19cc4c437e404871657596a37454461ba",
+  "chromiumE2E": {
+    "result": "PASS",
+    "checks": 11,
+    "backendBase": "bc1a553",
+    "frontendImplementation": "c93f2b2",
+    "runtimeLockVerifiedOnFinalContainer": true,
+    "certificate": "self-signed localhost fixture only; isolated Playwright context ignores TLS errors",
+    "nativeOsDrag": "NOT_QUALIFIED; synthetic FileSystemEntry event tested with real server writes"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "browser": "Playwright Chromium",
+  "backend": "real local disposable backend; current source",
+  "checks": [
+    {
+      "name": "isolated drop",
+      "pass": true
+    }
+  ],
+  "success": true,
+  "limitations": [
+    "WebKit binary unavailable; Safari NOT_RUN: safaridriver session creation reports remote automation disabled",
+    "Small local test payloads do not qualify large-file memory or production performance",
+    "Directory entry drop is synthetic; native OS drag is not qualified"
+  ]
+}

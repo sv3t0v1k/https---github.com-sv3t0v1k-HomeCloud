@@ -35,7 +35,7 @@
 | Единый локальный Docker baseline — ненумерованный checkpoint | `COMPLETE` | `bf97bef` / `f578030`; [runbook и preservation boundaries](./operations-runbook.md) |
 | D5.1 — Release Management & CI Foundation | `RELEASE_BLOCKED; local runner/skopeo model implemented, hosted confirmation pending` | [Image security policy](./image-security-policy.md) |
 | Полный 50 ГиБ IAB Browser E2E — ненумерованный checkpoint | `PASS` | `167498d`; [scope/evidence](./evidence/browser-50gib-qualification-20261006/report.md); Safari 50 ГиБ UNQUALIFIED |
-| Public Folder Sharing v1.0 — анонимная загрузка в общую папку | `IN_PROGRESS` | Backend этапы 1–4 COMPLETE локально; протокол дерева готов, frontend этап 5 NOT_STARTED |
+| Public Folder Sharing v1.0 — анонимная загрузка в общую папку | `IN_PROGRESS` | Backend этапы 1–4 COMPLETE локально; frontend этап 5 IMPLEMENTED локально, Safari acceptance OPEN |
 | Multi-Storage и выбор пользователем места хранения | `DEFERRED` | Исторические checkpoint’ы и зависимости сохранены в соответствующих разделах; продолжение только после отдельного решения |
 
 ## Completed
@@ -624,7 +624,7 @@ Evidence: focused 64/64 PASS; full backend 609 PASS / 15 SKIPPED (51 suites PASS
 
 ### Public Folder Sharing v1.0 — исторический план (2026-10-22)
 
-**Текущий статус IN_PROGRESS: backend этапы 1–4 COMPLETE локально; протокол дерева готов, frontend этап 5 NOT_STARTED.** Ниже сохранён исторический план. База изучения: локальный `17d77c9f967cfaf98ac31717142f9fb7a772bc45`, рабочее дерево до изменения документа чистое. Сервер `17d77c9` и регрессия Public Sharing **PASS** — входные результаты предыдущей работы, повторно не проверялись. Production **NO_GO**, Multi-Storage **DEFERRED**, CI/CD и действующие этапы/история сохраняются. Новая Phase не вводится; реализация требует отдельного согласования.
+**Текущий статус IN_PROGRESS: backend этапы 1–4 COMPLETE локально; frontend этап 5 IMPLEMENTED локально, Safari acceptance OPEN.** Ниже сохранён исторический план. База изучения: локальный `17d77c9f967cfaf98ac31717142f9fb7a772bc45`, рабочее дерево до изменения документа чистое. Сервер `17d77c9` и регрессия Public Sharing **PASS** — входные результаты предыдущей работы, повторно не проверялись. Production **NO_GO**, Multi-Storage **DEFERRED**, CI/CD и действующие этапы/история сохраняются. Новая Phase не вводится; реализация требует отдельного согласования.
 
 **Цель и scope.** Как владелец, я хочу выдавать ссылку на папку с разрешением «Разрешить загрузку», чтобы получать материалы без регистрации отправителей. Как посетитель, я хочу просматривать дерево, скачивать файлы, загружать отдельные файлы и папки с вложенностью, создавать каталоги. Must: эти действия, create-only, квоты, целостность и изоляция дерева. Все обладатели ссылки равноправны; отдельных анонимных личностей/ACL нет. Вне v1: удаление, переименование, перемещение объектов посетителем, overwrite, новый storage placement и SSD activation. «Перемещаться внутри дерева» означает навигацию.
 
@@ -810,7 +810,57 @@ same-FS hard link и proof<=5мин сохраняются. Перевод ча�
 
 Домашний сервер, CI/CD, frontend и production Multi-Storage не изменялись;
 push/merge/release/deployment отсутствуют. Production **NO_GO**, Multi-Storage
-**DEFERRED**. После этапа4 остановка; этап5 не начат и требует отдельного согласования.
+**DEFERRED**. На checkpoint этапа4 была выполнена остановка; последующая локальная
+реализация этапа5 отдельно согласована и описана ниже.
+
+### Public Folder Sharing — этап 5: frontend (2026-10-23)
+
+**IMPLEMENTED локально; полная браузерная приёмка OPEN из-за Safari NOT_RUN.**
+Checkpoint интерфейса `c93f2b2`, публичного transport `ca4245d`. Backend остался
+побайтово на базе `bc1a553`; API, CI/CD и домашний сервер не менялись.
+
+ShareDialog добавляет default-off «Разрешить загрузку» только для папки, сохраняя
+password/expiry/download limits/revoke. PublicSharePage сохраняет browse/navigation/
+native download и добавляет mkdir, file/folder selection, обнаруженные empty dirs,
+drag/drop, bounded progress, actual names и partial retry. Public transport подключён
+к существующему UploadQueue (2 файла /1 chunk на файл, потоковый whole SHA-256),
+без owner discovery/JWT/persistent credentials. Root берётся из children.parentId.
+Ключи/payload/target/path→actual ID сохраняются при повторе, каталоги revalidate
+сверху вниз, completed files также проверяются. Import неатомарен; UI показывает
+частичный результат и явную потерю checkpoint при завершении задания/reload.
+
+Адресные109 PASS, после дополнительного new-batch regression — sharing60 PASS.
+Полный frontend25 suites/305 tests — PASS; lint0 errors/0 warnings; build — PASS.
+Компонентные тесты не выдаются за браузерные. Independent review **ACCEPT**, включая
+дополнительный fix гонки new batch → повторная авторизация → drop.
+
+Chromium E2E — **11 PASS**: реальный HTTPS backend sources bc1a553 + npm ci exact
+current lock; Linux arm64 /Node20.20.2. Read-only/navigation, native download SHA,
+12МиБ+137bytes/chunks, tree5/collision actual mapping, empty directory synthetic drop,
+network interruption/same-session resume/no duplicate, outside-tree404, quota retry,
+revoke и expiry. 375px без horizontal overflow; снимки проверены. Native OS drag
+не квалифицирован. Ранние неуспешные прогоны и отдельный regression не прибавляются
+к11 финальным. Runtime dependency mismatch старого test image устранён npm ci в
+одноразовом контейнере; backend host files не менялись.
+Safari не запускался: Remote Automation выключена; WebKit binary отсутствует,
+настройки не менялись. Chromium fallback без showDirectoryPicker не заменяет Safari.
+Поэтому общий milestone остаётся IN_PROGRESS; COMPLETE не заявлен.
+
+Public metadata не содержит allowUpload: используется существующий proof capability
+probe. Public limits endpoint отсутствует: локальные chunk10МиБ/cap10000 не являются
+обнаруженными серверными bounds; сервер самостоятельно ограничивает размер/квоту.
+Generic403 не позволяет точно различить quota/access. Empty files отклоняются;
+webkitdirectory может не обнаружить пустые папки, ограничение показано до выбора.
+Checkpoint только в памяти вкладки; большой файл/assembly>5мин и production mount
+не квалифицированы. Серверные границы subtree/session независимо проверены по коду
+и адресной реальной HTTP проверкой в browser harness; backend расширения не нужны.
+
+[Реализация, проверки и повтор harness](public-folder-frontend.md),
+[review и evidence](evidence/public-folder-stage5-20261023/independent-review.md).
+После этой локальной работы остановка. Этап6/серверное обновление требуют отдельного
+согласования. Production **NO_GO**, Multi-Storage **DEFERRED**; push/merge/release/
+deployment отсутствуют. Домашний сервер остаётся `17d77c9` по входному контексту,
+повторное подключение/проверка в этом этапе не выполнялись.
 
 ## Deferred
 
