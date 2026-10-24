@@ -1,5 +1,4 @@
 import { Writable } from "stream";
-import * as fs from "fs";
 import * as path from "path";
 import {
   Injectable,
@@ -13,12 +12,12 @@ import { Repository } from "typeorm";
 import * as bcrypt from "bcryptjs";
 import { v4 as uuidv4 } from "uuid";
 import { ConfigService } from "@nestjs/config";
-import archiver from "archiver";
 import { ShareLinkEntity } from "../entities/share-link.entity";
 import { FileEntity } from "../entities/file.entity";
 import { UserEntity } from "../entities/user.entity";
 import { SharedChildrenQueryDto } from "./dtos/public-share.dto";
 import { StorageService } from "../storage/storage.service";
+import { streamArchiveMembers } from "../common/archive-stream";
 
 @Injectable()
 export class SharingService {
@@ -722,122 +721,8 @@ export class SharingService {
     destination: Writable,
   ): Promise<void> {
     const members = await this.listArchiveMembers(share);
-    const archive = archiver("zip", { zlib: { level: 0 } });
-
-    return new Promise<void>((resolve, reject) => {
-      let settled = false;
-      let cancelled = false;
-      let activeStream: fs.ReadStream | undefined;
-      const finish = (err?: Error | null) => {
-        if (settled) return;
-        settled = true;
-        if (err || cancelled) {
-          activeStream?.destroy();
-          archive.abort();
-          archive.unpipe(destination);
-        }
-        if (err) reject(err);
-        else resolve();
-      };
-      archive.on("error", (err: Error) => finish(err));
-      archive.on("end", () => finish());
-      archive.pipe(destination);
-      destination.on("close", () => {
-        cancelled = true;
-        finish();
-      });
-      destination.on("error", (err: Error) => {
-        cancelled = true;
-        finish(err);
-      });
-
-      // Wait for the current entry before opening another descriptor.
-      const appendEntry = (
-        source: Buffer | fs.ReadStream,
-        data: archiver.EntryData,
-      ) =>
-        new Promise<void>((done, fail) => {
-          const clean = () => {
-            archive.off("entry", onEntry);
-            archive.off("error", onError);
-            destination.off("close", onClose);
-            destination.off("error", onError);
-          };
-          const onEntry = () => {
-            clean();
-            done();
-          };
-          const onClose = () => {
-            clean();
-            done();
-          };
-          const onError = (err: Error) => {
-            clean();
-            fail(err);
-          };
-          archive.once("entry", onEntry);
-          archive.once("error", onError);
-          destination.once("close", onClose);
-          destination.once("error", onError);
-          archive.append(source, data);
-        });
-      (async () => {
-        try {
-          for (const member of members) {
-            if (cancelled || settled) break;
-            const entryName =
-              SharingService.safeArchivePath(member.logicalPath) || member.name;
-            if (member.isFolder) {
-              await appendEntry(Buffer.alloc(0), {
-                name: member.logicalPath === "" ? "./" : `${entryName}/`,
-                type: "directory",
-              } as archiver.EntryData);
-              continue;
-            }
-            if (!member.storagePath)
-              throw new BadRequestException(
-                "Archive member has no storage path",
-              );
-            const safePath = this.storageService.resolveFilePath(member);
-            const realPath = this.storageService.ensureWithinStorageRoot(
-              fs.realpathSync(safePath),
-            );
-            const fd = fs.openSync(
-              realPath,
-              fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
-            );
-            try {
-              const stat = fs.fstatSync(fd);
-              if (!stat.isFile())
-                throw new NotFoundException("File not found on storage");
-              activeStream = fs.createReadStream(realPath, {
-                fd,
-                autoClose: true,
-              });
-              activeStream.once("error", (err) => {
-                archive.emit("error", err);
-              });
-              const closed = new Promise<void>((done) =>
-                activeStream!.once("close", done),
-              );
-              await appendEntry(activeStream, { name: entryName, stats: stat });
-              await closed;
-              activeStream = undefined;
-            } catch (err) {
-              activeStream?.destroy();
-              try {
-                fs.closeSync(fd);
-              } catch {
-                /* descriptor owned by stream */
-              }
-              throw err;
-            }
-          }
-          if (!cancelled && !settled) await archive.finalize();
-        } catch (err) {
-          finish(err as Error);
-        }
-      })();
+    return streamArchiveMembers(members, this.storageService, destination, {
+      pathFor: (member) => SharingService.safeArchivePath(member.logicalPath) || member.logicalPath || "./",
     });
   }
 }
