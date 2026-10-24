@@ -45,6 +45,43 @@ describe('FileBrowserPage', () => {
     expect(nestedParentIds).toEqual([7, 7])
   })
 
+  it('opens a folder on its first double click after the first click selects it', async () => {
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/files/folders/7') return ok(config, folder(7, 'Documents', null))
+      if (config.url === '/files/folders') return ok(config, config.params?.parentId ? [] : [folder(7, 'Documents', null)])
+      if (config.url === '/files') return ok(config, [])
+      throw new Error(`Unexpected request: ${config.url}`)
+    }
+    renderPage('/files')
+    const button = await screen.findByRole('button', { name: 'Documents' })
+    await userEvent.setup().dblClick(button)
+    expect(await screen.findByRole('heading', { name: 'Documents' })).toBeInTheDocument()
+  })
+
+  it('keeps modifier selection and the folder context menu available', async () => {
+    apiClient.defaults.adapter = async (config) => ok(config, config.url === '/files/folders'
+      ? [folder(7, 'A', null), folder(8, 'B', null), folder(9, 'C', null)] : [])
+    renderPage('/files')
+    const user = userEvent.setup()
+    const first = await screen.findByRole('button', { name: 'A' })
+    await user.click(first)
+    expect(screen.getByText('Выбрано: 1')).toBeInTheDocument()
+    await user.keyboard('{Control>}')
+    await user.click(screen.getByRole('button', { name: 'C' }))
+    await user.keyboard('{/Control}')
+    expect(screen.getByText('Выбрано: 2')).toBeInTheDocument()
+    await user.keyboard('{Meta>}')
+    await user.click(first)
+    await user.keyboard('{/Meta}')
+    expect(screen.getByText('Выбрано: 1')).toBeInTheDocument()
+    await user.keyboard('{Shift>}')
+    await user.click(screen.getByRole('button', { name: 'B' }))
+    await user.keyboard('{/Shift}')
+    expect(screen.getByText('Выбрано: 3')).toBeInTheDocument()
+    fireEvent.contextMenu(first.closest('tr')!)
+    expect(screen.getByRole('menuitem', { name: 'Открыть' })).toBeInTheDocument()
+  })
+
   it('reconstructs named breadcrumbs on a direct nested load', async () => {
     apiClient.defaults.adapter = async (config) => {
       if (config.url === '/files/folders/9') return ok(config, folder(9, 'Child', 3))
