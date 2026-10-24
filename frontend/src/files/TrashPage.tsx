@@ -10,14 +10,16 @@ type State =
   | { status: 'ready'; contents: TrashContents; warning: string | null }
   | { status: 'error'; message: string }
 
-export function TrashPage() {
+export function TrashPage({ onConfirmationChange }: { onConfirmationChange?(open: boolean): void } = {}) {
   const [state, setState] = useState<State>({ status: 'loading' })
   const [reloadKey, setReloadKey] = useState(0)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
   const [pending, setPending] = useState<string | null>(null)
   const [confirmation, setConfirmation] = useState<{ title: string; confirmLabel: string; run(): void } | null>(null)
   const generation = useRef(0)
   const pendingRef = useRef<string | null>(null)
 
+  useEffect(() => { onConfirmationChange?.(confirmation !== null); return () => onConfirmationChange?.(false) }, [confirmation, onConfirmationChange])
   useEffect(() => {
     const current = ++generation.current
     const controller = new AbortController()
@@ -38,6 +40,7 @@ export function TrashPage() {
     try {
       await operation()
       if (remove) {
+        setSelected((previous) => { const next = new Set(previous); next.delete(`${remove.kind}:${remove.id}`); return next })
         setState((previous) => previous.status !== 'ready' ? previous : {
           ...previous,
           warning: null,
@@ -55,6 +58,21 @@ export function TrashPage() {
       pendingRef.current = null
       setPending(null)
     }
+  }
+
+  async function mutateSelected(operation: 'restore' | 'delete') {
+    await mutate('bulk', async () => {
+      for (const key of selected) {
+        const [kind, id] = key.split(':')
+        await (operation === 'restore' ? restoreTrashItem : permanentlyDelete)(kind as 'file' | 'folder', Number(id))
+        setSelected((previous) => { const next = new Set(previous); next.delete(key); return next })
+        setState((previous) => previous.status !== 'ready' ? previous : { ...previous, contents: {
+          files: kind === 'file' ? previous.contents.files.filter((item) => item.id !== Number(id)) : previous.contents.files,
+          folders: kind === 'folder' ? previous.contents.folders.filter((item) => item.id !== Number(id)) : previous.contents.folders,
+        } })
+      }
+    })
+    setReloadKey((value) => value + 1)
   }
 
   if (state.status === 'loading') return <div className="loading-state" aria-live="polite" role="status"><p>Загружаем корзину…</p><div aria-hidden="true" className="skeleton-row" /><div aria-hidden="true" className="skeleton-row" /><div aria-hidden="true" className="skeleton-row" /></div>
@@ -75,14 +93,16 @@ export function TrashPage() {
         <button className="button button--danger" disabled={items.length === 0 || pending !== null} onClick={(event) => { event.currentTarget.focus(); setConfirmation({
           title: 'Очистить корзину?',
           confirmLabel: 'Удалить всё навсегда',
-          run: () => void mutate('empty', emptyTrash),
+          run: () => void mutate('empty', async () => { await emptyTrash(); setSelected(new Set()) }),
         }) }} type="button"><Icon name="trash" />{pending === 'empty' ? 'Очищаем…' : 'Очистить корзину'}</button>
       </header>
+      {items.length > 0 ? <div className="selection-toolbar"><label><input type="checkbox" aria-label="Выбрать всё в корзине" disabled={pending !== null} checked={items.every((item) => selected.has(`${item.kind}:${item.id}`))} onChange={(event) => setSelected(event.target.checked ? new Set(items.map((item) => `${item.kind}:${item.id}`)) : new Set())} /> Выбрать всё</label>{selected.size ? <><span>Выбрано: {selected.size}</span><button className="button button--ghost" disabled={pending !== null} onClick={() => void mutateSelected('restore')} type="button">Восстановить выбранное</button><button className="button button--danger" disabled={pending !== null} onClick={(event) => { event.currentTarget.focus(); setConfirmation({ title: 'Удалить выбранное навсегда?', confirmLabel: 'Удалить выбранное навсегда', run: () => void mutateSelected('delete') }) }} type="button">Удалить выбранное</button></> : null}</div> : null}
       {state.warning ? <div className="alert alert--danger" role="alert">{state.warning} <button className="button button--ghost" onClick={() => setReloadKey((value) => value + 1)} type="button">Повторить</button></div> : null}
       {items.length === 0 ? <div className="empty-state"><Icon name="trash" height={36} width={36} /><h3>Корзина пуста</h3><p className="muted">Здесь появятся удалённые файлы и папки.</p></div> : (
         <ul className="trash-list" aria-label="Удалённые файлы и папки">{items.map((item) => {
           const key = `${item.kind}:${item.id}`
           return <li className="trash-card" key={key}>
+            <input aria-label={`Выбрать ${item.name}`} type="checkbox" disabled={pending !== null} checked={selected.has(key)} onChange={() => setSelected((previous) => { const next = new Set(previous); if (next.has(key)) next.delete(key); else next.add(key); return next })} />
             <span className="item-icon"><Icon name={item.kind === 'folder' ? 'folder' : 'file'} /></span>
             <div className="trash-details">
               <h3 className="item-name">{item.name}</h3>

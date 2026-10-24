@@ -1794,3 +1794,25 @@ The agreed runner boundary currently applies `PLATFORM_ASSURANCE` to the full pr
 Прямые base-image diagnostic scans `node`, `nginx`, `postgres`, `node-ci` условно оставлены обязательными для push в `main` и reusable release CI, но пропускаются на PR. Release caller явно передаёт обязательный `qualification_profile: release`; profile не зависит от `github.event_name`, который в reusable workflow принадлежит вызывающему workflow. `policy-coverage` выпускает qualification v2 с профилем (`pull-request`, `main`, `release`): PR требует полные runtime/build evidence и 12 не-base execution environments; main/release — прежние 16 environments плюс все четыре raw base reports. `release.py` принимает только profile `release` и продолжает требовать точный прежний набор raw reports/evidence. Новый fail-closed gate разрешает только skip `base-image-scan` в PR и отвергает неизвестный профиль, любое другое отсутствие/skip, failure или изменение required job set.
 
 Ожидаемое PR-состояние jobs: 14 jobs выполняются, `base-image-scan` пропускается целиком до раскрытия matrix (обычно один skipped job result). Условие `jobs.<job_id>.if` в GitHub Actions оценивается до применения matrix; hosted отображение не подтверждено этим локальным изменением. Удалены четыре фактических base scan executions и один отдельный Skopeo job — на пять меньше выполняемых jobs на PR (без оценки тарифицируемых минут). Release сохраняет все base scans и strict pre-publication Skopeo closure. Целевые локальные проверки и independent review завершены без блокеров; GitHub CI не запускался, push отсутствует. PR№1 draft, Production **NO_GO**, D5.1 не завершён.
+
+### UX v2 — первый локальный рабочий вариант (2026-10-24)
+
+**ОЖИДАЕТ ОЦЕНКИ ВЛАДЕЛЬЦА; COMPLETE не установлен; production NO_GO.**
+База `b297e739`; локальный commit обработки дерева `1add654`, основной интерфейс
+остаётся в рабочем дереве: автоматическая проверка разрешений для следующего commit
+не выполнилась из-за лимита сервиса. Нет push/merge/release/deployment.
+
+Убрана боковая навигация; добавлены немедленная загрузка файлов/деревьев через
+существующий UploadQueue/API, единое меню добавления, сворачиваемый прогресс,
+поиск в текущей папке, выделение/двойной клик/контекстные и массовые действия,
+модальная корзина с подтверждениями и восстановлением. Общие ActionMenu и чтение
+деревьев используются также публичной загрузкой; write capability сохранена.
+
+Frontend 313/313, lint и build PASS. Локальный IAB: login, создание папки,
+автозагрузка выбранного файла, навигация, просмотр, контекстное меню, прогресс,
+корзина/отмена permanent delete/restore PASS; 375px и landscape проверены.
+Реальные Safari/Chromium folder picker и OS drop не квалифицированы; деревья/drop,
+массовые и необратимые операции подтверждены автотестами, live public E2E не запускался.
+Запущен существующий Mac тестовый стек без rebuild/config changes, домашний сервер
+не менялся. [Инструкция, ограничения и границы проверок](ux-v2-local-preview.md).
+Остановиться для личного тестирования и корректировок владельцем.

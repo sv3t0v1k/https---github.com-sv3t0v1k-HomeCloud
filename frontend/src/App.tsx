@@ -1,5 +1,5 @@
-import { useLayoutEffect, useRef, useState } from 'react'
-import { Routes, Route, Navigate, NavLink, Link } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom'
 
 import { safeOperationError } from './files/operationErrors'
 import { useDialogFocus } from './accessibility/useDialogFocus'
@@ -32,67 +32,44 @@ function App() {
 
 function FileBrowserLayout({ trash = false }: { trash?: boolean }) {
   const session = useSession()
+  const navigate = useNavigate()
   const [accountOpen, setAccountOpen] = useState(false)
-  const [navigationOpen, setNavigationOpen] = useState(false)
+  const [trashOpen, setTrashOpen] = useState(trash)
+  const [revision, setRevision] = useState(0)
   const backgroundRef = useRef<HTMLDivElement>(null)
-  return (
-    <UploadQueueProvider key={session.user?.id ?? 0} ownerId={session.user?.id ?? 0}><div className="app-shell">
-      <a className="skip-link" href="#workspace">Перейти к содержимому</a>
-      <aside aria-label="Основная навигация" className="sidebar sidebar-desktop"><SidebarContent onOpenAccount={() => setAccountOpen(true)} trash={trash} /></aside>
+  useEffect(() => { if (trash) setTrashOpen(true) }, [trash])
+  function closeTrash() { setTrashOpen(false); setRevision((value) => value + 1); if (trash) navigate('/files', { replace: true }) }
+  return <UploadQueueProvider key={session.user?.id ?? 0} ownerId={session.user?.id ?? 0}>
+    <div className="app-shell ux-v2">
       <div className="app-frame" ref={backgroundRef}>
-        <Navbar navigationOpen={navigationOpen} onOpenNavigation={() => setNavigationOpen(true)} />
-        <main className="workspace" id="workspace" tabIndex={-1}>
-          {trash ? <TrashPage /> : <FileBrowserPage />}
-        </main>
+        <a className="skip-link" href="#workspace">Перейти к содержимому</a>
+        <Navbar onOpenAccount={() => setAccountOpen(true)} />
+        <main className="workspace" id="workspace" tabIndex={-1}><FileBrowserPage revision={revision} /></main>
+        <button aria-label="Открыть корзину" className="button trash-launcher" onClick={(event) => { event.currentTarget.focus(); setTrashOpen(true) }} type="button"><Icon name="trash" /><span>Корзина</span></button>
       </div>
-      {navigationOpen ? <NavigationDrawer accountOpen={accountOpen} onOpenAccount={() => setAccountOpen(true)} background={backgroundRef.current} trash={trash} onClose={() => setNavigationOpen(false)} /> : null}
+      {trashOpen ? <TrashDialog background={backgroundRef.current} onClose={closeTrash} /> : null}
       {accountOpen ? <AccountDialog onClose={() => setAccountOpen(false)} /> : null}
-    </div></UploadQueueProvider>
-  )
+    </div>
+  </UploadQueueProvider>
 }
 
-function NavigationDrawer({ accountOpen, onOpenAccount, background, trash, onClose }: { accountOpen: boolean; onOpenAccount(): void; background: HTMLElement | null; trash: boolean; onClose(): void }) {
-  // Mount only while open: no hidden tab stops. Reuse the established dialog lifecycle.
-  const dialogRef = useDialogFocus(onClose, undefined, !accountOpen)
-  useLayoutEffect(() => {
-    const previousOverflow = document.body.style.overflow
-    const previousInert = background?.inert ?? false
+function TrashDialog({ background, onClose }: { background: HTMLElement | null; onClose(): void }) {
+  const [confirming, setConfirming] = useState(false)
+  const ref = useDialogFocus(onClose, undefined, !confirming)
+  useEffect(() => {
+    const overflow = document.body.style.overflow
+    const inert = background?.inert ?? false
     if (background) background.inert = true
     document.body.style.overflow = 'hidden'
-    const breakpoint = window.matchMedia('(min-width: 901px)')
-    const closeOnDesktop = () => { if (breakpoint.matches) onClose() }
-    breakpoint.addEventListener('change', closeOnDesktop)
-    return () => {
-      if (background) background.inert = previousInert
-      document.body.style.overflow = previousOverflow
-      breakpoint.removeEventListener('change', closeOnDesktop)
-    }
-  }, [background, onClose])
-  return <div className="drawer-overlay" onClick={(event) => { if (event.target === event.currentTarget) onClose() }}>
-    <div aria-label="Навигация" aria-modal="true" className="sidebar sidebar-drawer" id="mobile-navigation" ref={dialogRef} role="dialog" tabIndex={-1}>
-      <button aria-label="Закрыть навигацию" className="icon-button drawer-close" onClick={onClose} type="button"><Icon name="close" /></button>
-      <SidebarContent onOpenAccount={onOpenAccount} onNavigate={onClose} trash={trash} />
-    </div>
-  </div>
+    return () => { if (background) background.inert = inert; document.body.style.overflow = overflow }
+  }, [background])
+  return <div className="dialog-overlay"><div aria-label="Корзина" aria-modal="true" className="dialog-surface trash-dialog" ref={ref} role="dialog" tabIndex={-1}>
+    <div className="dialog-header"><h2>Удалённые объекты</h2><button aria-label="Закрыть корзину" className="icon-button" onClick={onClose} type="button"><Icon name="close" /></button></div>
+    <TrashPage onConfirmationChange={setConfirming} />
+  </div></div>
 }
 
-function SidebarContent({ trash, onNavigate, onOpenAccount }: { trash: boolean; onNavigate?(): void; onOpenAccount(): void }) {
-  const session = useSession()
-  return <>
-    <div className="brand"><span className="brand-mark"><Icon name="cloud" /></span><span>HomeCloud</span></div>
-    <p className="nav-caption">ВАШЕ ПРОСТРАНСТВО</p>
-    <nav className="sidebar-nav">
-      <Link aria-current={!trash ? 'page' : undefined} className={`nav-item ${!trash ? 'nav-item--active' : ''}`} onClick={onNavigate} to="/files"><Icon name="home" />Мои файлы</Link>
-      <NavLink className={`nav-item ${trash ? 'nav-item--active' : ''}`} onClick={onNavigate} to="/files/trash"><Icon name="trash" />Корзина</NavLink>
-    </nav>
-    <div className="sidebar-footer">
-      <p className="sidebar-note">Ваши файлы.<br />На своём месте.</p>
-      {session.status === 'authenticated' ? <button aria-label={`Открыть аккаунт: ${session.user.name}`} className="sidebar-account" onClick={(event) => { event.currentTarget.focus(); onOpenAccount() }} type="button"><span className="avatar"><Icon name="user" /></span><span className="account-copy"><strong>{session.user.name}</strong><small>{session.user.email}</small></span></button> : null}
-    </div>
-  </>
-}
-
-function Navbar({ navigationOpen, onOpenNavigation }: { navigationOpen: boolean; onOpenNavigation(): void }) {
+function Navbar({ onOpenAccount }: { onOpenAccount(): void }) {
   const session = useSession()
   const [loggingOut, setLoggingOut] = useState(false)
   const [logoutError, setLogoutError] = useState<string | null>(null)
@@ -114,9 +91,9 @@ function Navbar({ navigationOpen, onOpenNavigation }: { navigationOpen: boolean;
 
   return (
     <header className="topbar">
-      <button aria-label="Открыть навигацию" aria-expanded={navigationOpen} aria-controls="mobile-navigation" className="icon-button mobile-menu" onClick={(event) => { event.currentTarget.focus(); onOpenNavigation() }} type="button"><Icon name="menu" /></button>
-      <div className="topbar-context"><span className="eyebrow">Пространство</span><strong>Личное хранилище</strong></div>
+      <Link className="brand" to="/files"><span className="brand-mark"><Icon name="cloud" /></span><span>HomeCloud</span></Link>
       <div className="account-area">
+        {session.status === 'authenticated' ? <button aria-label={`Открыть аккаунт: ${session.user.name}`} className="button button--ghost" onClick={(event) => { event.currentTarget.focus(); onOpenAccount() }} type="button"><Icon name="user" /><span>{session.user.name}</span></button> : null}
         {logoutError ? <span className="inline-alert" role="alert">{logoutError}</span> : null}
 
         <button className="button button--ghost" disabled={loggingOut} onClick={() => void handleLogout()} type="button">{loggingOut ? 'Выходим…' : 'Выйти'}</button>

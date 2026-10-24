@@ -10,7 +10,8 @@ import { apiRequest } from '../api/client'
 import type { FileItem, FolderContents, FolderItem } from '../types/files'
 import { copyFile, createFolder, getFolder, getFolderContents, moveFile, moveFolder, moveToTrash, renameFile, renameFolder } from './api'
 import { downloadOriginalFile } from './download'
-import { getUploadLimits, type UploadLimits } from './upload'
+import { droppedEntries, inputEntries, pickDirectory } from '../sharing/publicTree'
+import { enqueueTree } from './treeUpload'
 import { UploadQueue, type UploadQueueItem } from './uploadQueue'
 import { ShareDialog } from '../sharing/ShareDialog'
 import type { ShareTarget } from '../sharing/api'
@@ -29,7 +30,7 @@ type PageState =
 
 type RemovedItem = { kind: 'file' | 'folder'; id: number }
 
-export function FileBrowserPage() {
+export function FileBrowserPage({ revision = 0 }: { revision?: number }) {
   const { folderId: folderIdParam } = useParams()
   const location = useLocation()
   const navigate = useNavigate()
@@ -43,6 +44,10 @@ export function FileBrowserPage() {
   const [dragging, setDragging] = useState(false)
   const [dropError, setDropError] = useState<string | null>(null)
   const dragDepth = useRef(0)
+  const alive = useRef(true)
+  const [collecting, setCollecting] = useState(false)
+  const collectionLock = useRef(false)
+  useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
   useEffect(() => () => fallbackQueue.dispose(), [fallbackQueue])
   useEffect(() => {
     const preventNavigation = (event: DragEvent) => {
@@ -83,7 +88,7 @@ export function FileBrowserPage() {
         setPage((current) => current.status === 'ready' && current.folderId === folderId ? { ...current, warning: message } : { status: 'error', message })
       })
     return () => controller.abort()
-  }, [folderId, folderIdParam, location.state, reloadKey])
+  }, [folderId, folderIdParam, location.state, reloadKey, revision])
 
   const readyPage = page.status === 'ready' && page.folderId === folderId ? page : null
   const crumbs = readyPage ? readyPage.crumbs : readStateCrumbs(location.state)
@@ -116,16 +121,19 @@ export function FileBrowserPage() {
       onDrop={(event) => {
         event.preventDefault(); dragDepth.current = 0; setDragging(false)
         if (!readyPage) { setDropError('Дождитесь загрузки папки и повторите перетаскивание.'); return }
-        const items = Array.from(event.dataTransfer.items ?? [])
-        const directories = items.filter((item) => item.webkitGetAsEntry?.()?.isDirectory)
-        const files = items.length ? items.filter((item) => item.kind === 'file' && !item.webkitGetAsEntry?.()?.isDirectory).map((item) => item.getAsFile()).filter((file): file is File => file !== null) : Array.from(event.dataTransfer.files)
-        setDropError(directories.length ? 'Перетаскивание папок пока не поддерживается. Выберите файлы внутри папки.' : null)
-        if (files.length) queue.enqueue(files, folderId ?? undefined)
+        if (collectionLock.current) { setDropError('Дождитесь добавления предыдущей папки.'); return }
+        collectionLock.current = true; setCollecting(true); setDropError(null)
+        const target = folderId ?? undefined
+        void droppedEntries(event.dataTransfer.items ?? [] as unknown as DataTransferItemList, event.dataTransfer.files)
+          .then((entries) => enqueueTree(entries, queue, target, () => alive.current, () => { if (alive.current) setReloadKey((key) => key + 1) }))
+          .catch((cause: unknown) => { if (alive.current) setDropError(cause instanceof Error && !(cause instanceof ApiError) ? cause.message : 'Не удалось добавить дерево папки. Уже добавленные объекты сохранены. Проверьте папку перед повтором.') })
+          .finally(() => { collectionLock.current = false; if (alive.current) setCollecting(false) })
       }}>
       {dragging ? <p className="upload-drop-status" role="status">Отпустите файлы, чтобы загрузить их в текущую папку.</p> : null}
       {dropError ? <p className="inline-alert" role="alert">{dropError}</p> : null}
+      {collecting ? <p role="status">Добавляем папки и файлы…</p> : null}
       <Breadcrumbs crumbs={crumbs} />
-      <div className="page-heading"><div><p className="eyebrow">ВАШЕ ЛИЧНОЕ ПРОСТРАНСТВО</p><h2 id="files-heading">{title}</h2><p className="muted">Файлы и папки, которые всегда под рукой.</p></div></div>
+      <div className="page-heading"><h2 id="files-heading">{title}</h2></div>
       {folderIdParam === undefined || folderId !== null ? (
         <div className="files-toolbar">
           <UploadControl
@@ -134,7 +142,6 @@ export function FileBrowserPage() {
             onUploaded={() => setReloadKey((key) => key + 1)}
             parentId={folderId ?? undefined}
           />
-          <CreateFolderControl key={`create-${folderId}`} enabled={readyPage !== null} onCreated={() => setReloadKey((key) => key + 1)} parentId={folderId ?? undefined} />
         </div>
       ) : null}
       {page.status === 'loading' ? (
@@ -236,6 +243,52 @@ function DirectoryTable({ contents, currentFolderId, onChanged, onOpenFolder }: 
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [view, setView] = useState<'list' | 'grid'>('list')
+  const [query, setQuery] = useState('')
+  const [selection, setSelection] = useState<Set<string>>(new Set())
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [bulkError, setBulkError] = useState<string | null>(null)
+  useEffect(() => {
+    const valid = new Set([...contents.folders.map((item) => `folder:${item.id}`), ...contents.files.map((item) => `file:${item.id}`)])
+    setSelection((previous) => new Set([...previous].filter((key) => valid.has(key))))
+  }, [contents])
+  const anchor = useRef<string>()
+  const matches = (name: string) => name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())
+  const folders = contents.folders.filter((item) => matches(item.name))
+  const files = contents.files.filter((item) => matches(item.name))
+  const visibleKeys = [...folders.map((item) => `folder:${item.id}`), ...files.map((item) => `file:${item.id}`)]
+  function select(key: string, event: { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean }, toggle = false) {
+    setSelection((previous) => {
+      if (event.shiftKey && anchor.current && visibleKeys.includes(anchor.current)) {
+        const indices = [visibleKeys.indexOf(anchor.current), visibleKeys.indexOf(key)].sort((a, b) => a - b)
+        return new Set([...previous, ...visibleKeys.slice(indices[0], indices[1] + 1)])
+      }
+      anchor.current = key
+      if (toggle || event.metaKey || event.ctrlKey) { const next = new Set(previous); if (next.has(key)) next.delete(key); else next.add(key); return next }
+      return new Set([key])
+    })
+  }
+  function contextMenu(event: React.MouseEvent<HTMLTableRowElement>, key: string) {
+    if ((event.target as HTMLElement).closest('.file-actions, input, label')) return
+    event.preventDefault()
+    if (!selection.has(key)) setSelection(new Set([key]))
+    event.currentTarget.querySelector<HTMLButtonElement>('.action-menu > button')?.click()
+  }
+  async function trashSelection() {
+    if (pendingRef.current) return
+    pendingRef.current = true; setPending(true); setBulkError(null)
+    const targets = [...selection]
+    try {
+      for (const key of targets) {
+        const [kind, id] = key.split(':')
+        await moveToTrash(kind as 'file' | 'folder', Number(id))
+        if (!mounted.current) return
+        setSelection((previous) => { const next = new Set(previous); next.delete(key); return next })
+        onChanged({ kind: kind as 'file' | 'folder', id: Number(id) })
+      }
+      setBulkOpen(false)
+    } catch (cause) { if (mounted.current) setBulkError(safeOperationError(cause, 'Не удалось переместить все объекты в корзину. Уже обработанные объекты сохранены.')) }
+    finally { pendingRef.current = false; if (mounted.current) setPending(false) }
+  }
   const pendingRef = useRef(false)
   const mounted = useRef(true)
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
@@ -265,17 +318,20 @@ function DirectoryTable({ contents, currentFolderId, onChanged, onOpenFolder }: 
     }
   }
 
-  const empty = contents.folders.length === 0 && contents.files.length === 0
+  const empty = folders.length === 0 && files.length === 0
   return (
     <div>
+      <div className="directory-search"><label className="field" htmlFor="file-search">Поиск в текущей папке</label><input className="input" id="file-search" type="search" placeholder="Найти файл или папку" value={query} onChange={(event) => setQuery(event.target.value)} /></div>
+      {selection.size ? <div className="selection-toolbar" role="region" aria-label="Выделенные объекты"><span>Выбрано: {selection.size}</span><button className="button button--ghost" onClick={() => setSelection(new Set(visibleKeys))} type="button">Выбрать всё</button><button className="button button--ghost" disabled={pending} onClick={(event) => { event.currentTarget.focus(); setBulkError(null); setBulkOpen(true) }} type="button"><Icon name="trash" />В корзину</button><button className="button button--ghost" onClick={() => setSelection(new Set())} type="button">Снять выделение</button></div> : null}
+      {bulkOpen ? <SmallDialog title="Переместить выбранное в корзину?" onClose={() => { if (!pending) setBulkOpen(false) }}><p>Объектов: {selection.size}. Их можно будет восстановить.</p>{bulkError ? <p role="alert">{bulkError}</p> : null}<div className="dialog-actions"><button className="button button--ghost" disabled={pending} onClick={() => setBulkOpen(false)} type="button">Отмена</button><button className="button button--danger" disabled={pending} onClick={() => void trashSelection()} type="button">{pending ? 'Выполняется…' : 'Переместить выбранное'}</button></div></SmallDialog> : null}
       <div className="directory-toolbar"><p className="muted">Папок: {contents.folders.length} · Файлов: {contents.files.length}</p><div className="view-switch" aria-label="Вид файлов"><button aria-label="Список" aria-pressed={view === 'list'} className={view === 'list' ? 'icon-button is-active' : 'icon-button'} onClick={() => setView('list')} type="button"><Icon name="list" /></button><button aria-label="Плитка" aria-pressed={view === 'grid'} className={view === 'grid' ? 'icon-button is-active' : 'icon-button'} onClick={() => setView('grid')} type="button"><Icon name="grid" /></button></div></div>
-      {empty ? <div className="empty-state"><Icon name="folder" /><h3>В этой папке пока пусто</h3><p>Загрузите первый файл или создайте папку.</p></div> : (
+      {empty ? <div className="empty-state"><Icon name="folder" /><h3>{query ? "Ничего не найдено" : "В этой папке пока пусто"}</h3><p>{query ? "Попробуйте другое название." : "Перетащите файлы сюда или воспользуйтесь кнопкой «Добавить»."}</p></div> : (
         <table className={view === 'grid' ? 'directory-list directory-grid' : 'directory-list'}>
           <caption className="sr-only">Файлы и папки в текущем расположении</caption>
           <thead className="directory-header"><tr><th scope="col">Название</th><th scope="col">Тип</th><th scope="col">Размер</th><th scope="col">Изменено</th><th scope="col"><span className="sr-only">Действия</span></th></tr></thead>
           <tbody>
-            {contents.folders.map((folder) => <tr className="directory-row" key={`folder-${folder.id}`}>
-              <td className="file-name-cell"><span className="file-icon file-icon-folder"><Icon name="folder" /></span><button className="file-name" onClick={() => onOpenFolder(folder)} type="button">{folder.name}</button></td>
+            {folders.map((folder) => <tr className={`directory-row${selection.has(`folder:${folder.id}`) ? ' is-selected' : ''}`} key={`folder-${folder.id}`} onContextMenu={(event) => contextMenu(event, `folder:${folder.id}`)} onClick={(event) => { if (!(event.target as HTMLElement).closest('.file-actions, input, label')) select(`folder:${folder.id}`, event) }}>
+              <td className="file-name-cell"><label className="selection-hit"><input aria-label={`Выбрать ${folder.name}`} type="checkbox" checked={selection.has(`folder:${folder.id}`)} onChange={() => {}} onClick={(event) => select(`folder:${folder.id}`, event, true)} /></label><span className="file-icon file-icon-folder"><Icon name="folder" /></span><button className="file-name" onDoubleClick={() => onOpenFolder(folder)} onKeyDown={(event) => { if (event.key === "Enter") onOpenFolder(folder) }} type="button">{folder.name}</button></td>
               <td className="file-meta"><span className="mobile-label">Тип: </span>Папка</td><td className="file-meta"><span className="mobile-label">Размер: </span>—</td><td className="file-meta"><span className="mobile-label">Изменено: </span>{formatDate(folder.updatedAt)}</td>
               <td className="file-actions"><ActionMenu label={`Действия: ${folder.name}`} disabled={pending} items={[
                 { label: 'Открыть', icon: 'folder', onSelect: () => onOpenFolder(folder) },
@@ -285,7 +341,7 @@ function DirectoryTable({ contents, currentFolderId, onChanged, onOpenFolder }: 
                 { label: 'В корзину', icon: 'trash', danger: true, onSelect: () => openAction({ kind: 'folder', item: folder, action: 'trash' }) },
               ]} /></td>
             </tr>)}
-            {contents.files.map((file) => <FileRow disabled={pending} file={file} key={`file-${file.id}`} onAction={(operation) => openAction({ kind: 'file', item: file, action: operation })} onShare={() => setShareTarget({ fileId: file.id, name: file.name, isFolder: false })} />)}
+            {files.map((file) => <FileRow selected={selection.has(`file:${file.id}`)} onSelect={(event, toggle) => select(`file:${file.id}`, event, toggle)} onContextMenu={(event) => contextMenu(event, `file:${file.id}`)} disabled={pending} file={file} key={`file-${file.id}`} onAction={(operation) => openAction({ kind: 'file', item: file, action: operation })} onShare={() => setShareTarget({ fileId: file.id, name: file.name, isFolder: false })} />)}
           </tbody>
         </table>
       )}
@@ -297,7 +353,7 @@ function DirectoryTable({ contents, currentFolderId, onChanged, onOpenFolder }: 
   )
 }
 
-function FileRow({ disabled, file, onAction, onShare }: { disabled: boolean; file: FileItem; onAction(action: ItemAction['action']): void; onShare(): void }) {
+function FileRow({ disabled, file, onAction, onShare, selected, onSelect, onContextMenu }: { selected: boolean; onSelect(event: React.MouseEvent, toggle?: boolean): void; onContextMenu(event: React.MouseEvent<HTMLTableRowElement>): void; disabled: boolean; file: FileItem; onAction(action: ItemAction['action']): void; onShare(): void }) {
   const [downloadState, setDownloadState] = useState<'idle' | 'downloading' | 'handed-off'>('idle')
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const [showPreview, setShowPreview] = useState(false)
@@ -312,8 +368,8 @@ function FileRow({ disabled, file, onAction, onShare }: { disabled: boolean; fil
     finally { downloadPending.current = false }
   }
   const fileType = file.mimeType?.startsWith('image/') ? 'image' : file.mimeType?.startsWith('text/') ? 'text' : 'file'
-  return <tr className="directory-row">
-    <td className="file-name-cell"><span className={`file-icon file-icon-${fileType}`}><Icon name={fileType} /></span><button className="file-name" onClick={(event) => { event.currentTarget.focus(); setShowPreview(true) }} title={file.name} type="button">{file.name}</button></td>
+  return <tr className={`directory-row${selected ? ' is-selected' : ''}`} onContextMenu={onContextMenu} onClick={(event) => { if (!(event.target as HTMLElement).closest('.file-actions, input, label')) onSelect(event) }}>
+    <td className="file-name-cell"><label className="selection-hit"><input aria-label={`Выбрать ${file.name}`} type="checkbox" checked={selected} onChange={() => {}} onClick={(event) => onSelect(event, true)} /></label><span className={`file-icon file-icon-${fileType}`}><Icon name={fileType} /></span><button className="file-name" onDoubleClick={(event) => { event.currentTarget.focus(); setShowPreview(true) }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); setShowPreview(true) } }} title={file.name} type="button">{file.name}</button></td>
     <td className="file-meta"><span className="mobile-label">Тип: </span>{fileType === 'image' ? 'Изображение' : fileType === 'text' ? 'Текстовый документ' : file.mimeType === 'application/pdf' ? 'Документ PDF' : 'Файл'}</td>
     <td className="file-meta"><span className="mobile-label">Размер: </span>{formatBytes(file.size)}</td>
     <td className="file-meta"><span className="mobile-label">Изменено: </span>{formatDate(file.updatedAt)}</td>
@@ -387,8 +443,7 @@ function OperationDialog({ action, busy, currentFolderId, error, onClose, onSubm
   </form></SmallDialog>
 }
 
-function CreateFolderControl({ enabled, parentId, onCreated }: { enabled: boolean; parentId?: number; onCreated(): void }) {
-  const [open, setOpen] = useState(false)
+function CreateFolderControl({ enabled, parentId, onCreated, open, setOpen, onBusyChange }: { onBusyChange(value: boolean): void; enabled: boolean; parentId?: number; onCreated(): void; open: boolean; setOpen(value: boolean): void }) {
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -401,14 +456,15 @@ function CreateFolderControl({ enabled, parentId, onCreated }: { enabled: boolea
     if (busyRef.current || !enabled) return
     if (!trimmed || trimmed.length > 255) { setError('Введите название от 1 до 255 символов.'); return }
     busyRef.current = true
+    onBusyChange(true)
     setBusy(true)
     setError(null)
     try { await createFolder(trimmed, parentId); if (mounted.current) { setName(''); setOpen(false); onCreated() } }
     catch (caught) { if (mounted.current) setError(safeOperationError(caught, 'Не удалось создать папку.')) }
-    finally { busyRef.current = false; if (mounted.current) setBusy(false) }
+    finally { busyRef.current = false; onBusyChange(false); if (mounted.current) setBusy(false) }
   }
   function close() { setOpen(false); setError(null) }
-  return <><button className="button button--ghost" disabled={!enabled} aria-disabled={busy || undefined} onClick={(event) => { if (busyRef.current) return; event.currentTarget.focus(); setError(null); setOpen(true) }} type="button"><Icon name="plus" />Новая папка</button>{open ? <SmallDialog onClose={close} title="Новая папка"><form onSubmit={(event) => void submit(event)}><label className="field" htmlFor="new-folder-name">Название папки</label><input className="input" disabled={busy} id="new-folder-name" maxLength={255} onChange={(event) => setName(event.target.value)} placeholder="Например, Документы" value={name} />{error ? <p className="inline-alert" role="alert">{error}</p> : null}<div className="dialog-actions"><button className="button button--ghost" onClick={close} type="button">{busy ? 'Закрыть' : 'Отмена'}</button><button className="button button--primary" disabled={busy || !name.trim()} type="submit">{busy ? 'Создание…' : 'Создать папку'}</button></div></form></SmallDialog> : null}{!open && busy ? <p className="muted" role="status">Создание папки продолжается…</p> : null}{!open && error ? <p className="inline-alert" role="alert">{error}</p> : null}</>
+  return <>{open ? <SmallDialog onClose={close} title="Новая папка"><form onSubmit={(event) => void submit(event)}><label className="field" htmlFor="new-folder-name">Название папки</label><input className="input" disabled={busy} id="new-folder-name" maxLength={255} onChange={(event) => setName(event.target.value)} placeholder="Например, Документы" value={name} />{error ? <p className="inline-alert" role="alert">{error}</p> : null}<div className="dialog-actions"><button className="button button--ghost" onClick={close} type="button">{busy ? 'Закрыть' : 'Отмена'}</button><button className="button button--primary" disabled={busy || !name.trim()} type="submit">{busy ? 'Создание…' : 'Создать папку'}</button></div></form></SmallDialog> : null}{!open && busy ? <p className="muted" role="status">Создание папки продолжается…</p> : null}{!open && error ? <p className="inline-alert" role="alert">{error}</p> : null}</>
 }
 
 const UploadQueueContext = createContext<UploadQueue | null>(null)
@@ -425,43 +481,64 @@ export function UploadQueueProvider({ ownerId, children }: { ownerId: number; ch
 
 function UploadControl({ enabled, parentId, onUploaded, queue }: { enabled: boolean; parentId?: number; onUploaded(): void; queue: UploadQueue }) {
   const items = useSyncExternalStore(queue.subscribe, queue.getSnapshot)
-  const [limits, setLimits] = useState<UploadLimits | null>(null)
-  const [selection, setSelection] = useState<File[]>([])
+  const [collapsed, setCollapsed] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [createBusy, setCreateBusy] = useState(false)
+  useEffect(() => setCreateOpen(false), [parentId])
+  const [collecting, setCollecting] = useState(false)
+  const [treeError, setTreeError] = useState<string | null>(null)
+  const busy = useRef(false)
+  const alive = useRef(true)
   const inputRef = useRef<HTMLInputElement>(null)
+  const folderRef = useRef<HTMLInputElement>(null)
   const knownCompleted = useRef(new Set<string>())
+  useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
   useEffect(() => {
     let changed = false
     for (const item of items) if (item.state === 'completed' && !knownCompleted.current.has(item.id)) { knownCompleted.current.add(item.id); changed = true }
     if (changed) onUploaded()
   }, [items, onUploaded])
-  useEffect(() => {
-    setLimits(null)
-    if (!selection.length) return
-    const controller = new AbortController()
-    getUploadLimits(controller.signal).then((result) => { if (!controller.signal.aborted) setLimits(result) }).catch(() => { /* Admission rechecks limits on the server. */ })
-    return () => controller.abort()
-  }, [selection])
-  const oversized = limits !== null && selection.length > 0 && selection.every((file) => file.size > limits.effectiveMaxFileBytes)
-  const selected = items.some((item) => item.state === 'selected')
+  async function add(entries: Parameters<typeof enqueueTree>[0], target = parentId) {
+    if (busy.current || !enabled) return
+    busy.current = true; setCollecting(true); setTreeError(null); setCollapsed(false)
+    try { await enqueueTree(entries, queue, target, () => alive.current, onUploaded) }
+    catch (cause) { if (alive.current) setTreeError(cause instanceof Error && !(cause instanceof ApiError) ? cause.message : 'Не удалось добавить папку. Уже добавленные объекты сохранены. Проверьте результат перед повтором.') }
+    finally { busy.current = false; if (alive.current) setCollecting(false) }
+  }
+  async function chooseFolder() {
+    const target = parentId
+    try {
+      const entries = await pickDirectory()
+      if (!alive.current) return
+      if (entries) await add(entries, target)
+      else folderRef.current?.click()
+    } catch (cause) {
+      if ((cause as { name?: string }).name !== 'AbortError') setTreeError('Не удалось прочитать папку. Повторите выбор или перетащите её в окно.')
+    }
+  }
   const totalBytes = items.reduce((sum, item) => sum + item.size, 0)
   const committed = items.reduce((sum, item) => sum + item.committedBytes, 0)
-  return <section aria-labelledby="upload-heading" className="upload-control">
-    <h3 className="sr-only" id="upload-heading">Загрузка файлов</h3>
-    <div className="upload-picker">
-      <label className={`button button--ghost upload-input-label${!enabled ? ' is-disabled' : ''}`}><Icon name="plus" />Выбрать файлы
-        <input ref={inputRef} aria-label="Выбрать файл для загрузки" className="sr-only upload-input" disabled={!enabled} multiple type="file"
-          onChange={(event) => { const files = Array.from(event.target.files ?? []); setSelection(files); queue.enqueue(files, parentId, false); event.target.value = '' }} />
-      </label>
-      <button className="button button--primary" disabled={!selected || !enabled || oversized} onClick={() => { queue.startAll(); setSelection([]) }} type="button"><Icon name="upload" />Загрузить</button>
-    </div>
-    <p className="upload-details muted">Выберите несколько файлов или перетащите их в текущую папку. Любые типы файлов.</p>
-    {selection.length === 1 ? <p className="upload-details muted">Выбран файл: {selection[0].name} ({formatBytes(selection[0].size)})</p> : null}
-    {selection.length > 1 ? <p className="upload-details muted">Выбрано файлов: {selection.length}</p> : null}
-    {selection.length && limits ? <p className="upload-details muted">Доступный размер файла сейчас: {formatBytes(limits.effectiveMaxFileBytes)}. Ограничения учитывают квоту и текущие загрузки.</p> : null}
-    {oversized ? <p className="inline-alert" role="alert">Размер выбранного файла превышает доступный размер загрузки.</p> : null}
+  const problems = items.filter((item) => item.state === 'error' || item.needsFile).length
+  return <section aria-label="Добавление и загрузки" className="upload-control">
+    <ActionMenu label="Добавить" triggerLabel="Добавить" disabled={!enabled || collecting} items={[
+      { label: 'Загрузить файлы', icon: 'upload', onSelect: () => inputRef.current?.click() },
+      { label: 'Загрузить папку', icon: 'folder', onSelect: () => void chooseFolder() },
+      { label: 'Новая папка', icon: 'plus', disabled: createBusy, onSelect: () => setCreateOpen(true) },
+    ]} />
+    <input ref={inputRef} aria-label="Выбрать файл для загрузки" className="sr-only upload-input" disabled={!enabled || collecting} multiple type="file"
+      onChange={(event) => { try { void add(inputEntries(event.target.files ?? [])) } catch (cause) { setTreeError(cause instanceof Error ? cause.message : 'Не удалось прочитать файлы.') } event.target.value = '' }} />
+    <input ref={folderRef} aria-label="Выбрать папку для загрузки" className="sr-only upload-input" disabled={!enabled || collecting} multiple type="file" {...{ webkitdirectory: '', directory: '' }}
+      onChange={(event) => { try { void add(inputEntries(event.target.files ?? [])) } catch (cause) { setTreeError(cause instanceof Error ? cause.message : 'Не удалось прочитать папку.') } event.target.value = '' }} />
+    <CreateFolderControl key={`create-${parentId}`} enabled={enabled} parentId={parentId} onCreated={onUploaded} open={createOpen} setOpen={setCreateOpen} onBusyChange={setCreateBusy} />
+    <p className="upload-details muted">Перетащите файлы или папки сюда — загрузка начнётся сразу.</p><details className="upload-details muted folder-picker-note"><summary>О загрузке папок</summary><p>Выбор папки через список файлов может пропустить пустые каталоги. Перетащите папку или создайте их вручную. Пустые файлы пока не поддерживаются.</p></details>
+    {collecting ? <p role="status">Добавляем папки и файлы…</p> : null}
+    {treeError ? <p className="inline-alert" role="alert">{treeError}</p> : null}
     {items.length ? <div className="upload-manager" aria-label="Загрузки">
-      <p className="upload-details muted">Файлов: {items.length}. Принято сервером: {formatBytes(committed)} из {formatBytes(totalBytes)}.</p>
+      <button className="button button--ghost upload-summary" aria-expanded={!collapsed} aria-controls="upload-list" onClick={() => setCollapsed((value) => !value)} type="button"><Icon name="upload" />Загрузки · {items.filter((item) => item.state === 'completed').length}/{items.length}{problems ? ` · Требуют внимания: ${problems}` : ''}<span>{collapsed ? 'Развернуть' : 'Свернуть'}</span></button>
+      <div id="upload-list" hidden={collapsed}>
+      <p className="upload-details muted">Принято сервером: {formatBytes(committed)} из {formatBytes(totalBytes)}.</p>
       <ul className="upload-queue">{items.map((item) => <UploadRow key={item.id} item={item} queue={queue} />)}</ul>
+      </div>
     </div> : null}
   </section>
 }

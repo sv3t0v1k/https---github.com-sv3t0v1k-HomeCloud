@@ -32,6 +32,28 @@ describe('TrashPage', () => {
     expect(calls).toContain('delete:/files/folders/7/permanent')
   })
 
+  it('restores selected objects in bulk and confirms permanent selected deletion', async () => {
+    let files = [file(4, 'one.txt'), file(5, 'two.txt')]
+    const calls: string[] = []
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/files/trash') return ok(config, { files, folders: [] })
+      calls.push(config.url!)
+      files = files.filter((item) => !config.url?.includes(`/files/${item.id}/`))
+      return ok(config, {})
+    }
+    render(<TrashPage />)
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('checkbox', { name: 'Выбрать one.txt' }))
+    await user.click(screen.getByRole('button', { name: 'Восстановить выбранное' }))
+    await waitFor(() => expect(screen.queryByText('one.txt')).not.toBeInTheDocument())
+    await user.click(screen.getByRole('checkbox', { name: 'Выбрать всё в корзине' }))
+    await user.click(screen.getByRole('button', { name: /^Удалить выбранное$/ }))
+    expect(calls).toEqual(['/files/4/restore'])
+    await user.click(screen.getByRole('button', { name: 'Удалить выбранное навсегда' }))
+    expect(await screen.findByText('Корзина пуста')).toBeInTheDocument()
+    expect(calls).toEqual(['/files/4/restore', '/files/5/permanent'])
+  })
+
   it('keeps items after a failed mutation and shows only a safe error', async () => {
     apiClient.defaults.adapter = async (config) => {
       if (config.url === '/files/trash') return ok(config, { files: [file(4, 'old.txt')], folders: [] })

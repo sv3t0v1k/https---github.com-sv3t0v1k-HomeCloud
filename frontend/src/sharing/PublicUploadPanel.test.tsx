@@ -43,7 +43,7 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks() })
 function panel(parentId = 5) { return render(<PublicUploadPanel token="token" password="" parentId={parentId} targetName="Root" onCommit={() => {}} />) }
 async function select(files: File[]) {
-  await screen.findByRole('button', { name: 'Загрузить файлы' })
+  await screen.findByRole('button', { name: 'Добавить' })
   fireEvent.change(screen.getByLabelText('Выбрать файлы'), { target: { files } })
 }
 function treeFile(path: string) { const file = new File(['bytes'], path.split('/').slice(-1)[0]!); Object.defineProperty(file, 'webkitRelativePath', { value: path }); return file }
@@ -89,7 +89,7 @@ describe('public upload workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Завершить с частичным результатом' }))
     expect(screen.getByText(/повторный выбор тех же файлов может создать дубликаты/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Подтвердить завершение задания' }))
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Загрузить файлы' })).toBeEnabled())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Добавить' })).toBeEnabled())
     expect(createCount).toBe(0)
   })
   it('rechecks completed receipts before claiming a partial tree has resumed', async () => {
@@ -118,6 +118,6 @@ describe('public upload workspace', () => {
   it('hides writes on readonly capability and distinguishes transport failure', async () => {
     request.mockRejectedValueOnce(new ApiError('readonly', 'authorization', 403))
     panel(); await screen.findByText('Только просмотр и скачивание.')
-    expect(screen.queryByRole('button', { name: 'Загрузить файлы' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Добавить' })).not.toBeInTheDocument()
   })
 })

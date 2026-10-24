@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { ActionMenu } from '../ui/ActionMenu'
 import { ApiError } from '../api/errors'
 import { UploadQueue } from '../files/uploadQueue'
 import { withChunkRetry, type RetryBudget } from '../files/upload'
@@ -132,6 +133,7 @@ function Workspace({ runtime, capability, error, batch, running, parentId, folde
   refresh(): void; start(entries: TreeEntry[]): void; retry(): void; selectFolder(): void
   reportError(message: string): void; clear(): void; onCommit(): void; discardPrompt: boolean; askDiscard(): void
 }) {
+  const [createOpen, setCreateOpen] = useState(false)
   const items = useSyncExternalStore(runtime.queue.subscribe, runtime.queue.getSnapshot)
   const relevant = items.filter((item) => batch?.nodes.some((node) => node.fileJob === item.id))
   const active = running || relevant.some((item) => !['error', 'paused', 'completed', 'cancelled', 'needs-file'].includes(item.state))
@@ -156,10 +158,11 @@ function Workspace({ runtime, capability, error, batch, running, parentId, folde
     <h2>Добавить в папку</h2>
     <p className="muted">Можно перетащить файлы и папки сюда. Дерево загружается по частям: при ошибке уже созданные объекты сохраняются. Повтор продолжает прежние операции без дубликатов.</p>
     <p className="muted">Пустые файлы не поддерживаются. Выбор папки через список файлов может пропустить пустые каталоги; используйте перетаскивание папки или создайте их вручную. Лимиты размера и квоты проверяет сервер.</p>
-    <div className="public-share-actions">
-      <button type="button" className="button button--ghost" disabled={disabled} onClick={() => filesInput.current?.click()}>Загрузить файлы</button>
-      <button type="button" className="button button--ghost" disabled={disabled} onClick={selectFolder}>Загрузить папку</button>
-    </div>
+    <ActionMenu label="Добавить" triggerLabel="Добавить" disabled={disabled} items={[
+      { label: 'Загрузить файлы', icon: 'upload', onSelect: () => filesInput.current?.click() },
+      { label: 'Загрузить папку', icon: 'folder', onSelect: selectFolder },
+      { label: 'Новая папка', icon: 'plus', onSelect: () => setCreateOpen(true) },
+    ]} />
     <input ref={filesInput} aria-label="Выбрать файлы" type="file" multiple hidden disabled={disabled} onChange={(event) => {
       try { start(inputEntries(event.target.files ?? [])) } catch (cause) { reportError(publicUploadError(cause)) }
       event.target.value = ''
@@ -168,12 +171,13 @@ function Workspace({ runtime, capability, error, batch, running, parentId, folde
       try { start(inputEntries(event.target.files ?? [])) } catch (cause) { reportError(publicUploadError(cause)) }
       event.target.value = ''
     }} />
-    <form onSubmit={(event) => { event.preventDefault(); start([{ kind: 'folder', path: folderName }]) }}>
+    {createOpen ? <form onSubmit={(event) => { event.preventDefault(); start([{ kind: 'folder', path: folderName }]) }}>
       <label className="field">Имя новой папки<input className="input" required maxLength={255} value={folderName} disabled={disabled} onChange={(event) => setFolderName(event.target.value)} /></label>
       <button type="submit" className="button button--ghost" disabled={disabled}>Создать папку</button>
-    </form>
+      <button type="button" className="button button--ghost" onClick={() => setCreateOpen(false)}>Отмена</button>
+    </form> : null}
     {error ? <p className="alert alert--danger" role="alert">{error}</p> : null}
-    {batch ? <>
+    {batch ? <details open className="public-upload-progress"><summary>Загрузки в общую папку · {completed}/{batch.nodes.length}</summary>
       <p role="status">Назначение: {batch.targetName}. Подтверждено: {completed} из {batch.nodes.length}.{active ? ' Загрузка продолжается…' : completed < batch.nodes.length ? ' Частичный результат: загрузка не завершена.' : ' Всё обнаруженное дерево загружено.'}</p>
       <p className="muted">Повтор доступен в этой вкладке. Закрытие или обновление страницы теряет очередь; файлы и папки у владельца сохранятся. Неполные сессии очистит сервер по сроку хранения.</p>
       <ul className="public-share-items">{batch.nodes.map((node) => {
@@ -187,6 +191,6 @@ function Workspace({ runtime, capability, error, batch, running, parentId, folde
       {!active && completed < batch.nodes.length ? <button type="button" className="button button--ghost" onClick={askDiscard}>Завершить с частичным результатом</button> : null}
       {discardPrompt ? <div role="alert"><p>Созданные объекты сохранятся. Повтор этого задания будет потерян; повторный выбор тех же файлов может создать дубликаты.</p><button type="button" className="button button--ghost" disabled={active} onClick={clear}>Подтвердить завершение задания</button></div> : null}
       {completed === batch.nodes.length ? <button type="button" className="button button--ghost" disabled={active} onClick={clear}>Новая загрузка</button> : null}
-    </> : null}
+    </details> : null}
   </section>
 }

@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, within } from '@testing-library/react'
+import { act, cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {
   AxiosError,
@@ -6,7 +6,7 @@ import {
   type AxiosResponse,
   type InternalAxiosRequestConfig,
 } from 'axios'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 
 import App from './App'
@@ -16,34 +16,43 @@ import { publishSessionExpired } from './auth/sessionEvents'
 import { tokenStorage } from './auth/tokenStorage'
 
 describe('authentication UX', () => {
-  it('mounts the drawer only when open, traps focus, closes on Escape and restores the opener', async () => {
-    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })))
+  it('opens trash as a modal without a sidebar and restores focus on Escape', async () => {
     tokenStorage.set({ accessToken: 'stale', refreshToken: 'refresh' })
     sessionClient.defaults.adapter = async (config) => response(config, { success: true, data: { accessToken: 'access', refreshToken: 'rotated' } })
-    apiClient.defaults.adapter = async (config) => isDirectoryRequest(config.url) ? emptyDirectoryResponse(config) : userResponse(config)
+    apiClient.defaults.adapter = async (config) => config.url === '/files/trash' ? response(config, { success: true, data: { files: [], folders: [] } }) : isDirectoryRequest(config.url) ? emptyDirectoryResponse(config) : userResponse(config)
     renderApp('/files')
     const user = userEvent.setup()
-    const opener = await screen.findByRole('button', { name: 'Открыть навигацию' })
-    expect(opener).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByRole('dialog', { name: 'Навигация' })).not.toBeInTheDocument()
+    const opener = await screen.findByRole('button', { name: 'Открыть корзину' })
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
     act(() => opener.click())
-    const drawer = screen.getByRole('dialog', { name: 'Навигация' })
-    expect(opener).toHaveAttribute('aria-controls', drawer.id)
-    expect(opener).toHaveAttribute('aria-expanded', 'true')
-    expect(drawer).toContainElement(document.activeElement as HTMLElement)
+    const dialog = screen.getByRole('dialog', { name: 'Корзина' })
+    expect(await screen.findByText('Корзина пуста')).toBeInTheDocument()
+    expect(dialog).toContainElement(document.activeElement as HTMLElement)
     expect(document.querySelector<HTMLElement>('.app-frame')?.inert).toBe(true)
-    expect(document.body.style.overflow).toBe('hidden')
     await user.tab({ shift: true })
-    expect(drawer).toContainElement(document.activeElement as HTMLElement)
-    await user.tab()
-    expect(screen.getByRole('button', { name: 'Закрыть навигацию' })).toHaveFocus()
+    expect(dialog).toContainElement(document.activeElement as HTMLElement)
     await user.keyboard('{Escape}')
-    expect(screen.queryByRole('dialog', { name: 'Навигация' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(opener).toHaveFocus()
-    expect(opener).toHaveAttribute('aria-expanded', 'false')
     expect(document.querySelector<HTMLElement>('.app-frame')?.inert).toBe(false)
-    expect(document.body.style.overflow).toBe('')
-    vi.unstubAllGlobals()
+  })
+
+  it('keeps trash open when a nested destructive confirmation is cancelled', async () => {
+    tokenStorage.set({ accessToken: 'stale', refreshToken: 'refresh' })
+    sessionClient.defaults.adapter = async (config) => response(config, { success: true, data: { accessToken: 'access', refreshToken: 'rotated' } })
+    apiClient.defaults.adapter = async (config) => config.url === '/files/trash' ? response(config, { success: true, data: { files: [{ id: 4, name: 'old.txt', deletedAt: null }], folders: [] } }) : isDirectoryRequest(config.url) ? emptyDirectoryResponse(config) : userResponse(config)
+    renderApp('/files')
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'Открыть корзину' }))
+    const remove = await screen.findByRole('button', { name: 'Удалить old.txt навсегда' })
+    await user.click(remove)
+    expect(screen.getByRole('button', { name: 'Отмена' })).toHaveFocus()
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('dialog', { name: 'Корзина' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Удалить «old.txt» навсегда?' })).not.toBeInTheDocument()
+    expect(remove).toHaveFocus()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('opens profile, quota and password fields from the visible account navigation', async () => {
@@ -75,24 +84,7 @@ describe('authentication UX', () => {
       await user.click(screen.getByRole('button', { name: 'Закрыть' }))
       expect(account).toHaveFocus()
     }
-    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })))
-    await user.click(screen.getByRole('button', { name: 'Открыть навигацию' }))
-    const drawer = screen.getByRole('dialog', { name: 'Навигация' })
-    const mobileAccount = within(drawer).getByRole('button', { name: 'Открыть аккаунт: Owner' })
-    await user.click(mobileAccount)
-    const dialog = screen.getByRole('dialog', { name: 'Аккаунт и хранилище' })
-    await user.type(within(dialog).getByLabelText('Текущий пароль'), 'sample')
-    expect(within(dialog).getByLabelText('Текущий пароль')).toHaveValue('sample')
-    await user.keyboard('{Escape}')
-    expect(drawer).toBeInTheDocument()
-    expect(mobileAccount).toHaveFocus()
-    await user.keyboard(' ')
-    expect(screen.getByRole('dialog', { name: 'Аккаунт и хранилище' })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Закрыть' }))
-    expect(mobileAccount).toHaveFocus()
-    await user.keyboard('{Escape}')
-    expect(screen.getByRole('button', { name: 'Открыть навигацию' })).toHaveFocus()
-    vi.unstubAllGlobals()
+
   })
 
   beforeEach(() => tokenStorage.clear())
@@ -267,7 +259,8 @@ describe('authentication UX', () => {
 
     renderApp('/files')
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('button', { name: 'Новая папка' }))
+    await user.click(await screen.findByRole('button', { name: 'Добавить' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Новая папка' }))
     await user.type(await screen.findByLabelText('Название папки'), 'New folder')
     await user.click(screen.getByRole('button', { name: 'Создать папку' }))
 

@@ -38,7 +38,7 @@ describe('FileBrowserPage', () => {
     expect(await screen.findByText('report.txt')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Documents' }).closest('tr')).not.toHaveTextContent(/0 Б|байт/)
     expect(screen.getByRole('button', { name: 'report.txt' }).closest('tr')).toHaveTextContent('2 КБ')
-    await user.click(screen.getByRole('button', { name: 'Documents' }))
+    await user.dblClick(screen.getByRole('button', { name: 'Documents' }))
 
     expect(await screen.findByText('В этой папке пока пусто')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Documents' })).toBeInTheDocument()
@@ -137,15 +137,11 @@ describe('FileBrowserPage', () => {
     await screen.findByText('В этой папке пока пусто')
     const selected = new File([new Uint8Array([1, 2, 3, 4])], 'new.png', { type: 'image/png' })
     await user.upload(screen.getByLabelText('Выбрать файл для загрузки'), selected)
-    expect(screen.getByText(/Выбран файл: new.png/)).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Загрузить' }))
 
     expect(await screen.findByText('new.png — файл загружен.')).toBeInTheDocument()
     expect(await screen.findByText('new.png', { selector: 'button' })).toBeInTheDocument()
     expect(sessionPayloads).toEqual([{ filename: 'new.png', totalSize: 4, chunkSize: 10 * 1024 * 1024, parentId: 9 }])
     await user.upload(screen.getByLabelText('Выбрать файл для загрузки'), selected)
-    expect(screen.getByRole('button', { name: 'Загрузить' })).toBeEnabled()
-    await user.click(screen.getByRole('button', { name: 'Загрузить' }))
     await waitFor(() => expect(sessionPayloads).toHaveLength(2))
   })
 
@@ -178,7 +174,6 @@ describe('FileBrowserPage', () => {
     const names = ['artifact.bin', 'unknown.xyzabc', 'noextension', 'misleading.jpg', 'small.txt']
     const user = userEvent.setup()
     await user.upload(picker, [...names.map((name) => new File([new Uint8Array([0, 255, 1])], name, { type: 'application/octet-stream' })), new File([], 'empty.bin')])
-    await user.click(screen.getByRole('button', { name: 'Загрузить' }))
     for (const name of names) expect(await screen.findByText(`${name} — файл загружен.`)).toBeInTheDocument()
     expect(createdNames.sort()).toEqual([...names].sort())
     expect(screen.getByRole('alert')).toHaveTextContent('Пустые файлы пока не поддерживаются')
@@ -212,7 +207,7 @@ describe('FileBrowserPage', () => {
     expect(screen.getByLabelText('Выбрать файл для загрузки')).toBeEnabled()
   })
 
-  it('reports folder drops explicitly without flattening their contents or creating sessions', async () => {
+  it('rejects malformed folder entries before creating sessions', async () => {
     let sessions = 0
     apiClient.defaults.adapter = async (config) => {
       if (config.url === '/uploads/session') sessions++
@@ -221,8 +216,55 @@ describe('FileBrowserPage', () => {
     renderPage('/files')
     const page = await screen.findByRole('region', { name: 'Мои файлы' })
     fireEvent.drop(page, { dataTransfer: { types: ['Files'], files: [], items: [{ kind: 'file', webkitGetAsEntry: () => ({ isDirectory: true }), getAsFile: () => null }] } })
-    expect(screen.getByRole('alert')).toHaveTextContent('Перетаскивание папок пока не поддерживается')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Путь должен быть относительным')
     expect(sessions).toBe(0)
+  })
+
+  it('selects with one click, opens on double click, supports range selection, search and context actions', async () => {
+    apiClient.defaults.adapter = async (config) => ok(config, config.url === '/files' ? [file(11, 'first.txt', 1), file(12, 'second.txt', 1)] : [])
+    renderPage('/files')
+    const user = userEvent.setup()
+    const first = await screen.findByRole('button', { name: 'first.txt' })
+    await user.click(first)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Выбрать first.txt' })).toBeChecked()
+    await user.keyboard('{Shift>}')
+    await user.click(screen.getByRole('button', { name: 'second.txt' }))
+    await user.keyboard('{/Shift}')
+    expect(screen.getByText('Выбрано: 2')).toBeInTheDocument()
+    fireEvent.contextMenu(first.closest('tr')!)
+    expect(screen.getByRole('menuitem', { name: 'Просмотр' })).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    await user.dblClick(first)
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    await user.type(screen.getByLabelText('Поиск в текущей папке'), 'second')
+    expect(screen.queryByRole('button', { name: 'first.txt' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'second.txt' })).toBeInTheDocument()
+  })
+
+  it('walks directory drops including empty subfolders and automatically uploads to the captured target', async () => {
+    const targets: unknown[] = []
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/files/folders' && config.method === 'post') { targets.push(JSON.parse(String(config.data))); return created(config, { id: targets.length === 1 ? 300 : 310, folderId: targets.length === 1 ? 30 : 31 }) }
+      if (config.url === '/files' || config.url === '/files/folders') return ok(config, [])
+      if (config.url === '/uploads/limits') return ok(config, { effectiveMaxFileBytes: 1000, maxChunkBytes: 10485760, maxChunks: 100000 })
+      if (config.url === '/uploads/session') { targets.push(JSON.parse(String(config.data))); return created(config, { uploadId: 'tree', totalChunks: 1 }) }
+      if (config.url?.endsWith('/chunk')) return ok(config, {})
+      if (config.url?.endsWith('/complete')) return ok(config, file(1, 'leaf.txt', 2, 30))
+      throw new Error(`Unexpected request: ${config.url}`)
+    }
+    renderPage('/files')
+    await screen.findByText('В этой папке пока пусто')
+    const directory = (name: string, children: unknown[]) => ({ name, isDirectory: true, createReader: () => { let read = false; return { readEntries: (resolve: (entries: unknown[]) => void) => { resolve(read ? [] : children); read = true } } } })
+    const root = directory('tree', [directory('empty', []), { name: 'leaf.txt', isDirectory: false, file: (resolve: (file: File) => void) => resolve(new File(['ab'], 'leaf.txt')) }])
+    fireEvent.drop(screen.getByRole('region', { name: 'Мои файлы' }), { dataTransfer: { types: ['Files'], files: [], items: [{ webkitGetAsEntry: () => root }] } })
+    expect(await screen.findByText('leaf.txt — файл загружен.')).toBeInTheDocument()
+    expect(targets).toEqual([{ name: 'tree' }, { name: 'empty', parentId: 30 }, expect.objectContaining({ filename: 'leaf.txt', parentId: 30 })])
+    await userEvent.click(screen.getByRole('button', { name: /Загрузки ·/ }))
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /Загрузки ·/ }))
+    expect(screen.getByRole('progressbar')).toBeInTheDocument()
   })
 
   it('offers deep sibling destinations and excludes a moved folder subtree', async () => {
@@ -270,13 +312,12 @@ describe('FileBrowserPage', () => {
       screen.getByLabelText('Выбрать файл для загрузки'),
       new File([new Uint8Array([1])], 'small.png', { type: 'image/png' }),
     )
-    await user.click(screen.getByRole('button', { name: 'Загрузить' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(expectedMessage)
     expect(screen.getByRole('button', { name: 'Продолжить: small.png' })).toBeEnabled()
   })
 
-  it('shows the effective upload limit and prevents starting an oversized selection', async () => {
+  it('rejects an oversized automatic upload before creating a session', async () => {
     let sessionCalls = 0
     apiClient.defaults.adapter = async (config) => {
       if (config.url === '/files/folders' || config.url === '/files') return ok(config, [])
@@ -288,9 +329,8 @@ describe('FileBrowserPage', () => {
     await screen.findByText('В этой папке пока пусто')
     const user = userEvent.setup()
     await user.upload(screen.getByLabelText('Выбрать файл для загрузки'), new File(['ab'], 'too-large.txt', { type: 'text/plain' }))
-    expect(await screen.findByText(/Доступный размер файла сейчас: 1 Б/)).toBeInTheDocument()
-    expect(screen.getByRole('alert')).toHaveTextContent('превышает доступный размер')
-    expect(screen.getByRole('button', { name: 'Загрузить' })).toBeDisabled()
+    expect(await screen.findByRole('alert')).toHaveTextContent('превышает доступную квоту')
+    expect(screen.getByRole('button', { name: 'Продолжить: too-large.txt' })).toBeEnabled()
     expect(sessionCalls).toBe(0)
   })
 
@@ -334,9 +374,8 @@ describe('FileBrowserPage', () => {
     const user = userEvent.setup()
     await screen.findByRole('button', { name: 'Documents' })
     await user.upload(screen.getByLabelText('Выбрать файл для загрузки'), new File([new Uint8Array([1])], 'moving.bin'))
-    await user.click(screen.getByRole('button', { name: 'Загрузить' }))
     await waitFor(() => expect(finishChunk).toBeTypeOf('function'))
-    await user.click(screen.getByRole('button', { name: 'Documents' }))
+    await user.dblClick(screen.getByRole('button', { name: 'Documents' }))
     expect(await screen.findByRole('heading', { name: 'Documents' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Пауза: moving.bin' })).toBeInTheDocument()
     expect(deleteCalls).toBe(0)
@@ -375,7 +414,6 @@ describe('FileBrowserPage', () => {
       screen.getByLabelText('Выбрать файл для загрузки'),
       new File([new Uint8Array([1])], 'bad.bin', { type: 'application/octet-stream' }),
     )
-    await user.click(screen.getByRole('button', { name: 'Загрузить' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(expectedMessage)
     expect(screen.queryByText(/файл загружен/)).not.toBeInTheDocument()
@@ -393,7 +431,8 @@ describe('FileBrowserPage', () => {
     renderPage('/files')
     const user = userEvent.setup()
     await screen.findByText('В этой папке пока пусто')
-    await user.click(screen.getByRole('button', { name: 'Новая папка' }))
+    await user.click(screen.getByRole('button', { name: 'Добавить' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Новая папка' }))
     await user.type(await screen.findByLabelText('Название папки'), 'New folder')
     await user.click(screen.getByRole('button', { name: 'Создать папку' }))
     expect(await screen.findByRole('button', { name: 'New folder' })).toBeInTheDocument()
@@ -452,7 +491,7 @@ describe('FileBrowserPage', () => {
     renderPage('/files')
     const user = userEvent.setup()
     await screen.findByRole('button', { name: 'Действия: old.txt' })
-    await user.click(screen.getByRole('button', { name: 'Destination' }))
+    await user.dblClick(screen.getByRole('button', { name: 'Destination' }))
     expect(screen.queryByRole('button', { name: 'Действия: old.txt' })).not.toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('Загрузка файлов')
     expect(mutationCalls).toBe(0)
@@ -581,12 +620,13 @@ describe('FileBrowserPage', () => {
     apiClient.defaults.adapter = async (config) => ok(config, config.url === '/files' ? [file(11, 'pointer.txt', 1)] : [])
     renderPage('/files')
     const preview = await screen.findByRole('button', { name: 'pointer.txt' })
-    preview.click()
+    fireEvent.doubleClick(preview)
     expect(await screen.findByRole('dialog')).toBeInTheDocument()
     await userEvent.keyboard('{Escape}')
     expect(preview).toHaveFocus()
-    const create = screen.getByRole('button', { name: 'Новая папка' })
-    create.click()
+    const create = screen.getByRole('button', { name: 'Добавить' })
+    fireEvent.click(create)
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Новая папка' }))
     expect(await screen.findByRole('dialog')).toBeInTheDocument()
     await userEvent.keyboard('{Escape}')
     expect(create).toHaveFocus()
@@ -649,8 +689,9 @@ describe('FileBrowserPage', () => {
     renderPage('/files')
     const user = userEvent.setup()
     await screen.findByText('В этой папке пока пусто')
-    const trigger = screen.getByRole('button', { name: 'Новая папка' })
+    const trigger = screen.getByRole('button', { name: 'Добавить' })
     await user.click(trigger)
+    await user.click(screen.getByRole('menuitem', { name: 'Новая папка' }))
     await user.type(screen.getByLabelText('Название папки'), 'Pending folder')
     await user.click(screen.getByRole('button', { name: 'Создать папку' }))
     expect(createCalls).toBe(1)
@@ -658,8 +699,9 @@ describe('FileBrowserPage', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('Создание папки продолжается')
     expect(trigger).toHaveFocus()
-    expect(trigger).toHaveAttribute('aria-disabled', 'true')
     await user.click(trigger)
+    expect(screen.getByRole('menuitem', { name: 'Новая папка' })).toBeDisabled()
+    await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(createCalls).toBe(1)
     completeCreate()
