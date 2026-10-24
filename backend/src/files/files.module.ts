@@ -1,3 +1,5 @@
+import { ArchiveDownloadsService } from "./archive-downloads.service";
+import { ArchivePrepareController, NativeArchiveController } from "./archive-downloads.controller";
 import { DownloadCapabilityService } from "./download-capability.service";
 import { NativeDownloadsController } from "./native-downloads.controller";
 import { Module } from "@nestjs/common";
@@ -17,8 +19,8 @@ import { AuthModule } from "../auth/auth.module";
     UsersModule,
     AuthModule,
   ],
-  providers: [FilesService, DownloadCapabilityService],
-  controllers: [FilesController, NativeDownloadsController],
+  providers: [FilesService, DownloadCapabilityService, ArchiveDownloadsService],
+  controllers: [FilesController, NativeDownloadsController, ArchivePrepareController, NativeArchiveController],
   exports: [FilesService],
 })
 export class FilesModule {}
