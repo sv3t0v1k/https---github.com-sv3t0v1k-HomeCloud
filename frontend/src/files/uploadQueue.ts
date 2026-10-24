@@ -111,6 +111,12 @@ export class UploadQueue {
 
   getSnapshot = (): readonly UploadQueueItem[] => this.snapshot
 
+  dismissCompleted() {
+    if (this.jobs.size === 0 || [...this.jobs.values()].some((job) => job.view.state !== 'completed')) return
+    this.jobs.clear()
+    this.publish()
+  }
+
   enqueue(files: File[], parentId?: number, start = true): string[] {
     if (this.disposed) return []
     const ids = files.map((file) => {

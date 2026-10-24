@@ -516,9 +516,8 @@ function UploadControl({ enabled, parentId, onUploaded, queue }: { enabled: bool
       if ((cause as { name?: string }).name !== 'AbortError') setTreeError('Не удалось прочитать папку. Повторите выбор или перетащите её в окно.')
     }
   }
-  const totalBytes = items.reduce((sum, item) => sum + item.size, 0)
-  const committed = items.reduce((sum, item) => sum + item.committedBytes, 0)
   const problems = items.filter((item) => item.state === 'error' || item.needsFile).length
+  const allCompleted = items.length > 0 && items.every((item) => item.state === 'completed')
   return <section aria-label="Добавление и загрузки" className="upload-control">
     <ActionMenu label="Добавить" triggerLabel="Добавить" disabled={!enabled || collecting} items={[
       { label: 'Загрузить файлы', icon: 'upload', onSelect: () => inputRef.current?.click() },
@@ -534,9 +533,8 @@ function UploadControl({ enabled, parentId, onUploaded, queue }: { enabled: bool
     {collecting ? <p role="status">Добавляем папки и файлы…</p> : null}
     {treeError ? <p className="inline-alert" role="alert">{treeError}</p> : null}
     {items.length ? <div className="upload-manager" aria-label="Загрузки">
-      <button className="button button--ghost upload-summary" aria-expanded={!collapsed} aria-controls="upload-list" onClick={() => setCollapsed((value) => !value)} type="button"><Icon name="upload" />Загрузки · {items.filter((item) => item.state === 'completed').length}/{items.length}{problems ? ` · Требуют внимания: ${problems}` : ''}<span>{collapsed ? 'Развернуть' : 'Свернуть'}</span></button>
+      <div className="upload-manager-header"><button className="button button--ghost upload-summary" aria-expanded={!collapsed} aria-controls="upload-list" onClick={() => setCollapsed((value) => !value)} type="button"><Icon name="upload" />Загрузки · {items.filter((item) => item.state === 'completed').length}/{items.length}{problems ? ` · Требуют внимания: ${problems}` : ''}<span>{collapsed ? 'Развернуть' : 'Свернуть'}</span></button>{allCompleted ? <button className="button button--ghost upload-dismiss" onClick={() => queue.dismissCompleted()} type="button">Закрыть</button> : null}</div>
       <div id="upload-list" hidden={collapsed}>
-      <p className="upload-details muted">Принято сервером: {formatBytes(committed)} из {formatBytes(totalBytes)}.</p>
       <ul className="upload-queue">{items.map((item) => <UploadRow key={item.id} item={item} queue={queue} />)}</ul>
       </div>
     </div> : null}
@@ -556,11 +554,9 @@ function UploadRow({ item, queue }: { item: UploadQueueItem; queue: UploadQueue 
   const canCancel = !['completed', 'cancelled', 'cancelling', 'completing'].includes(item.state)
   const [reselectionError, setReselectionError] = useState<string | null>(null)
   return <li className="upload-queue-item" aria-label={`Загрузка: ${item.name}`}>
-    <div className="upload-queue-title"><strong>{item.name}</strong><span className="muted">{item.parentId === undefined ? 'Мои файлы' : `Папка №${item.parentId}`}</span></div>
-    <p className="upload-details" role="status">{item.state === 'completed' ? `${item.name} — файл загружен.` : uploadStateLabels[item.state]}</p>
+    <div className="upload-queue-title"><strong>{item.name}</strong><span className="muted" role="status">{uploadStateLabels[item.state]}</span></div>
     <progress aria-label={`Прогресс: ${item.name}`} className="upload-progress-bar" max={100} value={item.state === 'hashing' ? item.hashPercent : item.percent}>{item.state === 'hashing' ? item.hashPercent : item.percent}%</progress>
-    {item.state === 'hashing' ? <p className="upload-details muted">{item.hashPercent}% · {formatBytes(item.hashedBytes ?? 0)} из {formatBytes(item.size)} проверено</p> :
-    <p className="upload-details muted">{item.percent}% · {formatBytes(item.committedBytes)} из {formatBytes(item.size)} принято сервером</p>}
+    <p className="upload-details muted">{item.state === 'hashing' ? `${item.hashPercent}% · ${formatBytes(item.hashedBytes ?? 0)} из ${formatBytes(item.size)} проверено` : `${item.percent}% · ${formatBytes(item.committedBytes)} из ${formatBytes(item.size)}`}</p>
     {item.error ? <p className="inline-alert" role="alert">{item.error}</p> : null}
     {reselectionError ? <p className="inline-alert" role="alert">{reselectionError}</p> : null}
     <div className="state-actions">
@@ -569,7 +565,6 @@ function UploadRow({ item, queue }: { item: UploadQueueItem; queue: UploadQueue 
       {item.needsFile ? <label className="button button--ghost">Выбрать исходный файл<input aria-label={`Исходный файл: ${item.name}`} className="sr-only upload-input" type="file" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (!file) return; setReselectionError(null); void queue.reselect(item.id, file).catch((error: unknown) => setReselectionError(error instanceof Error ? error.message : 'Не удалось проверить исходный файл.')) }} /></label> : null}
       {canCancel ? <button aria-label={`Отменить загрузку: ${item.name}`} className="button button--ghost" onClick={() => queue.cancel(item.id)} type="button">Отменить загрузку</button> : null}
     </div>
-    {item.needsFile ? <p className="upload-details muted">После закрытия страницы браузер требует повторного выбора локального файла. Уже принятые части сохраняются до истечения срока сессии.</p> : null}
   </li>
 }
 

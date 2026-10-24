@@ -138,7 +138,12 @@ describe('FileBrowserPage', () => {
     const selected = new File([new Uint8Array([1, 2, 3, 4])], 'new.png', { type: 'image/png' })
     await user.upload(screen.getByLabelText('Выбрать файл для загрузки'), selected)
 
-    expect(await screen.findByText('new.png — файл загружен.')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('listitem', { name: 'Загрузка: new.png' })).toHaveTextContent('Файл загружен'))
+    expect(screen.getByRole('listitem', { name: 'Загрузка: new.png' })).toHaveTextContent('Файл загружен')
+    expect(screen.getByRole('listitem', { name: 'Загрузка: new.png' })).toHaveTextContent('4 Б из 4 Б')
+    expect(screen.queryByText(/Принято сервером:/)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Закрыть' }))
+    expect(screen.queryByLabelText('Загрузки')).not.toBeInTheDocument()
     expect(await screen.findByText('new.png', { selector: 'button' })).toBeInTheDocument()
     expect(sessionPayloads).toEqual([{ filename: 'new.png', totalSize: 4, chunkSize: 10 * 1024 * 1024, parentId: 9 }])
     await user.upload(screen.getByLabelText('Выбрать файл для загрузки'), selected)
@@ -174,9 +179,10 @@ describe('FileBrowserPage', () => {
     const names = ['artifact.bin', 'unknown.xyzabc', 'noextension', 'misleading.jpg', 'small.txt']
     const user = userEvent.setup()
     await user.upload(picker, [...names.map((name) => new File([new Uint8Array([0, 255, 1])], name, { type: 'application/octet-stream' })), new File([], 'empty.bin')])
-    for (const name of names) expect(await screen.findByText(`${name} — файл загружен.`)).toBeInTheDocument()
+    for (const name of names) await waitFor(() => expect(screen.getByRole('listitem', { name: `Загрузка: ${name}` })).toHaveTextContent('Файл загружен'))
     expect(createdNames.sort()).toEqual([...names].sort())
     expect(screen.getByRole('alert')).toHaveTextContent('Пустые файлы пока не поддерживаются')
+    expect(screen.queryByRole('button', { name: 'Закрыть' })).not.toBeInTheDocument()
     expect(screen.getByRole('progressbar', { name: 'Прогресс: artifact.bin' })).toHaveAttribute('value', '100')
   })
 
@@ -201,8 +207,8 @@ describe('FileBrowserPage', () => {
     const dropped = fireEvent.drop(page, { dataTransfer })
     expect(dropped).toBe(false)
     await waitFor(() => expect(targets).toEqual([9, 9]))
-    expect(await screen.findByText('drop-a.bin — файл загружен.')).toBeInTheDocument()
-    expect(await screen.findByText('drop-b.unknown — файл загружен.')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('listitem', { name: 'Загрузка: drop-a.bin' })).toHaveTextContent('Файл загружен'))
+    await waitFor(() => expect(screen.getByRole('listitem', { name: 'Загрузка: drop-b.unknown' })).toHaveTextContent('Файл загружен'))
     expect(screen.queryByText(/Отпустите файлы/)).not.toBeInTheDocument()
     expect(screen.getByLabelText('Выбрать файл для загрузки')).toBeEnabled()
   })
@@ -259,7 +265,7 @@ describe('FileBrowserPage', () => {
     const directory = (name: string, children: unknown[]) => ({ name, isDirectory: true, createReader: () => { let read = false; return { readEntries: (resolve: (entries: unknown[]) => void) => { resolve(read ? [] : children); read = true } } } })
     const root = directory('tree', [directory('empty', []), { name: 'leaf.txt', isDirectory: false, file: (resolve: (file: File) => void) => resolve(new File(['ab'], 'leaf.txt')) }])
     fireEvent.drop(screen.getByRole('region', { name: 'Мои файлы' }), { dataTransfer: { types: ['Files'], files: [], items: [{ webkitGetAsEntry: () => root }] } })
-    expect(await screen.findByText('leaf.txt — файл загружен.')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('listitem', { name: 'Загрузка: leaf.txt' })).toHaveTextContent('Файл загружен'))
     expect(targets).toEqual([{ name: 'tree' }, { name: 'empty', parentId: 30 }, expect.objectContaining({ filename: 'leaf.txt', parentId: 30 })])
     await userEvent.click(screen.getByRole('button', { name: /Загрузки ·/ }))
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
@@ -380,7 +386,7 @@ describe('FileBrowserPage', () => {
     expect(screen.getByRole('button', { name: 'Пауза: moving.bin' })).toBeInTheDocument()
     expect(deleteCalls).toBe(0)
     finishChunk()
-    expect(await screen.findByText('moving.bin — файл загружен.')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('listitem', { name: 'Загрузка: moving.bin' })).toHaveTextContent('Файл загружен'))
     expect(completeCalls).toBe(1)
     expect(deleteCalls).toBe(0)
   })
@@ -416,7 +422,7 @@ describe('FileBrowserPage', () => {
     )
 
     expect(await screen.findByRole('alert')).toHaveTextContent(expectedMessage)
-    expect(screen.queryByText(/файл загружен/)).not.toBeInTheDocument()
+    expect(screen.queryByText('Файл загружен')).not.toBeInTheDocument()
   })
 
   it('creates a folder and refreshes the current listing', async () => {
