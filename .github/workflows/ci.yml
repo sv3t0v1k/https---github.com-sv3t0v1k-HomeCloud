@@ -41,7 +41,7 @@ jobs:
       - name: Patch CI Perl and install toolchain
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends ca-certificates curl gcc libc6-dev git python3 util-linux perl-base=5.36.0-7+deb12u4
+          apt-get install -y --no-install-recommends ca-certificates curl gcc libc6-dev git python3 unzip util-linux perl-base=5.36.0-7+deb12u4
           test "$(dpkg-query -W -f='${Version}' perl-base)" = 5.36.0-7+deb12u4
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:

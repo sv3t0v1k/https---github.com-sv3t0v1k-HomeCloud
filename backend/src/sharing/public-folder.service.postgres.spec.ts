@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import { ConfigService } from "@nestjs/config";
 import { DataSource } from "typeorm";
 import { PublicFolderService } from "./public-folder.service";
@@ -13,14 +16,36 @@ const url = process.env.HOMECLOUD_TEST_DATABASE_URL;
 const postgres = url ? describe : describe.skip;
 
 postgres("public folder creation — PostgreSQL", () => {
+  const schema = `public_folder_${randomUUID().replace(/-/g, "")}`;
+  let admin: DataSource;
   let db: DataSource;
   let service: PublicFolderService;
   let share: any;
+  let root: string;
+  let originalStoragePath: string | undefined;
+  let originalTestStoragePath: string | undefined;
   const token = "stage2-public-folder-token";
 
   beforeAll(async () => {
-    db = new DataSource({ type: "postgres", url, entities: appDataSource.options.entities });
+    originalStoragePath = process.env.STORAGE_PATH;
+    originalTestStoragePath = process.env.HOMECLOUD_TEST_STORAGE_PATH;
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "hc-public-folder-"));
+    fs.mkdirSync(path.join(root, ".tmp"));
+    process.env.STORAGE_PATH = root;
+    process.env.HOMECLOUD_TEST_STORAGE_PATH = root;
+    admin = new DataSource({ type: "postgres", url });
+    await admin.initialize();
+    await admin.query(`CREATE SCHEMA "${schema}"`);
+    db = new DataSource({
+      type: "postgres",
+      url,
+      schema,
+      entities: appDataSource.options.entities,
+      migrations: appDataSource.options.migrations,
+      extra: { options: `-c search_path=${schema}` },
+    });
     await db.initialize();
+    await db.runMigrations();
     const shares = {
       findShareByToken: jest.fn(async () => share),
       verifySharePassword: jest.fn(async (_token: string, password: string) => {
@@ -31,9 +56,30 @@ postgres("public folder creation — PostgreSQL", () => {
     service = new PublicFolderService(db, shares, {
       get: () => "stage2-test-secret",
     } as unknown as ConfigService);
-  });
+  }, 30000);
   afterAll(async () => {
-    if (db?.isInitialized) await db.destroy();
+    try {
+      if (db?.isInitialized) await db.destroy();
+    } finally {
+      try {
+        if (admin?.isInitialized) {
+          try {
+            await admin.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
+          } finally {
+            await admin.destroy();
+          }
+        }
+      } finally {
+        try {
+          if (root) fs.rmSync(root, { recursive: true, force: true });
+        } finally {
+          if (originalStoragePath === undefined) delete process.env.STORAGE_PATH;
+          else process.env.STORAGE_PATH = originalStoragePath;
+          if (originalTestStoragePath === undefined) delete process.env.HOMECLOUD_TEST_STORAGE_PATH;
+          else process.env.HOMECLOUD_TEST_STORAGE_PATH = originalTestStoragePath;
+        }
+      }
+    }
   });
 
   beforeEach(async () => {
