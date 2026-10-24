@@ -4,6 +4,7 @@ import { ApiError } from '../api/errors'
 import { useDialogFocus } from '../accessibility/useDialogFocus'
 import type { FileItem } from '../types/files'
 import { getFilePreview, previewImageBlob, type PreviewPayload } from './preview'
+import { Icon } from '../ui/Icon'
 
 type PreviewState =
   | { status: 'loading' }
@@ -51,7 +52,7 @@ export function PreviewModal({ file, onClose }: { file: FileItem; onClose(): voi
       <div className="dialog-surface preview-dialog">
         <div className="dialog-header">
           <h3 className="preview-title" id="preview-title">Просмотр: {file.name}</h3>
-          <button className="button button--ghost" onClick={onClose} ref={closeButtonRef} type="button">Закрыть просмотр</button>
+          <button aria-label="Закрыть просмотр" className="icon-button" onClick={onClose} ref={closeButtonRef} title="Закрыть просмотр" type="button"><Icon name="close" /></button>
         </div>
         <div className="dialog-body preview-content">
         {state.status === 'loading' ? <p className="loading-state preview-loading" role="status">Загружаем предпросмотр…</p> : null}

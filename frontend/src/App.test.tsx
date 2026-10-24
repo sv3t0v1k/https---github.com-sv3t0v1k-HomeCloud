@@ -23,6 +23,8 @@ describe('authentication UX', () => {
     renderApp('/files')
     const user = userEvent.setup()
     const opener = await screen.findByRole('button', { name: 'Открыть корзину' })
+    expect(opener.querySelector('.trash-launcher-tooltip')).toHaveAttribute('aria-hidden', 'true')
+    expect(opener.querySelector('svg')).toHaveAttribute('width', '25')
     expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
     act(() => opener.click())
     const dialog = screen.getByRole('dialog', { name: 'Корзина' })

@@ -45,7 +45,7 @@ function FileBrowserLayout({ trash = false }: { trash?: boolean }) {
         <a className="skip-link" href="#workspace">Перейти к содержимому</a>
         <Navbar onOpenAccount={() => setAccountOpen(true)} />
         <main className="workspace" id="workspace" tabIndex={-1}><FileBrowserPage revision={revision} /></main>
-        <button aria-label="Открыть корзину" className="button trash-launcher" onClick={(event) => { event.currentTarget.focus(); setTrashOpen(true) }} type="button"><Icon name="trash" /><span>Корзина</span></button>
+        <button aria-label="Открыть корзину" className="trash-launcher" onClick={(event) => { event.currentTarget.focus(); setTrashOpen(true) }} type="button"><Icon name="trash" height={25} width={25} /><span aria-hidden="true" className="trash-launcher-tooltip">Корзина</span></button>
       </div>
       {trashOpen ? <TrashDialog background={backgroundRef.current} onClose={closeTrash} /> : null}
       {accountOpen ? <AccountDialog onClose={() => setAccountOpen(false)} /> : null}
