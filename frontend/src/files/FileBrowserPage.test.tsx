@@ -357,6 +357,54 @@ describe('FileBrowserPage', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
+  it('downloads a mixed selection as one ZIP and prevents duplicate preparation', async () => {
+    const capability = '0123456789abcdef0123456789abcdef'
+    let prepareCalls = 0
+    let finishPrepare!: () => void
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/files/folders') return ok(config, [folder(7, 'Documents', null)])
+      if (config.url === '/files') return ok(config, [file(44, 'report.txt', 2048)])
+      if (config.url === '/files/download-archives/prepare') {
+        prepareCalls += 1
+        expect(JSON.parse(String(config.data))).toEqual({ items: [{ kind: 'folder', id: 7 }, { kind: 'file', id: 44 }] })
+        return await new Promise<AxiosResponse>((resolve) => { finishPrepare = () => resolve(ok(config, { downloadPath: `/native-download-archives/${capability}` })) })
+      }
+      throw new Error(`Unexpected request: ${config.url}`)
+    }
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+    renderPage('/files')
+    const user = userEvent.setup()
+    await screen.findByRole('button', { name: 'report.txt' })
+    expect(screen.queryByRole('button', { name: 'Скачать ZIP' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('checkbox', { name: 'Выбрать Documents' }))
+    expect(screen.queryByRole('button', { name: 'Скачать ZIP' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('checkbox', { name: 'Выбрать report.txt' }))
+    await user.click(screen.getByRole('button', { name: 'Скачать ZIP' }))
+    expect(screen.getByRole('button', { name: 'Подготавливаем ZIP…' })).toBeDisabled()
+    expect(prepareCalls).toBe(1)
+    finishPrepare()
+    expect(await screen.findByRole('status')).toHaveTextContent('ZIP передан браузеру')
+    expect(click).toHaveBeenCalledOnce()
+  })
+
+  it('shows ZIP access errors without changing the selection', async () => {
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/files/folders') return ok(config, [folder(7, 'Documents', null)])
+      if (config.url === '/files') return ok(config, [file(44, 'report.txt', 2048)])
+      if (config.url === '/files/download-archives/prepare') throw responseFailure(config, 403, 'Forbidden')
+      throw new Error(`Unexpected request: ${config.url}`)
+    }
+    renderPage('/files')
+    const user = userEvent.setup()
+    await screen.findByRole('button', { name: 'report.txt' })
+    await user.click(screen.getByRole('checkbox', { name: 'Выбрать Documents' }))
+    await user.click(screen.getByRole('checkbox', { name: 'Выбрать report.txt' }))
+    await user.click(screen.getByRole('button', { name: 'Скачать ZIP' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Нет доступа к одному из выбранных объектов')
+    expect(screen.getByText('Выбрано: 2')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Скачать ZIP' })).toBeEnabled()
+  })
+
   it('keeps an upload in the same queue and target when navigation changes folders', async () => {
     let completeCalls = 0
     let deleteCalls = 0

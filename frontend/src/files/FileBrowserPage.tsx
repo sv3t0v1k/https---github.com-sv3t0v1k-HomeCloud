@@ -9,7 +9,7 @@ import { ApiError } from '../api/errors'
 import { apiRequest } from '../api/client'
 import type { FileItem, FolderContents, FolderItem } from '../types/files'
 import { copyFile, createFolder, getFolder, getFolderContents, moveFile, moveFolder, moveToTrash, renameFile, renameFolder } from './api'
-import { downloadOriginalFile } from './download'
+import { downloadOriginalFile, downloadSelectionArchive, type ArchiveSelection } from './download'
 import { droppedEntries, inputEntries, pickDirectory } from '../sharing/publicTree'
 import { enqueueTree } from './treeUpload'
 import { UploadQueue, type UploadQueueItem } from './uploadQueue'
@@ -247,6 +247,10 @@ function DirectoryTable({ contents, currentFolderId, onChanged, onOpenFolder }: 
   const [selection, setSelection] = useState<Set<string>>(new Set())
   const [bulkOpen, setBulkOpen] = useState(false)
   const [bulkError, setBulkError] = useState<string | null>(null)
+  const [archivePending, setArchivePending] = useState(false)
+  const [archiveError, setArchiveError] = useState<string | null>(null)
+  const [archiveHandedOff, setArchiveHandedOff] = useState(false)
+  const archivePendingRef = useRef(false)
   useEffect(() => {
     const valid = new Set([...contents.folders.map((item) => `folder:${item.id}`), ...contents.files.map((item) => `file:${item.id}`)])
     setSelection((previous) => new Set([...previous].filter((key) => valid.has(key))))
@@ -272,6 +276,26 @@ function DirectoryTable({ contents, currentFolderId, onChanged, onOpenFolder }: 
     event.preventDefault()
     if (!selection.has(key)) setSelection(new Set([key]))
     event.currentTarget.querySelector<HTMLButtonElement>('.action-menu > button')?.click()
+  }
+  async function downloadArchive() {
+    if (archivePendingRef.current || selection.size < 2) return
+    archivePendingRef.current = true
+    setArchivePending(true)
+    setArchiveError(null)
+    setArchiveHandedOff(false)
+    const items: ArchiveSelection[] = [...selection].map((key) => {
+      const [kind, id] = key.split(':')
+      return { kind: kind as ArchiveSelection['kind'], id: Number(id) }
+    })
+    try {
+      await downloadSelectionArchive(items)
+      if (mounted.current) setArchiveHandedOff(true)
+    } catch (cause) {
+      if (mounted.current) setArchiveError(archiveDownloadErrorMessage(cause))
+    } finally {
+      archivePendingRef.current = false
+      if (mounted.current) setArchivePending(false)
+    }
   }
   async function trashSelection() {
     if (pendingRef.current) return
@@ -322,7 +346,7 @@ function DirectoryTable({ contents, currentFolderId, onChanged, onOpenFolder }: 
   return (
     <div>
       <div className="directory-search"><label className="field" htmlFor="file-search">Поиск в текущей папке</label><input className="input" id="file-search" type="search" placeholder="Найти файл или папку" value={query} onChange={(event) => setQuery(event.target.value)} /></div>
-      {selection.size ? <div className="selection-toolbar" role="region" aria-label="Выделенные объекты"><span>Выбрано: {selection.size}</span><button className="button button--ghost" onClick={() => setSelection(new Set(visibleKeys))} type="button">Выбрать всё</button><button className="button button--ghost" disabled={pending} onClick={(event) => { event.currentTarget.focus(); setBulkError(null); setBulkOpen(true) }} type="button"><Icon name="trash" />В корзину</button><button className="button button--ghost" onClick={() => setSelection(new Set())} type="button">Снять выделение</button></div> : null}
+      {selection.size ? <><div className="selection-toolbar" role="region" aria-label="Выделенные объекты"><span>Выбрано: {selection.size}</span><button className="button button--ghost" onClick={() => setSelection(new Set(visibleKeys))} type="button">Выбрать всё</button>{selection.size >= 2 ? <button className="button button--ghost" disabled={archivePending || pending} onClick={() => void downloadArchive()} type="button"><Icon name="download" />{archivePending ? 'Подготавливаем ZIP…' : 'Скачать ZIP'}</button> : null}<button className="button button--ghost" disabled={pending || archivePending} onClick={(event) => { event.currentTarget.focus(); setBulkError(null); setBulkOpen(true) }} type="button"><Icon name="trash" />В корзину</button><button className="button button--ghost" onClick={() => setSelection(new Set())} type="button">Снять выделение</button></div>{archiveError ? <p className="inline-alert" role="alert">{archiveError}</p> : null}{archiveHandedOff ? <p className="muted" role="status">ZIP передан браузеру. Состояние смотрите в его загрузках.</p> : null}</> : null}
       {bulkOpen ? <SmallDialog title="Переместить выбранное в корзину?" onClose={() => { if (!pending) setBulkOpen(false) }}><p>Объектов: {selection.size}. Их можно будет восстановить.</p>{bulkError ? <p role="alert">{bulkError}</p> : null}<div className="dialog-actions"><button className="button button--ghost" disabled={pending} onClick={() => setBulkOpen(false)} type="button">Отмена</button><button className="button button--danger" disabled={pending} onClick={() => void trashSelection()} type="button">{pending ? 'Выполняется…' : 'Переместить выбранное'}</button></div></SmallDialog> : null}
       <div className="directory-toolbar"><p className="muted">Папок: {contents.folders.length} · Файлов: {contents.files.length}</p><div className="view-switch" aria-label="Вид файлов"><button aria-label="Список" aria-pressed={view === 'list'} className={view === 'list' ? 'icon-button is-active' : 'icon-button'} onClick={() => setView('list')} type="button"><Icon name="list" /></button><button aria-label="Плитка" aria-pressed={view === 'grid'} className={view === 'grid' ? 'icon-button is-active' : 'icon-button'} onClick={() => setView('grid')} type="button"><Icon name="grid" /></button></div></div>
       {empty ? <div className="empty-state"><Icon name="folder" /><h3>{query ? "Ничего не найдено" : "В этой папке пока пусто"}</h3><p>{query ? "Попробуйте другое название." : "Перетащите файлы сюда или воспользуйтесь кнопкой «Добавить»."}</p></div> : (
@@ -575,6 +599,20 @@ function downloadErrorMessage(error: unknown): string {
     if (error.status === 404) return 'Этот файл больше недоступен.'
   }
   return 'Не удалось скачать файл. Попробуйте ещё раз.'
+}
+
+function archiveDownloadErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.kind === 'network') return 'Сервер недоступен. Не удалось начать скачивание ZIP.'
+    if (error.kind === 'authentication') return 'Сессия истекла. Войдите снова.'
+    if (error.status === 403) return 'Нет доступа к одному из выбранных объектов.'
+    if (error.status === 404) return 'Один из выбранных объектов больше недоступен. Обновите список.'
+    if (error.status === 409) return 'Состав архива изменился. Обновите список и попробуйте снова.'
+    if (error.status === 400 || error.status === 413 || error.status === 422) return 'Выбор превышает ограничения архива или содержит недоступные объекты. Уменьшите выбор и попробуйте снова.'
+    if (error.status === 429) return 'Слишком много запросов. Подождите и попробуйте снова.'
+    if (error.status === 503) return 'Сервер сейчас занят. Попробуйте позже.'
+  }
+  return 'Не удалось подготовить ZIP. Попробуйте ещё раз.'
 }
 
 function parseFolderId(value?: string): number | null {
