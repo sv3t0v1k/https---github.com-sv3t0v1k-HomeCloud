@@ -1,7 +1,9 @@
-# Dormant v2 candidate. Activate the PR trigger only with approved security policy.
+# PR Fast and Integration; full Security Qualification remains a separate request.
 # Fast PASS is not Security PASS or release approval.
 name: HomeCloud PR Fast + Integration v2
 on:
+  pull_request:
+    types: [opened, synchronize, reopened]
   workflow_call:
 permissions:
   contents: read
