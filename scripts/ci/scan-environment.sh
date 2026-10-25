@@ -37,7 +37,10 @@ closure_path=
 if [ "$environment_id" = release-images ] || [ "$environment_id" = skopeo-qualification ]; then closure_path="$output/skopeo-closure.json"; fi
 python3 "$script_dir/environment-evidence.py" capture "$environment_id" "$component" "$workspace" "$output" "$skip_dirs" "$scanner" "$registry" "$closure_path"
 status=0
+# Use the publisher before the mirror: mirror.gcr.io may return a non-retryable 404 for Java DB layers.
 "$scanner" --cache-dir "$cache_dir" rootfs --config /dev/null \
+  --java-db-repository ghcr.io/aquasecurity/trivy-java-db:1 \
+  --java-db-repository mirror.gcr.io/aquasec/trivy-java-db:1 \
   --skip-dirs "$skip_dirs" --scanners vuln --ignore-unfixed=false --ignorefile /dev/null \
   --list-all-pkgs --parallel 0 --timeout 60m --no-progress --format json \
   --output "$output/rootfs.json" / > "$output/rootfs.log" 2>&1 || status=1

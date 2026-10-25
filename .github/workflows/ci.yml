@@ -141,6 +141,7 @@ jobs:
       - name: Route PostgreSQL, concurrency, filesystem and bench suites
         run: python3 scripts/ci/test-routing.py list integration > backend-integration-suites.txt
       - name: Integration suites as unprivileged user
+        shell: bash
         run: |
           mapfile -t suites < ../backend-integration-suites.txt
           test "${#suites[@]}" -gt 0
@@ -740,6 +741,10 @@ jobs:
     env:
       QUALIFICATION_PROFILE: ${{ inputs.qualification_profile == 'release' && 'release' || github.event_name == 'pull_request' && 'pull-request' || github.event_name == 'push' && github.ref == 'refs/heads/main' && 'main' || 'invalid' }}
     steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - name: Require every gate
         env:
           RESULTS: ${{ toJSON(needs) }}
