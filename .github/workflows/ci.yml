@@ -429,10 +429,10 @@ jobs:
         env:
           IMAGE_SCANNER_INSTALL_RESULT: ${{ steps.scanner.outcome }}
         run: |
-          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy"
           if [ "$IMAGE_SCANNER_INSTALL_RESULT" != "success" ]; then
             sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/homecloud-trivy"
           fi
+          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy" "$RUNNER_TEMP/homecloud-trivy"
           python3 -c "import os,json; temp=os.environ['RUNNER_TEMP']; print(json.dumps([dict(id='image-trivy', path=temp+'/homecloud-trivy/trivy')]))" > "$RUNNER_TEMP/environment-tools.json"
           sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "image-build-${{ matrix.component }}" "none" "environment-image-build-${{ matrix.component }}" "$RUNNER_TEMP/environment-tools.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -521,7 +521,7 @@ jobs:
       - name: Mandatory actual CI environment qualification
         if: always()
         run: |
-          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy"
+          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy" "$RUNNER_TEMP/homecloud-trivy"
           python3 -c "import os,json; temp=os.environ['RUNNER_TEMP']; print(json.dumps([dict(id='image-trivy', path=temp+'/homecloud-trivy/trivy')]))" > "$RUNNER_TEMP/environment-tools.json"
           sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "base-${{ matrix.base }}" "none" "environment-base-${{ matrix.base }}" "$RUNNER_TEMP/environment-tools.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -701,7 +701,7 @@ jobs:
       - name: Mandatory actual CI environment qualification
         if: always()
         run: |
-          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy"
+          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy" "$RUNNER_TEMP/homecloud-trivy"
           python3 -c "import os,json; temp=os.environ['RUNNER_TEMP']; print(json.dumps([dict(id='image-trivy', path=temp+'/homecloud-trivy/trivy')]))" > "$RUNNER_TEMP/environment-tools.json"
           sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "support-${{ matrix.role }}" "none" "environment-support-${{ matrix.role }}" "$RUNNER_TEMP/environment-tools.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -734,6 +734,27 @@ jobs:
         with:
           name: production-qualification-${{ github.run_attempt }}
           path: production-qualification.json
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        if: always()
+        with:
+          name: offline-provenance-backend-${{ github.run_attempt }}
+          path: offline-backend
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        if: always()
+        with:
+          name: offline-provenance-frontend-${{ github.run_attempt }}
+          path: offline-frontend
+      - name: Bind exact image pair in qualification collector
+        if: always()
+        run: |
+          python3 scripts/ci/provenance-pair.py --backend offline-backend/offline-backend.json --frontend offline-frontend/offline-frontend.json --commit "$(git rev-parse HEAD)" --repository "${GITHUB_REPOSITORY,,}" --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --version "${{ inputs.candidate_version || 'dry-run' }}" --output provenance-dry-run-collector.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: provenance-dry-run-collector-${{ github.run_attempt }}
+          path: provenance-dry-run-collector.json
           if-no-files-found: error
           retention-days: 14
   gate:
