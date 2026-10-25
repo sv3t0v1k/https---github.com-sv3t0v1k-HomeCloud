@@ -10,10 +10,14 @@ change that removes the old PR trigger; publishing both triggers would double
 the work. The pair binding is already added to the qualification collector,
 but the old dedicated `provenance-pair` job remains mandatory for the current
 policy. Its removal is pending approval of the replacement environment set.
-The dormant `ci-v2-security.yml` calls the existing complete qualification and
-checks that the PR HEAD/base have not changed. It deliberately retains the
-old scans and even reruns Fast/Integration once for the final candidate. It is
-a compatibility bridge, not the final optimized Security Qualification.
+The PR `labeled` caller in `ci-v2-security-request.yml` starts
+`ci-v2-security.yml` only when the repository owner adds the
+`ci-security-qualification` label. The reusable workflow calls the existing
+complete qualification and checks the same-run report, current PR HEAD/base,
+and base ancestry. It deliberately retains the old scans and even reruns
+Fast/Integration once for the final candidate. No label or hosted run is
+requested by this local change. This is a compatibility bridge, not the final
+optimized Security Qualification.
 
 ## Required checks
 
@@ -28,9 +32,11 @@ a compatibility bridge, not the final optimized Security Qualification.
 | Hosted runner rootfs | — | — | Proposed periodic platform assurance; raw findings retained | Required when release policy says so |
 | Publication environment, protected branch, tag and registry digest reconciliation | — | — | — | Required; publish qualified archives without rebuilding |
 
-Fast and Integration results are separate, required checks. Neither may be
+Fast and Integration results are separate checks. Neither may be
 silently skipped. Security Qualification must be run for the final HEAD and
-base SHA before merge, and must be repeated when either changes. Missing,
+base SHA before merge. The current base commit must be an ancestor of the
+qualified HEAD. If HEAD or base changes, update the branch and request a new
+qualification by removing and readding the label. Missing,
 cancelled, stale, failed, unexpected skipped, or incomplete results block.
 There is no cross-run PASS-verdict cache. Download/DB caches are permitted only
 for inputs with verified integrity and freshness. Release accepts only its
@@ -47,12 +53,12 @@ that requirement is unchanged. Production remains NO_GO.
 
 | Current evidence / gate | v2 proposal | Safety condition |
 | --- | --- | --- |
-| Full `rootfs.json`, global npm, component and tools for each of 13 PR environments, including Fast and a dedicated provenance runner | Keep raw findings for completed scans; stop requiring duplicate host-rootfs scans for every Fast/Integration job. Run hosted rootfs periodically as `PLATFORM_ASSURANCE`. Qualify actually executed tools and installed dependencies in the qualification jobs. | The owner approves the new environment set and verifies inventory/ownership; an unknown or unscanned executed tool blocks. No HIGH/CRITICAL threshold changes. |
+| Full `rootfs.json`, global npm, component and tools for each of 13 PR environments, including Fast and a dedicated provenance runner | **Later proposal only:** move the full provider-owned GitHub-hosted host rootfs to periodic `PLATFORM_ASSURANCE`, retaining raw findings and runner identity. Pinned backend CI container rootfs remains strict. Actually executed npm, Compose, Trivy, BuildKit and other tools, installed application/dev dependencies, build stages, and publisher closure remain strict qualification evidence. | Specify the exact new environment set, inventory, period and response to missing/stale platform scans; unknown ownership or unscanned executed tools block. No HIGH/CRITICAL threshold changes. The first trigger switch changes none of this. |
 | Separate `provenance-pair` runner and full environment scan | Verify both offline OCI proofs and write `provenance-dry-run.json` in the existing qualification collector. | Same source, repository, version, run/attempt, index/platform/statement digests; missing/changed proof blocks. Retain the pair artifact. |
 | Two Trivy installations and separate DB caches in an image job | Reuse one checksum-verified Trivy binary and one fresh DB cache within that job. | No concurrent writers to the same cache; validate DB metadata and every report. Never reuse a PASS verdict. |
 | Raw upstream-base diagnostics on every main push | Run on pin changes, periodically, and for release qualification. | Exact final runtime/support OCI and build stages remain mandatory for final candidate. Raw HIGH/CRITICAL remains visible. |
 | Per-PR full Security Qualification and aggregate gate | Fast + Integration on each HEAD; full qualification once for the final candidate before merge. | Required status enforcement on the exact HEAD/base; unavailable in the current private plan, so activation needs owner policy decision and an enforceable or acknowledged manual merge procedure. |
-| Release scan of an already qualified digest | Reuse same-run, fresh scan only if digest, platform, scanner/config, vulnerability DB and policy version match; still reconcile published registry digest. | Mismatch or stale DB blocks or requires a new scan. Publisher tool closure and protected branch requirements remain. |
+| Release scan of an already qualified digest | **Later proposal only:** reuse same-run, fresh scan only if digest, platform, scanner/config, vulnerability DB and policy version match; still reconcile published registry digest. | The first trigger switch does not change release. Mismatch or stale DB blocks or requires a new scan. Publisher tool closure and protected branch requirements remain. |
 
 Questions for owner approval: (1) accept periodic rather than per-job hosted
 rootfs evidence, while retaining raw reports; (2) approve the reduced PR
@@ -69,3 +75,27 @@ the existing security gate and release contract stay in force.
    exact OCI and evidence closure, source/run/attempt/digest/DB bindings,
    retained HIGH/CRITICAL and final gate. Recheck HEAD/base before merge.
 3. Release remains a separate explicit action and requires its own profile.
+
+## v2.1 trigger switch and rollback (not activated)
+
+| Workflow | Current local trigger | First approved switch |
+| --- | --- | --- |
+| `ci.yml` | `pull_request` default events, `push main`, `workflow_call` | Remove only `pull_request`; retain full reusable qualification and `push main`. |
+| `ci-v2-fast.yml` | `workflow_call` only | Add `pull_request` types `opened`, `synchronize`, `reopened`. The unique terminal job is `ci-v2-fast-terminal`. |
+| `ci-v2-security-request.yml` | `pull_request` type `labeled`, with an owner and exact-label condition | Keep this manual PR-event request. It calls only full Security Qualification. |
+| `ci-v2-security.yml` | `workflow_call` | Keep; the unique terminal job is `ci-v2-security-terminal`, requiring the old aggregate gate plus same-run evidence and current HEAD/base ancestry. |
+
+Fast and Security run on distinct PR events and therefore distinct GitHub run
+IDs. Their artifacts cannot collide within one run; the Security caller does
+not invoke Fast separately, and its nested legacy CI uploads each artifact
+once. The exact displayed check context must be confirmed in the first hosted
+run before selecting any required check. Fast PASS is not Security PASS and
+does not permit merge. The current private repository does not enforce these
+checks; the manual pre-merge protocol above remains necessary.
+
+Switch all trigger lines in one reviewed commit after approval. Do not merge
+while the new Fast and Security path is under hosted validation. If either
+path fails to start or route correctly, reverse the same trigger change:
+restore `ci.yml` `pull_request`, remove `ci-v2-fast.yml` `pull_request`, and
+leave the full reusable qualification and release workflow untouched. A
+rollback is not a waiver of open security findings or permission to merge.

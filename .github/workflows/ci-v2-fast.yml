@@ -45,6 +45,7 @@ jobs:
       - run: python3 scripts/ci/test-stage-cache-proof.py
       - run: python3 scripts/ci/test-secret-findings.py
       - run: python3 scripts/ci/test-install-npm.py
+      - run: python3 scripts/ci/test-trivy-archive.py
       - run: python3 scripts/ci/test-test-routing.py
       - run: python3 scripts/ci/test-audit-domains.py
       - name: Route all unit suites, including critical smoke
@@ -243,6 +244,7 @@ jobs:
           if-no-files-found: error
           retention-days: 90
   fast-integration-gate:
+    name: ci-v2-fast-terminal
     if: always()
     needs: [pr-fast-backend, backend, frontend, configuration, secrets]
     runs-on: ubuntu-24.04

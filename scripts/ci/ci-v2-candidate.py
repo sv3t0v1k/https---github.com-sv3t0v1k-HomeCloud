@@ -4,12 +4,14 @@ import argparse
 import json
 from pathlib import Path
 import re
+import subprocess
 import sys
 
 SHA = re.compile(r'[a-f0-9]{40}\Z')
 
 
-def validate(event, live, checkout, qualification=None, run_id=None, attempt=None):
+def validate(event, live, checkout, qualification=None, run_id=None, attempt=None,
+             expected_base=None, expected_profile=None):
     original = event['pull_request']
     event_head, event_base = original['head']['sha'], original['base']['sha']
     live_head, live_base = live['head']['sha'], live['base']['sha']
@@ -18,14 +20,24 @@ def validate(event, live, checkout, qualification=None, run_id=None, attempt=Non
         raise ValueError('Invalid candidate SHA')
     if checkout != event_head or (live_head, live_base) != (event_head, event_base):
         raise ValueError('PR HEAD or base changed after qualification started')
+    if expected_base is not None and expected_base != event_base:
+        raise ValueError('Expected base differs from the PR event')
     if qualification is not None:
-        if (qualification.get('source_commit') != checkout
+        if (not expected_profile or qualification.get('qualification_profile') != expected_profile
+                or qualification.get('source_commit') != checkout
                 or qualification.get('status') != 'PASS'
                 or qualification.get('coverage') != 'COVERED'
                 or qualification.get('errors') != []
                 or qualification.get('ci') != {'run_id': run_id, 'attempt': attempt}):
             raise ValueError('Missing, blocked, stale or different-run qualification')
     return {'head_sha': event_head, 'base_sha': event_base}
+
+
+def require_base_ancestor(repository, base, head):
+    result = subprocess.run(['git', '-C', str(repository), 'merge-base', '--is-ancestor', base, head],
+                            capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        raise ValueError('Current base is not an ancestor of the qualified HEAD')
 
 
 def main():
@@ -36,11 +48,18 @@ def main():
     parser.add_argument('--qualification')
     parser.add_argument('--run-id')
     parser.add_argument('--attempt')
+    parser.add_argument('--expected-base')
+    parser.add_argument('--expected-profile')
+    parser.add_argument('--require-base-ancestor', action='store_true')
+    parser.add_argument('--repository', default='.')
     args = parser.parse_args()
     try:
         qualification = json.loads(Path(args.qualification).read_text()) if args.qualification else None
         result = validate(json.loads(Path(args.event).read_text()), json.loads(Path(args.live).read_text()),
-                          args.checkout, qualification, args.run_id, args.attempt)
+                          args.checkout, qualification, args.run_id, args.attempt,
+                          args.expected_base, args.expected_profile)
+        if args.require_base_ancestor:
+            require_base_ancestor(args.repository, result['base_sha'], result['head_sha'])
         print(json.dumps(result, sort_keys=True))
     except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as error:
         print(f'BLOCKED: {error}', file=sys.stderr)
