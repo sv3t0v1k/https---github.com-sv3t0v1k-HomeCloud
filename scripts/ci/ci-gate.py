@@ -4,7 +4,7 @@ import argparse
 import json
 import sys
 
-REQUIRED = {'backend', 'frontend', 'configuration', 'image-build', 'provenance-pair',
+REQUIRED = {'pr-fast-backend', 'backend', 'frontend', 'configuration', 'image-build', 'provenance-pair',
             'base-image-scan', 'security', 'secrets', 'support-images', 'policy-coverage'}
 PROFILES = {'pull-request', 'main', 'release'}
 

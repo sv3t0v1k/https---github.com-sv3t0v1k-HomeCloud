@@ -1832,3 +1832,19 @@ frontend 321 PASS; адресные PostgreSQL/nginx проверки, lint/buil
 ПРОВЕРЕНА; обновление домашнего сервера ожидает отдельного разрешения;
 Production NO_GO; Multi-Storage DEFERRED.** [План совместимости, обновления и
 отката](ux-v2-zip-integration.md).
+
+
+### CI Reset v1 — локальная реализация (2026-10-25)
+
+**LOCAL_IMPLEMENTATION / GITHUB_UNVERIFIED; Production NO_GO; Multi-Storage DEFERRED.**
+В отдельной ветке `ci-reset-v1` от `ac1aca1` подготовлены независимые обязательные
+`pr-fast-backend` и PostgreSQL integration jobs. Backend suites разделены без
+пересечения: 56 unit и 17 PostgreSQL + 14 bench; 26 frontend test-файлов
+проверяются по фактическому отчёту. Recovery contract tests используют
+подставной Docker. Security reports отдельно показывают runtime и дополнительную
+dev-часть npm audit; полный audit и прежние HIGH/CRITICAL gates сохраняются.
+Новый fast backend runner получает собственное строгое environment evidence;
+PR/main/release требуют 13/17/17 execution environments соответственно.
+Независимый review маршрутизации и security gate не нашёл блокирующих замечаний.
+Hosted execution, фактический PR №2 и время fast job не подтверждены; push,
+merge, release, deployment и обновление домашнего сервера не выполнялись.

@@ -65,7 +65,7 @@ fi
   --output "$output/tools.json" "$output/executed-tools" > "$output/tools.log" 2>&1 || status=1
 # Always finish every required scan and retain evidence before enforcing severity.
 python3 "$script_dir/environment-evidence.py" validate "$output" "$cache_dir/db/metadata.json" || status=1
-if [ "$environment_id" = backend ]; then
+if [ "$environment_id" = backend ] || [ "$environment_id" = pr-fast-backend ]; then
   python3 "$script_dir/scan-policy.py" "$output/rootfs.json" --environment || status=1
 else
   python3 "$script_dir/scan-policy.py" "$output/rootfs.json" --platform-host-evidence "$output/environment.json" || status=1

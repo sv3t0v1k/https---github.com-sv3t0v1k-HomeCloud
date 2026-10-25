@@ -29,10 +29,12 @@ SOURCE_PATHS = ('docker-compose.yml', 'docker-compose.production.yml', 'docker-c
                 'scripts/ci/oci-scan-binding.py', 'scripts/ci/policy-coverage.py',
                 'scripts/ci/stage-cache-proof.py', 'scripts/ci/qualify-stages.sh',
                 'scripts/ci/production-images.lock.json', 'scripts/ci/secret-findings.py',
-                'scripts/ci/skopeo-closure.py', 'scripts/ci/ci-gate.py', 'docs/image-security-policy.md')
+                'scripts/ci/skopeo-closure.py', 'scripts/ci/ci-gate.py',
+                'scripts/ci/test-routing.py', 'scripts/ci/audit-domains.py',
+                'docs/image-security-policy.md')
 RUNTIME = {'backend', 'frontend', 'postgres', 'ingress'}
 BUILD = {'backend-deps', 'backend-builder', 'frontend-deps', 'frontend-builder', 'buildkit'}
-ENVIRONMENTS = {'backend', 'frontend', 'configuration', 'image-build-backend', 'image-build-frontend',
+ENVIRONMENTS = {'backend', 'pr-fast-backend', 'frontend', 'configuration', 'image-build-backend', 'image-build-frontend',
                 'provenance-pair', 'base-node', 'base-nginx', 'base-postgres', 'base-node-ci',
                 'security-backend', 'security-frontend', 'secrets',
                 'support-postgres', 'support-ingress', 'support-buildkit'}
@@ -93,11 +95,11 @@ def qualification(value, commit, run_id=None, attempt=None):
                 require(not item.get('findings', {}).get('HIGH', 0)
                         and not item.get('findings', {}).get('CRITICAL', 0), 'qualified artifact has high/critical')
             else:
-                expected = ({'rootfs', 'global-npm', 'tools', 'component'} if role in ('backend', 'frontend', 'security-backend', 'security-frontend')
+                expected = ({'rootfs', 'global-npm', 'tools', 'component'} if role in ('backend', 'pr-fast-backend', 'frontend', 'security-backend', 'security-frontend')
                             else {'rootfs', 'global-npm', 'tools'})
                 require(set(item.get('scans', {})) == expected, 'environment scan coverage is incomplete')
                 rootfs = item['scans']['rootfs']
-                if role == 'backend':
+                if role in ('backend', 'pr-fast-backend'):
                     require(item.get('runner_policy') == 'PINNED_CONTAINER_STRICT'
                             and rootfs.get('gate') == 'PASS'
                             and not rootfs.get('findings', {}).get('HIGH', 0)
@@ -110,7 +112,7 @@ def qualification(value, commit, run_id=None, attempt=None):
                             and rootfs.get('raw_findings_retained') is True,
                             'GitHub-hosted runner evidence lacks platform assurance')
                 for name, scan in item['scans'].items():
-                    if name == 'rootfs' and role != 'backend':
+                    if name == 'rootfs' and role not in ('backend', 'pr-fast-backend'):
                         continue
                     require(scan.get('gate') == 'PASS'
                             and not scan.get('findings', {}).get('HIGH', 0)

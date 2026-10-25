@@ -12,6 +12,8 @@ import re
 import subprocess
 import sys
 
+PINNED_BACKEND_ENVIRONMENTS = ('backend', 'pr-fast-backend')
+
 
 def command(argv):
     result = subprocess.run(argv, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -28,7 +30,7 @@ def minimization_module():
 def validate_minimization(evidence):
     # Backend already runs in the locked Node container. Every other actual
     # workload keeps the hosted host rootfs, including provider tools/daemon.
-    if evidence.get('environment_id') and evidence['environment_id'] != 'backend':
+    if evidence.get('environment_id') and evidence['environment_id'] not in PINNED_BACKEND_ENVIRONMENTS:
         minimization_module().validate(evidence.get('runner_minimization', {}),
                                        evidence['source_commit'], evidence['github'])
 
@@ -283,7 +285,7 @@ def capture(environment_id, component, workspace, output, skip_dirs, scanner, re
                         'Pseudo filesystems and temporary directories excluded; installed system/toolcache directories included.',
                         'Checkout excluded before rootfs traversal; selected application scanned separately.',
                         'Environment is observed at this job step; this is not container image provenance.'])
-    if environment_id != 'backend':
+    if environment_id not in PINNED_BACKEND_ENVIRONMENTS:
         evidence['runner_minimization'] = json.loads(Path(os.environ['RUNNER_TEMP'], 'homecloud-runner-minimization.json').read_text())
         if Path(minimization_module().TARGET).exists():
             raise ValueError('Unused SDK reappeared before environment scan')
@@ -340,7 +342,7 @@ def validate(evidence, reports, metadata, now, java_metadata=None):
         raise ValueError('Stale or invalid vulnerability DB metadata')
     if evidence.get('source_kind') != 'actual-job-filesystem' or evidence.get('platform') != 'linux/x86_64':
         raise ValueError('Expected actual Linux amd64 job environment')
-    if evidence.get('environment_id') != 'backend':
+    if evidence.get('environment_id') not in PINNED_BACKEND_ENVIRONMENTS:
         validate_host_platform_identity(evidence)
     if evidence['workspace'] not in evidence['rootfs_excluded_dirs']:
         raise ValueError('Checkout was not excluded')
@@ -408,7 +410,7 @@ def main():
         java_path = db_path.parent.parent / 'java-db' / 'metadata.json'
         java_db = json.loads(java_path.read_text()) if java_path.is_file() else None
         evidence['java_db'] = java_db
-        if evidence.get('environment_id') != 'backend':
+        if evidence.get('environment_id') not in PINNED_BACKEND_ENVIRONMENTS:
             retained = json.loads(Path(evidence['runner_temp'], 'homecloud-runner-minimization.json').read_text())
             if retained != evidence['runner_minimization'] or Path(minimization_module().TARGET).exists():
                 raise ValueError('Runner minimization changed during environment scan')
