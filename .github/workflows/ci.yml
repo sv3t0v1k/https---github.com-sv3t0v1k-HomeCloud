@@ -145,14 +145,17 @@ jobs:
         run: |
           mapfile -t suites < ../backend-integration-suites.txt
           test "${#suites[@]}" -gt 0
-          runuser -u node -- npm test -- --runInBand --runTestsByPath "${suites[@]}" --json --outputFile=../backend-integration-tests.json
+          report_dir="$PWD/.ci-reports"
+          install -d -o node -g node -m 0700 "$report_dir"
+          runuser -u node -- sh -c 'test -w "$1" && : > "$1/.write-check" && rm "$1/.write-check"' sh "$report_dir"
+          runuser -u node -- npm test -- --runInBand --runTestsByPath "${suites[@]}" --json --outputFile="$report_dir/backend-integration-tests.json"
         working-directory: backend
-      - run: python3 scripts/ci/test-routing.py verify integration backend-integration-tests.json
+      - run: python3 scripts/ci/test-routing.py verify integration backend/.ci-reports/backend-integration-tests.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: backend-integration-tests-${{ github.run_attempt }}
-          path: backend-integration-tests.json
+          path: backend/.ci-reports/backend-integration-tests.json
           if-no-files-found: error
           retention-days: 14
       - name: Mandatory actual CI environment qualification
