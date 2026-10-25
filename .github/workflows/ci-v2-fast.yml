@@ -1,0 +1,264 @@
+# Dormant v2 candidate. Activate the PR trigger only with approved security policy.
+# Fast PASS is not Security PASS or release approval.
+name: HomeCloud PR Fast + Integration v2
+on:
+  workflow_call:
+permissions:
+  contents: read
+  pull-requests: read
+concurrency:
+  group: ci-v2-fast-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  pr-fast-backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    container: node:24.21.0-bookworm-slim@sha256:51b1100cc2a83d370c6a60952e3f2989c8a43159d0e38586e090f3b3326efefd
+    steps:
+      - name: Patch CI Perl and install toolchain
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates curl gcc libc6-dev git python3 unzip util-linux perl-base=5.36.0-7+deb12u4
+          test "$(dpkg-query -W -f='${Version}' perl-base)" = 5.36.0-7+deb12u4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - run: python3 scripts/ci/install-npm.py
+      - run: npm ci --no-audit
+        working-directory: backend
+      - run: sh native/build.sh
+        working-directory: backend
+      - run: python3 scripts/ci/test-release.py
+      - run: python3 scripts/ci/test-provenance.py
+      - run: python3 scripts/ci/test-scan-evidence.py
+      - run: python3 scripts/ci/test-scan-policy.py
+      - run: python3 scripts/ci/test-environment-evidence.py
+      - run: python3 scripts/ci/test-skopeo-closure.py
+      - run: python3 scripts/ci/test-runner-minimization.py
+      - run: python3 scripts/ci/test-gosu-disposition.py
+      - run: python3 scripts/ci/test-oci-scan-binding.py
+      - run: python3 scripts/ci/test-policy-coverage.py
+      - run: python3 scripts/ci/test-ci-gate.py
+      - run: python3 scripts/ci/test-ci-v2-fast-gate.py
+      - run: python3 scripts/ci/test-ci-v2-candidate.py
+      - run: python3 scripts/ci/test-stage-cache-proof.py
+      - run: python3 scripts/ci/test-secret-findings.py
+      - run: python3 scripts/ci/test-install-npm.py
+      - run: python3 scripts/ci/test-test-routing.py
+      - run: python3 scripts/ci/test-audit-domains.py
+      - name: Route all unit suites, including critical smoke
+        run: python3 scripts/ci/test-routing.py list unit > backend-unit-suites.txt
+      - name: Run unit suites without PostgreSQL or bench suites
+        shell: bash
+        working-directory: backend
+        run: |
+          mapfile -t suites < ../backend-unit-suites.txt
+          test "${#suites[@]}" -gt 0
+          chown -R node:node "$GITHUB_WORKSPACE"
+          runuser -u node -- npm test -- --runInBand --runTestsByPath "${suites[@]}" --json --outputFile=../backend-unit-tests.json
+      - run: python3 scripts/ci/test-routing.py verify unit backend-unit-tests.json
+      - run: npm run lint
+        working-directory: backend
+      - run: ./node_modules/.bin/tsc --noEmit -p tsconfig.json
+        working-directory: backend
+      - run: npm run build
+        working-directory: backend
+      - run: node test/file-type-compiled-runtime.cjs
+        working-directory: backend
+      - name: Patched dependency runtime and multipart boundaries
+        run: runuser -u node -- node --test --test-timeout=10000 test/dependency-security-runtime.cjs
+        working-directory: backend
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: backend-unit-tests-${{ github.run_attempt }}
+          path: backend-unit-tests.json
+          if-no-files-found: error
+          retention-days: 14
+  backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    container: node:24.21.0-bookworm-slim@sha256:51b1100cc2a83d370c6a60952e3f2989c8a43159d0e38586e090f3b3326efefd
+    services:
+      postgres:
+        image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+        env:
+          POSTGRES_DB: homecloud_ci
+          POSTGRES_USER: homecloud_ci
+          POSTGRES_PASSWORD: disposable-ci-only
+        options: >-
+          --health-cmd "pg_isready -U homecloud_ci -d homecloud_ci"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      HOMECLOUD_TEST_DATABASE_URL: postgres://homecloud_ci:disposable-ci-only@postgres:5432/homecloud_ci
+    steps:
+      - name: Patch CI Perl and install toolchain
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates curl gcc libc6-dev git python3 unzip util-linux perl-base=5.36.0-7+deb12u4
+          test "$(dpkg-query -W -f='${Version}' perl-base)" = 5.36.0-7+deb12u4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Install checksum-pinned compatible npm before dependency commands
+        run: python3 scripts/ci/install-npm.py
+      - run: npm ci --no-audit
+        working-directory: backend
+      - run: sh native/build.sh
+        working-directory: backend
+      - name: Retain actual CI toolchain inventory after apt changes
+        run: dpkg-query -W -f='${binary:Package}\t${Version}\n' > ci-toolchain-packages.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: ci-toolchain-packages-${{ github.run_attempt }}
+          path: ci-toolchain-packages.txt
+          if-no-files-found: error
+          retention-days: 14
+      - name: Route PostgreSQL, concurrency, filesystem and bench suites
+        run: python3 scripts/ci/test-routing.py list integration > backend-integration-suites.txt
+      - name: Integration suites as unprivileged user
+        shell: bash
+        run: |
+          mapfile -t suites < ../backend-integration-suites.txt
+          test "${#suites[@]}" -gt 0
+          report_dir="$PWD/.ci-reports"
+          install -d -o node -g node -m 0700 "$report_dir"
+          runuser -u node -- sh -c 'test -w "$1" && : > "$1/.write-check" && rm "$1/.write-check"' sh "$report_dir"
+          runuser -u node -- npm test -- --runInBand --runTestsByPath "${suites[@]}" --json --outputFile="$report_dir/backend-integration-tests.json"
+        working-directory: backend
+      - run: python3 scripts/ci/test-routing.py verify integration backend/.ci-reports/backend-integration-tests.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: backend-integration-tests-${{ github.run_attempt }}
+          path: backend/.ci-reports/backend-integration-tests.json
+          if-no-files-found: error
+          retention-days: 14
+  frontend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Remove unused hosted .NET SDK before workload; retain evidence
+        run: python3 scripts/ci/minimize-runner.py
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24.21.0'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install checksum-pinned compatible npm before dependency commands
+        run: python3 scripts/ci/install-npm.py
+      - run: npm ci --no-audit
+        working-directory: frontend
+      - name: Run all frontend unit suites with a checked report
+        run: npm test -- --reporter=json --outputFile=../frontend-tests.json
+        working-directory: frontend
+      - run: python3 scripts/ci/test-routing.py verify frontend frontend-tests.json
+      - run: npm run lint
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: frontend-tests-${{ github.run_attempt }}
+          path: frontend-tests.json
+          if-no-files-found: error
+          retention-days: 14
+  configuration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Remove unused hosted .NET SDK before workload; retain evidence
+        run: python3 scripts/ci/minimize-runner.py
+      - name: Pin normalized Compose API; preserve explicit false bind flags
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/homecloud-compose-bin"
+          curl --fail --silent --show-error --location https://github.com/docker/compose/releases/download/v5.6.0/docker-compose-linux-x86_64 -o "$RUNNER_TEMP/homecloud-compose-bin/docker-compose"
+          echo "40343e21ca777173e69cff5dbafeb37c6f81f3b0d57d9e597f036e95eb63e76a  $RUNNER_TEMP/homecloud-compose-bin/docker-compose" | sha256sum --check
+          chmod +x "$RUNNER_TEMP/homecloud-compose-bin/docker-compose"
+          cat > "$RUNNER_TEMP/homecloud-compose-bin/docker" <<'SHIM'
+          #!/bin/sh
+          set -eu
+          [ "$#" -ge 1 ] && [ "$1" = compose ] || { echo 'CI configuration helper supports compose only' >&2; exit 1; }
+          shift
+          exec "$(dirname "$0")/docker-compose" "$@"
+          SHIM
+          chmod +x "$RUNNER_TEMP/homecloud-compose-bin/docker"
+          echo "$RUNNER_TEMP/homecloud-compose-bin" >> "$GITHUB_PATH"
+          test "$("$RUNNER_TEMP/homecloud-compose-bin/docker" compose version --short)" = 5.6.0
+      - run: docker compose version && python3 scripts/ci/compose-check.py
+      - run: python3 deploy/linux/test_startup_gate.py
+      - run: python3 scripts/ci/test-entrypoint.py
+      - run: python3 deploy/linux/test_preflight.py
+        env:
+          HOMECLOUD_TEST_ROOT: ${{ github.workspace }}
+      - name: Isolated recovery contract tests with fake Docker
+        run: |
+          sudo mkdir -p /private/tmp
+          sudo chmod 1777 /private/tmp
+          python3 scripts/tests/test-restore-schema.py
+          python3 scripts/tests/test-restore-preflight.py
+          python3 scripts/tests/test-restore-cleanup.py
+          python3 scripts/tests/test-restore-health.py
+  secrets:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Remove unused hosted .NET SDK before workload; retain evidence
+        run: python3 scripts/ci/minimize-runner.py
+      - name: Pinned gitleaks; full reachable history, forbidden audit excluded before reading
+        shell: bash
+        run: |
+          curl --fail --silent --show-error --location https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz -o "$RUNNER_TEMP/gitleaks.tar.gz"
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  $RUNNER_TEMP/gitleaks.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP" gitleaks
+          mkdir "$RUNNER_TEMP/gitleaks-evidence"
+          set +e
+          "$RUNNER_TEMP/gitleaks" git --redact=100 --exit-code 42 --report-format json --report-path "$RUNNER_TEMP/gitleaks-evidence/raw-redacted.json" --log-opts="--all -- . :(exclude)scripts/tests/PHASE-5.3.1-TEST-AUDIT.md" .
+          scanner_result=$?
+          set -e
+          python3 scripts/ci/secret-findings.py --report "$RUNNER_TEMP/gitleaks-evidence/raw-redacted.json" --scanner-exit "$scanner_result" --output "$RUNNER_TEMP/gitleaks-evidence/classification.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: secret-evidence-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/gitleaks-evidence
+          if-no-files-found: error
+          retention-days: 90
+  fast-integration-gate:
+    if: always()
+    needs: [pr-fast-backend, backend, frontend, configuration, secrets]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Require all Fast and Integration jobs
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: python3 scripts/ci/ci-v2-fast-gate.py --results "$RESULTS"
+      - name: Require unchanged PR HEAD and base
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/pulls/${{ github.event.pull_request.number }}" > "$RUNNER_TEMP/current-pr.json"
+          python3 scripts/ci/ci-v2-candidate.py --event "$GITHUB_EVENT_PATH" --live "$RUNNER_TEMP/current-pr.json" --checkout "$(git rev-parse HEAD)"

@@ -1,0 +1,46 @@
+# Dormant compatibility qualification. It retains the current security gate.
+# A future trusted PR workflow may call it once for an unchanged final candidate.
+name: HomeCloud Security Qualification v2 candidate
+on:
+  workflow_call:
+    inputs:
+      source_sha:
+        type: string
+        required: true
+      candidate_version:
+        type: string
+        required: false
+        default: dry-run
+permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  qualification:
+    uses: ./.github/workflows/ci.yml
+    with:
+      source_sha: ${{ inputs.source_sha }}
+      candidate_version: ${{ inputs.candidate_version }}
+      qualification_profile: pull-request
+    permissions:
+      contents: read
+  final-candidate:
+    if: always()
+    needs: [qualification]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+      - name: Require successful qualification and unchanged candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          QUALIFICATION_RESULT: ${{ needs.qualification.result }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          test "$QUALIFICATION_RESULT" = success
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test "${{ github.event_name }}" = pull_request
+          gh api "repos/$GITHUB_REPOSITORY/pulls/${{ github.event.pull_request.number }}" > "$RUNNER_TEMP/current-pr.json"
+          python3 scripts/ci/ci-v2-candidate.py --event "$GITHUB_EVENT_PATH" --live "$RUNNER_TEMP/current-pr.json" --checkout "$SOURCE_SHA"
