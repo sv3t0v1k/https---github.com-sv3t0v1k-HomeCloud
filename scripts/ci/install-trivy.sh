@@ -8,9 +8,7 @@ mkdir -p "$destination"
 if [ -n "$reuse_from" ]; then
   # A previous step in this same job installed and checksum-verified this asset.
   echo "e24b1c51293c1b15e4ba8d45bbc7891ba053f90278ec2698f3562c993e145fe7  $reuse_from/trivy.tar.gz" | sha256sum --check
-  test -x "$reuse_from/trivy"
-  cp "$reuse_from/trivy" "$destination/trivy"
-  cmp "$reuse_from/trivy" "$destination/trivy"
+  sh "$(dirname "$0")/verify-trivy-archive.sh" "$reuse_from/trivy.tar.gz" "$reuse_from/trivy" "$destination"
   mkdir -p "$reuse_from/cache"
   ln -s "$reuse_from/cache" "$destination/cache"
   "$destination/trivy" --version

@@ -127,6 +127,7 @@ jobs:
       - run: python3 scripts/ci/test-stage-cache-proof.py
       - run: python3 scripts/ci/test-secret-findings.py
       - run: python3 scripts/ci/test-install-npm.py
+      - run: python3 scripts/ci/test-trivy-archive.py
       - run: python3 scripts/ci/test-test-routing.py
       - run: python3 scripts/ci/test-audit-domains.py
       - name: Retain actual CI toolchain inventory after apt changes
