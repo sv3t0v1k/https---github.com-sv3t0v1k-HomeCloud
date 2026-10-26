@@ -1,7 +1,5 @@
-name: HomeCloud CI
+name: HomeCloud Release Qualification
 on:
-  push:
-    branches: [main]
   workflow_call:
     inputs:
       candidate_version:
