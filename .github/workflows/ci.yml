@@ -1,8 +1,5 @@
-name: HomeCloud CI
+name: HomeCloud Release Qualification
 on:
-  push:
-    branches: [main]
-  pull_request:
   workflow_call:
     inputs:
       candidate_version:
@@ -21,6 +18,66 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 jobs:
+  pr-fast-backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    container: node:24.21.0-bookworm-slim@sha256:51b1100cc2a83d370c6a60952e3f2989c8a43159d0e38586e090f3b3326efefd
+    steps:
+      - name: Patch CI Perl and install toolchain
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates curl gcc libc6-dev git python3 unzip util-linux perl-base=5.36.0-7+deb12u4
+          test "$(dpkg-query -W -f='${Version}' perl-base)" = 5.36.0-7+deb12u4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - run: python3 scripts/ci/install-npm.py
+      - run: npm ci --no-audit
+        working-directory: backend
+      - run: sh native/build.sh
+        working-directory: backend
+      - name: Route all unit suites, including critical smoke
+        run: python3 scripts/ci/test-routing.py list unit > backend-unit-suites.txt
+      - name: Run unit suites without PostgreSQL or bench suites
+        shell: bash
+        working-directory: backend
+        run: |
+          mapfile -t suites < ../backend-unit-suites.txt
+          test "${#suites[@]}" -gt 0
+          chown -R node:node "$GITHUB_WORKSPACE"
+          runuser -u node -- npm test -- --runInBand --runTestsByPath "${suites[@]}" --json --outputFile=../backend-unit-tests.json
+      - run: python3 scripts/ci/test-routing.py verify unit backend-unit-tests.json
+      - run: npm run lint
+        working-directory: backend
+      - run: ./node_modules/.bin/tsc --noEmit -p tsconfig.json
+        working-directory: backend
+      - run: npm run build
+        working-directory: backend
+      - run: node test/file-type-compiled-runtime.cjs
+        working-directory: backend
+      - name: Patched dependency runtime and multipart boundaries
+        run: runuser -u node -- node --test --test-timeout=10000 test/dependency-security-runtime.cjs
+        working-directory: backend
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: backend-unit-tests-${{ github.run_attempt }}
+          path: backend-unit-tests.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Mandatory actual fast backend environment qualification
+        if: always()
+        run: |
+          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy"
+          sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "pr-fast-backend" "backend" "environment-pr-fast-backend"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: environment-pr-fast-backend-${{ github.run_attempt }}
+          path: environment-pr-fast-backend
+          if-no-files-found: error
+          retention-days: 14
   backend:
     runs-on: ubuntu-24.04
     timeout-minutes: 110
@@ -41,7 +98,7 @@ jobs:
       - name: Patch CI Perl and install toolchain
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends ca-certificates curl gcc libc6-dev git python3 util-linux perl-base=5.36.0-7+deb12u4
+          apt-get install -y --no-install-recommends ca-certificates curl gcc libc6-dev git python3 unzip util-linux perl-base=5.36.0-7+deb12u4
           test "$(dpkg-query -W -f='${Version}' perl-base)" = 5.36.0-7+deb12u4
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
@@ -67,6 +124,9 @@ jobs:
       - run: python3 scripts/ci/test-stage-cache-proof.py
       - run: python3 scripts/ci/test-secret-findings.py
       - run: python3 scripts/ci/test-install-npm.py
+      - run: python3 scripts/ci/test-trivy-archive.py
+      - run: python3 scripts/ci/test-test-routing.py
+      - run: python3 scripts/ci/test-audit-domains.py
       - name: Retain actual CI toolchain inventory after apt changes
         run: dpkg-query -W -f='${binary:Package}\t${Version}\n' > ci-toolchain-packages.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -76,26 +136,24 @@ jobs:
           path: ci-toolchain-packages.txt
           if-no-files-found: error
           retention-days: 14
-      - name: Full suite as unprivileged user
+      - name: Route PostgreSQL, concurrency, filesystem and bench suites
+        run: python3 scripts/ci/test-routing.py list integration > backend-integration-suites.txt
+      - name: Integration suites as unprivileged user
+        shell: bash
         run: |
-          chown -R node:node "$GITHUB_WORKSPACE"
-          runuser -u node -- npm test -- --runInBand --json --outputFile=../backend-tests.json
+          mapfile -t suites < ../backend-integration-suites.txt
+          test "${#suites[@]}" -gt 0
+          report_dir="$PWD/.ci-reports"
+          install -d -o node -g node -m 0700 "$report_dir"
+          runuser -u node -- sh -c 'test -w "$1" && : > "$1/.write-check" && rm "$1/.write-check"' sh "$report_dir"
+          runuser -u node -- npm test -- --runInBand --runTestsByPath "${suites[@]}" --json --outputFile="$report_dir/backend-integration-tests.json"
         working-directory: backend
-      - name: PostgreSQL suites must execute
-        run: |
-          node -e 'const r=require("./backend-tests.json");const s=r.testResults.filter(x=>x.name.endsWith(".postgres.spec.ts"));if(s.length<12||s.some(x=>x.status!=="passed"||!x.assertionResults.length||x.assertionResults.some(t=>t.status!=="passed")))process.exit(1)'
-      - run: npm run lint
-        working-directory: backend
-      - run: npm run test:file-type:compiled
-        working-directory: backend
-      - name: Patched dependency runtime and multipart boundaries
-        run: runuser -u node -- node --test --test-timeout=10000 test/dependency-security-runtime.cjs
-        working-directory: backend
+      - run: python3 scripts/ci/test-routing.py verify integration backend/.ci-reports/backend-integration-tests.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
-          name: backend-tests-${{ github.run_attempt }}
-          path: backend-tests.json
+          name: backend-integration-tests-${{ github.run_attempt }}
+          path: backend/.ci-reports/backend-integration-tests.json
           if-no-files-found: error
           retention-days: 14
       - name: Mandatory actual CI environment qualification
@@ -129,12 +187,21 @@ jobs:
         run: python3 scripts/ci/install-npm.py
       - run: npm ci --no-audit
         working-directory: frontend
-      - run: npm test
+      - name: Run all frontend unit suites with a checked report
+        run: npm test -- --reporter=json --outputFile=../frontend-tests.json
         working-directory: frontend
+      - run: python3 scripts/ci/test-routing.py verify frontend frontend-tests.json
       - run: npm run lint
         working-directory: frontend
       - run: npm run build
         working-directory: frontend
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: frontend-tests-${{ github.run_attempt }}
+          path: frontend-tests.json
+          if-no-files-found: error
+          retention-days: 14
       - name: Mandatory actual CI environment qualification
         if: always()
         run: |
@@ -180,6 +247,14 @@ jobs:
       - run: python3 deploy/linux/test_preflight.py
         env:
           HOMECLOUD_TEST_ROOT: ${{ github.workspace }}
+      - name: Isolated recovery contract tests with fake Docker
+        run: |
+          sudo mkdir -p /private/tmp
+          sudo chmod 1777 /private/tmp
+          python3 scripts/tests/test-restore-schema.py
+          python3 scripts/tests/test-restore-preflight.py
+          python3 scripts/tests/test-restore-cleanup.py
+          python3 scripts/tests/test-restore-health.py
       - name: Mandatory actual CI environment qualification
         if: always()
         run: |
@@ -352,10 +427,10 @@ jobs:
         env:
           IMAGE_SCANNER_INSTALL_RESULT: ${{ steps.scanner.outcome }}
         run: |
-          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy"
           if [ "$IMAGE_SCANNER_INSTALL_RESULT" != "success" ]; then
             sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/homecloud-trivy"
           fi
+          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy" "$RUNNER_TEMP/homecloud-trivy"
           python3 -c "import os,json; temp=os.environ['RUNNER_TEMP']; print(json.dumps([dict(id='image-trivy', path=temp+'/homecloud-trivy/trivy')]))" > "$RUNNER_TEMP/environment-tools.json"
           sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "image-build-${{ matrix.component }}" "none" "environment-image-build-${{ matrix.component }}" "$RUNNER_TEMP/environment-tools.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -444,7 +519,7 @@ jobs:
       - name: Mandatory actual CI environment qualification
         if: always()
         run: |
-          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy"
+          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy" "$RUNNER_TEMP/homecloud-trivy"
           python3 -c "import os,json; temp=os.environ['RUNNER_TEMP']; print(json.dumps([dict(id='image-trivy', path=temp+'/homecloud-trivy/trivy')]))" > "$RUNNER_TEMP/environment-tools.json"
           sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "base-${{ matrix.base }}" "none" "environment-base-${{ matrix.base }}" "$RUNNER_TEMP/environment-tools.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -475,21 +550,27 @@ jobs:
         run: python3 scripts/ci/install-npm.py
       - run: npm ci --ignore-scripts --no-audit
         working-directory: ${{ matrix.component }}
-      - name: Capture audit response, reject infrastructure errors
+      - name: Capture runtime and full dependency audits; reject infrastructure errors
         shell: bash
         working-directory: ${{ matrix.component }}
         run: |
           set +e
+          npm audit --omit=dev --json > ../audit-runtime-${{ matrix.component }}.json
+          runtime_result=$?
           npm audit --json > ../audit-${{ matrix.component }}.json
-          result=$?
+          full_result=$?
           set -e
-          test "$result" -le 1
+          test "$runtime_result" -le 1 && test "$full_result" -le 1
+      - run: python3 scripts/ci/audit-domains.py audit-runtime-${{ matrix.component }}.json audit-${{ matrix.component }}.json audit-domains-${{ matrix.component }}.json
       - run: python3 scripts/ci/audit-gate.py audit-${{ matrix.component }}.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: audit-${{ matrix.component }}-${{ github.run_attempt }}
-          path: audit-${{ matrix.component }}.json
+          path: |
+            audit-${{ matrix.component }}.json
+            audit-runtime-${{ matrix.component }}.json
+            audit-domains-${{ matrix.component }}.json
           if-no-files-found: error
           retention-days: 14
       - name: Mandatory actual CI environment qualification
@@ -618,7 +699,7 @@ jobs:
       - name: Mandatory actual CI environment qualification
         if: always()
         run: |
-          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy"
+          sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/environment-trivy" "$RUNNER_TEMP/homecloud-trivy"
           python3 -c "import os,json; temp=os.environ['RUNNER_TEMP']; print(json.dumps([dict(id='image-trivy', path=temp+'/homecloud-trivy/trivy')]))" > "$RUNNER_TEMP/environment-tools.json"
           sh scripts/ci/scan-environment.sh "$RUNNER_TEMP/environment-trivy/trivy" "support-${{ matrix.role }}" "none" "environment-support-${{ matrix.role }}" "$RUNNER_TEMP/environment-tools.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -630,7 +711,7 @@ jobs:
           retention-days: 14
   policy-coverage:
     if: always()
-    needs: [backend, frontend, configuration, image-build, provenance-pair, base-image-scan, security, secrets, support-images]
+    needs: [pr-fast-backend, backend, frontend, configuration, image-build, provenance-pair, base-image-scan, security, secrets, support-images]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
@@ -653,14 +734,39 @@ jobs:
           path: production-qualification.json
           if-no-files-found: error
           retention-days: 14
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        if: always()
+        with:
+          name: offline-provenance-backend-${{ github.run_attempt }}
+          path: offline-backend
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        if: always()
+        with:
+          name: offline-provenance-frontend-${{ github.run_attempt }}
+          path: offline-frontend
+      - name: Bind exact image pair in qualification collector
+        if: always()
+        run: |
+          python3 scripts/ci/provenance-pair.py --backend offline-backend/offline-backend.json --frontend offline-frontend/offline-frontend.json --commit "$(git rev-parse HEAD)" --repository "${GITHUB_REPOSITORY,,}" --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --version "${{ inputs.candidate_version || 'dry-run' }}" --output provenance-dry-run-collector.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: provenance-dry-run-collector-${{ github.run_attempt }}
+          path: provenance-dry-run-collector.json
+          if-no-files-found: error
+          retention-days: 14
   gate:
     if: always()
-    needs: [backend, frontend, configuration, image-build, provenance-pair, base-image-scan, security, secrets, support-images, policy-coverage]
+    needs: [pr-fast-backend, backend, frontend, configuration, image-build, provenance-pair, base-image-scan, security, secrets, support-images, policy-coverage]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     env:
       QUALIFICATION_PROFILE: ${{ inputs.qualification_profile == 'release' && 'release' || github.event_name == 'pull_request' && 'pull-request' || github.event_name == 'push' && github.ref == 'refs/heads/main' && 'main' || 'invalid' }}
     steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - name: Require every gate
         env:
           RESULTS: ${{ toJSON(needs) }}

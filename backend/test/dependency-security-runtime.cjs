@@ -23,7 +23,7 @@ function uploadApp(options) {
 
 test('Nest and direct imports use the same patched Multer', () => {
   assert.equal(multer, require('multer'));
-  assert.equal(nestRequire('multer/package.json').version, '2.4.0');
+  assert.equal(nestRequire('multer/package.json').version, '2.5.0');
 });
 
 test('compiled production limit accepts N bytes and rejects N + 1', async () => {

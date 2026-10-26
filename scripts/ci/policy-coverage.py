@@ -23,14 +23,14 @@ evidence = module('scan-evidence')
 environment = module('environment-evidence')
 RUNTIME = ('backend', 'frontend', 'postgres', 'ingress')
 STAGES = ('backend-deps', 'backend-builder', 'frontend-deps', 'frontend-builder')
-ENVIRONMENTS = ('backend', 'frontend', 'configuration', 'image-build-backend', 'image-build-frontend',
+ENVIRONMENTS = ('backend', 'pr-fast-backend', 'frontend', 'configuration', 'image-build-backend', 'image-build-frontend',
                 'provenance-pair', 'base-node', 'base-nginx', 'base-postgres', 'base-node-ci',
                 'security-backend', 'security-frontend', 'secrets',
                 'support-postgres', 'support-ingress', 'support-buildkit')
 BASE_ENVIRONMENTS = ('base-node', 'base-nginx', 'base-postgres', 'base-node-ci')
 RAW_BASES = ('node', 'nginx', 'postgres', 'node-ci')
 PROFILES = ('pull-request', 'main', 'release')
-COMPONENTS = {'backend': 'backend', 'frontend': 'frontend',
+COMPONENTS = {'backend': 'backend', 'pr-fast-backend': 'backend', 'frontend': 'frontend',
               'security-backend': 'backend', 'security-frontend': 'frontend'}
 
 
@@ -156,13 +156,13 @@ def qualify(root, source, profile='release'):
                                  datetime.now(timezone.utc), current.get('java_db'))
             summaries = {}
             for role, report in reports.items():
-                if role == 'rootfs' and name != 'backend':
+                if role == 'rootfs' and name not in environment.PINNED_BACKEND_ENVIRONMENTS:
                     summaries[role] = policy.evaluate_host_platform(report, current)
                 else:
                     summaries[role] = policy.evaluate_environment(report, component=role in ('component', 'global-npm', 'tools'))
             accepted = {'PASS', 'PLATFORM_ASSURANCE'}
             return dict(source_commit=source, scans=summaries,
-                        runner_policy='GITHUB_HOSTED_PLATFORM_ASSURANCE' if name != 'backend' else 'PINNED_CONTAINER_STRICT',
+                        runner_policy='GITHUB_HOSTED_PLATFORM_ASSURANCE' if name not in environment.PINNED_BACKEND_ENVIRONMENTS else 'PINNED_CONTAINER_STRICT',
                         gate='BLOCKED' if any(s['gate'] not in accepted for s in summaries.values()) else 'PASS')
         attempt('environments', name, check)
     for role in (() if profile == 'pull-request' else RAW_BASES):

@@ -139,10 +139,15 @@ class Tests(unittest.TestCase):
 
     def git_run_stub(self,payload,fetch_status=0):
         calls=[]
+        fetches=0
         def run(command,**kwargs):
+            nonlocal fetches
             calls.append((command,kwargs))
             if 'fetch' in command:
-                return SimpleNamespace(returncode=fetch_status,stdout=b'',stderr=b'')
+                status=(fetch_status[min(fetches,len(fetch_status)-1)]
+                        if isinstance(fetch_status,tuple) else fetch_status)
+                fetches+=1
+                return SimpleNamespace(returncode=status,stdout=b'',stderr=b'')
             if command[-3:-1]==['cat-file','-t']:
                 return SimpleNamespace(returncode=0,stdout=b'commit\n',stderr=b'')
             if command[-3:-1]==['cat-file','commit']:
@@ -209,7 +214,7 @@ class Tests(unittest.TestCase):
             self.assertFalse(s.upstream(url,sha))
         self.assertEqual(sum('fetch' in command for command,_ in calls),1)
 
-    def test_upstream_network_failure_stays_blocked_without_retry(self):
+    def test_upstream_network_failure_stays_blocked_after_bounded_retry(self):
         payload,sha=self.synthetic_commit()
         url=s.UPSTREAM_GO_REPOSITORY+'/+/'+sha
         line='"url":"'+url+'"'
@@ -220,7 +225,18 @@ class Tests(unittest.TestCase):
                              read_line=lambda _:line,check_context=lambda *_:True)
         self.assertEqual(result['status'],'BLOCKED')
         self.assertEqual(result['unresolved_findings'],1)
-        self.assertEqual(sum('fetch' in command for command,_ in calls),1)
+        self.assertEqual(sum('fetch' in command for command,_ in calls),2)
+
+    def test_transient_fetch_retries_only_the_same_exact_object(self):
+        payload,sha=self.synthetic_commit()
+        url=s.UPSTREAM_GO_REPOSITORY+'/+/'+sha
+        calls,run=self.git_run_stub(payload,fetch_status=(1,0))
+        with patch.object(s.subprocess,'run',side_effect=run):
+            self.assertTrue(s.upstream(url,sha))
+        fetches=[command for command,_ in calls if 'fetch' in command]
+        self.assertEqual(len(fetches),2)
+        self.assertEqual(fetches[0],fetches[1])
+        self.assertEqual(fetches[0][-2:],[s.UPSTREAM_GO_REPOSITORY,sha])
 
     def test_upstream_without_raw_report_digest_stays_blocked(self):
         payload,sha=self.synthetic_commit()

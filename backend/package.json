@@ -44,7 +44,7 @@
     "file-type": "21.3.2",
     "helmet": "^8.1.0",
     "mime-types": "^2.1.35",
-    "multer": "2.4.0",
+    "multer": "2.5.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
@@ -88,7 +88,7 @@
     "@nestjs/platform-express": {
       "multer": "$multer",
       "express": "4.22.3",
-      "body-parser": "1.20.8"
+      "body-parser": "1.20.9"
     },
     "@nestjs/config": {
       "lodash": "4.18.1"

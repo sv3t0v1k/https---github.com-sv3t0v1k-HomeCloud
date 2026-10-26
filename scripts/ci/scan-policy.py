@@ -82,7 +82,7 @@ def evaluate_host_platform(report, evidence):
     """Retain the full host scan while applying provider assurance to GitHub-managed rootfs."""
     if not isinstance(evidence, dict) or evidence.get('evidence_status') != 'PASS':
         raise ValueError('Validated environment evidence is required for host platform assurance')
-    if evidence.get('environment_id') == 'backend':
+    if evidence.get('environment_id') in ('backend', 'pr-fast-backend'):
         raise ValueError('Pinned backend container rootfs remains under the strict environment gate')
     checker = Path(__file__).with_name('environment-evidence.py')
     import importlib.util

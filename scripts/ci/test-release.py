@@ -106,12 +106,12 @@ class ReleaseTests(unittest.TestCase):
                     production='NO_GO', errors=[], runtime={role:image(role) for role in r.RUNTIME},
                     build={role:image(role) for role in r.BUILD},
                     environments={role:dict(source_commit=self.commit,gate='PASS',
-                                            runner_policy='PINNED_CONTAINER_STRICT' if role == 'backend' else 'GITHUB_HOSTED_PLATFORM_ASSURANCE',
-                                            scans={'rootfs':dict(gate='PASS',findings={}) if role == 'backend' else
+                                            runner_policy='PINNED_CONTAINER_STRICT' if role in ('backend', 'pr-fast-backend') else 'GITHUB_HOSTED_PLATFORM_ASSURANCE',
+                                            scans={'rootfs':dict(gate='PASS',findings={}) if role in ('backend', 'pr-fast-backend') else
                                                    dict(gate='PLATFORM_ASSURANCE',findings={'HIGH':1},risk_domain='github-hosted-runner-platform',raw_findings_retained=True),
                                                   'global-npm':dict(gate='PASS',findings={}),
                                                   'tools':dict(gate='PASS',findings={}),
-                                                  **({'component':dict(gate='PASS',findings={})} if role in ('backend','frontend','security-backend','security-frontend') else {})})
+                                                  **({'component':dict(gate='PASS',findings={})} if role in ('backend','pr-fast-backend','frontend','security-backend','security-frontend') else {})})
                                             for role in r.ENVIRONMENTS},
                     raw_bases={role:dict(gate='DIAGNOSTIC') for role in ('node','nginx','postgres','node-ci')})
 

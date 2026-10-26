@@ -79,7 +79,7 @@ class CoverageTests(unittest.TestCase):
         for name in coverage.ENVIRONMENTS:
             p = self.write('env-'+name+'/rootfs.json', self.report('/', image=False))
             rootfs_report = json.loads(p.read_text())
-            rootfs_report['ArtifactName'] = 'runner-host' if name != 'backend' else 'container-root'
+            rootfs_report['ArtifactName'] = 'runner-host' if name not in ('backend', 'pr-fast-backend') else 'container-root'
             p.write_text(json.dumps(rootfs_report))
             component = coverage.COMPONENTS.get(name, 'none')
             reports = {'rootfs': coverage.sha(p)}
@@ -114,7 +114,7 @@ class CoverageTests(unittest.TestCase):
                        github=dict(runner_environment='github-hosted', runner_os='Linux', runner_arch='X64',
                                    image_os='ubuntu24', image_version='20261018.1.0'),
                        os_release='ID=ubuntu\nVERSION_ID="24.04"\n',
-                       rootfs_artifact_name='runner-host' if name != 'backend' else 'container-root',
+                       rootfs_artifact_name='runner-host' if name not in ('backend', 'pr-fast-backend') else 'container-root',
                        global_npm_root=dict(exit_code=0, stdout='/usr/lib/node_modules')))
         raw_lock = json.loads(Path(__file__).with_name('images.lock.json').read_text())
         for role in ('node', 'nginx', 'postgres', 'node-ci'):

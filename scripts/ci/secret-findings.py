@@ -137,9 +137,20 @@ def upstream(url, sha):
                 ['git','-C',repository,'cat-file','-t',sha],
             )
             for index,command in enumerate(commands):
-                result=subprocess.run(command,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,
-                                      env=env,timeout=60,check=False)
-                if result.returncode != 0:
+                # Retry only the same exact-object fetch once on a transient failure.
+                # Both attempts still require the commit type and object ID proof below.
+                result=None
+                for attempt in range(2 if index == 1 else 1):
+                    try:
+                        result=subprocess.run(command,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,
+                                              env=env,timeout=60,check=False)
+                    except subprocess.TimeoutExpired:
+                        if attempt == 0 and index == 1:
+                            continue
+                        return False
+                    if result.returncode == 0:
+                        break
+                if result is None or result.returncode != 0:
                     return False
                 if index == 2 and result.stdout.strip() != b'commit':
                     return False
