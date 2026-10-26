@@ -6,6 +6,7 @@ import { useSession } from '../auth/SessionContext'
 import { ApiError } from '../api/errors'
 import { safeOperationError } from '../files/operationErrors'
 import { changePassword, getStorageInfo, updateProfile, type StorageInfo } from './api'
+import { UpdatesSection } from './UpdatesSection'
 
 export function AccountDialog({ onClose }: { onClose(): void }) {
   const session = useSession()
@@ -65,6 +66,7 @@ export function AccountDialog({ onClose }: { onClose(): void }) {
           <form onSubmit={(event) => void save(event, false)}><label className="field">Имя<input autoComplete="name" className="input" disabled={busy} maxLength={100} onChange={(event) => setName(event.target.value)} required value={name} /></label><p className="account-hint">Email используется для входа. Его изменение и загрузка фото пока недоступны.</p><button className="button button--primary" disabled={busy} type="submit">Сохранить профиль</button></form>
         </section>
         <section aria-label="Хранилище" className="account-section"><h3>Хранилище</h3>{storage ? <><p>Использовано {formatBytes(storage.storageUsed)} из {formatBytes(storage.storageQuota)}. Файлов: {storage.fileCount}. Папок: {storage.folderCount}.</p>{percent !== null ? <progress aria-label="Использование хранилища" className="upload-progress-bar" max={100} value={percent} /> : null}</> : !storageError ? <p role="status">Получаем информацию о хранилище…</p> : null}{storageError ? <><p role="alert">{storageError}</p><button className="button button--ghost" onClick={() => setRefresh((value) => value + 1)} type="button">Повторить загрузку квоты</button></> : null}</section>
+        <UpdatesSection />
 
         <form className="account-section" aria-labelledby="account-security-title" onSubmit={(event) => void save(event, true)}><h3 id="account-security-title">Безопасность</h3><p className="account-hint">После смены пароля вы выйдете из этого аккаунта. На других устройствах повторный вход потребуется после истечения текущего сеанса.</p><label className="field">Текущий пароль<input autoComplete="current-password" className="input" disabled={busy} onChange={(event) => setOldPassword(event.target.value)} required type="password" value={oldPassword} /></label><label className="field">Новый пароль<input autoComplete="new-password" className="input" disabled={busy} minLength={8} onChange={(event) => setNewPassword(event.target.value)} required type="password" value={newPassword} /></label><label className="field">Повторите новый пароль<input autoComplete="new-password" className="input" disabled={busy} minLength={8} onChange={(event) => setConfirmation(event.target.value)} required type="password" value={confirmation} /></label><button className="button button--primary" disabled={busy} type="submit">Изменить пароль</button></form>
         {error ? <p className="alert alert--danger" role="alert">{error}</p> : null}{notice ? <p role="status">{notice}</p> : null}

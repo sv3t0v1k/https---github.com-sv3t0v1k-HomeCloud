@@ -9,6 +9,7 @@ import { UploadsModule } from "./uploads/uploads.module";
 import { SharingModule } from "./sharing/sharing.module";
 import { PreviewsModule } from "./previews/previews.module";
 import { StorageModule } from "./storage/storage.module";
+import { UpdatesModule } from "./updates/updates.module";
 import { CommonModule } from "./common/common.module";
 import { MetricsController } from "./common/observability/metrics.controller";
 import { MetricsService } from "./common/observability/metrics.service";
@@ -48,6 +49,7 @@ import { HealthController } from "./common/health.controller";
     SharingModule,
     PreviewsModule,
     StorageModule,
+    UpdatesModule,
     CommonModule,
   ],
   controllers: [HealthController, MetricsController],

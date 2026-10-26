@@ -1848,3 +1848,60 @@ PR/main/release требуют 13/17/17 execution environments соответс�
 Независимый review маршрутизации и security gate не нашёл блокирующих замечаний.
 Hosted execution, фактический PR №2 и время fast job не подтверждены; push,
 merge, release, deployment и обновление домашнего сервера не выполнялись.
+
+### Updates v1 — этап 1: версии и обнаружение (2026-10-26)
+
+**IMPLEMENTED_LOCALLY / FULL_GATE_OPEN; Production NO_GO; Multi-Storage DEFERRED.**
+Перед началом GitHub подтвердил merge PR №3 в `8ae50d5`; актуальный удалённый
+`main` взят за основу отдельной ветки. Локальная реализация `a887afd` добавила
+read-only backend проверку опубликованного beta prerelease канала `test`,
+`release-lock.json`, точной пары GHCR digests, release workflow/tag и совпадения
+миграций. В аккаунте настроенного администратора добавлен раздел «Обновления».
+Отсутствие установленного deployment metadata и недоступность проверки не
+превращаются в ложное сообщение о доступном обновлении. Публикация, установка,
+Docker, backup/restore и миграции не выполнялись; CI/release workflow не менялись.
+[Контракт и конфигурация](updates-stage-1.md). На дату проверки опубликованного
+beta release `test` нет.
+
+Адресные backend 5/5 и frontend 13/13 PASS; оба lint и build PASS (backend lint:
+19 прежних warning). Независимый read-only review обнаружил пять замечаний:
+Unicode checksum, актуальность GHCR digests, связь run/tag, источник изменений
+и metadata существующего тестового сервера. Код и контракт исправлены,
+локальная работа review проверена по diff и адресным тестам. Полный backend
+suite на macOS: 4 failed Linux-only suites, 68 passed, 17 skipped; запуск
+прерван после итогового отчёта из-за open handle. Полный frontend: 322 passed,
+1 failed в существующем `PublicUploadPanel.test.tsx`; тот же fail воспроизведён
+на исходном checkout без изменений Updates. Hosted gate и работа на домашнем
+сервере не проверялись. `COMPLETE` до их подтверждения не установлен.
+
+### Updates v1 — подготовка ручного test deploy, без установки (2026-10-26)
+
+**DEPLOY BLOCKED; Production NO_GO; Multi-Storage DEFERRED.** На тестовом
+сервере `SOURCE_REVISION=48fb9c0`, а обе работающие app-image labels указывают
+`ac1aca1`. Единственное несовпадение `SOURCE_MANIFEST.sha256` —
+`deploy/ingress/default.conf.template`: manifest от 13 октября ожидает
+`cfc23d1b295811456269b346ce2400e19989a3a532482dc6b7cfe68d92648420`,
+серверный файл от 25 октября имеет
+`880eba62e7e8e3f7f3cff1e25e5433e967ed3e7102712a407a9bb44044fdb192` и побайтово
+совпадает с текущим Git; различие — одна строка потокового ZIP-маршрута из
+`f8965c1`. Причина расхождения установлена, но серверный source manifest
+остаётся недействительным; файл и manifest не изменялись.
+
+Штатный `project-test.sh` требует root для read-only disk/config/mount/Docker
+preflight и использует ровно три Compose файла; `start` после preflight
+пересоздаёт только четыре сервиса с `--no-build --pull never`, а backend startup
+выполняет миграции. `sudo -n` для SSH-пользователя недоступен; обход защиты и
+изменение sudoers не выполнялись. Локальный test-only commit `939c496`
+передаёт `UPDATE_ADMIN_USER_ID` и путь к операторским метаданным через
+существующий `/storage`, сохраняя пустой ID по умолчанию; Mac/production
+конфигурации, mounts и сервисы не менялись. Трёхфайловый Compose config с
+синтетическими значениями PASS: прежняя конфигурация после удаления двух новых
+ключей структурно совпадает по JSON, ID проходит в backend, mounts неизменны.
+Адресные backend 5/5 PASS, независимый read-only review без блокеров.
+
+Сервер, контейнеры, БД, storage, CI/release и резервные копии не менялись;
+push/merge/deploy не выполнялись. Проверка source export и доступ к штатному
+root preflight остаются обязательными до backup и установки. Исходный целевой
+SHA `0056d6c` не подменён новым локальным commit конфигурации: дальнейший
+deployment должен явно зафиксировать, какой SHA образов и какой SHA Compose
+используются. `COMPLETE` не установлен.

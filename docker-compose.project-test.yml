@@ -38,6 +38,11 @@ services:
     mem_limit: 1g
     environment:
       NODE_OPTIONS: --max-old-space-size=512
+      # Updates v1: пустой ID сохраняет прежнее поведение (раздел выключен).
+      UPDATE_ADMIN_USER_ID: ${UPDATE_ADMIN_USER_ID:-}
+      # Файл создаётся оператором только после сверки работающего SHA и миграций.
+      # /storage уже является собственным bind mount тестового проекта.
+      UPDATE_INSTALLED_METADATA_PATH: /storage/.homecloud-installed-version.json
       # Малые initial tests: 256 MiB/file, 2 GiB total. Один upload за раз.
       MAX_FILE_SIZE: "268435456"
       MAX_TOTAL_SIZE: "2147483648"
