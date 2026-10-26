@@ -1848,3 +1848,28 @@ PR/main/release требуют 13/17/17 execution environments соответс�
 Независимый review маршрутизации и security gate не нашёл блокирующих замечаний.
 Hosted execution, фактический PR №2 и время fast job не подтверждены; push,
 merge, release, deployment и обновление домашнего сервера не выполнялись.
+
+### Updates v1 — этап 1: версии и обнаружение (2026-10-26)
+
+**IMPLEMENTED_LOCALLY / FULL_GATE_OPEN; Production NO_GO; Multi-Storage DEFERRED.**
+Перед началом GitHub подтвердил merge PR №3 в `8ae50d5`; актуальный удалённый
+`main` взят за основу отдельной ветки. Локальная реализация `a887afd` добавила
+read-only backend проверку опубликованного beta prerelease канала `test`,
+`release-lock.json`, точной пары GHCR digests, release workflow/tag и совпадения
+миграций. В аккаунте настроенного администратора добавлен раздел «Обновления».
+Отсутствие установленного deployment metadata и недоступность проверки не
+превращаются в ложное сообщение о доступном обновлении. Публикация, установка,
+Docker, backup/restore и миграции не выполнялись; CI/release workflow не менялись.
+[Контракт и конфигурация](updates-stage-1.md). На дату проверки опубликованного
+beta release `test` нет.
+
+Адресные backend 5/5 и frontend 13/13 PASS; оба lint и build PASS (backend lint:
+19 прежних warning). Независимый read-only review обнаружил пять замечаний:
+Unicode checksum, актуальность GHCR digests, связь run/tag, источник изменений
+и metadata существующего тестового сервера. Код и контракт исправлены,
+локальная работа review проверена по diff и адресным тестам. Полный backend
+suite на macOS: 4 failed Linux-only suites, 68 passed, 17 skipped; запуск
+прерван после итогового отчёта из-за open handle. Полный frontend: 322 passed,
+1 failed в существующем `PublicUploadPanel.test.tsx`; тот же fail воспроизведён
+на исходном checkout без изменений Updates. Hosted gate и работа на домашнем
+сервере не проверялись. `COMPLETE` до их подтверждения не установлен.
