@@ -6,6 +6,7 @@ import { changePassword, getStorageInfo, updateProfile } from './api'
 const session = vi.hoisted(() => ({ user: { name: 'Алексей', email: 'alex@example.invalid', avatar: null as string | null }, endSession: vi.fn(), updateUser: vi.fn() }))
 vi.mock('../auth/SessionContext', () => ({ useSession: () => session }))
 vi.mock('./api', () => ({ changePassword: vi.fn(), getStorageInfo: vi.fn(), updateProfile: vi.fn() }))
+vi.mock('./UpdatesSection', () => ({ UpdatesSection: () => null }))
 describe('AccountDialog', () => {
   beforeEach(() => { vi.clearAllMocks(); vi.mocked(getStorageInfo).mockResolvedValue({ storageQuota: '1000', storageUsed: '25', fileCount: 2, folderCount: 1 }) })
   afterEach(cleanup)
