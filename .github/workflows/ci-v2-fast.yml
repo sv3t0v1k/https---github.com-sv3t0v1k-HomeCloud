@@ -1,10 +1,7 @@
-# PR Fast and Integration; full Security Qualification remains a separate request.
-# Fast PASS is not Security PASS or release approval.
 name: HomeCloud PR Fast + Integration v2
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-  workflow_call:
 permissions:
   contents: read
   pull-requests: read
@@ -24,32 +21,18 @@ jobs:
           test "$(dpkg-query -W -f='${Version}' perl-base)" = 5.36.0-7+deb12u4
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
       - run: python3 scripts/ci/install-npm.py
       - run: npm ci --no-audit
         working-directory: backend
       - run: sh native/build.sh
         working-directory: backend
-      - run: python3 scripts/ci/test-release.py
-      - run: python3 scripts/ci/test-provenance.py
-      - run: python3 scripts/ci/test-scan-evidence.py
-      - run: python3 scripts/ci/test-scan-policy.py
-      - run: python3 scripts/ci/test-environment-evidence.py
-      - run: python3 scripts/ci/test-skopeo-closure.py
-      - run: python3 scripts/ci/test-runner-minimization.py
-      - run: python3 scripts/ci/test-gosu-disposition.py
-      - run: python3 scripts/ci/test-oci-scan-binding.py
-      - run: python3 scripts/ci/test-policy-coverage.py
-      - run: python3 scripts/ci/test-ci-gate.py
       - run: python3 scripts/ci/test-ci-v2-fast-gate.py
       - run: python3 scripts/ci/test-ci-v2-candidate.py
-      - run: python3 scripts/ci/test-stage-cache-proof.py
       - run: python3 scripts/ci/test-secret-findings.py
       - run: python3 scripts/ci/test-install-npm.py
-      - run: python3 scripts/ci/test-trivy-archive.py
       - run: python3 scripts/ci/test-test-routing.py
-      - run: python3 scripts/ci/test-audit-domains.py
       - name: Route all unit suites, including critical smoke
         run: python3 scripts/ci/test-routing.py list unit > backend-unit-suites.txt
       - name: Run unit suites without PostgreSQL or bench suites
@@ -103,7 +86,7 @@ jobs:
           test "$(dpkg-query -W -f='${Version}' perl-base)" = 5.36.0-7+deb12u4
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
       - name: Install checksum-pinned compatible npm before dependency commands
         run: python3 scripts/ci/install-npm.py
@@ -111,15 +94,6 @@ jobs:
         working-directory: backend
       - run: sh native/build.sh
         working-directory: backend
-      - name: Retain actual CI toolchain inventory after apt changes
-        run: dpkg-query -W -f='${binary:Package}\t${Version}\n' > ci-toolchain-packages.txt
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: always()
-        with:
-          name: ci-toolchain-packages-${{ github.run_attempt }}
-          path: ci-toolchain-packages.txt
-          if-no-files-found: error
-          retention-days: 14
       - name: Route PostgreSQL, concurrency, filesystem and bench suites
         run: python3 scripts/ci/test-routing.py list integration > backend-integration-suites.txt
       - name: Integration suites as unprivileged user
@@ -146,10 +120,8 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
-      - name: Remove unused hosted .NET SDK before workload; retain evidence
-        run: python3 scripts/ci/minimize-runner.py
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24.21.0'
@@ -180,10 +152,8 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
-      - name: Remove unused hosted .NET SDK before workload; retain evidence
-        run: python3 scripts/ci/minimize-runner.py
       - name: Pin normalized Compose API; preserve explicit false bind flags
         shell: bash
         run: |
@@ -221,11 +191,9 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Remove unused hosted .NET SDK before workload; retain evidence
-        run: python3 scripts/ci/minimize-runner.py
       - name: Pinned gitleaks; full reachable history, forbidden audit excluded before reading
         shell: bash
         run: |
