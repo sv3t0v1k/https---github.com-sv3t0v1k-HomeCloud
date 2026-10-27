@@ -35,7 +35,7 @@ class RestorePreflight(unittest.TestCase):
         start = source.index('# The dump is SQL, not a list of table names.')
         end = source.index('# Security: scan a storage', start)
         block = source[start:end]
-        with tempfile.TemporaryDirectory(prefix='d1-restore-', dir='/private/tmp') as tmp:
+        with tempfile.TemporaryDirectory(prefix='d1-restore-') as tmp:
             directory = Path(tmp)
             dump = directory / 'fixture.sql.gz'
             with gzip.open(dump, 'wt') as writer:
