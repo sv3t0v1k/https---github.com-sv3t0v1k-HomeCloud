@@ -13,7 +13,7 @@ set -euo pipefail
 #   - Old storage data is NEVER deleted before new data is verified in staging.
 #   - Storage switch uses atomic rename (mv) on the same filesystem.
 #   - DB restore is fail-closed: ON_ERROR_STOP=1, schema wipe, post-restore
-#     validation (known 7/8/9/10/11/13-table schemas, column and pending-SSD checks).
+#     validation (known 7/8/9/10/11/13/15-table schemas, column and pending-SSD checks).
 #   - Checksum/size mismatches, malformed .meta, unsupported format_version
 #     all abort BEFORE any destructive operation.
 #   - Migration failure aborts restore (no WARNING+continue).
@@ -174,7 +174,7 @@ validation_psql() {
 }
 
 validate_restored_database() {
-  local TABLE_COUNT EXPECTED_TABLE_NAMES t EXISTS FILES_COLS USERS_COUNT
+  local TABLE_COUNT EXPECTED_TABLE_NAMES t EXISTS FILES_COLS USERS_COUNT MIGRATIONS EXPECTED_CURRENT_MIGRATIONS
   TABLE_COUNT=$(validation_psql -tAc \
     "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'" | tr -d '[:space:]')
   EXPECTED_TABLE_NAMES="$CORE_TABLE_NAMES"
@@ -185,13 +185,56 @@ validate_restored_database() {
     10) EXPECTED_TABLE_NAMES="$EXPECTED_TABLE_NAMES upload_chunks download_capabilities storage_locations" ;;
     11) EXPECTED_TABLE_NAMES="$EXPECTED_TABLE_NAMES upload_chunks download_capabilities storage_locations upload_workspaces" ;;
     13) EXPECTED_TABLE_NAMES="$EXPECTED_TABLE_NAMES upload_chunks download_capabilities storage_locations upload_workspaces ssd_finalization_operations ssd_finalization_chunks" ;;
-    *) die "Database validation failed: expected a known 7/8/9/10/11/13-table schema, found $TABLE_COUNT" ;;
+    15) EXPECTED_TABLE_NAMES="$EXPECTED_TABLE_NAMES upload_chunks download_capabilities storage_locations upload_workspaces ssd_finalization_operations ssd_finalization_chunks public_share_operations archive_download_capabilities" ;;
+    *) die "Database validation failed: expected a known 7/8/9/10/11/13/15-table schema, found $TABLE_COUNT" ;;
   esac
   for t in $EXPECTED_TABLE_NAMES; do
     EXISTS=$(validation_psql -tAc \
       "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='$t' AND table_type='BASE TABLE'" | tr -d '[:space:]')
     [ "$EXISTS" = "1" ] || die "Database validation failed: table '$t' missing after restore"
   done
+  if [ "$TABLE_COUNT" = 15 ]; then
+    # Confirm both new tables and the exact migration set before running any
+    # migration against an isolated or target database.
+    validation_psql -tAc 'SELECT id, "shareLinkId", "shareRootFolderId", "userId", kind, "idempotencyKey", "requestSha256", "resultFolderId", "resultUploadSessionId", "createdAt", "expiresAt" FROM public.public_share_operations WHERE false' >/dev/null \
+      || die "Current schema public share operation columns are missing"
+    validation_psql -tAc 'SELECT id, "tokenHash", "userId", manifest, "expiresAt" FROM public.archive_download_capabilities WHERE false' >/dev/null \
+      || die "Current schema archive capability columns are missing"
+    EXPECTED_CURRENT_MIGRATIONS='1746824900000:CreateUsersTable1746824900000
+1746824910000:CreateFoldersTable1746824910000
+1746824920000:CreateFilesTable1746824920000
+1746824930000:CreateShareLinksTable1746824930000
+1746824940000:CreateUploadSessionsTable1746824940000
+1746825000000:CreateRefreshTokensTable1746825000000
+1746825010000:AddMissingIndexes1746825010000
+1746825020000:AddStorageUsedCheck1746825020000
+1746825030000:AddParentIdForeignKeys1746825030000
+1746825040000:ShareLinksTokenUnique1746825040000
+1746825050000:UploadSessionStatusCheck1746825050000
+1746825060000:AddNameNotEmptyCheck1746825060000
+1746825070000:UploadedChunksJsonb1746825070000
+1746825080000:AddFileUploadId1746825080000
+1746825090000:AddShareMaxDownloads1746825090000
+1746825100000:AddShareFailedAttempts1746825100000
+1746825110000:AddFileFolderIdMirrorLink1746825110000
+1746825120000:ShareLockedUntilTimestamptz1746825120000
+1746825130000:DurableUploadChunks1746825130000
+1746825140000:CreateDownloadCapabilities1746825140000
+1746825150000:LegacyStoragePlacement1746825150000
+1746825160000:UploadWorkspaceBinding1746825160000
+1746825170000:PrepareSsdUploadWorkspace1746825170000
+1746825180000:IsolatedSsdFinalizationJournal1746825180000
+1746825190000:SsdFinalizationRecovery1746825190000
+1746825200000:DurableUploadWholeSha2561746825200000
+1746825210000:PublicFolderShareBinding1746825210000
+1746825220000:PublicShareOperationReceipts1746825220000
+1746825230000:PublicUploadParentInvalidation1746825230000
+1792831200000:CreateArchiveDownloadCapabilities1792831200000'
+    MIGRATIONS=$(validation_psql -tAc "SELECT timestamp::text || ':' || name FROM public.migrations ORDER BY timestamp, name") \
+      || die "Current schema migration metadata unavailable"
+    [ "$MIGRATIONS" = "$EXPECTED_CURRENT_MIGRATIONS" ] \
+      || die "Current schema migration set differs from confirmed 30 migrations"
+  fi
   log "  All expected tables present: OK ($TABLE_COUNT tables)"
   # Verify key columns against the existing historical gate.
   FILES_COLS=$(validation_psql -tAc \
@@ -201,7 +244,7 @@ validate_restored_database() {
   case "$USERS_COUNT" in ''|*[!0-9]*) die "Database validation failed: invalid users row count" ;; esac
   validation_psql < "$SCRIPT_DIR/recovery-pending.sql" >/dev/null || die "Unsupported pending SSD state or failed recovery check; refusing restore"
   if [ "${1:-historical}" = current ]; then
-    [ "$TABLE_COUNT" = 13 ] || die "Migration compatibility failed: expected current 13-table schema"
+    [ "$TABLE_COUNT" = 15 ] || die "Migration compatibility failed: expected current 15-table schema"
     # These are the fields consumed by reconciliation and the current recovery
     # gate. This deliberately does not claim complete constraint/type parity.
     validation_psql -tAc 'SELECT id, "storagePath", "storageLocationId", "relativeObjectKey", size, "userId", "isFolder", "isDeleted" FROM public.files WHERE false' >/dev/null \
@@ -218,8 +261,6 @@ validate_restored_database() {
       || die "Current schema required journal columns are missing"
     validation_psql -tAc 'SELECT id, timestamp, name FROM public.migrations WHERE false' >/dev/null \
       || die "Current schema migration metadata columns are missing"
-    EXISTS=$(validation_psql -tAc "SELECT count(*) FROM public.migrations WHERE timestamp=1746825200000 AND name='DurableUploadWholeSha2561746825200000'" | tr -d '[:space:]')
-    [ "$EXISTS" = 1 ] || die "Current schema migration 520 metadata is missing or ambiguous"
   fi
   log "  Database validation: OK (users=$USERS_COUNT; no unsupported pending SSD state)"
 }
@@ -1051,6 +1092,7 @@ if [ "$MIGRATION_RC" -ne 0 ]; then
   exit 1
 fi
 log "  Migrations: OK"
+validate_restored_database current
 
 # --- Reconciliation (DB ↔ storage consistency report) ---
 echo ""

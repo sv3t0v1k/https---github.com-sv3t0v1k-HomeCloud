@@ -8,6 +8,7 @@ import gzip
 import io
 import tarfile
 import os
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -15,7 +16,16 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 CORE = 'users files folders share_links upload_sessions refresh_tokens migrations'
-CURRENT = CORE + ' upload_chunks download_capabilities storage_locations upload_workspaces ssd_finalization_operations ssd_finalization_chunks'
+CURRENT = CORE + ' upload_chunks download_capabilities storage_locations upload_workspaces ssd_finalization_operations ssd_finalization_chunks public_share_operations archive_download_capabilities'
+MIGRATIONS = []
+for path in sorted((ROOT / 'backend/src/migrations').glob('*.ts')):
+    timestamp = path.name.split('-', 1)[0]
+    match = re.search(r'export class\s+([A-Za-z0-9]+)', path.read_text())
+    if not match or not match.group(1).endswith(timestamp):
+        raise AssertionError('Unexpected migration source: ' + path.name)
+    MIGRATIONS.append(timestamp + ':' + match.group(1))
+if len(MIGRATIONS) != 30:
+    raise AssertionError('Expected 30 source migrations')
 
 class RestorePreflight(unittest.TestCase):
     def run_fixture(self, tables=CURRENT, replay_fail=False, pending_fail=False,
@@ -37,6 +47,7 @@ class RestorePreflight(unittest.TestCase):
                 writer.addfile(entry, io.BytesIO(b'data'))
             env = dict(os.environ, TEST_ARCHIVE=str(archive), TEST_TMP=tmp, TEST_DUMP=str(dump),
                        TEST_SCRIPT_DIR=str(ROOT / 'scripts'), TEST_TABLES=tables,
+                       TEST_MIGRATIONS='\n'.join(MIGRATIONS), TEST_CURRENT=CURRENT,
                        TEST_REPLAY_FAIL=str(int(replay_fail)), TEST_PENDING_FAIL=str(int(pending_fail)),
                        TEST_OWNERSHIP_FAIL=str(int(ownership_fail)), TEST_MIGRATION_FAIL=str(int(migration_fail)),
                        TEST_COLUMNS_FAIL=str(int(columns_fail)), TEST_BACKEND_VOLUMES=str(int(backend_volumes)))
@@ -72,11 +83,14 @@ docker() {
     "exec "*" pg_isready "*) ;;
     "exec -i "*|"compose exec -T db psql "*)
       case "$*" in
-        *"SELECT count(*) FROM information_schema.tables"*) if [ -f "$TEST_TMP/migrated" ]; then set -- users files folders share_links upload_sessions refresh_tokens migrations upload_chunks download_capabilities storage_locations upload_workspaces ssd_finalization_operations ssd_finalization_chunks; else set -- $TEST_TABLES; fi; printf '%s\n' "$#" ;;
+        *"SELECT count(*) FROM information_schema.tables"*) if [ -f "$TEST_TMP/migrated" ]; then set -- $TEST_CURRENT; else set -- $TEST_TABLES; fi; printf '%s\n' "$#" ;;
         *"SELECT 1 FROM information_schema.tables"*)
-          for table in $TEST_TABLES users files folders share_links upload_sessions refresh_tokens migrations upload_chunks download_capabilities storage_locations upload_workspaces ssd_finalization_operations ssd_finalization_chunks; do
+          local available="$TEST_TABLES"
+          if [ -f "$TEST_TMP/migrated" ]; then available="$TEST_CURRENT"; fi
+          for table in $available; do
             if [[ "$*" == *"table_name='$table'"* ]]; then printf '1\n'; return; fi
           done ;;
+        *"SELECT timestamp::text"*) printf '%s\n' "$TEST_MIGRATIONS" ;;
         *"WHERE false"*) [ "$TEST_COLUMNS_FAIL" = 0 ] || return 10 ;;
         *"SELECT count(*) FROM public.migrations"*) printf '1\n' ;;
         *"SELECT string_agg"*) printf 'id,storagePath\n' ;;
