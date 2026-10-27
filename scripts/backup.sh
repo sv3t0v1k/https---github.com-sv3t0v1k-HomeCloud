@@ -475,7 +475,9 @@ if ! gzip -t "$STAGING_DB"; then
   exit 1
 fi
 
-if ! gunzip -c "$STAGING_DB" | grep -qE 'CREATE TABLE|CREATE TABLE IF NOT EXISTS|CREATE EXTENSION'; then
+# The structure check must consume the complete decompressed stream. grep -q
+# exits at the first match, making gunzip fail with SIGPIPE under pipefail.
+if ! bash "$SCRIPT_DIR/backup-dump-structure.sh" "$STAGING_DB"; then
   err "PostgreSQL dump does not contain expected SQL structure"
   log_json "backup_failed" ',"error":"dump_no_ddl","exit_code":1'
   printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "dump_no_ddl" > "$LAST_FAILURE_FILE"
