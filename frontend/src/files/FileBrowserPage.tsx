@@ -250,10 +250,12 @@ function DirectoryTable({ contents, currentFolderId, onChanged, onOpenFolder }: 
   const [archivePending, setArchivePending] = useState(false)
   const [archiveError, setArchiveError] = useState<string | null>(null)
   const [archiveHandedOff, setArchiveHandedOff] = useState(false)
+  const [fileHandedOff, setFileHandedOff] = useState(false)
   const archivePendingRef = useRef(false)
   useEffect(() => {
     const valid = new Set([...contents.folders.map((item) => `folder:${item.id}`), ...contents.files.map((item) => `file:${item.id}`)])
     setSelection((previous) => new Set([...previous].filter((key) => valid.has(key))))
+    setFileHandedOff(false)
   }, [contents])
   const anchor = useRef<string>()
   const matches = (name: string) => name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())
@@ -348,6 +350,7 @@ function DirectoryTable({ contents, currentFolderId, onChanged, onOpenFolder }: 
       <div className="directory-search"><label className="field" htmlFor="file-search">Поиск в текущей папке</label><input className="input" id="file-search" type="search" placeholder="Найти файл или папку" value={query} onChange={(event) => setQuery(event.target.value)} /></div>
       {selection.size ? <><div className="selection-toolbar" role="region" aria-label="Выделенные объекты"><span>Выбрано: {selection.size}</span><button className="button button--ghost" onClick={() => setSelection(new Set(visibleKeys))} type="button">Выбрать всё</button>{selection.size >= 2 ? <button className="button button--ghost" disabled={archivePending || pending} onClick={() => void downloadArchive()} type="button"><Icon name="download" />{archivePending ? 'Подготавливаем ZIP…' : 'Скачать ZIP'}</button> : null}<button className="button button--ghost" disabled={pending || archivePending} onClick={(event) => { event.currentTarget.focus(); setBulkError(null); setBulkOpen(true) }} type="button"><Icon name="trash" />В корзину</button><button className="button button--ghost" onClick={() => setSelection(new Set())} type="button">Снять выделение</button></div>{archiveError ? <p className="inline-alert" role="alert">{archiveError}</p> : null}{archiveHandedOff ? <p className="muted" role="status">ZIP передан браузеру. Состояние смотрите в его загрузках.</p> : null}</> : null}
       {bulkOpen ? <SmallDialog title="Переместить выбранное в корзину?" onClose={() => { if (!pending) setBulkOpen(false) }}><p>Объектов: {selection.size}. Их можно будет восстановить.</p>{bulkError ? <p role="alert">{bulkError}</p> : null}<div className="dialog-actions"><button className="button button--ghost" disabled={pending} onClick={() => setBulkOpen(false)} type="button">Отмена</button><button className="button button--danger" disabled={pending} onClick={() => void trashSelection()} type="button">{pending ? 'Выполняется…' : 'Переместить выбранное'}</button></div></SmallDialog> : null}
+      {fileHandedOff ? <p className="muted" role="status">Скачивание передано браузеру. Состояние смотрите в его загрузках.</p> : null}
       <div className="directory-toolbar"><p className="muted">Папок: {contents.folders.length} · Файлов: {contents.files.length}</p><div className="view-switch" aria-label="Вид файлов"><button aria-label="Список" aria-pressed={view === 'list'} className={view === 'list' ? 'icon-button is-active' : 'icon-button'} onClick={() => setView('list')} type="button"><Icon name="list" /></button><button aria-label="Плитка" aria-pressed={view === 'grid'} className={view === 'grid' ? 'icon-button is-active' : 'icon-button'} onClick={() => setView('grid')} type="button"><Icon name="grid" /></button></div></div>
       {empty ? <div className="empty-state"><Icon name="folder" /><h3>{query ? "Ничего не найдено" : "В этой папке пока пусто"}</h3><p>{query ? "Попробуйте другое название." : "Перетащите файлы сюда или воспользуйтесь кнопкой «Добавить»."}</p></div> : (
         <table className={view === 'grid' ? 'directory-list directory-grid' : 'directory-list'}>
@@ -365,7 +368,7 @@ function DirectoryTable({ contents, currentFolderId, onChanged, onOpenFolder }: 
                 { label: 'В корзину', icon: 'trash', danger: true, onSelect: () => openAction({ kind: 'folder', item: folder, action: 'trash' }) },
               ]} /></td>
             </tr>)}
-            {files.map((file) => <FileRow selected={selection.has(`file:${file.id}`)} onSelect={(event, toggle) => select(`file:${file.id}`, event, toggle)} onContextMenu={(event) => contextMenu(event, `file:${file.id}`)} disabled={pending} file={file} key={`file-${file.id}`} onAction={(operation) => openAction({ kind: 'file', item: file, action: operation })} onShare={() => setShareTarget({ fileId: file.id, name: file.name, isFolder: false })} />)}
+            {files.map((file) => <FileRow selected={selection.has(`file:${file.id}`)} onSelect={(event, toggle) => select(`file:${file.id}`, event, toggle)} onContextMenu={(event) => contextMenu(event, `file:${file.id}`)} disabled={pending} file={file} key={`file-${file.id}`} onAction={(operation) => openAction({ kind: 'file', item: file, action: operation })} onDownloadStarted={() => setFileHandedOff(false)} onDownloadHandedOff={() => setFileHandedOff(true)} onShare={() => setShareTarget({ fileId: file.id, name: file.name, isFolder: false })} />)}
           </tbody>
         </table>
       )}
@@ -377,7 +380,7 @@ function DirectoryTable({ contents, currentFolderId, onChanged, onOpenFolder }: 
   )
 }
 
-function FileRow({ disabled, file, onAction, onShare, selected, onSelect, onContextMenu }: { selected: boolean; onSelect(event: React.MouseEvent, toggle?: boolean): void; onContextMenu(event: React.MouseEvent<HTMLTableRowElement>): void; disabled: boolean; file: FileItem; onAction(action: ItemAction['action']): void; onShare(): void }) {
+function FileRow({ disabled, file, onAction, onDownloadStarted, onDownloadHandedOff, onShare, selected, onSelect, onContextMenu }: { selected: boolean; onSelect(event: React.MouseEvent, toggle?: boolean): void; onContextMenu(event: React.MouseEvent<HTMLTableRowElement>): void; disabled: boolean; file: FileItem; onAction(action: ItemAction['action']): void; onDownloadStarted(): void; onDownloadHandedOff(): void; onShare(): void }) {
   const [downloadState, setDownloadState] = useState<'idle' | 'downloading' | 'handed-off'>('idle')
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const [showPreview, setShowPreview] = useState(false)
@@ -385,9 +388,10 @@ function FileRow({ disabled, file, onAction, onShare, selected, onSelect, onCont
   async function download() {
     if (downloadPending.current) return
     downloadPending.current = true
+    onDownloadStarted()
     setDownloadState('downloading')
     setDownloadError(null)
-    try { await downloadOriginalFile(file); setDownloadState('handed-off') }
+    try { await downloadOriginalFile(file); setDownloadState('handed-off'); onDownloadHandedOff() }
     catch (error) { setDownloadError(downloadErrorMessage(error)); setDownloadState('idle') }
     finally { downloadPending.current = false }
   }
@@ -406,7 +410,6 @@ function FileRow({ disabled, file, onAction, onShare, selected, onSelect, onCont
       { label: 'Копировать', icon: 'copy', onSelect: () => onAction('copy') },
       { label: 'В корзину', icon: 'trash', danger: true, onSelect: () => onAction('trash') },
     ]} />
-    {downloadState === 'handed-off' ? <p className="upload-details muted" role="status">Скачивание передано браузеру. Состояние смотрите в его загрузках.</p> : null}
     {downloadError ? <p className="inline-alert" role="alert">{downloadError}</p> : null}
     {showPreview ? <PreviewModal file={file} onClose={() => setShowPreview(false)} /> : null}</td>
   </tr>
