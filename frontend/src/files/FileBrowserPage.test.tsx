@@ -394,6 +394,56 @@ describe('FileBrowserPage', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
+  it('shows the file download notice outside the actions cell in list and grid views with a long name and selection', async () => {
+    const name = `${'длинное-название-'.repeat(12)}.txt`
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/files/folders') return ok(config, [])
+      if (config.url === '/files') return ok(config, [file(44, name, 2048), file(45, 'second.txt', 1024)])
+      if (config.url === '/native-downloads/44/prepare') return ok(config, { downloadPath: '/native-downloads/44' })
+      throw new Error(`Unexpected request: ${config.url}`)
+    }
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+    renderPage('/files')
+    const user = userEvent.setup()
+    await screen.findByRole('button', { name })
+    await user.click(screen.getByRole('checkbox', { name: `Выбрать ${name}` }))
+    await user.click(screen.getByRole('checkbox', { name: 'Выбрать second.txt' }))
+    expect(screen.getByText('Выбрано: 2')).toBeInTheDocument()
+
+    await chooseAction(user, name, 'Скачать')
+    const notice = await screen.findByRole('status', { name: '' })
+    expect(notice).toHaveTextContent('Скачивание передано браузеру')
+    expect(notice.closest('table')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Скачать ZIP' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Плитка' }))
+    expect(notice.closest('table')).toBeNull()
+    expect(screen.getByText('Выбрано: 2')).toBeInTheDocument()
+    expect(click).toHaveBeenCalledOnce()
+  })
+
+  it('clears an earlier download notice when the next attempt fails', async () => {
+    let attempts = 0
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/files/folders') return ok(config, [])
+      if (config.url === '/files') return ok(config, [file(44, 'report.txt', 2048)])
+      if (config.url === '/native-downloads/44/prepare') {
+        attempts += 1
+        if (attempts === 1) return ok(config, { downloadPath: '/native-downloads/44' })
+        throw responseFailure(config, 403, 'Forbidden')
+      }
+      throw new Error(`Unexpected request: ${config.url}`)
+    }
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+    renderPage('/files')
+    const user = userEvent.setup()
+    await screen.findByRole('button', { name: 'report.txt' })
+    await chooseAction(user, 'report.txt', 'Скачать')
+    expect(await screen.findByRole('status')).toHaveTextContent('Скачивание передано браузеру')
+    await chooseAction(user, 'report.txt', 'Скачать')
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(screen.queryByText('Скачивание передано браузеру. Состояние смотрите в его загрузках.')).not.toBeInTheDocument()
+  })
+
   it('downloads a mixed selection as one ZIP and prevents duplicate preparation', async () => {
     const capability = '0123456789abcdef0123456789abcdef'
     let prepareCalls = 0
