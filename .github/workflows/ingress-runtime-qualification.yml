@@ -61,7 +61,8 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends skopeo
-          skopeo inspect --raw "docker://$IMAGE" > evidence/registry-manifest.json
+          SOURCE=$(python3 -c 'import os; name,digest=os.environ["IMAGE"].split("@"); print(name.rsplit(":",1)[0]+"@"+digest)')
+          skopeo inspect --raw "docker://$SOURCE" > evidence/registry-manifest.json
           python3 - <<'PY'
           import hashlib, json, os
           from pathlib import Path
@@ -72,7 +73,7 @@ jobs:
           assert manifest['schemaVersion'] == 2 and len(manifest['layers']) > 0
           PY
           skopeo copy --override-os linux --override-arch amd64 --preserve-digests \
-            "docker://$IMAGE" "oci-archive:$RUNNER_TEMP/ingress.oci.tar"
+            "docker://$SOURCE" "oci-archive:$RUNNER_TEMP/ingress.oci.tar"
 
       - name: Pull exact locked digest and verify installed versions
         id: versions
