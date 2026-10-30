@@ -1,5 +1,5 @@
 ARG NODE_IMAGE=docker.io/library/node:24.21.0-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
-ARG NGINX_IMAGE=docker.io/library/nginx:1.30.5-alpine@sha256:0985e772fb9f729e6fa0980da05fca5d9c468e870eed43071545afa9d2e27d94
+ARG NGINX_IMAGE=docker.io/library/nginx:1.30.6-alpine3.24@sha256:0e52bd054126cdc040b1276c0af347aeb02a41b9cfe305d6094767ac30e97949
 FROM ${NODE_IMAGE} AS npm-base
 # SHA256 проверяется до запуска npm; установка из архива остаётся offline.
 RUN node --input-type=module -e ' \
@@ -36,7 +36,14 @@ RUN npm run build
 
 FROM ${NGINX_IMAGE} AS runner
 # Адресные security patches совместимых библиотек; base digest сохраняется.
-RUN apk add --no-cache --upgrade libexpat=2.9.0-r0 pcre2=10.49-r0 tiff=4.7.2-r0
+RUN apk add --no-cache --upgrade \
+    brotli-libs=1.2.1-r0 \
+    curl=8.23.0-r0 \
+    libcurl=8.23.0-r0 \
+    libx11=1.8.14-r0 \
+    libexpat=2.9.0-r0 \
+    pcre2=10.49-r0 \
+    tiff=4.7.2-r0
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 
