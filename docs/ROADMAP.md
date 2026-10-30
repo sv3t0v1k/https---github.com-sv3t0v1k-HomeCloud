@@ -1,6 +1,8 @@
 # HomeCloud — единый roadmap
 
-**Текущее состояние на 2026-10-13:** полный 50 ГиБ Browser E2E — **PASS** в IAB/localhost ([доказательства](./evidence/browser-50gib-qualification-20261006/report.md)); универсальное хранение и очередь с докачкой подтверждены; единственный Mac тестовый стек — `homecloud-preview`, основной `docker-compose.yml`, HTTP localhost:8080 и постоянные volumes; TLS не требуется для ежедневной работы. Safari 50 ГиБ — **UNQUALIFIED**, production — **NOT_READY / NO_GO**. Предпроизводственная версия `v0.9.0-local.1` не вводит новую Phase. [Контракт версии](./local-release-baseline.md).
+**Актуальный test checkpoint на 2026-10-30:** установлен backend `0387feda2496adc3c0e97d2653c7de6bc055a9d7` и frontend `52ddb5dac277a11ec783b4ca9bdeb89e992c4487`. Browser Acceptance QA, включая UX v2, ZIP и Public Sharing, принята в проверенном тестовом объёме; backup/isolated restore, метаданные установленной версии, 30 миграций и health 4/4 — PASS. QA-данные перемещены в корзину, evidence сохранены. [Границы и доказательства](#test-deployment-and-browser-acceptance-2026-10-30). Production — **NO_GO**, Multi-Storage — **DEFERRED**.
+
+**Состояние на 2026-10-13:** полный 50 ГиБ Browser E2E — **PASS** в IAB/localhost ([доказательства](./evidence/browser-50gib-qualification-20261006/report.md)); универсальное хранение и очередь с докачкой подтверждены; единственный Mac тестовый стек — `homecloud-preview`, основной `docker-compose.yml`, HTTP localhost:8080 и постоянные volumes; TLS не требуется для ежедневной работы. Safari 50 ГиБ — **UNQUALIFIED**, production — **NOT_READY / NO_GO**. Предпроизводственная версия `v0.9.0-local.1` не вводит новую Phase. [Контракт версии](./local-release-baseline.md).
 
 Разделы выполненных Phase и датированные checkpoints ниже — история на соответствующую дату. Старые 1/10 ГиБ, Blob/100 МиБ, O(N²), BLOCKED/FAIL и временные TLS paths сохраняются как исторические границы; актуальное состояние задают позднейшие ненумерованные checkpoints и эта сводка.
 
@@ -33,9 +35,11 @@
 | Failure & Security Testing — ненумерованный checkpoint | `COMPLETE` | [evidence и границы](./failure-security-checkpoint.md) |
 | Универсальное хранение и докачка — ненумерованный checkpoint | `COMPLETE` | [IAB/Safari functional evidence](./evidence/universal-storage-upload-ux-20261005/report.md) |
 | Единый локальный Docker baseline — ненумерованный checkpoint | `COMPLETE` | `bf97bef` / `f578030`; [runbook и preservation boundaries](./operations-runbook.md) |
-| D5.1 — Release Management & CI Foundation | `RELEASE_BLOCKED; local runner/skopeo model implemented, hosted confirmation pending` | [Image security policy](./image-security-policy.md) |
+| D5.1 — Release Management & CI Foundation | `PARTIAL / RELEASE_BLOCKED` | Штатный PR CI подтверждён для PR №5–8; опубликованный совместимый beta-кандидат канала `test` не подтверждён. [Test checkpoint](#test-deployment-and-browser-acceptance-2026-10-30) |
 | Полный 50 ГиБ IAB Browser E2E — ненумерованный checkpoint | `PASS` | `167498d`; [scope/evidence](./evidence/browser-50gib-qualification-20261006/report.md); Safari 50 ГиБ UNQUALIFIED |
-| Public Folder Sharing v1.0 — анонимная загрузка в общую папку | `IN_PROGRESS` | Backend этапы 1–4 COMPLETE локально; frontend этап 5 IMPLEMENTED локально, Safari acceptance OPEN |
+| Test deployment / Browser Acceptance, включая UX v2 и ZIP | `PASS` в проверенном тестовом объёме | Разные SHA backend/frontend, QA, backup/restore, metadata, 30 миграций и health 4/4 подтверждены; [test checkpoint](#test-deployment-and-browser-acceptance-2026-10-30) |
+| Public Folder Sharing v1.0 — анонимная загрузка в общую папку | `PARTIAL` | Safari Browser Acceptance PASS в проверенном тестовом объёме; исторический план и ограничения сохраняются. [Test checkpoint](#test-deployment-and-browser-acceptance-2026-10-30) |
+| Updates v1 — этап 1: версии и обнаружение | `PARTIAL` | Read-only обнаружение и UI установлены; опубликованный совместимый beta-кандидат не подтверждён, установка не реализована. [Контракт](./updates-stage-1.md), [test checkpoint](#test-deployment-and-browser-acceptance-2026-10-30) |
 | Multi-Storage и выбор пользователем места хранения | `DEFERRED` | Исторические checkpoint’ы и зависимости сохранены в соответствующих разделах; продолжение только после отдельного решения |
 
 ## Completed
@@ -1928,3 +1932,38 @@ ZIP-маршруту из `f8965c1` и текущему `main`, но `SOURCE_REV
 `48fb9c0`. Кто и каким процессом изменил manifest, не установлено. Текущий
 manifest не доказывает происхождение всего серверного source export; подгонять
 hash или объявлять эту правку доверенной нельзя.
+
+### Test deployment and Browser Acceptance (2026-10-30)
+
+**TEST_ACCEPTED в проверенном объёме; Production NO_GO; Multi-Storage DEFERRED.**
+Это новый датированный checkpoint. Предыдущие записи выше описывают состояние на
+свои даты и не пересматриваются задним числом.
+
+Удалённый `main` на дату checkpoint —
+`52ddb5dac277a11ec783b4ca9bdeb89e992c4487`. На домашнем тестовом сервере
+фактически работают backend
+`0387feda2496adc3c0e97d2653c7de6bc055a9d7` и frontend
+`52ddb5dac277a11ec783b4ca9bdeb89e992c4487`. Их image IDs и revision
+labels сверены с работающими контейнерами и установленными metadata; общий
+`gitSha` в metadata относится к backend, отдельное поле frontend отражает
+его новый SHA. Backend, frontend, PostgreSQL и ingress — 4/4 healthy; 30
+применённых миграций подтверждены. Предварительный backup PostgreSQL + storage
+и изолированное восстановление SQL и storage — PASS. Это test
+deployment, не опубликованный release и не production qualification.
+
+Browser Acceptance QA в Safari принята для авторизации/сессии, QA-файлов,
+публичного скачивания с паролем и без, публичной загрузки файлов и деревьев,
+пустых папок, предпросмотра, мультивыделения и ZIP с проверкой содержимого.
+Исправление уведомления о скачивании проверено в списке, плитке и при ширине
+375 px. Это PASS UX v2/ZIP/Public Sharing только в проверенном тестовом объёме;
+исторические ограничения большого Safari upload и production остаются.
+Свои QA-объекты перемещены штатно в корзину без безвозвратного удаления;
+интерфейс показывал 0 активных ссылок для проверенных QA-объектов. Локальные
+отчёты, скриншоты, SHA-256 и deployment evidence сохранены.
+
+Updates v1 на тестовом сервере показывает установленную версию и выполняет
+read-only проверку. Публикация совместимого beta-кандидата канала `test` не
+подтверждена; доступное обновление не заявляется. Установка в Updates v1 не
+реализована. D5.1 release qualification и D5.2 safe CD не объявляются
+завершёнными. [Санитизированный указатель evidence](./evidence/test-checkpoint-20261030.md),
+[контракт Updates v1](./updates-stage-1.md), [production blockers](./final-production-acceptance.md).
