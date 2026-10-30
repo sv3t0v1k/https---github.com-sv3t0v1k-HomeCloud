@@ -15,6 +15,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 
 SHA = re.compile(r'[a-f0-9]{40}')
 GO_LINE = re.compile(r'\s*"url"\s*:\s*"(https://go\.googlesource\.com/(?:go|net)/\+/([a-f0-9]{40}))"\s*,?\s*')
@@ -27,6 +28,32 @@ UPSTREAM_GO_REPOSITORIES = {
     'go': UPSTREAM_GO_REPOSITORY,
     'net': 'https://go.googlesource.com/net',
 }
+FETCH_ATTEMPTS = 3
+FETCH_BACKOFF_SECONDS = (1, 3)
+
+
+def fetch_failure_kind(stderr):
+    """Return only a safe category; Git stderr can contain credentials."""
+    message = stderr.decode('utf-8', errors='replace').lower()
+    if any(marker in message for marker in ('not our ref', "couldn't find remote ref", 'unadvertised object')):
+        return 'OBJECT_UNAVAILABLE'
+    if any(marker in message for marker in ('authentication failed', ' 401 ', ' 403 ', 'permission denied')):
+        return 'ACCESS_DENIED'
+    if any(marker in message for marker in ('certificate problem', 'ssl certificate', 'tls certificate')):
+        return 'TLS_VERIFICATION_FAILED'
+    if any(marker in message for marker in ('http 429', ' 429 ', 'rate limit', 'too many requests')):
+        return 'RATE_LIMITED'
+    if any(marker in message for marker in ('could not resolve host', 'failed to connect', 'connection timed out',
+                                           'operation timed out', ' 502 ', ' 503 ', ' 504 ', 'rpc failed',
+                                           'remote end hung up', 'early eof')):
+        return 'TRANSIENT_TRANSPORT'
+    return 'FETCH_ERROR_UNKNOWN'
+
+
+def log_fetch_failure(sha, kind, attempts):
+    # Public object ID and fixed category only; never log raw stderr or findings.
+    print(json.dumps(dict(event='upstream_git_fetch_failed', object_id=sha,
+                          category=kind, attempts=attempts), sort_keys=True), file=sys.stderr)
 
 
 def git(*args):
@@ -137,19 +164,31 @@ def upstream(url, sha):
                 ['git','-C',repository,'cat-file','-t',sha],
             )
             for index,command in enumerate(commands):
-                # Retry only the same exact-object fetch once on a transient failure.
-                # Both attempts still require the commit type and object ID proof below.
+                # Retry only the same exact-object fetch on a transient failure.
+                # Every successful fetch still requires type and object ID proof.
                 result=None
-                for attempt in range(2 if index == 1 else 1):
+                for attempt in range(FETCH_ATTEMPTS if index == 1 else 1):
                     try:
-                        result=subprocess.run(command,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,
+                        result=subprocess.run(command,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
                                               env=env,timeout=60,check=False)
                     except subprocess.TimeoutExpired:
-                        if attempt == 0 and index == 1:
+                        kind='TIMEOUT'
+                        if index == 1 and attempt+1 < FETCH_ATTEMPTS:
+                            time.sleep(FETCH_BACKOFF_SECONDS[attempt])
                             continue
+                        if index == 1:
+                            log_fetch_failure(sha,kind,attempt+1)
                         return False
                     if result.returncode == 0:
                         break
+                    kind=fetch_failure_kind(result.stderr)
+                    if index == 1 and kind not in ('OBJECT_UNAVAILABLE','ACCESS_DENIED','TLS_VERIFICATION_FAILED') \
+                            and attempt+1 < FETCH_ATTEMPTS:
+                        time.sleep(FETCH_BACKOFF_SECONDS[attempt])
+                        continue
+                    if index == 1:
+                        log_fetch_failure(sha,kind,attempt+1)
+                    return False
                 if result is None or result.returncode != 0:
                     return False
                 if index == 2 and result.stdout.strip() != b'commit':
@@ -201,7 +240,7 @@ def qualify(findings, scanner_exit, raw_report_sha256=None, read_line=source_lin
         kind,url,sha,ancestor = plan
         valid=(raw_report_sha256 is not None) if kind == 'upstream_go_commit' else True
         return plan, valid and (verify_upstream(url,sha) if kind == 'upstream_go_commit' else verify_local(sha,ancestor))
-    with ThreadPoolExecutor(max_workers=8) as pool:
+    with ThreadPoolExecutor(max_workers=4) as pool:
         verified = dict(pool.map(verify,checks))
     records = []
     for finding,(plan,line) in zip(findings,plans):

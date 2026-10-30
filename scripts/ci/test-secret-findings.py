@@ -2,6 +2,7 @@
 """Public-reference proof must not accept adjacent or unrelated credentials."""
 import importlib.util
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -137,7 +138,7 @@ class Tests(unittest.TestCase):
         oid=hashlib.sha1(b'commit '+str(len(payload)).encode()+b'\0'+payload).hexdigest()
         return payload,oid
 
-    def git_run_stub(self,payload,fetch_status=0):
+    def git_run_stub(self,payload,fetch_status=0,fetch_stderr=b''):
         calls=[]
         fetches=0
         def run(command,**kwargs):
@@ -147,7 +148,7 @@ class Tests(unittest.TestCase):
                 status=(fetch_status[min(fetches,len(fetch_status)-1)]
                         if isinstance(fetch_status,tuple) else fetch_status)
                 fetches+=1
-                return SimpleNamespace(returncode=status,stdout=b'',stderr=b'')
+                return SimpleNamespace(returncode=status,stdout=b'',stderr=fetch_stderr)
             if command[-3:-1]==['cat-file','-t']:
                 return SimpleNamespace(returncode=0,stdout=b'commit\n',stderr=b'')
             if command[-3:-1]==['cat-file','commit']:
@@ -220,23 +221,60 @@ class Tests(unittest.TestCase):
         line='"url":"'+url+'"'
         finding=self.finding(line,sha)
         calls,run=self.git_run_stub(payload,fetch_status=1)
-        with patch.object(s.subprocess,'run',side_effect=run):
+        with patch.object(s.subprocess,'run',side_effect=run),patch.object(s.time,'sleep'):
             result=s.qualify([finding],42,raw_report_sha256=REPORT_SHA,
                              read_line=lambda _:line,check_context=lambda *_:True)
         self.assertEqual(result['status'],'BLOCKED')
         self.assertEqual(result['unresolved_findings'],1)
-        self.assertEqual(sum('fetch' in command for command,_ in calls),2)
+        self.assertEqual(sum('fetch' in command for command,_ in calls),3)
 
     def test_transient_fetch_retries_only_the_same_exact_object(self):
         payload,sha=self.synthetic_commit()
         url=s.UPSTREAM_GO_REPOSITORY+'/+/'+sha
         calls,run=self.git_run_stub(payload,fetch_status=(1,0))
-        with patch.object(s.subprocess,'run',side_effect=run):
+        with patch.object(s.subprocess,'run',side_effect=run),patch.object(s.time,'sleep'):
             self.assertTrue(s.upstream(url,sha))
         fetches=[command for command,_ in calls if 'fetch' in command]
         self.assertEqual(len(fetches),2)
         self.assertEqual(fetches[0],fetches[1])
         self.assertEqual(fetches[0][-2:],[s.UPSTREAM_GO_REPOSITORY,sha])
+
+    def test_transient_timeout_retries_without_exposing_git_stderr(self):
+        payload,sha=self.synthetic_commit()
+        calls,run=self.git_run_stub(payload)
+        failed=[False]
+        def timeout_once(command,**kwargs):
+            if 'fetch' in command and not failed[0]:
+                failed[0]=True
+                raise s.subprocess.TimeoutExpired(command,60)
+            return run(command,**kwargs)
+        with patch.object(s.subprocess,'run',side_effect=timeout_once),patch.object(s.time,'sleep') as sleep:
+            self.assertTrue(s.upstream(s.UPSTREAM_GO_REPOSITORY+'/+/'+sha,sha))
+        sleep.assert_called_once_with(1)
+
+    def test_missing_object_fails_without_retry_and_logs_only_category(self):
+        payload,sha=self.synthetic_commit()
+        calls,run=self.git_run_stub(payload,fetch_status=128,
+                                    fetch_stderr=b'fatal: remote error: upload-pack: not our ref private-secret-value')
+        output=io.StringIO()
+        with patch.object(s.subprocess,'run',side_effect=run),patch.object(s.sys,'stderr',output), \
+                patch.object(s.time,'sleep') as sleep:
+            self.assertFalse(s.upstream(s.UPSTREAM_GO_REPOSITORY+'/+/'+sha,sha))
+        self.assertEqual(sum('fetch' in command for command,_ in calls),1)
+        sleep.assert_not_called()
+        self.assertIn('OBJECT_UNAVAILABLE',output.getvalue())
+        self.assertNotIn('private-secret-value',output.getvalue())
+
+    def test_rate_limit_retries_same_sha_then_blocks(self):
+        payload,sha=self.synthetic_commit()
+        calls,run=self.git_run_stub(payload,fetch_status=429,fetch_stderr=b'HTTP 429')
+        output=io.StringIO()
+        with patch.object(s.subprocess,'run',side_effect=run),patch.object(s.sys,'stderr',output), \
+                patch.object(s.time,'sleep') as sleep:
+            self.assertFalse(s.upstream(s.UPSTREAM_GO_REPOSITORY+'/+/'+sha,sha))
+        self.assertEqual(sum('fetch' in command for command,_ in calls),3)
+        self.assertEqual([call.args[0] for call in sleep.call_args_list],[1,3])
+        self.assertIn('RATE_LIMITED',output.getvalue())
 
     def test_upstream_without_raw_report_digest_stays_blocked(self):
         payload,sha=self.synthetic_commit()
