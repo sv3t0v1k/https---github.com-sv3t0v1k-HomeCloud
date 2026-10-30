@@ -1,0 +1,53 @@
+
+name: HomeCloud D5.1 — квалификация без публикации
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: "Полный SHA текущей main"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: homecloud-d5-1-qualification
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      commit: ${{ steps.check.outputs.commit }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+
+      - id: check
+        env:
+          APPROVED_SHA: ${{ inputs.commit }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          [[ "$APPROVED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$APPROVED_SHA" == "$GITHUB_SHA" ]]
+          [[ "$(git rev-parse HEAD)" == "$APPROVED_SHA" ]]
+          [[ "$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')" == "$APPROVED_SHA" ]]
+          [[ "$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.protected')" == "true" ]]
+          echo "commit=$APPROVED_SHA" >> "$GITHUB_OUTPUT"
+
+  qualify:
+    needs: verify
+    uses: ./.github/workflows/ci.yml
+    with:
+      source_sha: ${{ needs.verify.outputs.commit }}
+      candidate_version: dry-run
+      qualification_profile: release
+    permissions:
+      contents: read
