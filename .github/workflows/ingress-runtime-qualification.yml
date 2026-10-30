@@ -1,0 +1,198 @@
+name: Ingress runtime qualification
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - docker-compose.production.yml
+      - scripts/ci/production-images.lock.json
+      - deploy/ingress/**
+      - .github/workflows/ingress-runtime-qualification.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ingress-runtime-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - name: Initialize retained evidence
+        run: |
+          mkdir "$RUNNER_TEMP/ingress-runtime-evidence"
+          printf 'PR_HEAD_SHA=%s\nRUN_ID=%s\n' '${{ github.event.pull_request.head.sha }}' '${{ github.run_id }}' > "$RUNNER_TEMP/ingress-runtime-evidence/request.txt"
+
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Bind PR source to exact production pin
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          ln -s "$RUNNER_TEMP/ingress-runtime-evidence" evidence
+          test "$(git rev-parse HEAD)" = '${{ github.event.pull_request.head.sha }}'
+          git diff --quiet HEAD -- docker-compose.production.yml deploy/ingress scripts/ci/production-images.lock.json
+          python3 - <<'PY'
+          import json, re
+          from pathlib import Path
+          image = json.loads(Path('scripts/ci/production-images.lock.json').read_text())['ingress']
+          assert re.fullmatch(r'docker\.io/library/nginx:1\.30\.6-alpine3\.24-slim@sha256:[a-f0-9]{64}', image)
+          compose = Path('docker-compose.production.yml').read_text()
+          assert re.search(r'(?m)^  ingress:\n    image: ' + re.escape(image) + r'\n    platform: linux/amd64\n', compose)
+          Path('evidence/production-pin.txt').write_text(image + '\n')
+          PY
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          python3 -c 'import json,os; print("image="+json.load(open("scripts/ci/production-images.lock.json"))["ingress"], file=open(os.environ["GITHUB_OUTPUT"],"a"))'
+          git rev-parse HEAD > evidence/source-sha.txt
+
+      - name: Export locked linux/amd64 OCI without publishing
+        id: export
+        env:
+          IMAGE: ${{ steps.source.outputs.image }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends skopeo
+          SOURCE=$(python3 -c 'import os; name,digest=os.environ["IMAGE"].split("@"); print(name.rsplit(":",1)[0]+"@"+digest)')
+          skopeo inspect --raw "docker://$SOURCE" > evidence/registry-manifest.json
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          image = os.environ['IMAGE']
+          raw = Path('evidence/registry-manifest.json').read_bytes()
+          assert 'sha256:' + hashlib.sha256(raw).hexdigest() == image.split('@')[1]
+          manifest = json.loads(raw)
+          assert manifest['schemaVersion'] == 2 and len(manifest['layers']) > 0
+          PY
+          skopeo copy --override-os linux --override-arch amd64 --preserve-digests \
+            "docker://$SOURCE" "oci-archive:$RUNNER_TEMP/ingress.oci.tar"
+
+      - name: Pull exact locked digest and verify installed versions
+        id: versions
+        shell: bash
+        env:
+          IMAGE: ${{ steps.source.outputs.image }}
+        run: |
+          set -euo pipefail
+          docker pull --platform linux/amd64 "$IMAGE"
+          docker image inspect "$IMAGE" > evidence/loaded.inspect.json
+          python3 - <<'PY'
+          import json, os, sys
+          sys.path.insert(0, 'scripts/ci')
+          import importlib.util
+          spec = importlib.util.spec_from_file_location('binding', 'scripts/ci/oci-scan-binding.py')
+          binding = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(binding)
+          digest, manifest, config = binding.identity(os.environ['RUNNER_TEMP'] + '/ingress.oci.tar')
+          image = json.load(open('evidence/loaded.inspect.json'))[0]
+          assert digest == os.environ['IMAGE'].split('@')[1]
+          assert any(ref.endswith('nginx@' + digest) for ref in image['RepoDigests'])
+          assert image['RootFS']['Layers'] == config['rootfs']['diff_ids']
+          assert (image['Os'], image['Architecture']) == ('linux', 'amd64')
+          PY
+          docker run --rm --platform linux/amd64 --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges --entrypoint sh \
+            "$IMAGE" -ec '
+              test "$(nginx -v 2>&1)" = "nginx version: nginx/1.30.6"
+              test "$(cut -d. -f1,2 /etc/alpine-release)" = 3.24
+              cat /etc/alpine-release
+              nginx -v
+              apk --no-network info -v' 2>&1 | tee evidence/runtime-versions.txt
+          grep -Fx 'nginx-1.30.6-r1' evidence/runtime-versions.txt
+          grep -Fx 'pcre2-10.49-r0' evidence/runtime-versions.txt
+          if grep -E '^(brotli-libs|curl|libcurl|libexpat|libx11)-' evidence/runtime-versions.txt; then exit 1; fi
+
+      - name: Test production nginx configuration with disposable TLS
+        id: nginx
+        if: always() && steps.versions.outcome == 'success'
+        shell: bash
+        env:
+          IMAGE: ${{ steps.source.outputs.image }}
+        run: |
+          set -euo pipefail
+          fixture=$(mktemp -d "$RUNNER_TEMP/ingress-config.XXXXXX")
+          trap 'rm -rf "$fixture"' EXIT
+          mkdir -p "$fixture/tls/current" "$fixture/acme"
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=cloud.example.invalid \
+            -keyout "$fixture/tls/current/privkey.pem" -out "$fixture/tls/current/fullchain.pem" \
+            > evidence/certificate-generation.txt 2>&1
+          docker run --rm --platform linux/amd64 --network none --add-host frontend:127.0.0.1 --memory 128m \
+            -e PUBLIC_HOST=cloud.example.invalid -e 'NGINX_ENVSUBST_FILTER=^PUBLIC_HOST$' \
+            -v "$GITHUB_WORKSPACE/deploy/ingress/19-validate-public-host.sh:/docker-entrypoint.d/19-validate-public-host.sh:ro" \
+            -v "$GITHUB_WORKSPACE/deploy/ingress/default.conf.template:/etc/nginx/templates/default.conf.template:ro" \
+            -v "$GITHUB_WORKSPACE/deploy/ingress/upgrade.conf:/etc/nginx/conf.d/upgrade.conf:ro" \
+            -v "$fixture/tls:/etc/nginx/tls:ro" -v "$fixture/acme:/var/www/acme:ro" \
+            "$IMAGE" nginx -t 2>&1 | tee evidence/nginx-test.txt
+
+      - name: Install checksum-pinned Trivy
+        id: scanner
+        if: always() && steps.export.outcome == 'success'
+        run: sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/homecloud-trivy"
+
+      - name: Scan exact OCI archive with strict 0C/0H gate
+        id: scan
+        if: always() && steps.scanner.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sh scripts/ci/scan-image.sh "$RUNNER_TEMP/homecloud-trivy/trivy" archive \
+            "$RUNNER_TEMP/ingress.oci.tar" evidence/image-ingress.json 2>&1 | tee evidence/scan-gate.txt
+
+      - name: Bind raw scan to locked platform digest and source
+        id: binding
+        if: always() && steps.scan.outcome != 'skipped'
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected=$(python3 -c 'import json; print(json.load(open("scripts/ci/production-images.lock.json"))["ingress"].split("@")[1])')
+          python3 scripts/ci/oci-scan-binding.py --archive "$RUNNER_TEMP/ingress.oci.tar" \
+            --report evidence/image-ingress.json --role ingress \
+            --source '${{ steps.source.outputs.commit }}' --expected "$expected" \
+            --output evidence/ingress.binding.json
+
+      - name: Require complete passing qualification
+        if: always()
+        run: |
+          set -eu
+          for outcome in '${{ steps.source.outcome }}' '${{ steps.export.outcome }}' '${{ steps.versions.outcome }}' \
+                         '${{ steps.nginx.outcome }}' '${{ steps.scanner.outcome }}' '${{ steps.scan.outcome }}' \
+                         '${{ steps.binding.outcome }}'; do test "$outcome" = success; done
+          for file in evidence/production-pin.txt evidence/source-sha.txt evidence/registry-manifest.json \
+                      evidence/loaded.inspect.json evidence/runtime-versions.txt evidence/nginx-test.txt \
+                      evidence/image-ingress.json evidence/image-ingress.evidence.json evidence/ingress.binding.json; do
+            test -s "$file"
+          done
+          python3 scripts/ci/scan-policy.py evidence/image-ingress.json > evidence/final-policy.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          binding = json.loads(Path('evidence/ingress.binding.json').read_text())
+          assert binding['binding'] == 'ARCHIVE_MANIFEST_CONFIG_SCAN_VERIFIED'
+          assert binding['platform'] == 'linux/amd64'
+          print('QUALIFIED OCI:', binding['platform_digest'])
+          PY
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: ingress-runtime-evidence-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ingress-runtime-evidence/
+          if-no-files-found: error
+          retention-days: 14
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always() && steps.export.outcome == 'success'
+        with:
+          name: ingress-runtime-oci-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ingress.oci.tar
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
