@@ -1,0 +1,203 @@
+name: Frontend runtime qualification
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - frontend/Dockerfile
+      - scripts/ci/images.lock.json
+      - scripts/ci/images.platforms.json
+      - .github/workflows/frontend-runtime-qualification.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-runtime-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    steps:
+      - name: Initialize retained evidence
+        run: |
+          mkdir "$RUNNER_TEMP/frontend-runtime-evidence"
+          printf 'PR_HEAD_SHA=%s\nRUN_ID=%s\n' '${{ github.event.pull_request.head.sha }}' '${{ github.run_id }}' > "$RUNNER_TEMP/frontend-runtime-evidence/request.txt"
+
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Verify exact PR source and image pins
+        id: source
+        run: |
+          set -euo pipefail
+          ln -s "$RUNNER_TEMP/frontend-runtime-evidence" evidence
+          test "$(git rev-parse HEAD)" = '${{ github.event.pull_request.head.sha }}'
+          git diff --quiet HEAD -- frontend scripts/ci/images.lock.json scripts/ci/images.platforms.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          lock = json.loads(Path('scripts/ci/images.lock.json').read_text())
+          platforms = json.loads(Path('scripts/ci/images.platforms.json').read_text())
+          dockerfile = Path('frontend/Dockerfile').read_text()
+          assert f'ARG NGINX_IMAGE={lock["nginx"]}\n' in dockerfile
+          assert lock['nginx'].split('@')[1] == platforms['nginx']['index_digest']
+          PY
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "repository=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          python3 -c 'import json,os; d=json.load(open("scripts/ci/images.lock.json")); f=open(os.environ["GITHUB_OUTPUT"],"a"); [f.write(k+"="+d[k]+"\n") for k in ("node","nginx")]'
+          git rev-parse HEAD > evidence/source-sha.txt
+
+      - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+        with:
+          version: v0.38.0
+          driver-opts: image=moby/buildkit@sha256:98cc6a3fc46220d00f8224ae483f3274fc874e9be8d7dd1e2e2c5481209228b5
+
+      - name: Build linux/amd64 OCI without publishing
+        id: build
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        env:
+          BUILDX_GIT_CHECK_DIRTY: 'false'
+          BUILDX_GIT_INFO: 'true'
+          BUILDX_GIT_LABELS: 'false'
+        with:
+          context: ./frontend
+          platforms: linux/amd64
+          push: false
+          load: false
+          outputs: type=oci,dest=${{ runner.temp }}/frontend.oci.tar
+          provenance: mode=max,version=v0.2
+          tags: ghcr.io/${{ steps.source.outputs.repository }}/frontend:dry-run
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ steps.source.outputs.repository }}
+            org.opencontainers.image.revision=${{ steps.source.outputs.commit }}
+            org.opencontainers.image.version=dry-run
+            io.homecloud.role=frontend
+            io.homecloud.pair=${{ steps.source.outputs.commit }}
+          build-args: |
+            NODE_IMAGE=${{ steps.source.outputs.node }}
+            NGINX_IMAGE=${{ steps.source.outputs.nginx }}
+
+      - name: Bind OCI digest, source and build provenance
+        id: provenance
+        env:
+          BUILD_METADATA: ${{ steps.build.outputs.metadata }}
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$BUILD_METADATA" > evidence/build-metadata.json
+          python3 scripts/ci/provenance.py dry-run \
+            --archive "$RUNNER_TEMP/frontend.oci.tar" --metadata evidence/build-metadata.json \
+            --component frontend --version dry-run --commit '${{ steps.source.outputs.commit }}' \
+            --repository '${{ steps.source.outputs.repository }}' --output evidence/offline-frontend.json
+
+      - name: Load exact OCI archive for runtime checks
+        id: load
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends skopeo
+          skopeo copy --override-os linux --override-arch amd64 \
+            "oci-archive:$RUNNER_TEMP/frontend.oci.tar" "docker-daemon:homecloud-pr-frontend:${{ steps.source.outputs.commit }}"
+          docker image inspect "homecloud-pr-frontend:${{ steps.source.outputs.commit }}" > evidence/loaded.inspect.json
+          python3 scripts/ci/oci-scan-binding.py --archive "$RUNNER_TEMP/frontend.oci.tar" \
+            --loaded-inspect evidence/loaded.inspect.json --role frontend \
+            --source '${{ steps.source.outputs.commit }}' --output evidence/loaded.binding.json
+          test "$(docker image inspect "homecloud-pr-frontend:${{ steps.source.outputs.commit }}" --format '{{.Os}}/{{.Architecture}}')" = linux/amd64
+
+      - name: Verify installed runtime versions
+        id: versions
+        if: always() && steps.load.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
+            --entrypoint sh "homecloud-pr-frontend:${{ steps.source.outputs.commit }}" -ec '
+              test "$(cut -d. -f1,2 /etc/alpine-release)" = 3.24
+              test "$(nginx -v 2>&1)" = "nginx version: nginx/1.30.6"
+              cat /etc/alpine-release
+              nginx -v
+              packages="$(apk info -v)"
+              printf "%s\n" "$packages"
+              for expected in brotli-libs-1.2.1-r0 curl-8.23.0-r0 libcurl-8.23.0-r0 libx11-1.8.14-r0 libexpat-2.9.0-r0 pcre2-10.49-r0 tiff-4.7.2-r0; do
+                printf "%s\n" "$packages" | grep -Fx "$expected" >/dev/null
+              done' 2>&1 | tee evidence/runtime-versions.txt
+
+      - name: Test nginx configuration in exact loaded image
+        id: nginx
+        if: always() && steps.load.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --network none --cap-drop ALL --cap-add CHOWN --security-opt no-new-privileges \
+            --add-host backend:127.0.0.1 --env INGRESS_PROXY_IP=127.0.0.2 \
+            "homecloud-pr-frontend:${{ steps.source.outputs.commit }}" nginx -t 2>&1 | tee evidence/nginx-test.txt
+
+      - name: Install checksum-pinned Trivy
+        id: scanner
+        if: always() && steps.build.outcome == 'success'
+        run: sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/homecloud-trivy"
+
+      - name: Scan exact OCI archive with strict 0C/0H gate
+        id: scan
+        if: always() && steps.scanner.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sh scripts/ci/scan-image.sh "$RUNNER_TEMP/homecloud-trivy/trivy" archive \
+            "$RUNNER_TEMP/frontend.oci.tar" evidence/image-frontend.json 2>&1 | tee evidence/scan-gate.txt
+
+      - name: Bind scan to OCI archive and provenance
+        id: binding
+        if: always() && steps.provenance.outcome == 'success' && steps.scan.outcome != 'skipped'
+        run: |
+          python3 scripts/ci/oci-scan-binding.py --archive "$RUNNER_TEMP/frontend.oci.tar" \
+            --report evidence/image-frontend.json --role frontend \
+            --source '${{ steps.source.outputs.commit }}' --provenance evidence/offline-frontend.json \
+            --output evidence/frontend.binding.json
+
+      - name: Require complete passing qualification
+        if: always()
+        run: |
+          set -eu
+          test '${{ steps.source.outcome }}' = success
+          test '${{ steps.build.outcome }}' = success
+          test '${{ steps.provenance.outcome }}' = success
+          test '${{ steps.load.outcome }}' = success
+          test '${{ steps.versions.outcome }}' = success
+          test '${{ steps.nginx.outcome }}' = success
+          test '${{ steps.scanner.outcome }}' = success
+          test '${{ steps.scan.outcome }}' = success
+          test '${{ steps.binding.outcome }}' = success
+          for file in evidence/offline-frontend.json evidence/loaded.binding.json evidence/runtime-versions.txt evidence/nginx-test.txt evidence/image-frontend.json evidence/image-frontend.evidence.json evidence/frontend.binding.json; do
+            test -s "$file"
+          done
+          python3 scripts/ci/scan-policy.py evidence/image-frontend.json > evidence/final-policy.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          binding = json.loads(Path('evidence/frontend.binding.json').read_text())
+          assert binding['binding'] == 'ARCHIVE_MANIFEST_CONFIG_SCAN_VERIFIED'
+          assert binding['platform'] == 'linux/amd64'
+          print('QUALIFIED OCI:', binding['platform_digest'])
+          PY
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: frontend-runtime-evidence-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/frontend-runtime-evidence/
+          if-no-files-found: error
+          retention-days: 14
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always() && steps.build.outcome == 'success'
+        with:
+          name: frontend-runtime-oci-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/frontend.oci.tar
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
