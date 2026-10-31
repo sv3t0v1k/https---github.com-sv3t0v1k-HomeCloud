@@ -503,6 +503,10 @@ def smoke():
     code = run('curl', '--fail', '--silent', '--show-error', '--max-time', '15',
                '--cacert', str(cert), '--output', '/dev/null', '--write-out', '%{http_code}', origin + '/')
     require(code == '200', 'public HTTPS smoke failed')
+    # The public reverse proxy intentionally denies /api/v1/health/ready.
+    # Run the application's existing bounded DB/storage readiness probe only
+    # inside the backend container. Its exit status is fail-closed.
+    compose('exec', '-T', 'backend', 'node', 'docker/healthcheck.cjs', timeout=15)
 
 
 def require_checkpoint_refs(state):

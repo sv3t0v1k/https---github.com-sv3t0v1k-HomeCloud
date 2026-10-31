@@ -6,6 +6,9 @@ import json
 import subprocess
 import importlib.util
 from pathlib import Path
+import os
+import multiprocessing
+import signal
 from contextlib import ExitStack
 import tempfile
 import unittest
@@ -34,6 +37,43 @@ def proof(role):
                 commit=SHA, repository='ghcr.io/' + REPO + '/' + role,
                 version='test-' + SHA, platform='linux/amd64',
                 verified='DIGEST_SUBJECT_VCS_DOCKERFILE_ARGS_BASE_MATERIALS', signature='UNSIGNED')
+
+
+def suspended_install_process(channel, ready_pipe, state, applied, manifest):
+    """Signal-safe fixture: stop phase is reached, then await termination."""
+    previous = 'd' * 40
+    # The root-only deploy precondition is mocked below. The lock itself must
+    # still be created and validated against the child's real effective UID.
+    actual_euid = os.geteuid()
+    real_acquire_lock = installer.acquire_lock
+
+    def acquire_test_lock(path):
+        with patch.object(installer.os, 'geteuid', return_value=actual_euid):
+            return real_acquire_lock(path)
+
+    def fake_compose(*args, **kwargs):
+        if args and args[0] == 'stop':
+            ready_pipe.send('STOP_SERVICES')
+            signal.pause()
+        return ''
+
+    with ExitStack() as patches:
+        patches.enter_context(patch.object(installer, 'ROOT', Path('/home/hs/homecloud-test')))
+        patches.enter_context(patch.object(installer, 'CHANNEL', Path(channel)))
+        patches.enter_context(patch.object(installer, 'private_dir'))
+        patches.enter_context(patch.object(installer.os, 'geteuid', return_value=0))
+        patches.enter_context(patch.object(installer, 'acquire_lock', side_effect=acquire_test_lock))
+        patches.enter_context(patch.object(installer, 'load_state', return_value=state))
+        patches.enter_context(patch.object(installer, 'require_checkpoint_refs'))
+        patches.enter_context(patch.object(installer, 'run', return_value=''))
+        patches.enter_context(patch.object(installer, 'active_images', return_value=state['active']['images']))
+        patches.enter_context(patch.object(installer, 'applied_migrations', return_value=applied))
+        patches.enter_context(patch.object(installer, 'precheck_source', return_value=previous))
+        patches.enter_context(patch.object(installer, 'safe_checkout', return_value=previous))
+        patches.enter_context(patch.object(installer, 'verify_pulled', return_value={
+            'backend': 'sha256:' + 'e' * 64, 'frontend': 'sha256:' + 'f' * 64}))
+        patches.enter_context(patch.object(installer, 'compose', side_effect=fake_compose))
+        installer.deploy(manifest)
 
 
 class TestChannelTests(unittest.TestCase):
@@ -504,6 +544,88 @@ class TestChannelTests(unittest.TestCase):
                 data = json.loads((Path(tmp) / 'pending.json').read_text())
                 self.assertEqual(data['backup_id'], 'verified-backup-id')
                 self.assertEqual(data['phase'], 'BACKUP')
+
+
+    def test_smoke_checks_public_https_and_private_backend_readiness(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fullchain = Path(tmp) / 'current' / 'fullchain.pem'
+            fullchain.parent.mkdir()
+            fullchain.write_text('dummy test certificate')
+            env = {'PUBLIC_ORIGIN': 'https://test.example', 'TLS_CERT_DIR': tmp}
+            with patch.object(installer, 'env_values', return_value=env), \
+                 patch.object(installer, 'run', return_value='200') as public, \
+                 patch.object(installer, 'compose', return_value='') as internal:
+                installer.smoke()
+            self.assertIn('https://test.example/', public.call_args.args)
+            self.assertEqual(internal.call_args.args,
+                             ('exec', '-T', 'backend', 'node', 'docker/healthcheck.cjs'))
+            self.assertEqual(internal.call_args.kwargs, {'timeout': 15})
+
+    def test_smoke_refuses_public_200_when_backend_not_ready(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cert = Path(tmp) / 'current' / 'fullchain.pem'
+            cert.parent.mkdir()
+            cert.write_text('dummy test certificate')
+            env = {'PUBLIC_ORIGIN': 'https://test.example', 'TLS_CERT_DIR': tmp}
+            with patch.object(installer, 'env_values', return_value=env), \
+                 patch.object(installer, 'run', return_value='200'), \
+                 patch.object(installer, 'compose', side_effect=installer.Stop('backend readiness refused')):
+                with self.assertRaisesRegex(installer.Stop, 'backend readiness refused'):
+                    installer.smoke()
+
+    def test_smoke_does_not_probe_backend_after_public_failure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cert = Path(tmp) / 'current' / 'fullchain.pem'
+            cert.parent.mkdir()
+            cert.write_text('dummy test certificate')
+            env = {'PUBLIC_ORIGIN': 'https://test.example', 'TLS_CERT_DIR': tmp}
+            with patch.object(installer, 'env_values', return_value=env), \
+                 patch.object(installer, 'run', return_value='503'), \
+                 patch.object(installer, 'compose') as internal:
+                with self.assertRaisesRegex(installer.Stop, 'public HTTPS smoke failed'):
+                    installer.smoke()
+                internal.assert_not_called()
+
+    @unittest.skipUnless(os.name == 'posix' and hasattr(signal, 'SIGKILL'),
+                         'POSIX signals required')
+    def test_process_termination_after_stop_preserves_pending(self):
+        # Simulate installer death from an SSH/job cancellation or power loss.
+        # This is a local signal simulation, not a network/SSH acceptance test.
+        previous = 'd' * 40
+        ctx = multiprocessing.get_context('spawn')
+        for sig in (signal.SIGTERM, signal.SIGKILL):
+            with self.subTest(signal=sig), tempfile.TemporaryDirectory() as tmp:
+                channel = Path(tmp)
+                receiver, sender = ctx.Pipe(duplex=False)
+                proc = ctx.Process(target=suspended_install_process,
+                    args=(tmp, sender, copy.deepcopy(self.state), self.applied, self.manifest))
+                proc.start()
+                sender.close()
+                try:
+                    self.assertTrue(receiver.poll(10), 'child never reached STOP_SERVICES')
+                    self.assertEqual(receiver.recv(), 'STOP_SERVICES')
+                    if sig == signal.SIGTERM:
+                        proc.terminate()
+                    else:
+                        proc.kill()
+                    proc.join(10)
+                    self.assertEqual(proc.exitcode, -sig)
+                finally:
+                    receiver.close()
+                    if proc.is_alive():
+                        proc.kill()
+                    proc.join(10)
+                pending = json.loads((channel / 'pending.json').read_text())
+                self.assertEqual(pending['phase'], 'STOP_SERVICES')
+                self.assertEqual(pending['before']['git_sha'], previous)
+                self.assertFalse((channel / 'state.json').exists())
+                with patch.object(installer, 'CHANNEL', channel):
+                    with self.assertRaisesRegex(installer.Stop, 'incomplete TEST transaction'):
+                        installer.guard_no_pending()
+                report = installer.recovery_report(pending, self.state, previous,
+                    {role: image['ref'] for role, image in self.state['active']['images'].items()})
+                self.assertEqual(report['status'], 'MANUAL_RECOVERY_REQUIRED')
+                self.assertFalse(report['automatic_rollback'])
 
 
 if __name__ == '__main__':
