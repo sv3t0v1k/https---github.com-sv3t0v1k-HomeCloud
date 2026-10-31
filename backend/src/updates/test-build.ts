@@ -146,7 +146,7 @@ async function digestExists(role: "backend" | "frontend", digest: string,
   token: string, user: string): Promise<boolean> {
   try {
     const repository = `${REPOSITORY.toLowerCase()}/${role}`;
-    const auth = token && user ? { Authorization: `Basic ${Buffer.from(`${user}:${token}`).toString("base64")}` } : {};
+    const auth: Record<string, string> = token && user ? { Authorization: `Basic ${Buffer.from(`${user}:${token}`).toString("base64")}` } : {};
     const issued = await fetch(`https://ghcr.io/token?service=ghcr.io&scope=${encodeURIComponent(`repository:${repository}:pull`)}`, {
       redirect: "manual", signal: AbortSignal.timeout(4000), headers: auth });
     if (!issued.ok || issued.status !== 200) return false;
