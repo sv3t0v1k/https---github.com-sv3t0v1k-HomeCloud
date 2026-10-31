@@ -84,7 +84,7 @@ describe("TEST channel read-only discovery", () => {
         status: 302, headers: { location: "https://productionresultssa30.blob.core.windows.net/result?sig=sample" },
       });
       if (url.startsWith("https://productionresultssa30.blob.core.windows.net/")) {
-        expect(init?.headers).toBeUndefined(); // GitHub token must not cross origin.
+        if (init?.headers !== undefined) throw new Error("Unexpected cross-origin headers"); // GitHub token must not cross origin.
         return new Response(new Uint8Array(archive), { status: 200 });
       }
       if (url.includes("/compare/")) return Response.json({ status: "ahead" });
