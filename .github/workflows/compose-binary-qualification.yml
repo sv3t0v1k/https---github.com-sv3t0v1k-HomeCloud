@@ -14,12 +14,12 @@ jobs:
   qualify:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
-    env:
-      EVIDENCE: ${{ runner.temp }}/compose-evidence
-      CANDIDATE: ${{ runner.temp }}/compose-candidate
     steps:
       - name: Initialize evidence
         run: |
+          EVIDENCE="$RUNNER_TEMP/compose-evidence"
+          CANDIDATE="$RUNNER_TEMP/compose-candidate"
+          printf 'EVIDENCE=%s\nCANDIDATE=%s\n' "$EVIDENCE" "$CANDIDATE" >> "$GITHUB_ENV"
           mkdir -p "$EVIDENCE" "$CANDIDATE"
           printf 'PR_HEAD_SHA=%s\nRUN_ID=%s\n' '${{ github.event.pull_request.head.sha }}' '${{ github.run_id }}' > "$EVIDENCE/request.txt"
 
