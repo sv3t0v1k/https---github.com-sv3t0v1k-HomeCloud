@@ -1,0 +1,123 @@
+name: Compose binary qualification
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - .github/workflows/compose-binary-qualification.yml
+      - docs/evidence/d5-1-p0e-compose-blocked-20261031.md
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      EVIDENCE: ${{ runner.temp }}/compose-evidence
+      CANDIDATE: ${{ runner.temp }}/compose-candidate
+    steps:
+      - name: Initialize evidence
+        run: |
+          mkdir -p "$EVIDENCE" "$CANDIDATE"
+          printf 'PR_HEAD_SHA=%s\nRUN_ID=%s\n' '${{ github.event.pull_request.head.sha }}' '${{ github.run_id }}' > "$EVIDENCE/request.txt"
+
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Bind exact PR source
+        run: |
+          test "$(git rev-parse HEAD)" = '${{ github.event.pull_request.head.sha }}'
+          git rev-parse HEAD > "$EVIDENCE/source-sha.txt"
+
+      - name: Fetch and verify official linux/amd64 candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          base=https://github.com/docker/compose/releases/download/v5.6.1
+          curl --proto '=https' --proto-redir '=https' --fail --silent --show-error --location "$base/docker-compose-linux-x86_64" -o "$CANDIDATE/docker-compose-linux-x86_64"
+          curl --proto '=https' --proto-redir '=https' --fail --silent --show-error --location "$base/docker-compose-linux-x86_64.sha256" -o "$EVIDENCE/upstream.sha256"
+          curl --proto '=https' --proto-redir '=https' --fail --silent --show-error --location "$base/docker-compose-linux-x86_64.sigstore.json" -o "$EVIDENCE/upstream.sigstore.json"
+          curl --proto '=https' --proto-redir '=https' --fail --silent --show-error --location "$base/docker-compose-linux-x86_64.provenance.json" -o "$EVIDENCE/upstream.provenance.json"
+          (cd "$CANDIDATE" && sha256sum --check "$EVIDENCE/upstream.sha256")
+          printf '47737f4236e6d3ccea7291995203f8f018058783b4c3a9469119811a0b5db8c0  %s\n' "$CANDIDATE/docker-compose-linux-x86_64" | sha256sum --check
+          chmod +x "$CANDIDATE/docker-compose-linux-x86_64"
+          test "$("$CANDIDATE/docker-compose-linux-x86_64" version --short)" = 5.6.1
+          file "$CANDIDATE/docker-compose-linux-x86_64" > "$EVIDENCE/elf.txt"
+          go version -m "$CANDIDATE/docker-compose-linux-x86_64" > "$EVIDENCE/go-modules.txt"
+          grep -F 'go1.26.10' "$EVIDENCE/go-modules.txt"
+          grep -F $'\tbuild\tGOOS=linux' "$EVIDENCE/go-modules.txt"
+          grep -F $'\tbuild\tGOARCH=amd64' "$EVIDENCE/go-modules.txt"
+          grep -F $'\tdep\tgolang.org/x/net\tv0.58.0' "$EVIDENCE/go-modules.txt"
+          sha256sum "$CANDIDATE/docker-compose-linux-x86_64" > "$EVIDENCE/binary.sha256"
+
+      - name: Check four Compose configurations without starting services
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$CANDIDATE/docker" <<'SHIM'
+          #!/bin/sh
+          set -eu
+          [ "$#" -ge 1 ] && [ "$1" = compose ] || exit 1
+          shift
+          exec "$(dirname "$0")/docker-compose-linux-x86_64" "$@"
+          SHIM
+          chmod +x "$CANDIDATE/docker"
+          export PATH="$CANDIDATE:$PATH"
+          test "$(command -v docker)" = "$CANDIDATE/docker"
+          docker compose version > "$EVIDENCE/executed-version.txt"
+          python3 scripts/ci/compose-check.py | tee "$EVIDENCE/config-checks.txt"
+
+      - name: Install checksum-pinned Trivy
+        run: sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/compose-trivy"
+
+      - name: Inventory executed tools and scan exact Compose ELF
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          root = Path(os.environ['EVIDENCE'])
+          paths = {'compose': Path(os.environ['CANDIDATE'])/'docker-compose-linux-x86_64',
+                   'trivy': Path(os.environ['RUNNER_TEMP'])/'compose-trivy/trivy'}
+          root.joinpath('executed-tools.json').write_text(json.dumps({key: {
+              'path': str(path), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}
+              for key, path in paths.items()}, indent=2) + '\n')
+          PY
+          "$RUNNER_TEMP/compose-trivy/trivy" --cache-dir "$RUNNER_TEMP/compose-trivy/cache" rootfs \
+            --config /dev/null --scanners vuln --list-all-pkgs --ignore-unfixed=false \
+            --ignorefile /dev/null --no-progress --format json \
+            --output "$EVIDENCE/compose.scan.json" "$CANDIDATE"
+          cp "$RUNNER_TEMP/compose-trivy/cache/db/metadata.json" "$EVIDENCE/trivy-db.json"
+          "$RUNNER_TEMP/compose-trivy/trivy" --version > "$EVIDENCE/trivy-version.txt"
+          python3 - <<'PY'
+          from datetime import datetime, timedelta, timezone
+          import json, os
+          from pathlib import Path
+          db = json.loads((Path(os.environ['EVIDENCE'])/'trivy-db.json').read_text())
+          now = datetime.now(timezone.utc)
+          updated = datetime.fromisoformat(db['UpdatedAt'].replace('Z', '+00:00'))
+          next_update = datetime.fromisoformat(db['NextUpdate'].replace('Z', '+00:00'))
+          assert updated <= now < next_update and now - updated <= timedelta(hours=24)
+          PY
+          python3 scripts/ci/scan-policy.py "$EVIDENCE/compose.scan.json" --component > "$EVIDENCE/policy.json"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: compose-qualification-evidence-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/compose-evidence/
+          if-no-files-found: error
+          retention-days: 14
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: compose-candidate-elf-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/compose-candidate/docker-compose-linux-x86_64
+          if-no-files-found: error
+          retention-days: 7
