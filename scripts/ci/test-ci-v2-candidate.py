@@ -33,6 +33,17 @@ class CandidateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'changed'):
             candidate.validate(self.event, self.live, 'c'*40)
 
+    def test_test_push_requires_live_head(self):
+        event = {'ref': 'refs/heads/test', 'after': self.head}
+        live = {'commit': {'sha': self.head}}
+        self.assertEqual(candidate.validate_push(event, live, self.head, 'test')['head_sha'], self.head)
+        live['commit']['sha'] = 'c'*40
+        with self.assertRaisesRegex(ValueError, 'changed'):
+            candidate.validate_push(event, live, self.head, 'test')
+        live['commit']['sha'] = self.head
+        with self.assertRaisesRegex(ValueError, 'branch'):
+            candidate.validate_push(event, live, self.head, 'main')
+
 
 if __name__ == '__main__':
     unittest.main()

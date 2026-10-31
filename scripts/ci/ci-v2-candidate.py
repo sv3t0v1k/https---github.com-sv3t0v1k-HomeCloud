@@ -21,15 +21,31 @@ def validate(event, live, checkout):
     return {'head_sha': event_head, 'base_sha': event_base}
 
 
+def validate_push(event, live, checkout, branch):
+    if branch != 'test' or event.get('ref') != 'refs/heads/test':
+        raise ValueError('unexpected push branch')
+    original = event.get('after')
+    current = live.get('commit', {}).get('sha')
+    if not all(isinstance(value, str) and SHA.fullmatch(value)
+               for value in (original, current, checkout)):
+        raise ValueError('Invalid test candidate SHA')
+    if original != current or checkout != original:
+        raise ValueError('test branch HEAD changed after CI started')
+    return {'head_sha': original, 'branch': branch}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--event', required=True)
     parser.add_argument('--live', required=True)
     parser.add_argument('--checkout', required=True)
+    parser.add_argument('--branch')
     args = parser.parse_args()
     try:
-        result = validate(json.loads(Path(args.event).read_text()), json.loads(Path(args.live).read_text()),
-                          args.checkout)
+        event = json.loads(Path(args.event).read_text())
+        live = json.loads(Path(args.live).read_text())
+        result = (validate_push(event, live, args.checkout, args.branch) if args.branch else
+                  validate(event, live, args.checkout))
         print(json.dumps(result, sort_keys=True))
     except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as error:
         print(f'BLOCKED: {error}', file=sys.stderr)
