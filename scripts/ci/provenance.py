@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 MAX_METADATA = 16 * 1024 * 1024
 BUILDKIT = 'https://mobyproject.org/buildkit@v1'
 DIGEST = re.compile(r'^sha256:[a-f0-9]{64}$')
-VERSION = re.compile(r'^(?:dry-run|v0\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)-beta\.[1-9][0-9]*)$')
+VERSION = re.compile(r'^(?:dry-run|test-[a-f0-9]{40}|v0\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)-beta\.[1-9][0-9]*)$')
 
 
 class SafeRedirect(urllib.request.HTTPRedirectHandler):

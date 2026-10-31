@@ -2,12 +2,14 @@ name: HomeCloud PR Fast + Integration v2
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  push:
+    branches: [test]
 permissions:
   contents: read
   pull-requests: read
 concurrency:
-  group: ci-v2-fast-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  group: ci-v2-fast-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   pr-fast-backend:
     runs-on: ubuntu-24.04
@@ -21,7 +23,7 @@ jobs:
           test "$(dpkg-query -W -f='${Version}' perl-base)" = 5.36.0-7+deb12u4
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - run: python3 scripts/ci/install-npm.py
       - run: npm ci --no-audit
@@ -30,6 +32,7 @@ jobs:
         working-directory: backend
       - run: python3 scripts/ci/test-ci-v2-fast-gate.py
       - run: python3 scripts/ci/test-ci-v2-candidate.py
+      - run: python3 scripts/ci/test-test-channel.py
       - run: python3 scripts/ci/test-secret-findings.py
       - run: python3 scripts/ci/test-install-npm.py
       - run: python3 scripts/ci/test-test-routing.py
@@ -86,7 +89,7 @@ jobs:
           test "$(dpkg-query -W -f='${Version}' perl-base)" = 5.36.0-7+deb12u4
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Install checksum-pinned compatible npm before dependency commands
         run: python3 scripts/ci/install-npm.py
@@ -120,7 +123,7 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -152,7 +155,7 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Pin normalized Compose API; preserve explicit false bind flags
         shell: bash
@@ -191,7 +194,7 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - name: Pinned gitleaks; full reachable history, forbidden audit excluded before reading
@@ -222,15 +225,161 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Require all Fast and Integration jobs
         env:
           RESULTS: ${{ toJSON(needs) }}
         run: python3 scripts/ci/ci-v2-fast-gate.py --results "$RESULTS"
       - name: Require unchanged PR HEAD and base
+        if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh api "repos/$GITHUB_REPOSITORY/pulls/${{ github.event.pull_request.number }}" > "$RUNNER_TEMP/current-pr.json"
           python3 scripts/ci/ci-v2-candidate.py --event "$GITHUB_EVENT_PATH" --live "$RUNNER_TEMP/current-pr.json" --checkout "$(git rev-parse HEAD)"
+      - name: Require unchanged test branch HEAD
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/branches/test" > "$RUNNER_TEMP/current-test.json"
+          python3 scripts/ci/ci-v2-candidate.py --event "$GITHUB_EVENT_PATH" --live "$RUNNER_TEMP/current-test.json" --checkout "$(git rev-parse HEAD)" --branch test
+  test-image:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/test'
+    needs: fast-integration-gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        component: [backend, frontend]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Bind source to protected test branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/branches/test" > "$RUNNER_TEMP/current-test.json"
+          python3 scripts/ci/ci-v2-candidate.py --event "$GITHUB_EVENT_PATH" --live "$RUNNER_TEMP/current-test.json" --checkout "$(git rev-parse HEAD)" --branch test
+          test "$(python3 -c 'import json,os; print(str(json.load(open(os.environ["RUNNER_TEMP"]+"/current-test.json"))["protected"]).lower())')" = true
+      - id: source
+        run: |
+          git diff --quiet HEAD
+          test -z "$(git ls-files --others --exclude-standard -- backend frontend)"
+          echo "repository=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - id: bases
+        run: |
+          python3 -c 'import json,os; d=json.load(open("scripts/ci/images.lock.json")); f=open(os.environ["GITHUB_OUTPUT"],"a"); [f.write(k+"="+v+"\n") for k,v in d.items()]'
+      - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+        with:
+          version: v0.38.0
+          driver-opts: image=moby/buildkit@sha256:98cc6a3fc46220d00f8224ae483f3274fc874e9be8d7dd1e2e2c5481209228b5
+      - uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Publish TEST-only linux/amd64 image with provenance
+        id: build
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        env:
+          BUILDX_GIT_CHECK_DIRTY: 'false'
+          BUILDX_GIT_INFO: 'true'
+          BUILDX_GIT_LABELS: 'false'
+        with:
+          context: ./${{ matrix.component }}
+          platforms: linux/amd64
+          push: true
+          provenance: mode=max,version=v0.2
+          tags: ghcr.io/${{ steps.source.outputs.repository }}/${{ matrix.component }}:test-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ steps.source.outputs.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=test-${{ github.sha }}
+            io.homecloud.role=${{ matrix.component }}
+            io.homecloud.pair=${{ github.sha }}
+          build-args: |
+            NODE_IMAGE=${{ steps.bases.outputs.node }}
+            NGINX_IMAGE=${{ steps.bases.outputs.nginx }}
+      - name: Record exact registry index digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          python3 -c 'import os,re,pathlib; d=os.environ["DIGEST"]; assert re.fullmatch("sha256:[a-f0-9]{64}",d); pathlib.Path("${{ matrix.component }}.digest").write_text(d+"\n")'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: test-digest-${{ matrix.component }}-${{ github.run_attempt }}
+          path: ${{ matrix.component }}.digest
+          if-no-files-found: error
+          retention-days: 90
+  test-pair:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/test'
+    needs: test-image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      manifest_sha256: ${{ steps.manifest.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: test-digest-backend-${{ github.run_attempt }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: test-digest-frontend-${{ github.run_attempt }}
+      - name: Verify current protected source and exact remote provenance pair
+        id: manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/branches/test" > "$RUNNER_TEMP/current-test.json"
+          python3 scripts/ci/ci-v2-candidate.py --event "$GITHUB_EVENT_PATH" --live "$RUNNER_TEMP/current-test.json" --checkout "$(git rev-parse HEAD)" --branch test
+          test "$(python3 -c 'import json,os; print(str(json.load(open(os.environ["RUNNER_TEMP"]+"/current-test.json"))["protected"]).lower())')" = true
+          python3 scripts/ci/test-channel.py create --manifest test-channel.json --commit "$GITHUB_SHA" --repository "${GITHUB_REPOSITORY,,}" --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --backend "$(cat backend.digest)" --frontend "$(cat frontend.digest)"
+          python3 scripts/ci/test-channel.py check --manifest test-channel.json
+          echo "sha256=$(python3 -c 'import json; print(json.load(open("test-channel.json"))["manifest_sha256"])')" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: test-channel-${{ github.run_attempt }}
+          path: test-channel.json
+          if-no-files-found: error
+          retention-days: 90
+  test-deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/test' && vars.TEST_AUTO_DEPLOY_ENABLED == 'true'
+    needs: test-pair
+    environment: test-deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: test-channel-${{ github.run_attempt }}
+      - name: Deliver manifest to restricted mini-PC command
+        env:
+          TEST_DEPLOY_KEY: ${{ secrets.TEST_DEPLOY_KEY }}
+          TEST_DEPLOY_KNOWN_HOSTS: ${{ secrets.TEST_DEPLOY_KNOWN_HOSTS }}
+          TEST_DEPLOY_TARGET: ${{ vars.TEST_DEPLOY_TARGET }}
+          EXPECTED_MANIFEST: ${{ needs.test-pair.outputs.manifest_sha256 }}
+        run: |
+          test -n "$TEST_DEPLOY_KEY" && test -n "$TEST_DEPLOY_KNOWN_HOSTS" && test -n "$TEST_DEPLOY_TARGET"
+          python3 -c 'import os,re; assert re.fullmatch(r"[a-z_][a-z0-9_-]*@[A-Za-z0-9.-]+", os.environ["TEST_DEPLOY_TARGET"]), "invalid restricted SSH target"'
+          python3 -c 'import hashlib,json,os; m=json.load(open("test-channel.json")); h=lambda x: hashlib.sha256(json.dumps(x,sort_keys=True,separators=(",",":"),ensure_ascii=False).encode()).hexdigest(); assert m["commit"]==os.environ["GITHUB_SHA"] and m["manifest_sha256"]==os.environ["EXPECTED_MANIFEST"] and h({k:v for k,v in m.items() if k!="manifest_sha256"})==m["manifest_sha256"]'
+          umask 077
+          printf '%s\n' "$TEST_DEPLOY_KEY" > "$RUNNER_TEMP/test-deploy-key"
+          printf '%s\n' "$TEST_DEPLOY_KNOWN_HOSTS" > "$RUNNER_TEMP/test-known-hosts"
+          ssh -i "$RUNNER_TEMP/test-deploy-key" -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/test-known-hosts" -o BatchMode=yes "$TEST_DEPLOY_TARGET" 'sudo -n /home/hs/homecloud-test/deploy/linux/project-test.sh test-apply' < test-channel.json
