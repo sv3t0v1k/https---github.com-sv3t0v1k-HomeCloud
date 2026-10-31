@@ -18,7 +18,7 @@ FORMAT = 'homecloud-test-channel-v1'
 FILES = ('docker-compose.yml', 'docker-compose.production.yml', 'docker-compose.project-test.yml',
          'backend/Dockerfile', 'frontend/Dockerfile', 'backend/package-lock.json',
          'frontend/package-lock.json', 'scripts/ci/images.lock.json',
-         'deploy/linux/project-test.sh', 'deploy/linux/preflight.py',
+         'deploy/linux/project-test.sh', 'deploy/linux/test-job.py', 'deploy/linux/preflight.py',
          'deploy/linux/test-channel.py', 'scripts/ci/test-channel.py',
          'scripts/backup.sh', 'scripts/recovery_config.py', 'scripts/recovery_storage.py',
          'scripts/recovery-config.sh', 'scripts/recovery-storage.sh', 'scripts/recovery-pending.sql')

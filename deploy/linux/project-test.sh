@@ -4,7 +4,7 @@ set -eu
 fail() { echo 'STOP: project-test wrapper' >&2; exit 1; }
 [ "$(id -u)" = 0 ] || fail
 [ "$#" = 1 ] || fail
-case "$1" in preflight|config|start|status|stop|test-baseline-inspect|test-recovery-inspect|test-dry-run|test-apply|test-rollback) action=$1;; *) fail;; esac
+case "$1" in preflight|config|start|status|stop|test-baseline-inspect|test-recovery-inspect|test-dry-run|test-apply|test-rollback|test-submit|test-job-status) action=$1;; *) fail;; esac
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P) || fail
 project_root=$(CDPATH= cd -- "$script_dir/../.." && pwd -P) || fail
 cd -- "$project_root" || fail
@@ -30,6 +30,10 @@ case "$action" in
     ;;
   status) compose ps --all;;
   stop) compose stop db backend frontend ingress;;
+  test-submit|test-job-status)
+    case "$action" in test-submit) mode=submit;; *) mode=status;; esac
+    env -i HOME=/root PATH="$clean_path" python3 "$project_root/deploy/linux/test-job.py" "$mode"
+    ;;
   test-baseline-inspect|test-recovery-inspect|test-dry-run|test-apply|test-rollback)
     mode=${action#test-}
     env -i HOME=/root PATH="$clean_path" python3 "$project_root/deploy/linux/test-channel.py" "$mode"

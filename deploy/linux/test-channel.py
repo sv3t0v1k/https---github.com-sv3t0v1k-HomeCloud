@@ -24,7 +24,7 @@ TX_FORMAT = 'homecloud-test-transaction-v1'
 MIGRATION_FILE = re.compile(r'[0-9]+-[A-Za-z0-9]+\.ts\Z')
 PIN = re.compile(r'ghcr\.io/[a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9_.-]*/(?:backend|frontend)@sha256:[a-f0-9]{64}\Z')
 LOCKED_FILES = ('docker-compose.yml', 'docker-compose.production.yml',
-                'docker-compose.project-test.yml', 'deploy/linux/project-test.sh',
+                'docker-compose.project-test.yml', 'deploy/linux/project-test.sh', 'deploy/linux/test-job.py',
                 'deploy/linux/preflight.py', 'deploy/linux/test-channel.py',
                 'scripts/ci/test-channel.py', 'scripts/backup.sh',
                 'scripts/recovery_config.py', 'scripts/recovery_storage.py',

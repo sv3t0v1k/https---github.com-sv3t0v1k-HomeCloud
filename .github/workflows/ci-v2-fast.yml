@@ -33,6 +33,7 @@ jobs:
       - run: python3 scripts/ci/test-ci-v2-fast-gate.py
       - run: python3 scripts/ci/test-ci-v2-candidate.py
       - run: python3 scripts/ci/test-test-channel.py
+      - run: python3 scripts/ci/test-test-job.py
       - run: python3 scripts/ci/test-secret-findings.py
       - run: python3 scripts/ci/test-install-npm.py
       - run: python3 scripts/ci/test-test-routing.py
@@ -382,4 +383,44 @@ jobs:
           umask 077
           printf '%s\n' "$TEST_DEPLOY_KEY" > "$RUNNER_TEMP/test-deploy-key"
           printf '%s\n' "$TEST_DEPLOY_KNOWN_HOSTS" > "$RUNNER_TEMP/test-known-hosts"
-          ssh -i "$RUNNER_TEMP/test-deploy-key" -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/test-known-hosts" -o BatchMode=yes "$TEST_DEPLOY_TARGET" 'sudo -n /home/hs/homecloud-test/deploy/linux/project-test.sh test-apply' < test-channel.json
+          # A durable root-only manifest and independent systemd service outlive SSH.
+          # Never resubmit automatically after an ambiguous SSH acknowledgement.
+          ssh_opts=(-i "$RUNNER_TEMP/test-deploy-key" -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes
+                    -o UserKnownHostsFile="$RUNNER_TEMP/test-known-hosts" -o BatchMode=yes
+                    -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=2)
+          submit=$(ssh "${ssh_opts[@]}" "$TEST_DEPLOY_TARGET" \
+            'sudo -n /home/hs/homecloud-test/deploy/linux/project-test.sh test-submit' < test-channel.json) || {
+            echo 'STOP: submission acknowledgement lost; inspect job on mini-PC; do not retry blindly' >&2
+            exit 1
+          }
+          SUBMIT_JSON="$submit" python3 - <<'PYCODE'
+          import json, os
+          item = json.loads(os.environ['SUBMIT_JSON'])
+          assert item['manifest_sha256'] == os.environ['EXPECTED_MANIFEST']
+          assert item['status'] in ('ACCEPTED', 'QUEUED', 'RUNNING', 'INSTALLED')
+          PYCODE
+          # The status query is read-only. Transient SSH failures never cancel
+          # the detached service, and never count as an install success.
+          for ((attempt=0; attempt<990; attempt++)); do
+            if status=$(ssh "${ssh_opts[@]}" "$TEST_DEPLOY_TARGET" \
+                'sudo -n /home/hs/homecloud-test/deploy/linux/project-test.sh test-job-status'); then
+              result=$(STATUS_JSON="$status" python3 - <<'PYCODE'
+          import json, os
+          item = json.loads(os.environ['STATUS_JSON'])
+          assert item['manifest_sha256'] == os.environ['EXPECTED_MANIFEST']
+          assert item['status'] in ('QUEUED', 'RUNNING', 'INSTALLED', 'STOP', 'UNKNOWN_REQUIRES_REVIEW')
+          print(item['status'])
+          PYCODE
+              ) || exit 1
+              case "$result" in
+                INSTALLED) echo 'TEST installation confirmed from durable job checkpoint'; exit 0;;
+                QUEUED|RUNNING) ;;
+                *) echo 'STOP: TEST job requires operator inspection' >&2; exit 1;;
+              esac
+            else
+              echo 'SSH status temporarily unavailable; detached TEST job is not cancelled' >&2
+            fi
+            sleep 10
+          done
+          echo 'STOP: TEST job status deadline reached; check mini-PC before retrying' >&2
+          exit 1
