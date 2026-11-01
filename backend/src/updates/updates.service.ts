@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { createHash } from "crypto";
 import { readFile } from "fs/promises";
+import { discoverTestBuild } from "./test-build";
 
 const REPOSITORY = "sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud";
 const API = `https://api.github.com/repos/${REPOSITORY}`;
@@ -134,10 +135,15 @@ export class UpdatesService {
         }
       }
     } catch { /* Missing deployment evidence remains unknown. */ }
-    const base = { channel: "test", installed: installed ? { version: installed.version, gitSha: installed.gitSha } : null };
+    const channel = this.config.get<string>("UPDATE_CHANNEL") === "test" ? "test" : "release";
+    const base = { channel, installed: installed ? { version: installed.version, gitSha: installed.gitSha } : null };
     if (!installed) return { ...base, available: null, status: "installed_unknown" };
     try {
       const token = this.config.get<string>("UPDATE_GITHUB_TOKEN") || "";
+      if (channel === "test") {
+        const available = await discoverTestBuild(installed, token, this.config.get<string>("UPDATE_GITHUB_USER") || "");
+        return { ...base, available, status: available ? "available" : "current" };
+      }
       const releases = await githubJson(`${API}/releases?per_page=20`, token) as Release[];
       if (!Array.isArray(releases)) throw new Error("Invalid releases");
       for (const release of releases) {

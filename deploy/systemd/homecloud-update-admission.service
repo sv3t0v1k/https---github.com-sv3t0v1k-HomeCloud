@@ -1,0 +1,16 @@
+[Unit]
+Description=HomeCloud request-only admission; update installation is NOT enabled
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/bin/python3 /usr/local/libexec/homecloud/update-admission.py
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/homecloud-update/inbox /var/lib/homecloud-update/status

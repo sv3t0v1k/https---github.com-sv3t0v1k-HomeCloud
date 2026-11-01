@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { apiRequest } from '../api/client'
 
 type UpdateCheck = {
-  channel: 'test'
+  channel: 'test' | 'release'
   installed: { version: string; gitSha: string } | null
   available: { version: string; gitSha: string; changes: string; compatibility: string } | null
   status: 'installed_unknown' | 'available' | 'current' | 'check_unavailable'
@@ -30,7 +30,7 @@ export function UpdatesSection() {
   if (!admin) return null
   return <section aria-label="Обновления" className="account-section">
     <h3>Обновления</h3>
-    <p>Канал: test. Установка через интерфейс пока недоступна.</p>
+    <p>Канал: {result?.channel === 'release' ? 'release' : 'test'}. Установка через интерфейс пока недоступна.</p>
     <p>Установленная версия: {result?.installed ? `${result.installed.version} (${result.installed.gitSha.slice(0, 7)})` : 'не определена'}.</p>
     {result?.status === 'available' && result.available ? <>
       <p role="status">Доступна проверенная сборка {result.available.version}.</p>

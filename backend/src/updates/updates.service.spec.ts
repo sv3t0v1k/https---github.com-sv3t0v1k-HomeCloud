@@ -55,6 +55,22 @@ describe("updates discovery", () => {
     });
   });
 
+  it("uses TEST Actions discovery only for the configured test channel", async () => {
+    await writeFile(join(directory, "snapshot.json"), JSON.stringify({
+      format: "homecloud-installed-test-v1", version: oldSha.slice(0, 7), gitSha: oldSha,
+      schemaMigrations: ["MigrationOne"],
+    }));
+    const config = { get: (key: string) => key === "UPDATE_CHANNEL" ? "test" :
+      key === "UPDATE_INSTALLED_METADATA_PATH" ? join(directory, "snapshot.json") : "" } as ConfigService;
+    global.fetch = jest.fn(async (url: string) => {
+      expect(url).toContain("/branches/test");
+      return Response.json({ protected: true, commit: { sha: oldSha } });
+    }) as typeof fetch;
+    const result = await new UpdatesService(config).check();
+    expect(result).toMatchObject({ channel: "test", installed: { gitSha: oldSha }, available: null, status: "current" });
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
   it("hides releases that are drafts or lack current registry digests", async () => {
     const installed = lock(oldSha, "v0.9.0-beta.1");
     await writeFile(join(directory, "installed.json"), JSON.stringify(installed));
