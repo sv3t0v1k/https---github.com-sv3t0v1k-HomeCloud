@@ -53,7 +53,7 @@ def private_directory(path, mode, group):
 
 
 def read_request():
-    fd = os.open(REQUEST, os.O_RDONLY | os.O_NOFOLLOW)
+    fd = os.open(REQUEST, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
     try:
         validate_request_stat(os.fstat(fd))
         raw = os.read(fd, 513)

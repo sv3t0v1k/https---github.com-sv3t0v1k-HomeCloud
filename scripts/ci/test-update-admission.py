@@ -42,5 +42,32 @@ class AdmissionTests(unittest.TestCase):
                 agent.validate_request_stat(SimpleNamespace(**(vars(info) | bad)))
 
 
+    def test_read_request_is_nonblocking(self):
+        import json
+        from unittest.mock import patch
+
+        item = {
+            'format': 'homecloud-update-request-v1',
+            'channel': 'test',
+            'manifestSha256': 'a' * 64,
+        }
+        info = SimpleNamespace(
+            st_mode=stat.S_IFREG | 0o600,
+            st_uid=1001, st_gid=65533,
+            st_size=128, st_nlink=1,
+        )
+
+        with patch.object(agent.os, 'open', return_value=7) as opened, \
+             patch.object(agent.os, 'fstat', return_value=info), \
+             patch.object(agent.os, 'read', return_value=json.dumps(item).encode()), \
+             patch.object(agent.os, 'close'):
+            self.assertEqual(agent.read_request(), item)
+
+        flags = opened.call_args.args[1]
+        self.assertTrue(flags & agent.os.O_NOFOLLOW)
+        self.assertTrue(flags & agent.os.O_NONBLOCK)
+        self.assertTrue(flags & agent.os.O_CLOEXEC)
+
+
 if __name__ == '__main__':
     unittest.main()
