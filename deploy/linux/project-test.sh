@@ -1,4 +1,5 @@
 #!/bin/sh
+# Invoke only through /usr/local/sbin/homecloud-test-launcher (root-owned).
 # Только собственный project; сборка/подготовка mounts/secrets выполняется отдельно.
 set -eu
 fail() { echo 'STOP: project-test wrapper' >&2; exit 1; }
@@ -8,14 +9,14 @@ case "$1" in preflight|config|start|status|stop|test-baseline-inspect|test-recov
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P) || fail
 project_root=$(CDPATH= cd -- "$script_dir/../.." && pwd -P) || fail
 cd -- "$project_root" || fail
-clean_path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+clean_path=/usr/sbin:/usr/bin:/sbin:/bin
 preflight() {
-  env -i HOME=/root PATH="$clean_path" python3 "$project_root/deploy/linux/preflight.py" \
+  env -i HOME=/root PATH="$clean_path" DOCKER_CONFIG=/etc/homecloud-test/docker /usr/bin/python3 -I -S "$project_root/deploy/linux/preflight.py" \
     --inventory "$project_root/.runtime/host-disks.json" \
     --env-file "$project_root/.runtime/runtime.env"
 }
 compose() {
-  env -i HOME=/root PATH="$clean_path" docker --host unix:///var/run/docker.sock compose \
+  env -i HOME=/root PATH="$clean_path" DOCKER_CONFIG=/etc/homecloud-test/docker docker --host unix:///var/run/docker.sock compose \
     --project-directory "$project_root" --env-file "$project_root/.runtime/runtime.env" \
     -f "$project_root/docker-compose.yml" \
     -f "$project_root/docker-compose.production.yml" \
@@ -32,10 +33,10 @@ case "$action" in
   stop) compose stop db backend frontend ingress;;
   test-submit|test-job-status)
     case "$action" in test-submit) mode=submit;; *) mode=status;; esac
-    env -i HOME=/root PATH="$clean_path" python3 "$project_root/deploy/linux/test-job.py" "$mode"
+    env -i HOME=/root PATH="$clean_path" DOCKER_CONFIG=/etc/homecloud-test/docker /usr/bin/python3 -I -S "$project_root/deploy/linux/test-job.py" "$mode"
     ;;
   test-baseline-inspect|test-recovery-inspect|test-dry-run|test-apply|test-rollback)
     mode=${action#test-}
-    env -i HOME=/root PATH="$clean_path" python3 "$project_root/deploy/linux/test-channel.py" "$mode"
+    env -i HOME=/root PATH="$clean_path" DOCKER_CONFIG=/etc/homecloud-test/docker /usr/bin/python3 -I -S "$project_root/deploy/linux/test-channel.py" "$mode"
     ;;
 esac

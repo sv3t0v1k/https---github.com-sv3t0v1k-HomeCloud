@@ -21,7 +21,8 @@ FILES = ('docker-compose.yml', 'docker-compose.production.yml', 'docker-compose.
          'deploy/linux/project-test.sh', 'deploy/linux/test-job.py', 'deploy/linux/preflight.py',
          'deploy/linux/test-channel.py', 'scripts/ci/test-channel.py',
          'scripts/backup.sh', 'scripts/recovery_config.py', 'scripts/recovery_storage.py',
-         'scripts/recovery-config.sh', 'scripts/recovery-storage.sh', 'scripts/recovery-pending.sql')
+         'scripts/recovery-config.sh', 'scripts/recovery-storage.sh', 'scripts/recovery-pending.sql',
+         'deploy/linux/root-boundary.py', 'deploy/linux/startup-gate.sh', 'scripts/ci/provenance.py')
 
 
 def require(ok, reason):

@@ -18,6 +18,16 @@ ID = re.compile(r'[a-f0-9]{64}\Z')
 JOB_FORMAT = 'homecloud-test-ssh-job-v1'
 STATES = ('QUEUED', 'RUNNING', 'INSTALLED', 'STOP')
 
+# Imports of checkout code are allowed only after the installed launcher has
+# checked the full tree. Direct CLI execution also verifies that boundary.
+if __name__ == '__main__':
+    if not sys.flags.isolated:
+        raise SystemExit('STOP: use the trusted launcher with isolated Python')
+    guard = importlib.util.spec_from_file_location('root_boundary_job', ROOT / 'deploy/linux/root-boundary.py')
+    boundary = importlib.util.module_from_spec(guard)
+    guard.loader.exec_module(boundary)
+    boundary.validate_checkout(ROOT)
+
 spec = importlib.util.spec_from_file_location('test_channel_job_installer', ROOT / 'deploy/linux/test-channel.py')
 installer = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(installer)
@@ -114,10 +124,10 @@ def submit():
         command = ['/usr/bin/systemd-run', '--no-block', '--collect', '--service-type=exec',
                    '--unit=' + unit_name(job_id), '--property=UMask=0077',
                    '--property=RuntimeMaxSec=10200', '--property=Restart=no', '/usr/bin/python3',
-                   str(ROOT / 'deploy/linux/test-job.py'), 'worker', job_id]
+                   '-I', '-S', '/usr/local/sbin/homecloud-test-launcher', 'worker', job_id]
         try:
             started = subprocess.run(command, cwd=ROOT,
-                                     env={'PATH': '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+                                     env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin',
                                           'HOME': '/root'},
                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                      timeout=30, check=False)
