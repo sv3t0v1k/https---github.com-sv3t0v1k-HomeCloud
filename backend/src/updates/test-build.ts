@@ -10,7 +10,7 @@ const MAX_MANIFEST = 1_000_000;
 
 type Installed = { version: string; gitSha: string; schemaMigrations: string[] };
 type TestImage = { repository: string; digest: string; platform_digest: string; statement_digest: string; revision: string; version: string };
-type TestManifest = {
+export type TestManifest = {
   format: string; repository: string; commit: string; platform: string;
   images: { backend: TestImage; frontend: TestImage };
   schema_migrations: { name: string; file: string; sha256: string }[];
@@ -20,7 +20,9 @@ type TestManifest = {
 };
 
 export type TestCandidate = { version: string; gitSha: string; backendDigest: string;
-  frontendDigest: string; compatibility: "exact-migrations"; changes: string };
+  frontendDigest: string; manifestSha256: string; compatibility: "exact-migrations"; changes: string };
+
+export type VerifiedTestBuild = { candidate: TestCandidate; manifest: TestManifest };
 
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
@@ -160,7 +162,7 @@ async function digestExists(role: "backend" | "frontend", digest: string,
   } catch { return false; }
 }
 
-export async function discoverTestBuild(installed: Installed, token: string, user: string): Promise<TestCandidate | null> {
+export async function discoverTestBuildEvidence(installed: Installed, token: string, user: string): Promise<VerifiedTestBuild | null> {
   const branch = await json(`${API}/branches/test`, token) as { protected?: boolean; commit?: { sha?: string } };
   const head = branch.commit?.sha;
   requireValid(branch.protected === true && typeof head === "string" && SHA.test(head));
@@ -189,7 +191,11 @@ export async function discoverTestBuild(installed: Installed, token: string, use
   if (!(await digestExists("backend", manifest.images.backend.digest, token, user)) ||
       !(await digestExists("frontend", manifest.images.frontend.digest, token, user)))
     throw new Error("TEST image unavailable");
-  return { version: `test-${head.slice(0, 7)}`, gitSha: head,
+  return { candidate: { version: `test-${head.slice(0, 7)}`, gitSha: head,
     backendDigest: manifest.images.backend.digest, frontendDigest: manifest.images.frontend.digest,
-    compatibility: "exact-migrations", changes: "" };
+    manifestSha256: manifest.manifest_sha256, compatibility: "exact-migrations", changes: "" }, manifest };
+}
+
+export async function discoverTestBuild(installed: Installed, token: string, user: string): Promise<TestCandidate | null> {
+  return (await discoverTestBuildEvidence(installed, token, user))?.candidate ?? null;
 }

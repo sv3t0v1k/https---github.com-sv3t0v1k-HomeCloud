@@ -1,0 +1,9 @@
+[Unit]
+Description=HomeCloud TEST update request admission (no install)
+
+[Path]
+PathExists=/var/lib/homecloud-update/inbox/request.json
+Unit=homecloud-update-admission.service
+
+[Install]
+WantedBy=multi-user.target

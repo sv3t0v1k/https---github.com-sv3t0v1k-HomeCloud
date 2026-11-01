@@ -99,7 +99,8 @@ describe("TEST channel read-only discovery", () => {
   it("returns only a verified TEST manifest and exact registry pair", async () => {
     expect(await discoverTestBuild(installed, "read-only", "")).toEqual({
       version: `test-${nextSha.slice(0, 7)}`, gitSha: nextSha, backendDigest: backend,
-      frontendDigest: frontend, changes: "", compatibility: "exact-migrations",
+      frontendDigest: frontend, manifestSha256: current.manifest_sha256,
+      changes: "", compatibility: "exact-migrations",
     });
   });
   it("refuses an unprotected test branch", async () => {

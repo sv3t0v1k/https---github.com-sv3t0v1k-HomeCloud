@@ -5,7 +5,6 @@ import { Test } from "@nestjs/testing";
 import { getRepositoryToken } from "@nestjs/typeorm";
 import request from "supertest";
 import { AuthService } from "../auth/auth.service";
-import { JwtStrategy } from "../auth/jwt.strategy";
 import { LocalStrategy } from "../auth/local.strategy";
 import { RefreshTokenEntity } from "../entities/refresh-token.entity";
 import { UserEntity } from "../entities/user.entity";
@@ -15,6 +14,7 @@ import { UpdatesService } from "./updates.service";
 describe("UpdatesModule DI and HTTP access", () => {
   let app: INestApplication;
   let jwt: JwtService;
+  let adminActive = true;
   const check = jest.fn().mockResolvedValue({ status: "current" });
 
   beforeAll(async () => {
@@ -28,10 +28,13 @@ describe("UpdatesModule DI and HTTP access", () => {
         UpdatesModule,
       ],
     })
-      .overrideProvider(getRepositoryToken(UserEntity)).useValue({})
+      .overrideProvider(getRepositoryToken(UserEntity)).useValue({
+        findOne: jest.fn(async ({ where }: { where: { id: number; isActive: boolean } }) =>
+          where.id === 7 && !adminActive ? null :
+            { id: where.id, email: "user@example.test", isActive: true }),
+      })
       .overrideProvider(getRepositoryToken(RefreshTokenEntity)).useValue({})
       .overrideProvider(AuthService).useValue({})
-      .overrideProvider(JwtStrategy).useValue({})
       .overrideProvider(LocalStrategy).useValue({})
       .compile();
 
@@ -42,7 +45,7 @@ describe("UpdatesModule DI and HTTP access", () => {
   });
 
   afterAll(async () => app?.close());
-  beforeEach(() => check.mockClear());
+  beforeEach(() => { check.mockClear(); adminActive = true; });
 
   const token = (userId: number) => `Bearer ${jwt.sign({ sub: userId, email: "user@example.test" })}`;
 
@@ -63,5 +66,13 @@ describe("UpdatesModule DI and HTTP access", () => {
     await request(app.getHttpServer()).get("/updates").set("Authorization", token(8))
       .expect(403);
     expect(check).not.toHaveBeenCalled();
+  });
+
+  it("rejects a token after the admin account is deactivated", async () => {
+    adminActive = false;
+    await request(app.getHttpServer()).post("/updates/installations")
+      .set("Authorization", token(7)).send({ manifestSha256: "a".repeat(64) }).expect(401);
+    await request(app.getHttpServer()).get("/updates/installations/current")
+      .set("Authorization", token(7)).expect(401);
   });
 });
