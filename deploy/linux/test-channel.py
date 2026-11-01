@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """Fail-closed project-test installer; only invoked by the root-only wrapper."""
 import fcntl
+import gzip
+import tarfile
 import hashlib
 import importlib.util
 import json
 import os
 from pathlib import Path
 import re
+import secrets
+import time
 import stat
 import subprocess
 import sys
@@ -29,7 +33,16 @@ LOCKED_FILES = ('docker-compose.yml', 'docker-compose.production.yml',
                 'scripts/ci/test-channel.py', 'scripts/backup.sh',
                 'scripts/recovery_config.py', 'scripts/recovery_storage.py',
                 'scripts/recovery-config.sh', 'scripts/recovery-storage.sh',
-                'scripts/recovery-pending.sql')
+                'scripts/recovery-pending.sql', 'deploy/linux/root-boundary.py', 'deploy/linux/startup-gate.sh',
+                'scripts/ci/provenance.py')
+
+boundary_spec = importlib.util.spec_from_file_location('root_boundary_installer', ROOT / 'deploy/linux/root-boundary.py')
+boundary = importlib.util.module_from_spec(boundary_spec)
+boundary_spec.loader.exec_module(boundary)
+if __name__ == '__main__':
+    if not sys.flags.isolated:
+        raise SystemExit('STOP: use trusted launcher with isolated Python')
+    boundary.validate_checkout(ROOT)
 
 spec = importlib.util.spec_from_file_location('test_channel_contract', ROOT / 'scripts/ci/test-channel.py')
 contract = importlib.util.module_from_spec(spec)
@@ -47,7 +60,10 @@ def require(ok, reason):
 
 
 def run(*args, env=None, timeout=300, capture=True):
-    result = subprocess.run(args, cwd=ROOT, env=env, stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
+    if args[0] == 'git':
+        args = ('git', '-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false',
+                '-c', 'protocol.file.allow=never', '-c', 'protocol.ext.allow=never', *args[1:])
+    result = subprocess.run(args, cwd=ROOT, env=env if env is not None else boundary.clean_environment(), stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
                             stderr=subprocess.PIPE, text=True, timeout=timeout)
     require(result.returncode == 0, 'failed operation: ' + Path(args[0]).name)
     return result.stdout.strip() if capture else ''
@@ -62,6 +78,7 @@ def compose(*args, env=None, timeout=300):
 
 
 def private_file(path):
+    boundary.trusted_path(path)
     require(path.is_absolute() and not path.is_symlink() and path.is_file(), 'missing private file')
     s = path.stat()
     require(s.st_uid == 0 and stat.S_IMODE(s.st_mode) == 0o600, 'private file must be root:0600')
@@ -69,6 +86,7 @@ def private_file(path):
 
 
 def private_dir(path):
+    boundary.trusted_path(path, directory=True)
     require(path.is_dir() and not path.is_symlink(), 'missing private directory')
     s = path.stat()
     require(s.st_uid == 0 and stat.S_IMODE(s.st_mode) == 0o700, 'private directory must be root:0700')
@@ -127,7 +145,7 @@ def guard_no_pending():
 
 def record_phase(transaction, phase):
     require(transaction.get('format') == TX_FORMAT, 'invalid TEST transaction')
-    require(phase in ('CHECKOUT', 'VERIFY_IMAGES', 'STOP_SERVICES', 'BACKUP',
+    require(phase in ('CHECKOUT', 'VERIFY_IMAGES', 'PREBACKUP', 'STOP_SERVICES', 'BACKUP',
                       'WRITE_REFS', 'START_SERVICES', 'SMOKE', 'COMMIT_STATE',
                       'COMPLETE'), 'invalid transaction phase')
     transaction['phase'] = phase  # This phase MAY have started, not necessarily completed.
@@ -295,8 +313,8 @@ def committed_schema(commit):
         filename = name.removeprefix('backend/src/migrations/')
         require(name.startswith('backend/src/migrations/') and
                 MIGRATION_FILE.fullmatch(filename), 'unsupported installed migration file')
-        source = subprocess.run(['git', 'show', commit + ':' + name], cwd=ROOT,
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
+        source = subprocess.run(['git', '-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', 'show', commit + ':' + name], cwd=ROOT,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30, env=boundary.clean_environment())
         require(source.returncode == 0, 'installed migration source unavailable')
         try:
             classes = re.findall(r'export class ([A-Za-z0-9]+)', source.stdout.decode('utf-8'))
@@ -413,6 +431,10 @@ def precheck_source(manifest, rollback):
             'dirty project checkout')
     current = run('git', 'rev-parse', 'HEAD')
     require(bool(SHA.fullmatch(current)), 'invalid current source revision')
+    origin = run('git', 'remote', 'get-url', 'origin')
+    require(origin in ('https://github.com/' + manifest['repository'],
+                       'https://github.com/' + manifest['repository'] + '.git'),
+            'TEST repository origin mismatch')
     if rollback:
         run('git', 'cat-file', '-e', manifest['commit'] + '^{commit}')
     else:
@@ -420,9 +442,14 @@ def precheck_source(manifest, rollback):
         run('git', 'fetch', '--no-tags', 'origin', 'test', timeout=180)
         require(run('git', 'rev-parse', 'FETCH_HEAD') == manifest['commit'],
                 'fetched test source mismatch')
+    # Additional helper modules must not shadow imports after target checkout.
+    for directory in ('deploy', 'scripts'):
+        require(run('git', 'rev-parse', current + ':' + directory) ==
+                run('git', 'rev-parse', manifest['commit'] + ':' + directory),
+                'root helper tree changed; manual qualification required')
     for name in LOCKED_FILES:
-        source = subprocess.run(['git', 'show', manifest['commit'] + ':' + name], cwd=ROOT,
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
+        source = subprocess.run(['git', '-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', 'show', manifest['commit'] + ':' + name], cwd=ROOT,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30, env=boundary.clean_environment())
         require(source.returncode == 0 and hashlib.sha256(source.stdout).digest() ==
                 hashlib.sha256((ROOT / name).read_bytes()).digest(),
                 'operational/Compose contract changed; manual qualification required')
@@ -443,6 +470,7 @@ def safe_checkout(manifest, rollback):
         # Race guard: a new push after precheck must fail closed before checkout.
         require_current_test_head(manifest)
     run('git', 'checkout', '--detach', manifest['commit'])
+    boundary.validate_checkout(ROOT)
     contract.source_check(manifest)
     return current
 
@@ -468,11 +496,24 @@ def rewrite_refs(manifest):
         if os.path.exists(name): os.unlink(name)
 
 
-def backup(active):
-    private_file(RECOVERY)
+def backup_configuration():
     current = env_values()
-    environment = {'HOME': '/root', 'PATH': '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+    values = boundary.validate_backup_configuration(RECOVERY, ROOT, current)
+    # Configuration used by nested Compose must describe precisely this runtime.
+    backup_only = {'BACKUP_DIR', 'STORAGE_PATH', 'STORAGE_VOLUME', 'BACKEND_IMAGE',
+                   'RETENTION_DAYS', 'COMPOSE_FILE', 'COMPOSE_PROJECT_NAME'}
+    for key, value in values.items():
+        if key not in backup_only and not key.startswith('BACKUP_'):
+            require(current.get(key) == value, 'recovery runtime configuration drift')
+    return values
+
+
+def backup(active):
+    values = backup_configuration()
+    current = env_values()
+    environment = {'HOME': '/root', 'PATH': '/usr/sbin:/usr/bin:/sbin:/bin',
                    'DOCKER_HOST': 'unix:///var/run/docker.sock',
+                   'DOCKER_CONFIG': '/etc/homecloud-test/docker',
                    'HOMECLOUD_ENV_FILE': str(RECOVERY),
                    'RELEASE_BACKEND_IMAGE': active['images']['backend']['ref'],
                    'RELEASE_FRONTEND_IMAGE': active['images']['frontend']['ref'],
@@ -489,7 +530,107 @@ def backup(active):
             if item.get('event') == 'backup_completed': completed.append(item.get('backup_id'))
     require(len(completed) == 1 and isinstance(completed[0], str) and completed[0],
             'verified backup completion missing')
+    verify_backup(completed[0], active)
     return completed[0]
+
+
+def verify_backup(backup_id, active):
+    """Independently verify published bytes; never treat an online copy as a snapshot."""
+    require(bool(re.fullmatch(r'[0-9]{8}_[0-9]{6}_[a-f0-9]{8}', backup_id)), 'invalid backup identity')
+    values = backup_configuration()
+    directory = Path(values.get('BACKUP_DIR', str(ROOT / 'backups')))
+    meta_path = private_file(directory / ('homecloud_' + backup_id + '.meta'))
+    raw = meta_path.read_bytes()
+    sidecar = private_file(Path(str(meta_path) + '.sha256')).read_text()
+    require(sidecar == hashlib.sha256(raw).hexdigest() + '  ' + meta_path.name + '\n', 'backup metadata integrity failure')
+    meta = json.loads(raw)
+    require(meta.get('format_version') == '1' and meta.get('backup_id') == backup_id, 'backup metadata identity failure')
+    artifacts = {}
+    for key, name in (('db_dump', 'homecloud_db_' + backup_id + '.sql.gz'),
+                      ('storage_archive', 'homecloud_storage_' + backup_id + '.tar.gz')):
+        require(meta.get(key) == name, 'backup artifact name mismatch')
+        path = private_file(directory / name)
+        digest = hashlib.sha256()
+        with path.open('rb') as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b''): digest.update(chunk)
+            os.fsync(stream.fileno())
+        require(path.stat().st_size > 0 and path.stat().st_size == meta.get(key + '_size')
+                and digest.hexdigest() == meta.get(key + '_sha256'), 'backup artifact integrity failure')
+        artifacts[key] = path
+    structure = False
+    with gzip.open(artifacts['db_dump'], 'rb') as stream:
+        for line in stream:
+            if line.startswith((b'CREATE TABLE ', b'CREATE EXTENSION ')): structure = True
+    require(structure, 'backup SQL structure missing')
+    count = 0
+    with tarfile.open(artifacts['storage_archive'], 'r:gz') as archive:
+        for member in archive:
+            require(not member.name.startswith('/') and '..' not in Path(member.name).parts
+                    and (member.isfile() or member.isdir()), 'unsafe backup storage member')
+            if member.isfile():
+                count += 1
+                with archive.extractfile(member) as stream:
+                    while stream.read(1024 * 1024): pass
+    require(count == meta.get('storage_file_count'), 'backup storage inventory mismatch')
+    require(meta.get('migration_count') == len(active['schema_migrations']), 'backup migration inventory mismatch')
+    for path in (meta_path, Path(str(meta_path) + '.sha256')):
+        with path.open('rb') as stream: os.fsync(stream.fileno())
+    validate_backup_database(artifacts['db_dump'], values, active)
+    fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try: os.fsync(fd)
+    finally: os.close(fd)
+
+
+def validate_backup_database(path, values, active):
+    """Restore only into a disposable, network-isolated, size-limited tmpfs DB."""
+    user, database = values.get('DB_USER', ''), values.get('DB_NAME', '')
+    require(all(re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]{0,62}', x) for x in (user, database)),
+            'invalid backup database identity')
+    config = json.loads(compose('config', '--format', 'json'))
+    image = config['services']['db']['image']
+    inspected = json.loads(run('docker', '--host', 'unix:///var/run/docker.sock', 'image', 'inspect', image))
+    require(len(inspected) == 1 and IMAGE_ID.fullmatch(inspected[0].get('Id', '')), 'invalid validation image')
+    volumes = (inspected[0].get('Config') or {}).get('Volumes') or {}
+    require(set(volumes).issubset({'/var/lib/postgresql/data', '/var/run/postgresql', '/tmp'}),
+            'validation image declares unsupported volumes')
+    token = secrets.token_hex(16)
+    name = 'homecloud-test-backup-validation-' + token
+    docker = ('docker', '--host', 'unix:///var/run/docker.sock')
+    try:
+        run(*docker, 'create', '--name', name, '--network', 'none', '--read-only',
+            '--security-opt', 'no-new-privileges', '--memory', '512m', '--memory-swap', '512m',
+            '--cpus', '1', '--pids-limit', '128',
+            '--tmpfs', '/var/lib/postgresql/data:rw,noexec,nosuid,size=1073741824',
+            '--tmpfs', '/var/run/postgresql:rw,noexec,nosuid,size=16777216',
+            '--tmpfs', '/tmp:rw,noexec,nosuid,size=16777216',
+            '-e', 'PGDATA=/var/lib/postgresql/data', '-e', 'POSTGRES_USER=' + user,
+            '-e', 'POSTGRES_DB=' + database, '-e', 'POSTGRES_PASSWORD=' + token,
+            inspected[0]['Id'], 'postgres', '-c', 'listen_addresses=127.0.0.1')
+        run(*docker, 'start', name)
+        ready = False
+        for _ in range(30):
+            try:
+                run(*docker, 'exec', name, 'pg_isready', '-h', '127.0.0.1', '-U', user, '-d', database, timeout=5)
+                ready = True
+                break
+            except Stop:
+                time.sleep(1)
+        require(ready, 'isolated validation database unavailable')
+        # Stream compressed data directly; decompression happens in the disposable
+        # container. No host temporary SQL, bind mount, production connection or volume.
+        with path.open('rb') as stream:
+            restored = subprocess.run([*docker, 'exec', '-i', name, 'sh', '-c',
+                'set -o pipefail; gzip -dc | psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'],
+                cwd=ROOT, stdin=stream, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                timeout=300)
+        require(restored.returncode == 0, 'backup rejected by isolated PostgreSQL restore')
+        names = run(*docker, 'exec', name, 'psql', '-X', '-A', '-t', '-v', 'ON_ERROR_STOP=1',
+                    '-U', user, '-d', database, '-c', 'SELECT name FROM migrations ORDER BY name').splitlines()
+        require(names == sorted(x['name'] for x in active['schema_migrations']),
+                'isolated backup migration inventory mismatch')
+    finally:
+        # A cleanup failure is a validation failure, never permission to install.
+        run(*docker, 'rm', '-f', '-v', name, timeout=30)
 
 
 def smoke():
@@ -518,6 +659,61 @@ def require_checkpoint_refs(state):
                 'runtime image refs differ from checkpoint')
 
 
+def recover_before_start(transaction, state, applied):
+    """Only reverse preparation; target code may never have been started.
+
+    Never restore data or recreate containers. A crash skips this handler and the
+    durable pending receipt requires manual recovery. Retain it even on success.
+    """
+    safe_phases = ('CHECKOUT', 'VERIFY_IMAGES', 'PREBACKUP', 'STOP_SERVICES', 'BACKUP', 'WRITE_REFS')
+    status = 'MANUAL_RECOVERY_REQUIRED'
+    try:
+        require(transaction.get('phase') in safe_phases, 'target may have started')
+        require(load_state() == state, 'installed checkpoint changed')
+        require(sorted(applied_migrations()) == sorted(applied), 'schema drift before recovery')
+        # Existing stopped containers still carry the pre-install IDs and refs.
+        require(active_images(state) == state['active']['images'], 'old containers changed')
+        transaction['recovery_status'] = 'RECOVERING'
+        atomic_json(CHANNEL / 'pending.json', transaction)
+        run('git', 'checkout', '--detach', transaction['before']['git_sha'])
+        boundary.validate_checkout(ROOT)
+        rewrite_checkpoint_refs(state['active']['images'])
+        run(str(ROOT / 'deploy/linux/project-test.sh'), 'preflight')
+        compose('start', '--wait', 'backend', 'frontend', 'ingress', timeout=900)
+        require(active_images(state) == state['active']['images'], 'restored container identity mismatch')
+        require(sorted(applied_migrations()) == sorted(applied), 'schema drift after recovery')
+        smoke()
+        status = 'ROLLED_BACK'
+    except Exception:
+        # Failed recovery never clears pending and never authorizes a data restore.
+        pass
+    transaction['recovery_status'] = status
+    atomic_json(CHANNEL / 'pending.json', transaction)
+    return status
+
+
+def rewrite_checkpoint_refs(images):
+    original = ENV_FILE.read_text()
+    for role in ('backend', 'frontend'):
+        key = 'RELEASE_' + role.upper() + '_IMAGE'
+        require(len(re.findall(r'^' + key + '=', original, flags=re.M)) == 1,
+                'missing or duplicate previous runtime pin')
+        ref = images[role]['ref']
+        require(isinstance(ref, str) and ref and not any(c.isspace() for c in ref), 'invalid previous runtime pin')
+        original = re.sub(r'^' + key + r'=.*$', lambda _: key + '=' + ref, original, flags=re.M)
+    fd, name = tempfile.mkstemp(prefix='.runtime-env-', dir=RUNTIME)
+    try:
+        with os.fdopen(fd, 'w') as stream:
+            os.fchmod(stream.fileno(), 0o600)
+            stream.write(original); stream.flush(); os.fsync(stream.fileno())
+        os.replace(name, ENV_FILE)
+        directory = os.open(RUNTIME, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try: os.fsync(directory)
+        finally: os.close(directory)
+    finally:
+        if os.path.exists(name): os.unlink(name)
+
+
 def deploy(manifest, rollback=False, dry_run=False):
     require(os.geteuid() == 0 and str(ROOT) == '/home/hs/homecloud-test', 'wrong host/project/privilege')
     private_dir(RUNTIME); private_dir(CHANNEL)
@@ -534,7 +730,7 @@ def deploy(manifest, rollback=False, dry_run=False):
         decision = plan(manifest, state, applied, actual, rollback)
         if not dry_run:
             require(not (CHANNEL / 'last-status.json').exists() or
-                    json.loads(private_file(CHANNEL / 'last-status.json').read_text()).get('status') != 'STOP',
+                    json.loads(private_file(CHANNEL / 'last-status.json').read_text()).get('status') == 'INSTALLED',
                     'previous failed install needs operator review')
         if decision['decision'] == 'ALREADY_INSTALLED':
             print('SKIP: exact TEST source already installed')
@@ -559,6 +755,9 @@ def deploy(manifest, rollback=False, dry_run=False):
         ids = verify_pulled(manifest)
         run(str(ROOT / 'deploy/linux/project-test.sh'), 'preflight')
         require(applied_migrations() == applied, 'migrations changed during preparation')
+        record_phase(transaction, 'PREBACKUP')
+        transaction['prebackup_id'] = backup(state['active'])
+        record_phase(transaction, 'PREBACKUP')
         record_phase(transaction, 'STOP_SERVICES')
         compose('stop', 'ingress', 'frontend', 'backend')
         record_phase(transaction, 'BACKUP')
@@ -583,21 +782,22 @@ def deploy(manifest, rollback=False, dry_run=False):
         state['active'] = next_active
         record_phase(transaction, 'COMMIT_STATE')
         atomic_json(CHANNEL / 'state.json', state)
-        atomic_json(CHANNEL / 'last-status.json', {'status': 'INSTALLED', 'commit': manifest['commit'],
-                    'backup_id': backup_id,
-                    'manifest_sha256': manifest['manifest_sha256'], 'at': datetime.now(timezone.utc).isoformat()})
         record_phase(transaction, 'COMPLETE')
         (CHANNEL / 'pending.json').unlink()
         directory = os.open(CHANNEL, os.O_RDONLY)
         try: os.fsync(directory)
         finally: os.close(directory)
+        atomic_json(CHANNEL / 'last-status.json', {'status': 'INSTALLED', 'commit': manifest['commit'],
+                    'backup_id': backup_id,
+                    'manifest_sha256': manifest['manifest_sha256'], 'at': datetime.now(timezone.utc).isoformat()})
         print('INSTALLED: exact TEST pair and public HTTPS smoke passed')
     except Exception:
         # Preflight/validation failures before the durable transaction begins
         # must not poison the journal or require manual recovery of an install
         # that never started. A pending transaction always blocks retries.
         if transaction_started and not dry_run:
-            atomic_json(CHANNEL / 'last-status.json', {'status': 'STOP', 'reason': 'operator review required',
+            atomic_json(CHANNEL / 'last-status.json', {'status': recover_before_start(transaction, state, applied),
+                        'reason': 'installation failed; automatic retry prohibited',
                         'at': datetime.now(timezone.utc).isoformat()})
         raise
     finally:

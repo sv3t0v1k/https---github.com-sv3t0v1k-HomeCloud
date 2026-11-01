@@ -2,6 +2,9 @@
 """TEST pair, refusal, race and rollback contract checks without Docker/server."""
 import copy
 import hashlib
+import gzip
+import io
+import tarfile
 import json
 import subprocess
 import importlib.util
@@ -73,6 +76,7 @@ def suspended_install_process(channel, ready_pipe, state, applied, manifest):
         patches.enter_context(patch.object(installer, 'verify_pulled', return_value={
             'backend': 'sha256:' + 'e' * 64, 'frontend': 'sha256:' + 'f' * 64}))
         patches.enter_context(patch.object(installer, 'compose', side_effect=fake_compose))
+        patches.enter_context(patch.object(installer, 'backup', return_value='20261031_120000_aabbccdd'))
         installer.deploy(manifest)
 
 
@@ -253,7 +257,7 @@ class TestChannelTests(unittest.TestCase):
                 pending = json.loads((channel / 'pending.json').read_text())
                 self.assertEqual(pending['phase'], 'CHECKOUT')
                 self.assertEqual(pending['before']['git_sha'], previous)
-                self.assertEqual(json.loads((channel / 'last-status.json').read_text())['status'], 'STOP')
+                self.assertEqual(json.loads((channel / 'last-status.json').read_text())['status'], 'MANUAL_RECOVERY_REQUIRED')
                 with self.assertRaisesRegex(installer.Stop, 'incomplete TEST transaction'):
                     installer.guard_no_pending()
                 self.assertFalse((channel / 'state.json').exists())
@@ -297,6 +301,7 @@ class TestChannelTests(unittest.TestCase):
             ('checkout', 'CHECKOUT'),
             ('pull', 'VERIFY_IMAGES'),
             ('stop', 'STOP_SERVICES'),
+            ('prebackup', 'PREBACKUP'),
             ('backup', 'BACKUP'),
             ('rewrite', 'WRITE_REFS'),
             ('start', 'START_SERVICES'),
@@ -332,9 +337,13 @@ class TestChannelTests(unittest.TestCase):
                             failure('start')
                         return ''
 
+                    backup_calls = []
+
                     def fake_backup(_active):
-                        failure('backup')
-                        return '20261031_120000_abcdefgh'
+                        operation = 'prebackup' if not backup_calls else 'backup'
+                        backup_calls.append(operation)
+                        failure(operation)
+                        return '20261031_120000_aabbccdd'
 
                     real_atomic = installer.atomic_json
 
@@ -384,13 +393,16 @@ class TestChannelTests(unittest.TestCase):
                             precheck_source=lambda manifest, rollback: previous,
                             verify_started_images=lambda manifest, ids: failure('verify-started')))
                         patches.enter_context(patch.object(installer, 'atomic_json', side_effect=fake_atomic))
+                        patches.enter_context(patch.object(installer, 'rewrite_checkpoint_refs'))
+                        patches.enter_context(patch.object(installer.boundary, 'validate_checkout'))
                         with self.assertRaisesRegex(RuntimeError, 'injected failure'):
                             installer.deploy(self.manifest)
                         pending_file = channel / 'pending.json'
                         self.assertEqual(json.loads(pending_file.read_text())['phase'], expected_phase)
                         self.assertEqual(pending_file.stat().st_mode & 0o777, 0o600)
                         self.assertFalse((channel / 'state.json').exists())
-                        self.assertEqual(json.loads((channel / 'last-status.json').read_text())['status'], 'STOP')
+                        self.assertEqual(json.loads((channel / 'last-status.json').read_text())['status'],
+                            'ROLLED_BACK' if expected_phase in ('CHECKOUT', 'VERIFY_IMAGES', 'PREBACKUP', 'STOP_SERVICES', 'BACKUP', 'WRITE_REFS') else 'MANUAL_RECOVERY_REQUIRED')
                         # The exact same request must refuse before any Git or Docker work.
                         prior_operations = list(operations)
                         with self.assertRaisesRegex(installer.Stop, 'incomplete TEST transaction'):
@@ -400,9 +412,14 @@ class TestChannelTests(unittest.TestCase):
                         self.assertEqual(snapshot['before']['git_sha'], previous)
                         self.assertEqual(snapshot['target']['commit'], SHA)
                         if expected_phase in ('WRITE_REFS', 'START_SERVICES', 'SMOKE', 'COMMIT_STATE'):
-                            self.assertEqual(snapshot['backup_id'], '20261031_120000_abcdefgh')
+                            self.assertEqual(snapshot['backup_id'], '20261031_120000_aabbccdd')
                         else:
                             self.assertNotIn('backup_id', snapshot)
+                        if stage == 'prebackup':
+                            self.assertNotIn('stop', operations)
+                            self.assertNotIn('rewrite', operations)
+                        if stage in ('start', 'verify-started', 'smoke', 'state-write'):
+                            self.assertNotEqual(snapshot.get('recovery_status'), 'ROLLED_BACK')
 
     def test_pretransaction_failure_does_not_create_false_stop_status(self):
         # A failed read-only preflight does not require a manual rollback.
@@ -445,7 +462,7 @@ class TestChannelTests(unittest.TestCase):
               'before': {'git_sha': 'd' * 40, 'images': copy.deepcopy(self.state['active']['images'])},
               'target': {'commit': SHA, 'refs': {role: installer.image_ref(self.manifest, role)
                                                  for role in ('backend', 'frontend')}},
-              'backup_id': '20261031_120000_abcdefgh'}
+              'backup_id': '20261031_120000_aabbccdd'}
         originals = copy.deepcopy(tx)
         report = installer.recovery_report(tx, self.state, 'd' * 40,
                         {role: image['ref'] for role, image in self.state['active']['images'].items()})
@@ -454,6 +471,107 @@ class TestChannelTests(unittest.TestCase):
         self.assertFalse(report['automatic_rollback'])
         self.assertEqual(tx, originals)
 
+
+    def test_recovery_refuses_ambiguous_or_changed_state_without_mutation(self):
+        for failure in ('target-started', 'schema', 'containers', 'journal'):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as tmp, ExitStack() as patches:
+                tx = {'format': installer.TX_FORMAT, 'phase': 'WRITE_REFS',
+                      'before': {'git_sha': 'd' * 40}, 'target': {}}
+                if failure == 'target-started': tx['phase'] = 'START_SERVICES'
+                patches.enter_context(patch.object(installer, 'CHANNEL', Path(tmp)))
+                patches.enter_context(patch.object(installer, 'load_state', return_value=(
+                    {} if failure == 'journal' else self.state)))
+                patches.enter_context(patch.object(installer, 'applied_migrations', return_value=(
+                    self.applied + ['UnprovenMigration'] if failure == 'schema' else self.applied)))
+                patches.enter_context(patch.object(installer, 'active_images', return_value=(
+                    {} if failure == 'containers' else self.state['active']['images'])))
+                run = patches.enter_context(patch.object(installer, 'run'))
+                refs = patches.enter_context(patch.object(installer, 'rewrite_checkpoint_refs'))
+                compose = patches.enter_context(patch.object(installer, 'compose'))
+                self.assertEqual(installer.recover_before_start(tx, self.state, self.applied),
+                                 'MANUAL_RECOVERY_REQUIRED')
+                run.assert_not_called()
+                refs.assert_not_called()
+                compose.assert_not_called()
+                self.assertEqual(json.loads((Path(tmp) / 'pending.json').read_text())['recovery_status'],
+                                 'MANUAL_RECOVERY_REQUIRED')
+                with self.assertRaises(installer.Stop): installer.guard_no_pending()
+
+    def test_recovery_restores_only_existing_containers_and_checks_health(self):
+        for failure in (None, 'start', 'health', 'checkout', 'refs', 'schema-after', 'boundary'):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as tmp, ExitStack() as patches:
+                tx = {'format': installer.TX_FORMAT, 'phase': 'BACKUP',
+                      'before': {'git_sha': 'd' * 40}, 'target': {}}
+                patches.enter_context(patch.object(installer, 'CHANNEL', Path(tmp)))
+                patches.enter_context(patch.object(installer, 'load_state', return_value=self.state))
+                patches.enter_context(patch.object(installer, 'applied_migrations', side_effect=(
+                    [self.applied, self.applied + ['Unknown']] if failure == 'schema-after' else lambda: self.applied)))
+                patches.enter_context(patch.object(installer, 'active_images', return_value=self.state['active']['images']))
+                patches.enter_context(patch.object(installer.boundary, 'validate_checkout', side_effect=(
+                    ValueError('unsafe checkout') if failure == 'boundary' else None)))
+                checkout = patches.enter_context(patch.object(installer, 'run', side_effect=(
+                    RuntimeError('checkout failed') if failure == 'checkout' else None)))
+                refs = patches.enter_context(patch.object(installer, 'rewrite_checkpoint_refs', side_effect=(
+                    RuntimeError('refs failed') if failure == 'refs' else None)))
+                compose = patches.enter_context(patch.object(installer, 'compose', side_effect=(
+                    RuntimeError('start failed') if failure == 'start' else None)))
+                health = patches.enter_context(patch.object(installer, 'smoke', side_effect=(
+                    RuntimeError('health failed') if failure == 'health' else None)))
+                expected = 'ROLLED_BACK' if failure is None else 'MANUAL_RECOVERY_REQUIRED'
+                self.assertEqual(installer.recover_before_start(tx, self.state, self.applied), expected)
+                self.assertEqual(json.loads((Path(tmp) / 'pending.json').read_text())['recovery_status'], expected)
+                self.assertFalse((Path(tmp) / 'state.json').exists())
+                self.assertTrue(all(call.args[0] == 'start' for call in compose.call_args_list))
+                if failure is None:
+                    checkout.assert_any_call('git', 'checkout', '--detach', 'd' * 40)
+                    refs.assert_called_once_with(self.state['active']['images'])
+                    compose.assert_called_once_with('start', '--wait', 'backend', 'frontend', 'ingress', timeout=900)
+                    health.assert_called_once()
+                with self.assertRaises(installer.Stop): installer.guard_no_pending()
+
+    def test_backup_verification_rejects_corruption_and_unusable_artifacts(self):
+        # Exercise actual gzip/tar/checksum parsing; only ownership is replaced
+        # because these local fixtures deliberately do not require root.
+        cases = ('valid', 'checksum', 'size', 'metadata', 'sql', 'tar-traversal', 'tar-link', 'inventory', 'migrations')
+        for case in cases:
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as tmp:
+                directory = Path(tmp)
+                backup_id = '20261031_120000_aabbccdd'
+                db = directory / ('homecloud_db_' + backup_id + '.sql.gz')
+                storage = directory / ('homecloud_storage_' + backup_id + '.tar.gz')
+                with gzip.open(db, 'wb') as stream:
+                    stream.write(b'SELECT 1;\n' if case == 'sql' else b'CREATE TABLE example (id int);\n')
+                with tarfile.open(storage, 'w:gz') as archive:
+                    member = tarfile.TarInfo('../escape' if case == 'tar-traversal' else 'storage/file')
+                    if case == 'tar-link':
+                        member.type = tarfile.SYMTYPE
+                        member.linkname = '/etc/shadow'
+                        archive.addfile(member)
+                    else:
+                        member.size = 4
+                        archive.addfile(member, io.BytesIO(b'data'))
+                meta = {'format_version': '1', 'backup_id': backup_id,
+                        'storage_file_count': 2 if case == 'inventory' else 1,
+                        'migration_count': len(self.state['active']['schema_migrations']) + (case == 'migrations')}
+                for key, path in (('db_dump', db), ('storage_archive', storage)):
+                    meta.update({key: path.name, key + '_size': path.stat().st_size,
+                                 key + '_sha256': hashlib.sha256(path.read_bytes()).hexdigest()})
+                if case == 'checksum': meta['db_dump_sha256'] = '0' * 64
+                if case == 'size': meta['storage_archive_size'] += 1
+                metadata = directory / ('homecloud_' + backup_id + '.meta')
+                metadata.write_text(json.dumps(meta))
+                sidecar = Path(str(metadata) + '.sha256')
+                sidecar.write_text(('0' * 64 if case == 'metadata' else hashlib.sha256(metadata.read_bytes()).hexdigest()) + '  ' + metadata.name + '\n')
+                recovery = directory / 'recovery.env'
+                recovery.write_text('BACKUP_DIR=' + str(directory) + '\n')
+                with patch.object(installer, 'backup_configuration', return_value={'BACKUP_DIR': str(directory)}), \
+                     patch.object(installer, 'private_file', side_effect=lambda path: path), \
+                     patch.object(installer, 'private_dir'), \
+                     patch.object(installer, 'validate_backup_database', create=True):
+                    if case == 'valid': installer.verify_backup(backup_id, self.state['active'])
+                    else:
+                        with self.assertRaises(installer.Stop):
+                            installer.verify_backup(backup_id, self.state['active'])
 
     def test_stale_source_is_refused_without_transaction(self):
         import os

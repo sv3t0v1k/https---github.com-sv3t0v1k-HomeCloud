@@ -88,7 +88,7 @@ class TestSSHJob(unittest.TestCase):
             self.assertIn('--property=Restart=no', args)
             self.assertNotIn('--pipe', args)
             self.assertNotIn('--pty', args)
-            self.assertEqual(args[-3:], [str(job.ROOT / 'deploy/linux/test-job.py'),
+            self.assertEqual(args[-3:], ['/usr/local/sbin/homecloud-test-launcher',
                                          'worker', self.manifest['manifest_sha256']])
             self.assertNotIn(json.dumps(self.manifest), repr(args))
             self.assertIsNone(launch.call_args.kwargs.get('stdin'))
@@ -134,6 +134,27 @@ class TestSSHJob(unittest.TestCase):
                 job.worker(self.manifest['manifest_sha256'])
             deploy.assert_called_once()
             self.assertEqual(job.read_job()['status'], 'INSTALLED')
+
+    def test_worker_never_installed_when_checkpoint_or_pending_disagrees(self):
+        for mismatch in ('checkpoint', 'pending'):
+            with self.subTest(mismatch=mismatch), tempfile.TemporaryDirectory() as tmp, self.context(tmp):
+                installer.atomic_json(job.MANIFEST, self.manifest)
+                job.write_job(self.manifest['manifest_sha256'], 'QUEUED')
+                installed = {role: {'ref': installer.image_ref(self.manifest, role),
+                                    'sha': self.manifest['commit']} for role in ('backend', 'frontend')}
+                if mismatch == 'checkpoint':
+                    installed['backend']['sha'] = 'b' * 40
+                with patch.object(installer, 'deploy'), \
+                     patch.object(installer, 'load_state', return_value={'active': {'images': installed}}), \
+                     patch.object(installer, 'guard_no_pending', side_effect=(
+                         installer.Stop('incomplete TEST transaction') if mismatch == 'pending' else None)):
+                    with self.assertRaises(installer.Stop):
+                        job.worker(self.manifest['manifest_sha256'])
+                self.assertEqual(job.read_job()['status'], 'STOP')
+                with patch.object(installer, 'deploy') as deploy:
+                    with self.assertRaisesRegex(installer.Stop, 'not queued'):
+                        job.worker(self.manifest['manifest_sha256'])
+                    deploy.assert_not_called()
 
     def test_worker_failure_is_stop_without_automatic_retry(self):
         with tempfile.TemporaryDirectory() as tmp, self.context(tmp):
