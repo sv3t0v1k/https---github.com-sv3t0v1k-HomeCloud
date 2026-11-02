@@ -24,9 +24,11 @@ class BackupQualification(unittest.TestCase):
             if 'image' in args and 'inspect' in args:
                 volumes = {'/evil': {}} if failure == 'volumes' else {'/var/lib/postgresql/data': {}}
                 return json.dumps([{'Id': 'sha256:' + '1' * 64, 'Config': {'Volumes': volumes}}])
-            if 'pg_isready' in args and failure == 'ready':
+            if 'SELECT 1' in args and failure == 'ready':
                 raise installer.Stop('not ready')
             if 'psql' in args:
+                if 'SELECT 1' in args:
+                    return '1'
                 return 'Different123' if failure == 'migration' else 'Initial123'
             if 'rm' in args and failure == 'cleanup':
                 raise installer.Stop('cleanup failed')
@@ -34,6 +36,9 @@ class BackupQualification(unittest.TestCase):
 
         def restore(args, **kwargs):
             commands.append((tuple(args), kwargs))
+            if 'logs' in args:
+                return subprocess.CompletedProcess(args, 0,
+                    stdout='PostgreSQL init process complete', stderr='')
             if failure == 'timeout':
                 raise subprocess.TimeoutExpired(args, kwargs['timeout'])
             return subprocess.CompletedProcess(args, 1 if failure == 'restore' else 0)
@@ -82,7 +87,7 @@ class BackupQualification(unittest.TestCase):
 
     def test_readiness_timeout_cleanup_and_refusal(self):
         commands = self.exercise('ready')
-        self.assertEqual(sum('pg_isready' in args for args, _ in commands), 30)
+        self.assertEqual(sum('SELECT 1' in args for args, _ in commands), 30)
         self.assertIn('rm', commands[-1][0])
 
     def test_cleanup_failure_refuses_install(self):

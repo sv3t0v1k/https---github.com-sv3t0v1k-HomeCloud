@@ -607,15 +607,25 @@ def validate_backup_database(path, values, active):
             '-e', 'POSTGRES_DB=' + database, '-e', 'POSTGRES_PASSWORD=' + token,
             inspected[0]['Id'], 'postgres', '-c', 'listen_addresses=127.0.0.1')
         run(*docker, 'start', name)
-        ready = False
+        stable = 0
         for _ in range(30):
             try:
-                run(*docker, 'exec', name, 'pg_isready', '-h', '127.0.0.1', '-U', user, '-d', database, timeout=5)
-                ready = True
-                break
+                logs = subprocess.run([*docker, 'logs', name], cwd=ROOT,
+                                      env=boundary.clean_environment(),
+                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                      text=True, timeout=5)
+                require(logs.returncode == 0, 'validation database logs unavailable')
+                initialized = 'PostgreSQL init process complete' in logs.stdout + logs.stderr
+                answer = run(*docker, 'exec', name, 'psql', '-X', '-A', '-t',
+                             '-v', 'ON_ERROR_STOP=1', '-U', user, '-d', database,
+                             '-c', 'SELECT 1', timeout=5)
+                stable = stable + 1 if initialized and answer == '1' else 0
+                if stable == 3:
+                    break
             except Stop:
-                time.sleep(1)
-        require(ready, 'isolated validation database unavailable')
+                stable = 0
+            time.sleep(1)
+        require(stable == 3, 'isolated validation database unavailable')
         # Stream compressed data directly; decompression happens in the disposable
         # container. No host temporary SQL, bind mount, production connection or volume.
         with path.open('rb') as stream:
