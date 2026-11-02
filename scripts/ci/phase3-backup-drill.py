@@ -36,10 +36,15 @@ def postgres(name):
         '--tmpfs', '/tmp:rw,nosuid,size=16777216',
         '-e', 'POSTGRES_USER=' + DB_USER, '-e', 'POSTGRES_DB=' + DB_NAME,
         '-e', 'POSTGRES_PASSWORD=synthetic-fixture-only', IMAGE)
+    stable = 0
     for _ in range(30):
-        result = subprocess.run(['docker', 'exec', name, 'pg_isready', '-U', DB_USER,
-                                 '-d', DB_NAME], capture_output=True, timeout=5)
-        if result.returncode == 0:
+        logs = subprocess.run(['docker', 'logs', name], capture_output=True, timeout=5)
+        initialized = b'PostgreSQL init process complete' in logs.stdout + logs.stderr
+        result = subprocess.run(['docker', 'exec', name, 'psql', '-X', '-A', '-t',
+                                 '-v', 'ON_ERROR_STOP=1', '-U', DB_USER, '-d', DB_NAME,
+                                 '-c', 'SELECT 1'], capture_output=True, timeout=5)
+        stable = stable + 1 if initialized and result.returncode == 0 and result.stdout.strip() == b'1' else 0
+        if stable == 3:
             return
         time.sleep(1)
     raise RuntimeError('disposable PostgreSQL did not become ready')
