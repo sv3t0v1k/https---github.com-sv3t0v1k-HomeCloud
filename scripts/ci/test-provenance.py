@@ -124,6 +124,19 @@ class Tests(unittest.TestCase):
                 p.verify(store, sha, 'backend', self.commit, 'owner/homecloud',
                          'dry-run', source_reader=changed.__getitem__)
 
+    def test_registry_token_is_bounded_and_validated(self):
+        import io
+        import urllib.error
+        from unittest.mock import Mock
+        class Response(io.BytesIO):
+            pass
+        for payload in (b'x'*(p.MAX_METADATA+1), b'{"token":null}', b'{"token":"bad token"}'):
+            opener=Mock()
+            opener.open.side_effect=[urllib.error.HTTPError('https://ghcr.io/',401,'auth',{},None),
+                                     Response(payload)]
+            with patch.object(p,'HTTP',opener), self.assertRaises(ValueError):
+                p.Registry('owner/homecloud/backend').read('manifests','sha256:'+'a'*64)
+
     def test_corrupted_blob_rejected(self):
         store,sha = self.fixture()
         key = next(iter(store.blobs))
