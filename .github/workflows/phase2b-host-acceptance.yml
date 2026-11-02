@@ -32,6 +32,8 @@ jobs:
           sudo install -d -o root -g root -m 0755 /home/hs
           sudo cp -a "$GITHUB_WORKSPACE" /home/hs/homecloud-test
           sudo chown -R root:root /home/hs/homecloud-test
+          sudo setfacl -b -k /home
+          sudo setfacl -R -b -k /home/hs
           sudo install -o root -g root -m 0755 /home/hs/homecloud-test/deploy/linux/update-host-verify.py /usr/local/sbin/homecloud-update-verify
           sudo install -d -o root -g 65533 -m 0770 /var/lib/homecloud-update/inbox
           sudo python3 -c 'import json,pathlib; p=pathlib.Path("/var/lib/homecloud-update/inbox/request.json"); p.write_text(json.dumps({"format":"homecloud-update-request-v1","channel":"test","manifestSha256":"0859b3201abbd1563855efdb508a6e774148b96d13cb12cfe511779818a3898b"}))'
