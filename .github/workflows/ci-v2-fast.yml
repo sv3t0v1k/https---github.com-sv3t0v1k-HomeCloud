@@ -3,7 +3,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
   push:
-    branches: [test]
+    branches: [test, мост-установщика-этап-3]
 permissions:
   contents: read
   pull-requests: read
@@ -43,6 +43,7 @@ jobs:
           stat -c '%u:%g %n' "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/.git"
           chown -R root:root "$GITHUB_WORKSPACE"
       - run: python3 scripts/ci/test-update-host-verify.py
+      - run: python3 scripts/ci/test-update-install-bridge.py
       - run: python3 scripts/ci/test-provenance.py
       - run: python3 scripts/ci/test-backup-qualification.py
       - run: python3 scripts/ci/test-secret-findings.py
@@ -251,12 +252,15 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/pulls/${{ github.event.pull_request.number }}" > "$RUNNER_TEMP/current-pr.json"
           python3 scripts/ci/ci-v2-candidate.py --event "$GITHUB_EVENT_PATH" --live "$RUNNER_TEMP/current-pr.json" --checkout "$(git rev-parse HEAD)"
       - name: Require unchanged test branch HEAD
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/test'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh api "repos/$GITHUB_REPOSITORY/branches/test" > "$RUNNER_TEMP/current-test.json"
           python3 scripts/ci/ci-v2-candidate.py --event "$GITHUB_EVENT_PATH" --live "$RUNNER_TEMP/current-test.json" --checkout "$(git rev-parse HEAD)" --branch test
+      - name: Require unchanged Phase 3 branch HEAD
+        if: github.event_name == 'push' && github.ref == 'refs/heads/мост-установщика-этап-3'
+        run: test "$(git ls-remote origin "${GITHUB_REF}" | cut -f1)" = "$(git rev-parse HEAD)"
   test-image:
     if: github.event_name == 'push' && github.ref == 'refs/heads/test'
     needs: fast-integration-gate
