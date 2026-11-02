@@ -1,0 +1,47 @@
+name: Приёмка доверенной проверки хоста Phase 2B
+on:
+  push:
+    branches: [мост-обновлений-этап-2]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  packages: read
+jobs:
+  host-acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Проверить точную цель и закреплённые helpers
+        run: |
+          test "$(uname -m)" = x86_64
+          git cat-file -e 40f11e290dfc6cf2285935a22d59feb25fa0121e^{commit}
+          test "$(git rev-parse HEAD:deploy)" = "$(git rev-parse 40f11e290dfc6cf2285935a22d59feb25fa0121e:deploy)"
+          test "$(git rev-parse HEAD:scripts)" = "$(git rev-parse 40f11e290dfc6cf2285935a22d59feb25fa0121e:scripts)"
+          python3 scripts/ci/test-update-admission.py
+          python3 scripts/ci/test-update-evidence.py
+          python3 scripts/ci/test-update-source-http.py
+          python3 scripts/ci/test-update-host-verify.py
+          python3 scripts/ci/test-provenance.py
+      - name: Подготовить временный root-owned trust anchor в runner
+        run: |
+          sudo install -d -o root -g root -m 0755 /home/hs
+          sudo mv "$GITHUB_WORKSPACE" /home/hs/homecloud-test
+          sudo chown -R root:root /home/hs/homecloud-test
+          sudo install -o root -g root -m 0755 /home/hs/homecloud-test/deploy/linux/update-host-verify.py /usr/local/sbin/homecloud-update-verify
+          sudo install -d -o root -g 65533 -m 0770 /var/lib/homecloud-update/inbox
+          sudo python3 -c 'import json,pathlib; p=pathlib.Path("/var/lib/homecloud-update/inbox/request.json"); p.write_text(json.dumps({"format":"homecloud-update-request-v1","channel":"test","manifestSha256":"0859b3201abbd1563855efdb508a6e774148b96d13cb12cfe511779818a3898b"}))'
+          sudo chown 1001:65533 /var/lib/homecloud-update/inbox/request.json
+          sudo chmod 0600 /var/lib/homecloud-update/inbox/request.json
+          sudo stat -c '%u:%g %a %n' /home/hs /home/hs/homecloud-test /usr/local/sbin/homecloud-update-verify /var/lib/homecloud-update/inbox /var/lib/homecloud-update/inbox/request.json
+      - name: Выполнить полный read-only host verifier
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd /home/hs/homecloud-test
+          sudo --preserve-env=GH_TOKEN /usr/bin/python3 -I -S /usr/local/sbin/homecloud-update-verify | tee "$RUNNER_TEMP/host-result.json"
+          python3 -c 'import json,os; v=json.load(open(os.environ["RUNNER_TEMP"]+"/host-result.json")); assert v == {"status":"HOST_VERIFIED_READ_ONLY","manifestSha256":"0859b3201abbd1563855efdb508a6e774148b96d13cb12cfe511779818a3898b","commit":"40f11e290dfc6cf2285935a22d59feb25fa0121e","installation_enabled":False,"provenance_signature":"UNSIGNED"}'
