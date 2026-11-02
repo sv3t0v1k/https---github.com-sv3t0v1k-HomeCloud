@@ -30,7 +30,7 @@ jobs:
       - name: Подготовить временный root-owned trust anchor в runner
         run: |
           sudo install -d -o root -g root -m 0755 /home/hs
-          sudo mv "$GITHUB_WORKSPACE" /home/hs/homecloud-test
+          sudo cp -a "$GITHUB_WORKSPACE" /home/hs/homecloud-test
           sudo chown -R root:root /home/hs/homecloud-test
           sudo install -o root -g root -m 0755 /home/hs/homecloud-test/deploy/linux/update-host-verify.py /usr/local/sbin/homecloud-update-verify
           sudo install -d -o root -g 65533 -m 0770 /var/lib/homecloud-update/inbox
