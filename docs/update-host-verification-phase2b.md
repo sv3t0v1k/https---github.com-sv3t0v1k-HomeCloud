@@ -12,15 +12,16 @@
 совпали. Исходные файлы и миграции verifier читал из Git blobs целевого commit.
 
 Изолированный GitHub-hosted Linux/amd64 run
-[`41459392301`](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/41459392301)
+[`41459710402`](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/41459710402)
 завершился SUCCESS. В runner временно подготовлены root-owned
 `/home/hs/homecloud-test` и `/usr/local/sbin/homecloud-update-verify`, очищены
 унаследованные ACL на доверенном пути и удалена добавляемая `actions/checkout`
 настройка `gc.auto`, запрещённая root boundary. Эти операции не меняли trust
 anchor или продуктовый Git config. Фактические ownership/mode: checkout и anchor
 `root:root 0755`, inbox `root:65533 0770`, request `1001:65533 0600`.
-Проверки root boundary, ACL, pinned helpers и request прошли; пять trust suites
-дали 57/57 PASS. Непосредственный запуск установленного anchor через
+Проверки root boundary, ACL, pinned helpers и request прошли; root-boundary suite
+(18/18) и пять trust suites (57/57) завершились PASS. Shell проверял код выхода verifier
+через `pipefail`. Непосредственный запуск установленного anchor через
 `/usr/bin/python3 -I -S` с настоящими GitHub/GHCR завершился точным результатом:
 
 ```json
