@@ -3,7 +3,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
   push:
-    branches: [test, мост-установщика-этап-3]
+    branches: [test]
 permissions:
   contents: read
   pull-requests: read
@@ -258,9 +258,6 @@ jobs:
         run: |
           gh api "repos/$GITHUB_REPOSITORY/branches/test" > "$RUNNER_TEMP/current-test.json"
           python3 scripts/ci/ci-v2-candidate.py --event "$GITHUB_EVENT_PATH" --live "$RUNNER_TEMP/current-test.json" --checkout "$(git rev-parse HEAD)" --branch test
-      - name: Require unchanged Phase 3 branch HEAD
-        if: github.event_name == 'push' && github.ref == 'refs/heads/мост-установщика-этап-3'
-        run: test "$(git ls-remote origin "${GITHUB_REF}" | cut -f1)" = "$(git rev-parse HEAD)"
   test-image:
     if: github.event_name == 'push' && github.ref == 'refs/heads/test'
     needs: fast-integration-gate
