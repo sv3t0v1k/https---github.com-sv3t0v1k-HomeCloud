@@ -59,10 +59,10 @@ jobs:
               assert hashlib.sha256((verifier['ROOT'] / path).read_bytes()).hexdigest() == expected
           assert worker['PROVISIONED'] is False
           client = modules['update_source'].GitHubClient(os.environ['GH_TOKEN'])
-          identity = '0859b3201abbd1563855efdb508a6e774148b96d13cb12cfe511779818a3898b'
+          identity = '7bb3ebe922aa8c167b716dec6eef5e14ed9f3391801f2a22f627a4a0d8dff5e9'
           manifest = modules['update_source'].fetch_test_evidence(
               identity, modules['test_contract'].shape, client)
-          assert manifest['commit'] == '40f11e290dfc6cf2285935a22d59feb25fa0121e'
+          assert manifest['commit'] == 'b6ddfbde70fa52eea34ab19ffe93e8c7bb1e8986'
           source = verifier['GitSource'](verifier['ROOT'], boundary.clean_environment())
           try:
               verifier['target_sources'](manifest, modules['test_contract'], source)
