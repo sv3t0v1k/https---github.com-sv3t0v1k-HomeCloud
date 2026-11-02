@@ -1,0 +1,96 @@
+name: Phase 3 host qualification and failure drills
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+permissions:
+  contents: read
+  actions: read
+  packages: read
+jobs:
+  phase3-host-drills:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Повторить синтетические отказные сценарии на Linux/amd64
+        run: |
+          test "$(uname -m)" = x86_64
+          python3 scripts/ci/test-update-install-host.py
+          python3 scripts/ci/test-update-install-bridge.py
+          python3 scripts/ci/test-test-channel.py
+          python3 scripts/ci/test-backup-qualification.py
+          python3 scripts/ci/test-root-boundary.py
+      - name: Подготовить только временные доверенные пути в runner
+        run: |
+          sudo install -d -o root -g root -m 0755 /home/hs
+          sudo cp -a "$GITHUB_WORKSPACE" /home/hs/homecloud-test
+          sudo chown -R root:root /home/hs/homecloud-test
+          if sudo git -C /home/hs/homecloud-test config --local --get gc.auto >/dev/null; then
+            sudo git -C /home/hs/homecloud-test config --local --unset gc.auto
+          fi
+          sudo setfacl -b -k /home
+          sudo setfacl -R -b -k /home/hs
+          sudo install -o root -g root -m 0755 /home/hs/homecloud-test/deploy/linux/update-host-verify.py /usr/local/sbin/homecloud-update-verify
+          sudo install -o root -g root -m 0755 /home/hs/homecloud-test/deploy/linux/update-install-bridge.py /usr/local/sbin/homecloud-update-install
+          sudo stat -c '%u:%g %a %n' /home/hs/homecloud-test /usr/local/sbin/homecloud-update-verify /usr/local/sbin/homecloud-update-install
+      - name: Проверить root, ACL, SHA256 и ожидаемый target gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd /home/hs/homecloud-test
+          sudo --preserve-env=GH_TOKEN /usr/bin/python3 -I -S - <<'PY'
+          import hashlib
+          import os
+          import runpy
+          from pathlib import Path
+          worker = runpy.run_path('/usr/local/sbin/homecloud-update-install')
+          verifier = runpy.run_path('/usr/local/sbin/homecloud-update-verify')
+          worker['trusted_anchor_path'](worker['WORKER'])
+          worker['trusted_anchor_path'](worker['VERIFIER'])
+          modules = verifier['load_helpers'](verifier['ROOT'])
+          boundary = modules['boundary']
+          boundary.validate_checkout(verifier['ROOT'])
+          for path, expected in verifier['QUALIFIED'].values():
+              assert hashlib.sha256((verifier['ROOT'] / path).read_bytes()).hexdigest() == expected
+          assert worker['PROVISIONED'] is False
+          client = modules['update_source'].GitHubClient(os.environ['GH_TOKEN'])
+          identity = '0859b3201abbd1563855efdb508a6e774148b96d13cb12cfe511779818a3898b'
+          manifest = modules['update_source'].fetch_test_evidence(
+              identity, modules['test_contract'].shape, client)
+          assert manifest['commit'] == '40f11e290dfc6cf2285935a22d59feb25fa0121e'
+          source = verifier['GitSource'](verifier['ROOT'], boundary.clean_environment())
+          try:
+              verifier['target_sources'](manifest, modules['test_contract'], source)
+          except ValueError as error:
+              assert str(error) == 'root helper tree changed; separate qualification required'
+          else:
+              raise AssertionError('unqualified Phase 3 helper tree accepted')
+          print('PASS: root trust, six SHA256 pins, protected TEST, expected tree-gate STOP')
+          PY
+          sudo setfacl -m u:1001:r-- /usr/local/sbin/homecloud-update-install
+          sudo /usr/bin/python3 -I -S - <<'PY'
+          import runpy
+          worker = runpy.run_path('/usr/local/sbin/homecloud-update-install')
+          try:
+              worker['trusted_anchor_path'](worker['WORKER'])
+          except worker['Stop']:
+              print('PASS: installed worker ACL refused')
+          else:
+              raise AssertionError('ACL-bearing worker accepted')
+          PY
+          sudo setfacl -b -k /usr/local/sbin/homecloud-update-install
+          test ! -e deploy/systemd/homecloud-update-install.service
+          if sudo /usr/bin/python3 -I -S /usr/local/sbin/homecloud-update-install > "$RUNNER_TEMP/worker-stop.txt" 2>&1; then
+            echo 'Unprovisioned worker unexpectedly ran' >&2
+            exit 1
+          fi
+          grep -Fx 'STOP: host installer bridge refused; operator review required' "$RUNNER_TEMP/worker-stop.txt"
+          test ! -e /var/lib/homecloud-update/status/current.json
+          test ! -e /home/hs/homecloud-test/.runtime/test-channel/pending.json
+      - name: Проверить реальный синтетический backup и восстановление
+        run: sudo /usr/bin/python3 /home/hs/homecloud-test/scripts/ci/phase3-backup-drill.py
