@@ -2,6 +2,7 @@ name: Приёмка доверенной проверки хоста Phase 2B
 on:
   push:
     branches: [мост-обновлений-этап-2]
+    paths: [.github/workflows/phase2b-host-acceptance.yml]
   workflow_dispatch:
 permissions:
   contents: read
@@ -22,6 +23,7 @@ jobs:
           git cat-file -e 40f11e290dfc6cf2285935a22d59feb25fa0121e^{commit}
           test "$(git rev-parse HEAD:deploy)" = "$(git rev-parse 40f11e290dfc6cf2285935a22d59feb25fa0121e:deploy)"
           test "$(git rev-parse HEAD:scripts)" = "$(git rev-parse 40f11e290dfc6cf2285935a22d59feb25fa0121e:scripts)"
+          python3 scripts/ci/test-root-boundary.py
           python3 scripts/ci/test-update-admission.py
           python3 scripts/ci/test-update-evidence.py
           python3 scripts/ci/test-update-source-http.py
@@ -45,6 +47,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -o pipefail
           cd /home/hs/homecloud-test
           sudo /usr/bin/python3 -I -S - <<'PY'
           import runpy

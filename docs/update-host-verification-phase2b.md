@@ -1,5 +1,43 @@
 # Phase 2B — независимая read-only проверка хоста
 
+## Итоговая приёмка после Merge PR #19 — 3 ноября 2026
+
+**ACCEPTED для read-only host verification.** Protected `test` указывает на
+`40f11e290dfc6cf2285935a22d59feb25fa0121e`; post-merge push CI
+[`41455785016`](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/41455785016)
+завершился SUCCESS и опубликовал `test-channel-1`. Каноническая identity
+манифеста — `0859b3201abbd1563855efdb508a6e774148b96d13cb12cfe511779818a3898b`.
+Проверка `shape` прошла; шесть SHA256 квалифицированных helpers совпали с байтами
+доверенного checkout. Деревья `deploy` и `scripts` целевого TEST commit и checkout
+совпали. Исходные файлы и миграции verifier читал из Git blobs целевого commit.
+
+Изолированный GitHub-hosted Linux/amd64 run
+[`41459392301`](https://github.com/sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud/actions/runs/41459392301)
+завершился SUCCESS. В runner временно подготовлены root-owned
+`/home/hs/homecloud-test` и `/usr/local/sbin/homecloud-update-verify`, очищены
+унаследованные ACL на доверенном пути и удалена добавляемая `actions/checkout`
+настройка `gc.auto`, запрещённая root boundary. Эти операции не меняли trust
+anchor или продуктовый Git config. Фактические ownership/mode: checkout и anchor
+`root:root 0755`, inbox `root:65533 0770`, request `1001:65533 0600`.
+Проверки root boundary, ACL, pinned helpers и request прошли; пять trust suites
+дали 57/57 PASS. Непосредственный запуск установленного anchor через
+`/usr/bin/python3 -I -S` с настоящими GitHub/GHCR завершился точным результатом:
+
+```json
+{"commit":"40f11e290dfc6cf2285935a22d59feb25fa0121e","installation_enabled":false,"manifestSha256":"0859b3201abbd1563855efdb508a6e774148b96d13cb12cfe511779818a3898b","provenance_signature":"UNSIGNED","status":"HOST_VERIFIED_READ_ONLY"}
+```
+
+Verifier проверил оба image index/platform/statement digest, provenance,
+source_files и миграции, затем повторно получил GitHub evidence и проверил
+локальное доверие/HEAD. Негативные случаи изменения HEAD, manifest, migrations,
+ошибок сети и fail-closed покрыты trust suites. Повторный read-only вызов
+verifier допустим; защита от повторной установки относится к будущему worker.
+Предыдущие разделы ниже описывают состояние **до** Merge и сохранены как
+исторический checkpoint. Root anchor был подготовлен только внутри runner;
+mini-PC и production не менялись. Установка и auto-update остаются выключены.
+Provenance остаётся UNSIGNED, поэтому это не криптографическая аттестация
+всего содержимого образов.
+
 Отдельная точка входа: `deploy/linux/update-host-verify.py`. Admission не изменён:
 `VALIDATION_REQUIRED` остаётся терминальным статусом. Verifier не записывает receipt,
 не удаляет request, не вызывает установщик, Docker, SSH, backup, rollback или systemd.
