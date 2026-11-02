@@ -98,7 +98,12 @@ class Registry:
                 credential = os.environ.get('GITHUB_ACTOR', 'homecloud') + ':' + os.environ['GH_TOKEN']
                 headers['Authorization'] = 'Basic ' + base64.b64encode(credential.encode()).decode()
             with HTTP.open(urllib.request.Request('https://ghcr.io/token?' + params, headers=headers), timeout=60) as response:
-                self.token = json.load(response)['token']
+                data = response.read(MAX_METADATA + 1)
+                require(len(data) <= MAX_METADATA, 'registry token response too large')
+                token = json.loads(data).get('token')
+                require(type(token) is str and 0 < len(token) <= 16384
+                        and not any(c.isspace() for c in token), 'invalid registry token')
+                self.token = token
             return self.read(kind, sha)
         require(len(data) <= MAX_METADATA, 'registry metadata too large')
         require(digest(data) == sha, 'registry content digest mismatch')
