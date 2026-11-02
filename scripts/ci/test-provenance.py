@@ -107,6 +107,36 @@ class Tests(unittest.TestCase):
             with self.subTest(version=version), self.assertRaises(ValueError):
                 p.verify(store,sha,'backend',self.commit,'owner/homecloud',version)
 
+    def test_target_reader_overrides_checkout_dockerfile_and_locks(self):
+        store, sha = self.fixture()
+        files = {name: (p.ROOT/name).read_bytes() for name in
+                 ('backend/Dockerfile', 'scripts/ci/images.lock.json', 'scripts/ci/images.platforms.json')}
+        (p.ROOT/'backend/Dockerfile').write_bytes(b'checkout differs')
+        result = p.verify(store, sha, 'backend', self.commit, 'owner/homecloud',
+                          'dry-run', source_reader=files.__getitem__)
+        self.assertEqual(result['commit'], self.commit)
+        with self.assertRaisesRegex(ValueError, 'Dockerfile mismatch'):
+            self.check(store, sha)
+        for name in files:
+            changed = dict(files)
+            changed[name] = b'{}' if name.endswith('.json') else b'changed'
+            with self.subTest(name=name), self.assertRaises((ValueError, KeyError)):
+                p.verify(store, sha, 'backend', self.commit, 'owner/homecloud',
+                         'dry-run', source_reader=changed.__getitem__)
+
+    def test_registry_token_is_bounded_and_validated(self):
+        import io
+        import urllib.error
+        from unittest.mock import Mock
+        class Response(io.BytesIO):
+            pass
+        for payload in (b'x'*(p.MAX_METADATA+1), b'{"token":null}', b'{"token":"bad token"}'):
+            opener=Mock()
+            opener.open.side_effect=[urllib.error.HTTPError('https://ghcr.io/',401,'auth',{},None),
+                                     Response(payload)]
+            with patch.object(p,'HTTP',opener), self.assertRaises(ValueError):
+                p.Registry('owner/homecloud/backend').read('manifests','sha256:'+'a'*64)
+
     def test_corrupted_blob_rejected(self):
         store,sha = self.fixture()
         key = next(iter(store.blobs))

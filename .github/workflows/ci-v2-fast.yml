@@ -35,6 +35,15 @@ jobs:
       - run: python3 scripts/ci/test-test-channel.py
       - run: python3 scripts/ci/test-test-job.py
       - run: python3 scripts/ci/test-root-boundary.py
+      - run: python3 scripts/ci/test-update-admission.py
+      - run: python3 scripts/ci/test-update-evidence.py
+      - run: python3 scripts/ci/test-update-source-http.py
+      - name: Подготовить root-owned checkout для изолированной проверки хоста
+        run: |
+          stat -c '%u:%g %n' "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/.git"
+          chown -R root:root "$GITHUB_WORKSPACE"
+      - run: python3 scripts/ci/test-update-host-verify.py
+      - run: python3 scripts/ci/test-provenance.py
       - run: python3 scripts/ci/test-backup-qualification.py
       - run: python3 scripts/ci/test-secret-findings.py
       - run: python3 scripts/ci/test-install-npm.py
