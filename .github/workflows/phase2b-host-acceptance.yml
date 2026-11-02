@@ -43,5 +43,20 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd /home/hs/homecloud-test
+          sudo /usr/bin/python3 -I -S - <<'PY'
+          import runpy
+          from pathlib import Path
+          anchor = runpy.run_path('/usr/local/sbin/homecloud-update-verify')
+          modules = anchor['load_helpers'](anchor['ROOT'])
+          boundary = modules['boundary']
+          boundary.trusted_path(anchor['ANCHOR'])
+          boundary.validate_checkout(anchor['ROOT'])
+          for path, expected in anchor['QUALIFIED'].values():
+              import hashlib
+              assert hashlib.sha256((anchor['ROOT'] / path).read_bytes()).hexdigest() == expected
+          modules['admission'].private_directory(modules['admission'].INBOX, 0o770, modules['admission'].GID)
+          modules['admission'].read_request()
+          print('PASS: pinned helpers, root boundary, ACL, request')
+          PY
           sudo --preserve-env=GH_TOKEN /usr/bin/python3 -I -S /usr/local/sbin/homecloud-update-verify | tee "$RUNNER_TEMP/host-result.json"
           python3 -c 'import json,os; v=json.load(open(os.environ["RUNNER_TEMP"]+"/host-result.json")); assert v == {"status":"HOST_VERIFIED_READ_ONLY","manifestSha256":"0859b3201abbd1563855efdb508a6e774148b96d13cb12cfe511779818a3898b","commit":"40f11e290dfc6cf2285935a22d59feb25fa0121e","installation_enabled":False,"provenance_signature":"UNSIGNED"}'
