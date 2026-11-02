@@ -32,6 +32,7 @@ jobs:
           sudo install -d -o root -g root -m 0755 /home/hs
           sudo cp -a "$GITHUB_WORKSPACE" /home/hs/homecloud-test
           sudo chown -R root:root /home/hs/homecloud-test
+          sudo git -C /home/hs/homecloud-test config --local --unset gc.auto
           sudo setfacl -b -k /home
           sudo setfacl -R -b -k /home/hs
           sudo install -o root -g root -m 0755 /home/hs/homecloud-test/deploy/linux/update-host-verify.py /usr/local/sbin/homecloud-update-verify
