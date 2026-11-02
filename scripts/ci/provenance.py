@@ -111,7 +111,9 @@ class Registry:
         return json.loads(self.read('manifests', expected))
 
 
-def verify(store, index_digest, component, commit, repository, version):
+def verify(store, index_digest, component, commit, repository, version, source_reader=None):
+    # Host verification supplies immutable Git blob bytes, never candidate Python.
+    read_source = source_reader or (lambda name: (ROOT / name).read_bytes())
     require(bool(VERSION.fullmatch(version)), 'invalid candidate version')
     require(re.fullmatch(r'[a-f0-9]{40}', commit), 'full clean commit required')
     require(re.fullmatch(r'[a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9_.-]*', repository), 'invalid source repository')
@@ -160,12 +162,12 @@ def verify(store, index_digest, component, commit, repository, version):
     require(vcs['source'].lower() in (source, source + '.git'), 'provenance VCS source mismatch')
     infos = metadata['source']['infos']
     dockerfiles = [i for i in infos if i.get('filename') == 'Dockerfile']
-    expected = (ROOT / component / 'Dockerfile').read_bytes()
+    expected = read_source(component + '/Dockerfile')
     require(len(dockerfiles) == 1 and base64.b64decode(dockerfiles[0]['data'], validate=True) == expected, 'mode=max Dockerfile mismatch')
     require(predicate.get('buildConfig', {}).get('llbDefinition'), 'mode=max build definition missing')
     args = predicate['invocation']['parameters']['args']
-    lock = json.loads((ROOT / 'scripts/ci/images.lock.json').read_text())
-    platforms = json.loads((ROOT / 'scripts/ci/images.platforms.json').read_text())
+    lock = json.loads(read_source('scripts/ci/images.lock.json'))
+    platforms = json.loads(read_source('scripts/ci/images.platforms.json'))
     roles = ('node',) if component == 'backend' else ('node', 'nginx')
     materials = predicate['materials']
     for role in roles:

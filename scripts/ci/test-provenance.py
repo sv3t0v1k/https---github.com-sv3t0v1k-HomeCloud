@@ -107,6 +107,23 @@ class Tests(unittest.TestCase):
             with self.subTest(version=version), self.assertRaises(ValueError):
                 p.verify(store,sha,'backend',self.commit,'owner/homecloud',version)
 
+    def test_target_reader_overrides_checkout_dockerfile_and_locks(self):
+        store, sha = self.fixture()
+        files = {name: (p.ROOT/name).read_bytes() for name in
+                 ('backend/Dockerfile', 'scripts/ci/images.lock.json', 'scripts/ci/images.platforms.json')}
+        (p.ROOT/'backend/Dockerfile').write_bytes(b'checkout differs')
+        result = p.verify(store, sha, 'backend', self.commit, 'owner/homecloud',
+                          'dry-run', source_reader=files.__getitem__)
+        self.assertEqual(result['commit'], self.commit)
+        with self.assertRaisesRegex(ValueError, 'Dockerfile mismatch'):
+            self.check(store, sha)
+        for name in files:
+            changed = dict(files)
+            changed[name] = b'{}' if name.endswith('.json') else b'changed'
+            with self.subTest(name=name), self.assertRaises((ValueError, KeyError)):
+                p.verify(store, sha, 'backend', self.commit, 'owner/homecloud',
+                         'dry-run', source_reader=changed.__getitem__)
+
     def test_corrupted_blob_rejected(self):
         store,sha = self.fixture()
         key = next(iter(store.blobs))
