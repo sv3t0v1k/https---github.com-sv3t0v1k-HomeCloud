@@ -136,14 +136,6 @@ def clean_environment():
             'DOCKER_HOST': 'unix:///var/run/docker.sock'}
 
 
-
-def validate_docker_client_config(path):
-    # Only an empty, root-owned, trusted Docker CLI config is allowed.
-    trusted_tree(path)
-    if any(path.iterdir()):
-        raise UnsafeRoot('Docker CLI config must be empty')
-
-
 def main():
     if os.geteuid() != 0 or not sys.flags.isolated:
         raise UnsafeRoot('root and isolated Python required')
@@ -151,7 +143,7 @@ def main():
         raise UnsafeRoot('use the separately provisioned root-owned launcher')
     trusted_path(LAUNCHER)
     validate_checkout(ROOT)
-    validate_docker_client_config(Path('/etc/homecloud-test/docker'))
+    trusted_tree(Path('/etc/homecloud-test/docker'))
     if len(sys.argv) == 3 and sys.argv[1] == 'worker':
         import re
         if not re.fullmatch('[a-f0-9]{64}', sys.argv[2]):

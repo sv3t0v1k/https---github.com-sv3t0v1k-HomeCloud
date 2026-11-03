@@ -155,23 +155,55 @@ class RootBoundary(unittest.TestCase):
 
 
 
-class DockerConfigIsolationTests(unittest.TestCase):
-    """Отказ при неподтверждённой Docker CLI конфигурации."""
 
-    def test_empty_trusted_directory_allowed(self):
+class DockerConfigIsolationTests(unittest.TestCase):
+    """Проверка Shell-защиты на изолированных фикстурах."""
+
+    @classmethod
+    def setUpClass(cls):
         import tempfile
-        with tempfile.TemporaryDirectory() as tmp:
+        cls.tempfile = tempfile
+        lines = (ROOT / "deploy/linux/project-test.sh").read_text().splitlines()
+        guard = (
+            "docker_entries=$(/usr/bin/find /etc/homecloud-test/docker "
+            "-mindepth 1 -print -quit) || fail"
+        )
+        assert lines.count(guard) == 1
+        index = lines.index(guard)
+        assert lines[index + 1] == '[ -z "$docker_entries" ] || fail'
+        cls.guard = "\n".join(lines[index:index + 2])
+
+    def execute_guard(self, directory):
+        import shlex
+        script = (
+            "set -eu\nfail() { exit 77; }\n"
+            + self.guard.replace(
+                "/etc/homecloud-test/docker",
+                shlex.quote(str(directory))
+            )
+            + "\n"
+        )
+        return subprocess.run(
+            ["/bin/sh", "-c", script],
+            capture_output=True, text=True
+        ).returncode
+
+    def test_empty_directory_allowed(self):
+        with self.tempfile.TemporaryDirectory() as tmp:
             directory = Path(tmp) / "docker"
             directory.mkdir()
-            with patch.object(boundary, "trusted_tree") as trust:
-                boundary.validate_docker_client_config(directory)
-            trust.assert_called_once_with(directory)
+            self.assertEqual(self.execute_guard(directory), 0)
 
-    def test_unexpected_files_and_plugins_refused(self):
-        import tempfile
+    def test_missing_directory_refused(self):
+        with self.tempfile.TemporaryDirectory() as tmp:
+            self.assertNotEqual(
+                self.execute_guard(Path(tmp) / "missing"), 0
+            )
+
+    def test_unexpected_config_and_plugin_refused(self):
         for entry in ("config.json", "cli-plugins"):
             with self.subTest(entry=entry):
-                with tempfile.TemporaryDirectory() as tmp:
+                with self.tempfile.TemporaryDirectory() as tmp:
                     directory = Path(tmp) / "docker"
                     directory.mkdir()
                     target = directory / entry
@@ -181,38 +213,24 @@ class DockerConfigIsolationTests(unittest.TestCase):
                         )
                     else:
                         target.mkdir()
-                        (target / "docker-compose").write_text("untrusted")
+                    self.assertNotEqual(self.execute_guard(directory), 0)
 
-                    with patch.object(boundary, "trusted_tree"):
-                        with self.assertRaises(boundary.UnsafeRoot):
-                            boundary.validate_docker_client_config(directory)
-
-    def test_missing_directory_refused(self):
-        import tempfile
-        with tempfile.TemporaryDirectory() as tmp:
-            directory = Path(tmp) / "missing"
-            with patch.object(boundary, "trusted_tree",
-                              side_effect=FileNotFoundError("missing")):
-                with self.assertRaises(FileNotFoundError):
-                    boundary.validate_docker_client_config(directory)
-
-    def test_symlink_directory_refused(self):
+    def test_symlink_refused_by_trusted_boundary(self):
         directory = Path("/etc/homecloud-test/docker")
 
         def metadata(path):
-            mode = (stat.S_IFLNK | 0o777) if path == directory else (
-                stat.S_IFDIR | 0o755
+            mode = (
+                stat.S_IFLNK | 0o777 if path == directory
+                else stat.S_IFDIR | 0o755
             )
             return SimpleNamespace(
                 st_uid=0, st_mode=mode, st_nlink=1
             )
 
         with patch.object(Path, "lstat", autospec=True,
-                          side_effect=metadata), \
-             patch.object(boundary.os, "listxattr",
-                          return_value=[], create=True):
+                          side_effect=metadata):
             with self.assertRaises(boundary.UnsafeRoot):
-                boundary.validate_docker_client_config(directory)
+                boundary.trusted_tree(directory)
 
 
 class ProjectTestWrapperEnvironment(unittest.TestCase):
