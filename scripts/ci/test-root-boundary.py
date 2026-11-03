@@ -152,5 +152,33 @@ class RootBoundary(unittest.TestCase):
         self.assertNotIn('/usr/local/bin', env['PATH'])
 
 
+
+class ProjectTestWrapperEnvironment(unittest.TestCase):
+    """Контракт окружения project-test wrapper."""
+
+    @classmethod
+    def setUpClass(cls):
+        script = (ROOT / "deploy/linux/project-test.sh").read_text()
+        cls.preflight = script.split("preflight() {", 1)[1].split("\n}", 1)[0]
+        cls.compose = script.split("compose() {", 1)[1].split("\n}", 1)[0]
+
+    def test_preflight_has_clean_environment(self):
+        self.assertIn(
+            'env -i HOME=/root PATH="$clean_path" /usr/bin/python3 -I -S',
+            self.preflight,
+        )
+        for variable in ("DOCKER_CONFIG=", "DOCKER_HOST=", "DOCKER_CONTEXT="):
+            self.assertNotIn(variable, self.preflight)
+
+    def test_compose_preserves_isolated_docker_config(self):
+        self.assertIn(
+            'DOCKER_CONFIG=/etc/homecloud-test/docker docker --host unix:///var/run/docker.sock compose',
+            self.compose,
+        )
+
+    def test_preflight_still_rejects_docker_overrides(self):
+        source = (ROOT / "deploy/linux/preflight.py").read_text()
+        self.assertIn("'DOCKER_',", source)
+
 if __name__ == '__main__':
     unittest.main()

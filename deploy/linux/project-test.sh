@@ -11,7 +11,7 @@ project_root=$(CDPATH= cd -- "$script_dir/../.." && pwd -P) || fail
 cd -- "$project_root" || fail
 clean_path=/usr/sbin:/usr/bin:/sbin:/bin
 preflight() {
-  env -i HOME=/root PATH="$clean_path" DOCKER_CONFIG=/etc/homecloud-test/docker /usr/bin/python3 -I -S "$project_root/deploy/linux/preflight.py" \
+  env -i HOME=/root PATH="$clean_path" /usr/bin/python3 -I -S "$project_root/deploy/linux/preflight.py" \
     --inventory "$project_root/.runtime/host-disks.json" \
     --env-file "$project_root/.runtime/runtime.env"
 }
