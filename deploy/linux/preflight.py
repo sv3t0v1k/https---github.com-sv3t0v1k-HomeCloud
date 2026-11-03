@@ -58,7 +58,7 @@ def check_inventory_layout(inventory):
 def docker_command_prefix(inventory):
     if 'project_root' in inventory:
         # Same daemon as project wrapper; root's default context may differ.
-        return ['docker', '--host', 'unix:///var/run/docker.sock']
+        return ['docker', '--config', '/etc/homecloud-test/docker', '--host', 'unix:///var/run/docker.sock']
     endpoint = command('docker', 'context', 'inspect', '--format', '{{.Endpoints.docker.Host}}')
     require(endpoint.startswith('unix:///'), 'Remote Docker context запрещён')
     return ['docker']

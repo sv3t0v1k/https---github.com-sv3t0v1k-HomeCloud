@@ -318,7 +318,34 @@ class UnitTests(unittest.TestCase):
     def test_project_uses_wrapper_daemon_without_reading_default_context(self):
         with patch.object(p,'command',side_effect=AssertionError('Default context must not be read')):
             self.assertEqual(p.docker_command_prefix({'project_root':'/home/hs/homecloud-test'}),
-                             ['docker','--host','unix:///var/run/docker.sock'])
+                             ['docker','--config','/etc/homecloud-test/docker','--host','unix:///var/run/docker.sock'])
+    def test_project_docker_commands_use_qualified_config(self):
+        prefix = p.docker_command_prefix(
+            {'project_root': '/home/hs/homecloud-test'}
+        )
+        expected = [
+            'docker', '--config', '/etc/homecloud-test/docker',
+            '--host', 'unix:///var/run/docker.sock'
+        ]
+        calls = []
+
+        def fake_run(args, **kwargs):
+            calls.append(args)
+            return SimpleNamespace(returncode=0, stdout='{}')
+
+        with patch.dict(os.environ, {
+            'HOME': '/untrusted',
+            'DOCKER_CONFIG': '/untrusted/.docker',
+        }):
+            with patch.object(p.subprocess, 'run', side_effect=fake_run):
+                p.command(*prefix, 'info')
+                p.command(*prefix, 'compose', 'config')
+                p.command(*prefix, 'image', 'inspect', 'fixture')
+
+        self.assertEqual(len(calls), 3)
+        for args in calls:
+            self.assertEqual(list(args[:5]), expected)
+
     def test_dedicated_retains_local_context(self):
         with patch.object(p,'command',return_value='unix:///run/docker.sock') as operation:
             self.assertEqual(p.docker_command_prefix({}),['docker'])

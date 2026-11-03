@@ -153,6 +153,68 @@ class RootBoundary(unittest.TestCase):
 
 
 
+
+
+class DockerConfigIsolationTests(unittest.TestCase):
+    """Отказ при неподтверждённой Docker CLI конфигурации."""
+
+    def test_empty_trusted_directory_allowed(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp) / "docker"
+            directory.mkdir()
+            with patch.object(boundary, "trusted_tree") as trust:
+                boundary.validate_docker_client_config(directory)
+            trust.assert_called_once_with(directory)
+
+    def test_unexpected_files_and_plugins_refused(self):
+        import tempfile
+        for entry in ("config.json", "cli-plugins"):
+            with self.subTest(entry=entry):
+                with tempfile.TemporaryDirectory() as tmp:
+                    directory = Path(tmp) / "docker"
+                    directory.mkdir()
+                    target = directory / entry
+                    if entry == "config.json":
+                        target.write_text(
+                            '{"cliPluginsExtraDirs":["/tmp/evil"]}'
+                        )
+                    else:
+                        target.mkdir()
+                        (target / "docker-compose").write_text("untrusted")
+
+                    with patch.object(boundary, "trusted_tree"):
+                        with self.assertRaises(boundary.UnsafeRoot):
+                            boundary.validate_docker_client_config(directory)
+
+    def test_missing_directory_refused(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp) / "missing"
+            with patch.object(boundary, "trusted_tree",
+                              side_effect=FileNotFoundError("missing")):
+                with self.assertRaises(FileNotFoundError):
+                    boundary.validate_docker_client_config(directory)
+
+    def test_symlink_directory_refused(self):
+        directory = Path("/etc/homecloud-test/docker")
+
+        def metadata(path):
+            mode = (stat.S_IFLNK | 0o777) if path == directory else (
+                stat.S_IFDIR | 0o755
+            )
+            return SimpleNamespace(
+                st_uid=0, st_mode=mode, st_nlink=1
+            )
+
+        with patch.object(Path, "lstat", autospec=True,
+                          side_effect=metadata), \
+             patch.object(boundary.os, "listxattr",
+                          return_value=[], create=True):
+            with self.assertRaises(boundary.UnsafeRoot):
+                boundary.validate_docker_client_config(directory)
+
+
 class ProjectTestWrapperEnvironment(unittest.TestCase):
     """Контракт окружения project-test wrapper."""
 
