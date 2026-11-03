@@ -22,9 +22,18 @@ jobs:
           test "$(uname -m)" = x86_64
           python3 scripts/ci/test-update-install-host.py
           python3 scripts/ci/test-update-install-bridge.py
+          python3 scripts/ci/test-phase3-host-evidence.py
           python3 scripts/ci/test-test-channel.py
           python3 scripts/ci/test-backup-qualification.py
           python3 scripts/ci/test-root-boundary.py
+      - name: Получить кандидатный hash актуального protected TEST artifact
+        id: test-evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          identity=$(python3 scripts/ci/phase3-host-evidence.py)
+          [[ "$identity" =~ ^[a-f0-9]{64}$ ]]
+          printf 'identity=%s\n' "$identity" >> "$GITHUB_OUTPUT"
       - name: Подготовить только временные доверенные пути в runner
         run: |
           sudo install -d -o root -g root -m 0755 /home/hs
@@ -41,9 +50,10 @@ jobs:
       - name: Проверить root, ACL, SHA256 и ожидаемый target gate
         env:
           GH_TOKEN: ${{ github.token }}
+          TEST_MANIFEST_SHA256: ${{ steps.test-evidence.outputs.identity }}
         run: |
           cd /home/hs/homecloud-test
-          sudo --preserve-env=GH_TOKEN /usr/bin/python3 -I -S - <<'PY'
+          sudo --preserve-env=GH_TOKEN,TEST_MANIFEST_SHA256 /usr/bin/python3 -I -S - <<'PY'
           import hashlib
           import os
           import runpy
@@ -59,18 +69,23 @@ jobs:
               assert hashlib.sha256((verifier['ROOT'] / path).read_bytes()).hexdigest() == expected
           assert worker['PROVISIONED'] is False
           client = modules['update_source'].GitHubClient(os.environ['GH_TOKEN'])
-          identity = '0859b3201abbd1563855efdb508a6e774148b96d13cb12cfe511779818a3898b'
+          # The previous step's PR-checkout code supplies only an untrusted hint.
           manifest = modules['update_source'].fetch_test_evidence(
-              identity, modules['test_contract'].shape, client)
-          assert manifest['commit'] == '40f11e290dfc6cf2285935a22d59feb25fa0121e'
+              os.environ['TEST_MANIFEST_SHA256'], modules['test_contract'].shape, client)
           source = verifier['GitSource'](verifier['ROOT'], boundary.clean_environment())
+          current = source.head().decode('ascii')
+          changed = any(source.git('rev-parse', current + ':' + directory) !=
+                        source.git('rev-parse', manifest['commit'] + ':' + directory)
+                        for directory in ('deploy', 'scripts'))
           try:
               verifier['target_sources'](manifest, modules['test_contract'], source)
           except ValueError as error:
-              assert str(error) == 'root helper tree changed; separate qualification required'
+              assert changed and str(error) == 'root helper tree changed; separate qualification required'
+              print('PASS: actual helper tree change refused by target gate')
           else:
-              raise AssertionError('unqualified Phase 3 helper tree accepted')
-          print('PASS: root trust, six SHA256 pins, protected TEST, expected tree-gate STOP')
+              assert not changed
+              print('PASS: unchanged helper tree and target sources accepted')
+          print('PASS: root trust, six SHA256 pins, current protected TEST evidence')
           PY
           sudo setfacl -m u:1001:r-- /usr/local/sbin/homecloud-update-install
           sudo /usr/bin/python3 -I -S - <<'PY'
