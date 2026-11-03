@@ -227,10 +227,12 @@ class DockerConfigIsolationTests(unittest.TestCase):
                 st_uid=0, st_mode=mode, st_nlink=1
             )
 
-        with patch.object(Path, "lstat", autospec=True,
-                          side_effect=metadata):
-            with self.assertRaises(boundary.UnsafeRoot):
-                boundary.trusted_tree(directory)
+        with patch.object(boundary.os, "listxattr",
+                          return_value=[], create=True):
+            with patch.object(Path, "lstat", autospec=True,
+                              side_effect=metadata):
+                with self.assertRaises(boundary.UnsafeRoot):
+                    boundary.trusted_tree(directory)
 
 
 class ProjectTestWrapperEnvironment(unittest.TestCase):
