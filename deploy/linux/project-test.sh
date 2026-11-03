@@ -9,9 +9,12 @@ case "$1" in preflight|config|start|status|stop|test-baseline-inspect|test-recov
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P) || fail
 project_root=$(CDPATH= cd -- "$script_dir/../.." && pwd -P) || fail
 cd -- "$project_root" || fail
+# Root boundary validates ownership, permissions and symlinks first.
+docker_entries=$(/usr/bin/find /etc/homecloud-test/docker -mindepth 1 -print -quit) || fail
+[ -z "$docker_entries" ] || fail
 clean_path=/usr/sbin:/usr/bin:/sbin:/bin
 preflight() {
-  env -i HOME=/root PATH="$clean_path" DOCKER_CONFIG=/etc/homecloud-test/docker /usr/bin/python3 -I -S "$project_root/deploy/linux/preflight.py" \
+  env -i HOME=/root PATH="$clean_path" /usr/bin/python3 -I -S "$project_root/deploy/linux/preflight.py" \
     --inventory "$project_root/.runtime/host-disks.json" \
     --env-file "$project_root/.runtime/runtime.env"
 }

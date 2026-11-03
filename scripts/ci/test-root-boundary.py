@@ -152,5 +152,115 @@ class RootBoundary(unittest.TestCase):
         self.assertNotIn('/usr/local/bin', env['PATH'])
 
 
+
+
+
+
+class DockerConfigIsolationTests(unittest.TestCase):
+    """Проверка Shell-защиты на изолированных фикстурах."""
+
+    @classmethod
+    def setUpClass(cls):
+        import tempfile
+        cls.tempfile = tempfile
+        lines = (ROOT / "deploy/linux/project-test.sh").read_text().splitlines()
+        guard = (
+            "docker_entries=$(/usr/bin/find /etc/homecloud-test/docker "
+            "-mindepth 1 -print -quit) || fail"
+        )
+        assert lines.count(guard) == 1
+        index = lines.index(guard)
+        assert lines[index + 1] == '[ -z "$docker_entries" ] || fail'
+        cls.guard = "\n".join(lines[index:index + 2])
+
+    def execute_guard(self, directory):
+        import shlex
+        script = (
+            "set -eu\nfail() { exit 77; }\n"
+            + self.guard.replace(
+                "/etc/homecloud-test/docker",
+                shlex.quote(str(directory))
+            )
+            + "\n"
+        )
+        return subprocess.run(
+            ["/bin/sh", "-c", script],
+            capture_output=True, text=True
+        ).returncode
+
+    def test_empty_directory_allowed(self):
+        with self.tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp) / "docker"
+            directory.mkdir()
+            self.assertEqual(self.execute_guard(directory), 0)
+
+    def test_missing_directory_refused(self):
+        with self.tempfile.TemporaryDirectory() as tmp:
+            self.assertNotEqual(
+                self.execute_guard(Path(tmp) / "missing"), 0
+            )
+
+    def test_unexpected_config_and_plugin_refused(self):
+        for entry in ("config.json", "cli-plugins"):
+            with self.subTest(entry=entry):
+                with self.tempfile.TemporaryDirectory() as tmp:
+                    directory = Path(tmp) / "docker"
+                    directory.mkdir()
+                    target = directory / entry
+                    if entry == "config.json":
+                        target.write_text(
+                            '{"cliPluginsExtraDirs":["/tmp/evil"]}'
+                        )
+                    else:
+                        target.mkdir()
+                    self.assertNotEqual(self.execute_guard(directory), 0)
+
+    def test_symlink_refused_by_trusted_boundary(self):
+        directory = Path("/etc/homecloud-test/docker")
+
+        def metadata(path):
+            mode = (
+                stat.S_IFLNK | 0o777 if path == directory
+                else stat.S_IFDIR | 0o755
+            )
+            return SimpleNamespace(
+                st_uid=0, st_mode=mode, st_nlink=1
+            )
+
+        with patch.object(boundary.os, "listxattr",
+                          return_value=[], create=True):
+            with patch.object(Path, "lstat", autospec=True,
+                              side_effect=metadata):
+                with self.assertRaises(boundary.UnsafeRoot):
+                    boundary.trusted_tree(directory)
+
+
+class ProjectTestWrapperEnvironment(unittest.TestCase):
+    """Контракт окружения project-test wrapper."""
+
+    @classmethod
+    def setUpClass(cls):
+        script = (ROOT / "deploy/linux/project-test.sh").read_text()
+        cls.preflight = script.split("preflight() {", 1)[1].split("\n}", 1)[0]
+        cls.compose = script.split("compose() {", 1)[1].split("\n}", 1)[0]
+
+    def test_preflight_has_clean_environment(self):
+        self.assertIn(
+            'env -i HOME=/root PATH="$clean_path" /usr/bin/python3 -I -S',
+            self.preflight,
+        )
+        for variable in ("DOCKER_CONFIG=", "DOCKER_HOST=", "DOCKER_CONTEXT="):
+            self.assertNotIn(variable, self.preflight)
+
+    def test_compose_preserves_isolated_docker_config(self):
+        self.assertIn(
+            'DOCKER_CONFIG=/etc/homecloud-test/docker docker --host unix:///var/run/docker.sock compose',
+            self.compose,
+        )
+
+    def test_preflight_still_rejects_docker_overrides(self):
+        source = (ROOT / "deploy/linux/preflight.py").read_text()
+        self.assertIn("'DOCKER_',", source)
+
 if __name__ == '__main__':
     unittest.main()
