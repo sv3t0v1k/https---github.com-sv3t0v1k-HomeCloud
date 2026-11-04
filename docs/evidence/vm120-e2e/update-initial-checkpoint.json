@@ -1,0 +1,176 @@
+{
+  "requires_operator_approval": true,
+  "state": {
+    "active": {
+      "images": {
+        "backend": {
+          "id": "sha256:d79cb2a3df79a93a9d85bd1b4574a90f32831854f58636023680d01caa041e1a",
+          "ref": "ghcr.io/sv3t0v1k/https---github.com-sv3t0v1k-homecloud/backend@sha256:d79cb2a3df79a93a9d85bd1b4574a90f32831854f58636023680d01caa041e1a",
+          "sha": "31c57823e04c405decc1fe03d58bb6e8b20aed67"
+        },
+        "frontend": {
+          "id": "sha256:e3a2613ec4d967182a0dcdf2e19fdf37a8a172a32e884b1a6568dd94fbcaad96",
+          "ref": "ghcr.io/sv3t0v1k/https---github.com-sv3t0v1k-homecloud/frontend@sha256:e3a2613ec4d967182a0dcdf2e19fdf37a8a172a32e884b1a6568dd94fbcaad96",
+          "sha": "31c57823e04c405decc1fe03d58bb6e8b20aed67"
+        }
+      },
+      "manifest": null,
+      "schema_migrations": [
+        {
+          "file": "1746824900000-CreateUsersTable.ts",
+          "name": "CreateUsersTable1746824900000",
+          "sha256": "3a9cf0e797b9cee5e2a05670ea856ad9b6eddcf8e92f225fe63222ae80fdb1fb"
+        },
+        {
+          "file": "1746824910000-CreateFoldersTable.ts",
+          "name": "CreateFoldersTable1746824910000",
+          "sha256": "a3215fb3ae30714d8004b74c5eb7fd805fde83e979176ac488fcd02ebc252b10"
+        },
+        {
+          "file": "1746824920000-CreateFilesTable.ts",
+          "name": "CreateFilesTable1746824920000",
+          "sha256": "0ccfeff8774fcbd46a31914deda949b59a13abb34fab014869b7c8492865a955"
+        },
+        {
+          "file": "1746824930000-CreateShareLinksTable.ts",
+          "name": "CreateShareLinksTable1746824930000",
+          "sha256": "55c3f5292a5995d12d02417ea80da5ece7300de3b02242832735dea923a52eab"
+        },
+        {
+          "file": "1746824940000-CreateUploadSessionsTable.ts",
+          "name": "CreateUploadSessionsTable1746824940000",
+          "sha256": "1bf3e9163184e551c8d355d796c8f2d33d583b7736dd96b4c17b6f8e87bd48ed"
+        },
+        {
+          "file": "1746825000000-CreateRefreshTokensTable.ts",
+          "name": "CreateRefreshTokensTable1746825000000",
+          "sha256": "fa5d2d0780a3a55da9678b73c3891bbea6b4deff36a8977f7b1b80959b3146a9"
+        },
+        {
+          "file": "1746825010000-AddMissingIndexes.ts",
+          "name": "AddMissingIndexes1746825010000",
+          "sha256": "b1d6ac1a49f531c87af38d4d143d012cd1ceb2c3ab0f1debddfb32079cd6903a"
+        },
+        {
+          "file": "1746825020000-AddStorageUsedCheck.ts",
+          "name": "AddStorageUsedCheck1746825020000",
+          "sha256": "ce24f21f54d5bc34516f112c9c19f419d6551b1a2daeb820f16f6bf63da24f53"
+        },
+        {
+          "file": "1746825030000-AddParentIdForeignKeys.ts",
+          "name": "AddParentIdForeignKeys1746825030000",
+          "sha256": "cc3fde18e5f2f459ee9714a91b161ac98c97730e08950cbb103bc9aae1dc8b4b"
+        },
+        {
+          "file": "1746825040000-ShareLinksTokenUnique.ts",
+          "name": "ShareLinksTokenUnique1746825040000",
+          "sha256": "c7c48d4cefdccd69ca2da7b452d346d7b3d1ef9e3604998cf920faa8ba08b1b1"
+        },
+        {
+          "file": "1746825050000-UploadSessionStatusCheck.ts",
+          "name": "UploadSessionStatusCheck1746825050000",
+          "sha256": "e8d9173868c8e2b227d1a1cd7c02ddfef1cad7921fccf97b6bf6a132cd795147"
+        },
+        {
+          "file": "1746825060000-AddNameNotEmptyCheck.ts",
+          "name": "AddNameNotEmptyCheck1746825060000",
+          "sha256": "8cf0eafe2c58d62628ea8825e31b0b5769d052ce3bedda392e83671fb9d24fa1"
+        },
+        {
+          "file": "1746825070000-UploadedChunksJsonb.ts",
+          "name": "UploadedChunksJsonb1746825070000",
+          "sha256": "987f489b388de8498cbbd2d57309540aa629cc469e737308e6058ace425e48c3"
+        },
+        {
+          "file": "1746825080000-AddFileUploadId.ts",
+          "name": "AddFileUploadId1746825080000",
+          "sha256": "ca0328bc9e594c6fcf36a356b766c2f1c46d9e2d7f00988bfa879d09174bc2d9"
+        },
+        {
+          "file": "1746825090000-AddShareMaxDownloads.ts",
+          "name": "AddShareMaxDownloads1746825090000",
+          "sha256": "a058b590a17ce041bb9373fb1e580718144b56103d873dc0eda4e5a88b23fc9a"
+        },
+        {
+          "file": "1746825100000-AddShareFailedAttempts.ts",
+          "name": "AddShareFailedAttempts1746825100000",
+          "sha256": "e43b37916c439ba52ea0f8c34b05cd2b7f2c99de60fa28f74bb700d84ae639c4"
+        },
+        {
+          "file": "1746825110000-AddFileFolderIdMirrorLink.ts",
+          "name": "AddFileFolderIdMirrorLink1746825110000",
+          "sha256": "e7374b7e44055e99b2a4b8c701976a47c266bf014ffe76f654aeb9103036ec02"
+        },
+        {
+          "file": "1746825120000-ShareLockedUntilTimestamptz.ts",
+          "name": "ShareLockedUntilTimestamptz1746825120000",
+          "sha256": "8da5f7c875d12b0929e14410f12e819a8a802ca611402615482ed402d79087ff"
+        },
+        {
+          "file": "1746825130000-DurableUploadChunks.ts",
+          "name": "DurableUploadChunks1746825130000",
+          "sha256": "52a0ee14375a6ee692d997cfaba9936887a7d30cbf2eeb2c659294f6839cc5b5"
+        },
+        {
+          "file": "1746825140000-CreateDownloadCapabilities.ts",
+          "name": "CreateDownloadCapabilities1746825140000",
+          "sha256": "519fe926a7d9c2a2567d28f36a9c82021fb40669aa1c6b286f2603cf8a0ca748"
+        },
+        {
+          "file": "1746825150000-LegacyStoragePlacement.ts",
+          "name": "LegacyStoragePlacement1746825150000",
+          "sha256": "5da489f673112ebb043d105ef310f820da30ad075a8ffa8cd3898f7b190302aa"
+        },
+        {
+          "file": "1746825160000-UploadWorkspaceBinding.ts",
+          "name": "UploadWorkspaceBinding1746825160000",
+          "sha256": "c362958603e33e5b9c54be63e83ae364563181a98ae34843735a72812169732f"
+        },
+        {
+          "file": "1746825170000-PrepareSsdUploadWorkspace.ts",
+          "name": "PrepareSsdUploadWorkspace1746825170000",
+          "sha256": "eb6746d00978d3463d90fbb203f38763afc96e7f0c75533b3e0483ac5411b08b"
+        },
+        {
+          "file": "1746825180000-IsolatedSsdFinalizationJournal.ts",
+          "name": "IsolatedSsdFinalizationJournal1746825180000",
+          "sha256": "7730dbd54d8d800268e67bb199e1f98e85d55cf1ba418d52d0ec36edb24df197"
+        },
+        {
+          "file": "1746825190000-SsdFinalizationRecovery.ts",
+          "name": "SsdFinalizationRecovery1746825190000",
+          "sha256": "5adb35ed454869663018418e5e5f7f931e27b05bebafb1bea9922e4a98b9f541"
+        },
+        {
+          "file": "1746825200000-DurableUploadWholeSha256.ts",
+          "name": "DurableUploadWholeSha2561746825200000",
+          "sha256": "71933494e024615709d51a4e97656eb38c8056dca5a397e699e3da1e153cac24"
+        },
+        {
+          "file": "1746825210000-PublicFolderShareBinding.ts",
+          "name": "PublicFolderShareBinding1746825210000",
+          "sha256": "8e7e0400c001dc6b31bfb3bc1d1a1588ac232dc1cb901bc9e2447c083e7aba36"
+        },
+        {
+          "file": "1746825220000-PublicShareOperationReceipts.ts",
+          "name": "PublicShareOperationReceipts1746825220000",
+          "sha256": "b702d8693d76d506bece1e674a3f2da8a24f64a570f87589763c2bcd87fb193f"
+        },
+        {
+          "file": "1746825230000-PublicUploadParentInvalidation.ts",
+          "name": "PublicUploadParentInvalidation1746825230000",
+          "sha256": "c568e5e8d1068dbeb13bc4b18fc8cdcdbbd3ec68d9eaf5ea17ead9819c421635"
+        },
+        {
+          "file": "1792831200000-CreateArchiveDownloadCapabilities.ts",
+          "name": "CreateArchiveDownloadCapabilities1792831200000",
+          "sha256": "ffede8d19a01cd6d27deb1bb3299bc58f1d661d49a96773f287c09fcab224c8b"
+        }
+      ]
+    },
+    "format": "homecloud-test-install-v1",
+    "history": []
+  },
+  "status": "READ_ONLY_PROPOSAL",
+  "written": false
+}
