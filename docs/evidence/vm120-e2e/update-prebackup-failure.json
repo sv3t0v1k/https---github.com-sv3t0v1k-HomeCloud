@@ -1,0 +1,29 @@
+{
+  "before": {
+    "git_sha": "2668005254863a77ebdc32ed0c2c5c015ee03628",
+    "images": {
+      "backend": {
+        "id": "sha256:d79cb2a3df79a93a9d85bd1b4574a90f32831854f58636023680d01caa041e1a",
+        "ref": "ghcr.io/sv3t0v1k/https---github.com-sv3t0v1k-homecloud/backend@sha256:d79cb2a3df79a93a9d85bd1b4574a90f32831854f58636023680d01caa041e1a",
+        "sha": "31c57823e04c405decc1fe03d58bb6e8b20aed67"
+      },
+      "frontend": {
+        "id": "sha256:e3a2613ec4d967182a0dcdf2e19fdf37a8a172a32e884b1a6568dd94fbcaad96",
+        "ref": "ghcr.io/sv3t0v1k/https---github.com-sv3t0v1k-homecloud/frontend@sha256:e3a2613ec4d967182a0dcdf2e19fdf37a8a172a32e884b1a6568dd94fbcaad96",
+        "sha": "31c57823e04c405decc1fe03d58bb6e8b20aed67"
+      }
+    }
+  },
+  "format": "homecloud-test-transaction-v1",
+  "phase": "PREBACKUP",
+  "recovery_status": "ROLLED_BACK",
+  "target": {
+    "commit": "2668005254863a77ebdc32ed0c2c5c015ee03628",
+    "manifest_sha256": "ea06483d5985bdc7c4a9b6293d7afaa2a8248dcf96473aba7d9bc0ce1ba1ff07",
+    "refs": {
+      "backend": "ghcr.io/sv3t0v1k/https---github.com-sv3t0v1k-homecloud/backend@sha256:6b3d4fcc266fe339c4963dffc7547f7ce3ff49cdbca3ea6da4284565a4509cc0",
+      "frontend": "ghcr.io/sv3t0v1k/https---github.com-sv3t0v1k-homecloud/frontend@sha256:8b7caaf500c1c82ea121ebe83c0fd8a90c47f89830a3497595bc7441096f6288"
+    }
+  },
+  "updated_at": "2026-11-04T12:19:49.007081+00:00"
+}

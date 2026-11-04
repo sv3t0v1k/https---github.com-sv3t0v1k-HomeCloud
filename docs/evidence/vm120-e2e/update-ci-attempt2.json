@@ -1,0 +1,206 @@
+{
+  "format": "homecloud-test-channel-v1",
+  "repository": "sv3t0v1k/https---github.com-sv3t0v1k-homecloud",
+  "commit": "2668005254863a77ebdc32ed0c2c5c015ee03628",
+  "platform": "linux/amd64",
+  "images": {
+    "backend": {
+      "repository": "ghcr.io/sv3t0v1k/https---github.com-sv3t0v1k-homecloud/backend",
+      "digest": "sha256:d3119a98efe4ff2d645a89b0030993b337a8c1255aaaac093ea349aa19f03301",
+      "platform_digest": "sha256:6bdfbe196967d4969e735450e0c9b0be0d83c89a5d9e266342c959d2e1e7d2ec",
+      "statement_digest": "sha256:c021ca01d26c38ca595a3ee2483e345eb788a2b590dd99809fa4fc577450a23d",
+      "revision": "2668005254863a77ebdc32ed0c2c5c015ee03628",
+      "version": "test-2668005254863a77ebdc32ed0c2c5c015ee03628"
+    },
+    "frontend": {
+      "repository": "ghcr.io/sv3t0v1k/https---github.com-sv3t0v1k-homecloud/frontend",
+      "digest": "sha256:016090a92ca3cf72e462867dc55bbef78b55133e83d26494697378cf7ee343cd",
+      "platform_digest": "sha256:124c4257c0df8c45ef7c020a4f93b018b53dcea0c15fcc3b3b52ea0979c76914",
+      "statement_digest": "sha256:b2dc196a648081dd750501424484b140e8360ddc83a0b6c79600295f122e2120",
+      "revision": "2668005254863a77ebdc32ed0c2c5c015ee03628",
+      "version": "test-2668005254863a77ebdc32ed0c2c5c015ee03628"
+    }
+  },
+  "schema_migrations": [
+    {
+      "name": "CreateUsersTable1746824900000",
+      "file": "1746824900000-CreateUsersTable.ts",
+      "sha256": "3a9cf0e797b9cee5e2a05670ea856ad9b6eddcf8e92f225fe63222ae80fdb1fb"
+    },
+    {
+      "name": "CreateFoldersTable1746824910000",
+      "file": "1746824910000-CreateFoldersTable.ts",
+      "sha256": "a3215fb3ae30714d8004b74c5eb7fd805fde83e979176ac488fcd02ebc252b10"
+    },
+    {
+      "name": "CreateFilesTable1746824920000",
+      "file": "1746824920000-CreateFilesTable.ts",
+      "sha256": "0ccfeff8774fcbd46a31914deda949b59a13abb34fab014869b7c8492865a955"
+    },
+    {
+      "name": "CreateShareLinksTable1746824930000",
+      "file": "1746824930000-CreateShareLinksTable.ts",
+      "sha256": "55c3f5292a5995d12d02417ea80da5ece7300de3b02242832735dea923a52eab"
+    },
+    {
+      "name": "CreateUploadSessionsTable1746824940000",
+      "file": "1746824940000-CreateUploadSessionsTable.ts",
+      "sha256": "1bf3e9163184e551c8d355d796c8f2d33d583b7736dd96b4c17b6f8e87bd48ed"
+    },
+    {
+      "name": "CreateRefreshTokensTable1746825000000",
+      "file": "1746825000000-CreateRefreshTokensTable.ts",
+      "sha256": "fa5d2d0780a3a55da9678b73c3891bbea6b4deff36a8977f7b1b80959b3146a9"
+    },
+    {
+      "name": "AddMissingIndexes1746825010000",
+      "file": "1746825010000-AddMissingIndexes.ts",
+      "sha256": "b1d6ac1a49f531c87af38d4d143d012cd1ceb2c3ab0f1debddfb32079cd6903a"
+    },
+    {
+      "name": "AddStorageUsedCheck1746825020000",
+      "file": "1746825020000-AddStorageUsedCheck.ts",
+      "sha256": "ce24f21f54d5bc34516f112c9c19f419d6551b1a2daeb820f16f6bf63da24f53"
+    },
+    {
+      "name": "AddParentIdForeignKeys1746825030000",
+      "file": "1746825030000-AddParentIdForeignKeys.ts",
+      "sha256": "cc3fde18e5f2f459ee9714a91b161ac98c97730e08950cbb103bc9aae1dc8b4b"
+    },
+    {
+      "name": "ShareLinksTokenUnique1746825040000",
+      "file": "1746825040000-ShareLinksTokenUnique.ts",
+      "sha256": "c7c48d4cefdccd69ca2da7b452d346d7b3d1ef9e3604998cf920faa8ba08b1b1"
+    },
+    {
+      "name": "UploadSessionStatusCheck1746825050000",
+      "file": "1746825050000-UploadSessionStatusCheck.ts",
+      "sha256": "e8d9173868c8e2b227d1a1cd7c02ddfef1cad7921fccf97b6bf6a132cd795147"
+    },
+    {
+      "name": "AddNameNotEmptyCheck1746825060000",
+      "file": "1746825060000-AddNameNotEmptyCheck.ts",
+      "sha256": "8cf0eafe2c58d62628ea8825e31b0b5769d052ce3bedda392e83671fb9d24fa1"
+    },
+    {
+      "name": "UploadedChunksJsonb1746825070000",
+      "file": "1746825070000-UploadedChunksJsonb.ts",
+      "sha256": "987f489b388de8498cbbd2d57309540aa629cc469e737308e6058ace425e48c3"
+    },
+    {
+      "name": "AddFileUploadId1746825080000",
+      "file": "1746825080000-AddFileUploadId.ts",
+      "sha256": "ca0328bc9e594c6fcf36a356b766c2f1c46d9e2d7f00988bfa879d09174bc2d9"
+    },
+    {
+      "name": "AddShareMaxDownloads1746825090000",
+      "file": "1746825090000-AddShareMaxDownloads.ts",
+      "sha256": "a058b590a17ce041bb9373fb1e580718144b56103d873dc0eda4e5a88b23fc9a"
+    },
+    {
+      "name": "AddShareFailedAttempts1746825100000",
+      "file": "1746825100000-AddShareFailedAttempts.ts",
+      "sha256": "e43b37916c439ba52ea0f8c34b05cd2b7f2c99de60fa28f74bb700d84ae639c4"
+    },
+    {
+      "name": "AddFileFolderIdMirrorLink1746825110000",
+      "file": "1746825110000-AddFileFolderIdMirrorLink.ts",
+      "sha256": "e7374b7e44055e99b2a4b8c701976a47c266bf014ffe76f654aeb9103036ec02"
+    },
+    {
+      "name": "ShareLockedUntilTimestamptz1746825120000",
+      "file": "1746825120000-ShareLockedUntilTimestamptz.ts",
+      "sha256": "8da5f7c875d12b0929e14410f12e819a8a802ca611402615482ed402d79087ff"
+    },
+    {
+      "name": "DurableUploadChunks1746825130000",
+      "file": "1746825130000-DurableUploadChunks.ts",
+      "sha256": "52a0ee14375a6ee692d997cfaba9936887a7d30cbf2eeb2c659294f6839cc5b5"
+    },
+    {
+      "name": "CreateDownloadCapabilities1746825140000",
+      "file": "1746825140000-CreateDownloadCapabilities.ts",
+      "sha256": "519fe926a7d9c2a2567d28f36a9c82021fb40669aa1c6b286f2603cf8a0ca748"
+    },
+    {
+      "name": "LegacyStoragePlacement1746825150000",
+      "file": "1746825150000-LegacyStoragePlacement.ts",
+      "sha256": "5da489f673112ebb043d105ef310f820da30ad075a8ffa8cd3898f7b190302aa"
+    },
+    {
+      "name": "UploadWorkspaceBinding1746825160000",
+      "file": "1746825160000-UploadWorkspaceBinding.ts",
+      "sha256": "c362958603e33e5b9c54be63e83ae364563181a98ae34843735a72812169732f"
+    },
+    {
+      "name": "PrepareSsdUploadWorkspace1746825170000",
+      "file": "1746825170000-PrepareSsdUploadWorkspace.ts",
+      "sha256": "eb6746d00978d3463d90fbb203f38763afc96e7f0c75533b3e0483ac5411b08b"
+    },
+    {
+      "name": "IsolatedSsdFinalizationJournal1746825180000",
+      "file": "1746825180000-IsolatedSsdFinalizationJournal.ts",
+      "sha256": "7730dbd54d8d800268e67bb199e1f98e85d55cf1ba418d52d0ec36edb24df197"
+    },
+    {
+      "name": "SsdFinalizationRecovery1746825190000",
+      "file": "1746825190000-SsdFinalizationRecovery.ts",
+      "sha256": "5adb35ed454869663018418e5e5f7f931e27b05bebafb1bea9922e4a98b9f541"
+    },
+    {
+      "name": "DurableUploadWholeSha2561746825200000",
+      "file": "1746825200000-DurableUploadWholeSha256.ts",
+      "sha256": "71933494e024615709d51a4e97656eb38c8056dca5a397e699e3da1e153cac24"
+    },
+    {
+      "name": "PublicFolderShareBinding1746825210000",
+      "file": "1746825210000-PublicFolderShareBinding.ts",
+      "sha256": "8e7e0400c001dc6b31bfb3bc1d1a1588ac232dc1cb901bc9e2447c083e7aba36"
+    },
+    {
+      "name": "PublicShareOperationReceipts1746825220000",
+      "file": "1746825220000-PublicShareOperationReceipts.ts",
+      "sha256": "b702d8693d76d506bece1e674a3f2da8a24f64a570f87589763c2bcd87fb193f"
+    },
+    {
+      "name": "PublicUploadParentInvalidation1746825230000",
+      "file": "1746825230000-PublicUploadParentInvalidation.ts",
+      "sha256": "c568e5e8d1068dbeb13bc4b18fc8cdcdbbd3ec68d9eaf5ea17ead9819c421635"
+    },
+    {
+      "name": "CreateArchiveDownloadCapabilities1792831200000",
+      "file": "1792831200000-CreateArchiveDownloadCapabilities.ts",
+      "sha256": "ffede8d19a01cd6d27deb1bb3299bc58f1d661d49a96773f287c09fcab224c8b"
+    }
+  ],
+  "source_files": {
+    "docker-compose.yml": "07e5028c1d30c75a5798a1c8a15f805b075c03d1a53bd392418e322474279404",
+    "docker-compose.production.yml": "f46f6d59f5a745663c854e02b659563179157b684398786a2d96c8668236eed7",
+    "docker-compose.project-test.yml": "c954b4f37b02898e892b01cfebd4783c096c2eb4116d5cd283e245b2126b1c35",
+    "backend/Dockerfile": "cf3f655fbe0f1928649a5e8d1addc0f4d68d9ddff3b37168cf8e1e2a74fd7c3a",
+    "frontend/Dockerfile": "60bc9c6fb1b07f3de526eacef897ba3dbcb73c7461e872cf105c538647cc4162",
+    "backend/package-lock.json": "1b89cfc637191d7e52b5e9fe92ad2b20fc7b534eff855863afb33282d7b89b3f",
+    "frontend/package-lock.json": "c6a5b998d7c212ff307ea400dced320eeb1a5484035aed54e3491ca086b3c1bf",
+    "scripts/ci/images.lock.json": "47f627e1aee3e4979d3da8d81cebd0977d896d5a49d803d1138dee88506121b6",
+    "deploy/linux/project-test.sh": "524e83d64b97637d4aff2b2ccb200e9e453d68ab29ea71b545274a2033e4bcd5",
+    "deploy/linux/test-job.py": "69f0ad9c1daca8d781ecfdcd0304a26871c511825a4cd867264ad4630644d169",
+    "deploy/linux/preflight.py": "b423014141c073fae94591f583a5510abacee72b2c8fce47d32bc54832764102",
+    "deploy/linux/test-channel.py": "8b460658cdda92c9f76d941873744d3db1a14e434532fca91f123853589199f9",
+    "scripts/ci/test-channel.py": "458197501f93e4784d51d576964a1a47b43e9925ca3eb9ee6d961eb023c5f03c",
+    "scripts/backup.sh": "eaaba09950f7d28e1a3eb719ff4c990cbfa9c72fa8627fe6a52ba2501461f070",
+    "scripts/recovery_config.py": "5b6a13db65d419ff8a4436150b9cfb000e331e89ec1357f64b34a56e87960b1a",
+    "scripts/recovery_storage.py": "c51b569eb97b628108fc227b3792aab31bc0fcec76618bc49106979b19b41ab6",
+    "scripts/recovery-config.sh": "402eba781fcade4e10a372f2e8cc9afee1bb9b15d18e6254ea2ee86f961e66cf",
+    "scripts/recovery-storage.sh": "80c89b1da2cc0f85c3feba67ac3adbb87bad4c3c45ae1dfe570cb6bbb319a6dd",
+    "scripts/recovery-pending.sql": "07fbe8d5aafb1a16b2883d1d026174a86d12cacc097807c73406ace123e3607b",
+    "deploy/linux/root-boundary.py": "3666305520396683702a9f18cb0504c2aa2f8534f8ef3c3b99801d0f9b789ad4",
+    "deploy/linux/startup-gate.sh": "a0bec0d0d1338dbab7ba21c388cc3e9683ca28ed380349b08f67f18f5c3dd1d6",
+    "scripts/ci/provenance.py": "a980a0df181bbddda4c83c02d85989219bfeae8ac90509b0d48d5d7c0ebd1f56"
+  },
+  "ci": {
+    "run_id": "41657969507",
+    "attempt": "2",
+    "workflow": "ci-v2-fast.yml"
+  },
+  "manifest_sha256": "9de2cf09f56e26bd21b7018812dafcfa54f7840220632d7a962851fbe26da05c"
+}

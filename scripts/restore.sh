@@ -1141,7 +1141,7 @@ if [ -z "$BACKEND_HEALTH" ]; then
 fi
 
 log "  Backend health response: $BACKEND_HEALTH"
-if python3 -c 'import json,sys; body=json.load(sys.stdin); sys.exit(0 if isinstance(body,dict) and body.get("status")=="ready" and body.get("checks",{}).get("database")=="ok" and body.get("checks",{}).get("storage")=="ok" else 1)' <<< "$BACKEND_HEALTH"; then
+if python3 -c 'import json,sys; body=json.load(sys.stdin); data=body.get("data") if isinstance(body,dict) and body.get("success") is True else None; checks=data.get("checks") if isinstance(data,dict) else None; sys.exit(0 if isinstance(checks,dict) and data.get("status")=="ready" and checks.get("database")=="ok" and checks.get("storage")=="ok" else 1)' <<< "$BACKEND_HEALTH"; then
   log "  Backend health: OK"
 else
   err "Backend health check returned unexpected response: $BACKEND_HEALTH"

@@ -1,0 +1,8 @@
+ Container homecloud-e2e-120-frontend-1 Healthy
+ Container homecloud-e2e-120-ingress-1 Starting
+ Container homecloud-e2e-120-ingress-1 Started
+
+=== Post-Restore Health Check ===
+  Backend health response: {"success":true,"data":{"status":"ready","checks":{"database":"ok","storage":"ok"}}}
+ERROR: Backend health check returned unexpected response: {"success":true,"data":{"status":"ready","checks":{"database":"ok","storage":"ok"}}}
+ERROR: Restore failed; application writers remain fenced. Review DB/storage before restarting.
