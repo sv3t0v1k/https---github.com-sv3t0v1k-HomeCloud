@@ -27,6 +27,12 @@ def command(*args):
     return result.stdout.strip()
 
 
+def host_findmnt(*args):
+    # systemd's ProtectSystem/ReadWritePaths creates private bind mounts.
+    # Read PID 1's mount table so the disk checks inspect the actual host.
+    return command('findmnt', '--task', '1', *args)
+
+
 def ordinary_directory(value):
     p = Path(value)
     require(p.is_absolute() and str(p.resolve(strict=True)) == value and p.is_dir(),
@@ -73,7 +79,7 @@ def check_disk(spec, role=None):
     require(not system_root or (role == 'db' and str(root) == '/'),
             'system-root-lvm разрешён только для БД на /')
     require(str(root) != '/' or system_root, 'Системный root запрещён как диск данных')
-    record = json.loads(command('findmnt', '--json', '--target', str(root),
+    record = json.loads(host_findmnt('--json', '--target', str(root),
                                 '--output', 'TARGET,SOURCE,FSTYPE,UUID,OPTIONS,FSROOT'))['filesystems']
     require(len(record) == 1, 'Неоднозначный mount')
     record = record[0]
@@ -126,12 +132,12 @@ def check_data_directory(value, disk, uid, gid):
     p = ordinary_directory(value)
     require(p != Path(disk['mount']) and Path(disk['mount']) in p.parents,
             'Data directory должен быть дочерним каталогом диска')
-    record = json.loads(command('findmnt', '--json', '--target', str(p),
+    record = json.loads(host_findmnt('--json', '--target', str(p),
                                 '--output', 'TARGET,UUID'))['filesystems']
     require(len(record) == 1 and record[0]['target'] == disk['mount'] and
             record[0]['uuid'] == disk['uuid'], 'Data directory на другом/nested mount')
     # --list включает file mounts и mounts ниже PGDATA, например pg_wal на root FS.
-    targets = json.loads(command('findmnt', '--json', '--list', '--output', 'TARGET'))['filesystems']
+    targets = json.loads(host_findmnt('--json', '--list', '--output', 'TARGET'))['filesystems']
     require(not any(p in Path(row['target']).parents for row in targets),
             'Nested mount внутри data directory запрещён')
     meta = p.stat()
@@ -269,7 +275,7 @@ def check_gate_files(role, disk, uid, gid, config_dir='/etc/homecloud'):
                 'Неверный owner/mode gate/marker')
     require(gate.read_text() == ' '.join(values) + '\n', 'Gate не совпадает с inventory')
     require(marker.read_text() == f'homecloud-v1 {role} {disk["uuid"]}\n', 'Marker не совпадает с inventory')
-    record = json.loads(command('findmnt', '--json', '--target', str(marker),
+    record = json.loads(host_findmnt('--json', '--target', str(marker),
                                 '--output', 'TARGET,UUID'))['filesystems']
     require(len(record) == 1 and record[0]['target'] == disk['mount'] and
             record[0]['uuid'] == disk['uuid'], 'Marker не на ожидаемом диске')
