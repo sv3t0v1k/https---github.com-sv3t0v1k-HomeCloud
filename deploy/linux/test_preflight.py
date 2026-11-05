@@ -128,7 +128,9 @@ class DiskTests(unittest.TestCase):
 
     def run_disk(self):
         def cmd(*args):
-            if args[0]=='findmnt':return json.dumps({'filesystems':[self.mount]})
+            if args[0]=='findmnt':
+                self.assertEqual(args[1:3], ('--task', '1'))
+                return json.dumps({'filesystems':getattr(self, 'mount_records', [self.mount])})
             if args[0]=='lsblk':
                 # Without explicit --tree lsblk JSON may flatten when NAME is absent.
                 self.assertIn('--tree',args)
@@ -136,10 +138,18 @@ class DiskTests(unittest.TestCase):
             raise AssertionError('Непредусмотренная команда')
         with patch.object(p,'command',side_effect=cmd):
             return p.check_disk(self.spec, getattr(self, 'role', None))
+
+    def test_mount_query_uses_pid_one_namespace(self):
+        with patch.object(p, 'command', return_value='{}') as command:
+            p.host_findmnt('--json', '--list')
+        command.assert_called_once_with('findmnt', '--task', '1', '--json', '--list')
     def test_verified_disk(self):
         self.assertEqual(self.run_disk(),'/dev/fixture')
     def test_missing_mount_existing_directory(self):
         self.mount['target']='/'
+        with self.assertRaises(p.Refusal):self.run_disk()
+    def test_ambiguous_host_mount_refused(self):
+        self.mount_records = [self.mount, copy.deepcopy(self.mount)]
         with self.assertRaises(p.Refusal):self.run_disk()
     def test_wrong_uuid(self):
         self.mount['uuid']='wrong'
