@@ -6,6 +6,9 @@ services:
       UPDATE_REQUEST_INBOX: /run/homecloud-update/inbox
       UPDATE_STATUS_FILE: /run/homecloud-update/status/current.json
       UPDATE_INSTALLED_METADATA_PATH: /run/homecloud-update/status/installed.json
+      UPDATE_TEST_CANDIDATE_PATH: /run/homecloud-update/status/available.json
+      UPDATE_GITHUB_TOKEN: ""
+      UPDATE_GITHUB_USER: ""
     volumes: !override
       - type: bind
         source: ${HDD_STORAGE_DIR:?Укажите project HDD bind storage}

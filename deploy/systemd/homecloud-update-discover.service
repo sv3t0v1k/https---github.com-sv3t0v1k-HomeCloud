@@ -1,0 +1,15 @@
+[Unit]
+Description=HomeCloud read-only TEST build discovery
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+EnvironmentFile=-/etc/homecloud-test/update-worker.env
+ExecStart=/usr/bin/python3 -I -S /usr/local/sbin/homecloud-update-discover
+TimeoutStartSec=180
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/homecloud-update/status /home/hs/homecloud-test/.git

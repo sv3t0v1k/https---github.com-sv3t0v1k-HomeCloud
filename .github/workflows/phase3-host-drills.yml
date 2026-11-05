@@ -22,6 +22,7 @@ jobs:
           test "$(uname -m)" = x86_64
           python3 scripts/ci/test-update-install-host.py
           python3 scripts/ci/test-update-install-bridge.py
+          python3 scripts/ci/test-update-host-discover.py
           python3 scripts/ci/test-phase3-host-evidence.py
           python3 scripts/ci/test-test-channel.py
           python3 scripts/ci/test-backup-qualification.py
