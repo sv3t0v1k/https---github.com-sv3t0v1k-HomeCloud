@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 import subprocess
+import shutil
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -112,6 +113,7 @@ class UpdateMountContract(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     selector.enabled()
 
+    @unittest.skipUnless(shutil.which('docker'), 'Compose проверяется в configuration job')
     def test_actual_compose_merge_keeps_default_closed(self):
         fixture = {
             'COMPOSE_PROJECT_NAME': 'homecloud-test-ci', 'DB_PASSWORD': 'fixture',

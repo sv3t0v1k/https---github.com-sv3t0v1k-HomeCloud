@@ -99,7 +99,8 @@ jobs:
               raise AssertionError('ACL-bearing worker accepted')
           PY
           sudo setfacl -b -k /usr/local/sbin/homecloud-update-install
-          test ! -e deploy/systemd/homecloud-update-install.service
+          test -f deploy/systemd/homecloud-update-install.service
+          test ! -e /etc/systemd/system/homecloud-update-install.service
           if sudo /usr/bin/python3 -I -S /usr/local/sbin/homecloud-update-install > "$RUNNER_TEMP/worker-stop.txt" 2>&1; then
             echo 'Unprovisioned worker unexpectedly ran' >&2
             exit 1
