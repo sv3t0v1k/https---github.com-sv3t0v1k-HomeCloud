@@ -88,8 +88,7 @@ class HostProcessDrills(unittest.TestCase):
                                 pause_at(phase)
 
                             bridge.execute(
-                                IDENTITY, write, lambda _: (1, 2, 3), lambda _: None,
-                                lambda _: COMMIT,
+                                IDENTITY, write, lambda _: COMMIT,
                                 lambda *_: {'commit': COMMIT, 'manifest_sha256': IDENTITY},
                                 lambda *_: None, lambda: None)
                         except BaseException:
@@ -130,8 +129,7 @@ class HostProcessDrills(unittest.TestCase):
                      patch.object(bridge.os, 'fchown'):
                     with self.assertRaises((ConnectionError, bridge.Stop)):
                         bridge.execute(
-                            IDENTITY, bridge.publish, lambda _: (1, 2, 3), lambda _: None,
-                            lambda _: COMMIT, fetch,
+                            IDENTITY, bridge.publish, lambda _: COMMIT, fetch,
                             lambda *_: calls.append('installer'), lambda: None)
                 self.assertEqual(json.loads(status.read_text())['status'], 'STOP')
                 self.assertEqual(calls, [])
@@ -150,8 +148,7 @@ class HostProcessDrills(unittest.TestCase):
                  patch.object(bridge.os, 'fchown'):
                 with self.assertRaises(TimeoutError):
                     bridge.execute(
-                        IDENTITY, bridge.publish, lambda _: (1, 2, 3), lambda _: None,
-                        lambda _: COMMIT,
+                        IDENTITY, bridge.publish, lambda _: COMMIT,
                         lambda *_: {'commit': COMMIT, 'manifest_sha256': IDENTITY},
                         fail_install, lambda: None)
             self.assertEqual(json.loads(status.read_text())['status'],
