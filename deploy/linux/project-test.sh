@@ -19,6 +19,13 @@ preflight() {
     --env-file "$project_root/.runtime/runtime.env"
 }
 compose() {
+  profile=$(env -i HOME=/root PATH="$clean_path" /usr/bin/python3 -I -S \
+    "$project_root/deploy/linux/test-compose-profile.py") || fail
+  case "$profile" in
+    updates) set -- -f "$project_root/docker-compose.project-test-updates.yml" "$@";;
+    default) ;;
+    *) fail;;
+  esac
   env -i HOME=/root PATH="$clean_path" DOCKER_CONFIG=/etc/homecloud-test/docker docker --host unix:///var/run/docker.sock compose \
     --project-directory "$project_root" --env-file "$project_root/.runtime/runtime.env" \
     -f "$project_root/docker-compose.yml" \

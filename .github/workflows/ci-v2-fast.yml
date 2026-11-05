@@ -33,6 +33,7 @@ jobs:
       - run: python3 scripts/ci/test-ci-v2-fast-gate.py
       - run: python3 scripts/ci/test-ci-v2-candidate.py
       - run: python3 scripts/ci/test-test-channel.py
+      - run: python3 scripts/ci/test-update-preflight.py
       - run: python3 scripts/ci/test-test-job.py
       - run: python3 scripts/ci/test-root-boundary.py
       - run: python3 scripts/ci/test-update-admission.py
@@ -188,6 +189,7 @@ jobs:
           echo "$RUNNER_TEMP/homecloud-compose-bin" >> "$GITHUB_PATH"
           test "$("$RUNNER_TEMP/homecloud-compose-bin/docker" compose version --short)" = 5.6.0
       - run: docker compose version && python3 scripts/ci/compose-check.py
+      - run: python3 scripts/ci/test-update-preflight.py
       - run: python3 deploy/linux/test_startup_gate.py
       - run: python3 scripts/ci/test-entrypoint.py
       - run: python3 deploy/linux/test_preflight.py

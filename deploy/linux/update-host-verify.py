@@ -14,7 +14,7 @@ ROOT = Path('/home/hs/homecloud-test')
 ANCHOR = Path('/usr/local/sbin/homecloud-update-verify')
 # Updating any helper requires independent review and reprovisioning this anchor.
 QUALIFIED = {
-    'boundary': ('deploy/linux/root-boundary.py', '3666305520396683702a9f18cb0504c2aa2f8534f8ef3c3b99801d0f9b789ad4'),
+    'boundary': ('deploy/linux/root-boundary.py', 'f8199f84ff581cd34c27e20f29fc06398986de7b8722dcef10954c01526b8903'),
     'admission': ('deploy/linux/update-admission.py', '15d9a20a6941b8595a7a7d3b417b5d5cabbd62eb971faa0b9b20a38b4ef3fef0'),
     'update_evidence': ('deploy/linux/update_evidence.py', '94b42a266489de833c34ce9816e51de27894ca85bc19532b70f96f1ad153be8d'),
     'update_source': ('deploy/linux/update_source.py', '985252f556b9f0cf401161bef34f0a9b9c63a0d33eda59093a7bdcc5870cb3fb'),

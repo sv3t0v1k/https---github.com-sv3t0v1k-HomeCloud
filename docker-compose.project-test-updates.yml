@@ -1,0 +1,47 @@
+# Включается только явно выбранным root-owned TEST runtime после host qualification.
+services:
+  backend:
+    environment:
+      UPDATE_INSTALL_BRIDGE_ENABLED: "true"
+      UPDATE_REQUEST_INBOX: /run/homecloud-update/inbox
+      UPDATE_STATUS_FILE: /run/homecloud-update/status/current.json
+      UPDATE_INSTALLED_METADATA_PATH: /run/homecloud-update/status/installed.json
+    volumes: !override
+      - type: bind
+        source: ${HDD_STORAGE_DIR:?Укажите project HDD bind storage}
+        target: /storage
+        bind: {create_host_path: false}
+      - type: bind
+        source: ./deploy/linux/startup-gate.sh
+        target: /run/homecloud/startup-gate.sh
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ./.runtime/startup-backend.gate
+        target: /run/homecloud/startup.gate
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: /proc/1/mountinfo
+        target: /run/homecloud/host-mountinfo
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: /dev
+        target: /run/homecloud/dev
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${HDD_STORAGE_DIR}/../.homecloud-backend
+        target: /run/homecloud/volume-marker
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: /var/lib/homecloud-update/inbox
+        target: /run/homecloud-update/inbox
+        bind: {create_host_path: false}
+      - type: bind
+        source: /var/lib/homecloud-update/status
+        target: /run/homecloud-update/status
+        read_only: true
+        bind: {create_host_path: false}
