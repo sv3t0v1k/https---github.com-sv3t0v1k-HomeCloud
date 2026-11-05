@@ -166,7 +166,9 @@ def check_config(config, inventory):
         require(
                 env.get('UPDATE_REQUEST_INBOX') == '/run/homecloud-update/inbox' and
                 env.get('UPDATE_STATUS_FILE') == '/run/homecloud-update/status/current.json' and
-                env.get('UPDATE_INSTALLED_METADATA_PATH') == '/run/homecloud-update/status/installed.json',
+                env.get('UPDATE_INSTALLED_METADATA_PATH') == '/run/homecloud-update/status/installed.json' and
+                env.get('UPDATE_TEST_CANDIDATE_PATH') == '/run/homecloud-update/status/available.json' and
+                env.get('UPDATE_GITHUB_TOKEN') == '' and env.get('UPDATE_GITHUB_USER') == '',
                 'Неверная TEST update boundary')
     for name, target, source in (
         ('backend', '/storage', inventory['hdd']['data']),

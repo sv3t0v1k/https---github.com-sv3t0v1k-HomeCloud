@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh the verified TEST build hint for HomeCloud UI
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=6min
+AccuracySec=10s
+Unit=homecloud-update-discover.service
+
+[Install]
+WantedBy=timers.target

@@ -47,7 +47,9 @@ def config(test=True):
         backend['environment'].update(UPDATE_CHANNEL='test', UPDATE_INSTALL_BRIDGE_ENABLED='true',
             UPDATE_REQUEST_INBOX='/run/homecloud-update/inbox',
             UPDATE_STATUS_FILE='/run/homecloud-update/status/current.json',
-            UPDATE_INSTALLED_METADATA_PATH='/run/homecloud-update/status/installed.json')
+            UPDATE_INSTALLED_METADATA_PATH='/run/homecloud-update/status/installed.json',
+            UPDATE_TEST_CANDIDATE_PATH='/run/homecloud-update/status/available.json',
+            UPDATE_GITHUB_TOKEN='', UPDATE_GITHUB_USER='')
         backend['volumes'] += [mount('/run/homecloud-update/inbox', '/var/lib/homecloud-update/inbox'),
                                mount('/run/homecloud-update/status', '/var/lib/homecloud-update/status', True)]
     db = {'restart': 'unless-stopped', 'entrypoint': ['sh', '/run/homecloud/startup-gate.sh', 'db'],

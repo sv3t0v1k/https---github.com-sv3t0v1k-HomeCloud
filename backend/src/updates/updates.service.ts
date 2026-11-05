@@ -3,6 +3,7 @@ import { ConfigService } from "@nestjs/config";
 import { createHash } from "crypto";
 import { readFile } from "fs/promises";
 import { discoverTestBuild } from "./test-build";
+import { readHostTestCandidate } from "./host-test-candidate";
 
 const REPOSITORY = "sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud";
 const API = `https://api.github.com/repos/${REPOSITORY}`;
@@ -141,7 +142,10 @@ export class UpdatesService {
     try {
       const token = this.config.get<string>("UPDATE_GITHUB_TOKEN") || "";
       if (channel === "test") {
-        const available = await discoverTestBuild(installed, token, this.config.get<string>("UPDATE_GITHUB_USER") || "");
+        const candidatePath = this.config.get<string>("UPDATE_TEST_CANDIDATE_PATH");
+        const available = candidatePath
+          ? await readHostTestCandidate(candidatePath, installed)
+          : await discoverTestBuild(installed, token, this.config.get<string>("UPDATE_GITHUB_USER") || "");
         return { ...base, available, status: available ? "available" : "current" };
       }
       const releases = await githubJson(`${API}/releases?per_page=20`, token) as Release[];
