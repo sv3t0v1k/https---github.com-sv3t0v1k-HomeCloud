@@ -81,6 +81,17 @@ class RootBoundary(unittest.TestCase):
                 boundary.main()
             execute.assert_not_called()
 
+    def test_checkout_rejects_untrusted_update_overlay(self):
+        overlay = ROOT / 'docker-compose.project-test-updates.yml'
+        def check(path, directory=False):
+            if path == overlay:
+                raise boundary.UnsafeRoot('untrusted update overlay')
+        with patch.object(boundary, 'trusted_path', side_effect=check), \
+             patch.object(boundary, 'trusted_tree'), \
+             patch.object(boundary, 'validate_git_configuration'):
+            with self.assertRaisesRegex(boundary.UnsafeRoot, 'update overlay'):
+                boundary.validate_checkout(ROOT)
+
     def test_git_config_rejects_executable_injection_and_includes(self):
         for key in ('filter.evil.smudge', 'core.sshcommand', 'core.fsmonitor',
                     'include.path', 'remote.origin.uploadpack', 'credential.helper'):

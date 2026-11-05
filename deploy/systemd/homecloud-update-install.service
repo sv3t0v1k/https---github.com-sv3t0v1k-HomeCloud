@@ -1,0 +1,15 @@
+[Unit]
+Description=HomeCloud TEST update installation after verified admission
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+EnvironmentFile=-/etc/homecloud-test/update-worker.env
+ExecStart=/usr/bin/python3 -I -S /usr/local/sbin/homecloud-update-install
+TimeoutStartSec=7500
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/home/hs/homecloud-test /var/lib/homecloud-update /etc/homecloud-test

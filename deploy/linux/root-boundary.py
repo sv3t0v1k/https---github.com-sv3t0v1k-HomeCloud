@@ -57,7 +57,7 @@ def validate_checkout(root):
     for directory in ('deploy', 'scripts', '.git'):
         trusted_tree(root / directory)
     for name in ('docker-compose.yml', 'docker-compose.production.yml',
-                 'docker-compose.project-test.yml'):
+                 'docker-compose.project-test.yml', 'docker-compose.project-test-updates.yml'):
         trusted_path(root / name)
     # Git indirection/worktrees/alternates and local repository configuration are
     # executable input too. Only a normal, root-owned Git directory is accepted.
@@ -91,6 +91,14 @@ def validate_backup_configuration(recovery, root, current):
         values[key] = value
     manifests = [str(root / name) for name in ('docker-compose.yml',
                   'docker-compose.production.yml', 'docker-compose.project-test.yml')]
+    if current.get('UPDATE_INSTALL_BRIDGE_ENABLED') == 'true':
+        marker = Path('/etc/homecloud-test/update-install-enabled')
+        trusted_path(marker)
+        if (stat.S_IMODE(marker.stat().st_mode) != 0o600 or
+                marker.stat().st_gid != 0 or
+                marker.read_bytes() != b'homecloud-test-install-v1\n'):
+            raise UnsafeRoot('TEST update host authorization invalid')
+        manifests.append(str(root / 'docker-compose.project-test-updates.yml'))
     if values.get('COMPOSE_FILE') != ':'.join(manifests):
         raise UnsafeRoot('recovery Compose files differ from qualified operational contract')
     for manifest in manifests:

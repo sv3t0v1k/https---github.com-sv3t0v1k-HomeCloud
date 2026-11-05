@@ -28,7 +28,8 @@ TX_FORMAT = 'homecloud-test-transaction-v1'
 MIGRATION_FILE = re.compile(r'[0-9]+-[A-Za-z0-9]+\.ts\Z')
 PIN = re.compile(r'ghcr\.io/[a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9_.-]*/(?:backend|frontend)@sha256:[a-f0-9]{64}\Z')
 LOCKED_FILES = ('docker-compose.yml', 'docker-compose.production.yml',
-                'docker-compose.project-test.yml', 'deploy/linux/project-test.sh', 'deploy/linux/test-job.py',
+                'docker-compose.project-test.yml', 'docker-compose.project-test-updates.yml',
+                'deploy/linux/project-test.sh', 'deploy/linux/test-compose-profile.py', 'deploy/linux/test-job.py',
                 'deploy/linux/preflight.py', 'deploy/linux/test-channel.py',
                 'scripts/ci/test-channel.py', 'scripts/backup.sh',
                 'scripts/recovery_config.py', 'scripts/recovery_storage.py',
@@ -48,6 +49,9 @@ spec = importlib.util.spec_from_file_location('test_channel_contract', ROOT / 's
 contract = importlib.util.module_from_spec(spec)
 sys.path.insert(0, str(ROOT / 'scripts/ci'))
 spec.loader.exec_module(contract)
+profile_spec = importlib.util.spec_from_file_location('test_compose_profile_installer', ROOT / 'deploy/linux/test-compose-profile.py')
+profile = importlib.util.module_from_spec(profile_spec)
+profile_spec.loader.exec_module(profile)
 
 
 class Stop(Exception):
@@ -70,11 +74,11 @@ def run(*args, env=None, timeout=300, capture=True):
 
 
 def compose(*args, env=None, timeout=300):
+    files = profile.files()
     return run('docker', '--host', 'unix:///var/run/docker.sock', 'compose',
                '--project-directory', str(ROOT), '--env-file', str(ENV_FILE),
-               '-f', str(ROOT / 'docker-compose.yml'),
-               '-f', str(ROOT / 'docker-compose.production.yml'),
-               '-f', str(ROOT / 'docker-compose.project-test.yml'), *args, env=env, timeout=timeout)
+               *(part for path in files for part in ('-f', str(path))),
+               *args, env=env, timeout=timeout)
 
 
 def private_file(path):
@@ -508,6 +512,65 @@ def backup_configuration():
     return values
 
 
+def sync_recovery_pins(before, after):
+    """Move only the three image pins between verified journal checkpoints."""
+    current = env_values()
+    values = boundary.validate_backup_configuration(RECOVERY, ROOT, current)
+    pins = {'RELEASE_BACKEND_IMAGE': 'backend', 'RELEASE_FRONTEND_IMAGE': 'frontend',
+            'BACKEND_IMAGE': 'backend'}
+    backup_only = {'BACKUP_DIR', 'STORAGE_PATH', 'STORAGE_VOLUME', 'RETENTION_DAYS',
+                   'COMPOSE_FILE', 'COMPOSE_PROJECT_NAME'}
+    for key, value in values.items():
+        if key not in pins and key not in backup_only and not key.startswith('BACKUP_'):
+            require(current.get(key) == value, 'recovery runtime configuration drift')
+    for key, role in pins.items():
+        require(bool(PIN.fullmatch(before['images'][role]['ref'])),
+                'invalid previous recovery image pin')
+        require(values.get(key) == before['images'][role]['ref'],
+                'recovery image pin differs from verified checkpoint')
+        require(bool(PIN.fullmatch(after['images'][role]['ref'])),
+                'invalid target recovery image pin')
+    original = private_file(RECOVERY).read_text()
+    lines = original.splitlines(keepends=True)
+    seen = set()
+    for index, line in enumerate(lines):
+        key, separator, value = line.rstrip('\n').partition('=')
+        if key not in pins or not separator:
+            continue
+        require(key not in seen and value == before['images'][pins[key]]['ref'],
+                'noncanonical recovery image pin')
+        seen.add(key)
+        lines[index] = key + '=' + after['images'][pins[key]]['ref'] + '\n'
+    require(seen == set(pins), 'missing recovery image pin')
+    if all(before['images'][role]['ref'] == after['images'][role]['ref'] for role in pins.values()):
+        return
+    fd, name = tempfile.mkstemp(prefix='.recovery-env-', dir=RECOVERY.parent)
+    try:
+        with os.fdopen(fd, 'w') as stream:
+            os.fchmod(stream.fileno(), 0o600)
+            os.fchown(stream.fileno(), 0, 0)
+            stream.writelines(lines)
+            stream.flush(); os.fsync(stream.fileno())
+        os.replace(name, RECOVERY)
+        directory = os.open(RECOVERY.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try: os.fsync(directory)
+        finally: os.close(directory)
+    finally:
+        if os.path.exists(name): os.unlink(name)
+
+
+def ensure_recovery_pins(state):
+    active = state['active']
+    recovery = boundary.validate_backup_configuration(RECOVERY, ROOT, env_values())
+    pins = {'RELEASE_BACKEND_IMAGE': 'backend', 'RELEASE_FRONTEND_IMAGE': 'frontend',
+            'BACKEND_IMAGE': 'backend'}
+    if all(recovery.get(key) == active['images'][role]['ref'] for key, role in pins.items()):
+        sync_recovery_pins(active, active)
+    else:
+        require(bool(state['history']), 'recovery image pins need operator review')
+        sync_recovery_pins(state['history'][-1], active)
+
+
 def backup(active):
     values = backup_configuration()
     current = env_values()
@@ -766,6 +829,7 @@ def deploy(manifest, rollback=False, dry_run=False):
         run(str(ROOT / 'deploy/linux/project-test.sh'), 'preflight')
         require(applied_migrations() == applied, 'migrations changed during preparation')
         record_phase(transaction, 'PREBACKUP')
+        ensure_recovery_pins(state)
         transaction['prebackup_id'] = backup(state['active'])
         record_phase(transaction, 'PREBACKUP')
         record_phase(transaction, 'STOP_SERVICES')
@@ -788,6 +852,7 @@ def deploy(manifest, rollback=False, dry_run=False):
         next_active = {'images': {role: {'ref': image_ref(manifest, role), 'id': ids[role], 'sha': manifest['commit']}
                                   for role in ('backend', 'frontend')},
                        'schema_migrations': manifest['schema_migrations'], 'manifest': manifest}
+        sync_recovery_pins(state['active'], next_active)
         state['history'].append(state['active'])
         state['active'] = next_active
         record_phase(transaction, 'COMMIT_STATE')

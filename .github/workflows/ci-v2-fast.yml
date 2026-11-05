@@ -33,6 +33,7 @@ jobs:
       - run: python3 scripts/ci/test-ci-v2-fast-gate.py
       - run: python3 scripts/ci/test-ci-v2-candidate.py
       - run: python3 scripts/ci/test-test-channel.py
+      - run: python3 scripts/ci/test-update-preflight.py
       - run: python3 scripts/ci/test-test-job.py
       - run: python3 scripts/ci/test-root-boundary.py
       - run: python3 scripts/ci/test-update-admission.py

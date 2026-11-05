@@ -2,6 +2,7 @@
 Description=HomeCloud request-only admission; update installation is NOT enabled
 StartLimitIntervalSec=60
 StartLimitBurst=3
+OnSuccess=homecloud-update-install.service
 
 [Service]
 Type=oneshot

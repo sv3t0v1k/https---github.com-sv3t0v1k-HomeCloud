@@ -25,13 +25,6 @@ class BridgeState(unittest.TestCase):
     def write(self, identity, status, phase):
         self.events.append((status, phase))
 
-    def request(self, identity):
-        self.events.append(('REQUEST', identity))
-        return (1, 2, 3)
-
-    def cleanup(self, token):
-        self.events.append(('CLEANUP', token))
-
     def verify(self, identity):
         self.events.append(('VERIFY', identity))
         return COMMIT
@@ -47,9 +40,7 @@ class BridgeState(unittest.TestCase):
         self.events.append(('PENDING', None))
 
     def exercise(self, **overrides):
-        calls = dict(write_status=self.write, make_request=self.request,
-                     cleanup_request=self.cleanup,
-                     verify=self.verify, fetch=self.fetch,
+        calls = dict(write_status=self.write, verify=self.verify, fetch=self.fetch,
                      run_install=self.install, check_pending=self.pending)
         calls.update(overrides)
         bridge.execute(IDENTITY, **calls)
@@ -58,8 +49,7 @@ class BridgeState(unittest.TestCase):
         self.exercise()
         self.assertEqual(self.events, [
             ('RUNNING', 'VERIFY_TRUST'), ('PENDING', None),
-            ('REQUEST', IDENTITY), ('VERIFY', IDENTITY),
-            ('CLEANUP', (1, 2, 3)),
+            ('VERIFY', IDENTITY),
             ('RUNNING', 'FETCH_MANIFEST'), ('FETCH', IDENTITY),
             ('PENDING', None), ('RUNNING', 'INSTALLER'),
             ('INSTALL', IDENTITY), ('INSTALLED', 'COMPLETE')])
@@ -70,14 +60,13 @@ class BridgeState(unittest.TestCase):
         with self.assertRaises(bridge.Stop):
             self.exercise(verify=refuse)
         self.assertEqual(self.events[-1], ('STOP', 'VERIFY_TRUST'))
-        self.assertIn(('CLEANUP', (1, 2, 3)), self.events)
         self.assertNotIn(('INSTALL', IDENTITY), self.events)
 
     def test_manifest_drift_stops_without_install(self):
         self.manifest['commit'] = 'c' * 40
         with self.assertRaises(bridge.Stop):
             self.exercise()
-        self.assertEqual(self.events[-1], ('STOP', 'VERIFY_TRUST'))
+        self.assertEqual(self.events[-1], ('STOP', 'FETCH_MANIFEST'))
         self.assertNotIn(('INSTALL', IDENTITY), self.events)
 
     def test_network_error_stops_without_install(self):
@@ -85,15 +74,7 @@ class BridgeState(unittest.TestCase):
             raise ConnectionError('network unavailable')
         with self.assertRaises(ConnectionError):
             self.exercise(fetch=unavailable)
-        self.assertEqual(self.events[-1], ('STOP', 'VERIFY_TRUST'))
-        self.assertNotIn(('INSTALL', IDENTITY), self.events)
-
-    def test_existing_request_stops_without_install(self):
-        def duplicate(_):
-            raise FileExistsError('request already exists')
-        with self.assertRaises(FileExistsError):
-            self.exercise(make_request=duplicate)
-        self.assertEqual(self.events[-1], ('STOP', 'VERIFY_TRUST'))
+        self.assertEqual(self.events[-1], ('STOP', 'FETCH_MANIFEST'))
         self.assertNotIn(('INSTALL', IDENTITY), self.events)
 
     def test_installer_ambiguity_requires_manual_recovery(self):
@@ -113,7 +94,7 @@ class BridgeState(unittest.TestCase):
                 raise bridge.Stop('pending')
         with self.assertRaises(bridge.Stop):
             self.exercise(check_pending=pending)
-        self.assertEqual(self.events[-1], ('STOP', 'VERIFY_TRUST'))
+        self.assertEqual(self.events[-1], ('STOP', 'FETCH_MANIFEST'))
         self.assertNotIn(('INSTALL', IDENTITY), self.events)
 
     def test_exact_verifier_result_required(self):
@@ -134,46 +115,61 @@ class BridgeState(unittest.TestCase):
 
 
 class RealBoundaryFunctions(unittest.TestCase):
+    def test_host_marker_requires_exact_root_only_content(self):
+        with tempfile.TemporaryDirectory() as temp:
+            marker = Path(temp) / 'enabled'
+            marker.write_bytes(b'homecloud-test-install-v1\n')
+            original_stat = Path.stat
+            def stat(path, *args, **kwargs):
+                info = original_stat(path, *args, **kwargs)
+                return SimpleNamespace(st_gid=0, st_mode=0o100600) if path == marker else info
+            with patch.object(bridge, 'ENABLE_MARKER', marker), \
+                 patch.object(bridge, 'trusted_anchor_path'), \
+                 patch.object(Path, 'stat', stat):
+                self.assertTrue(bridge.host_enabled())
+                marker.write_bytes(b'wrong\n')
+                with self.assertRaises(bridge.Stop):
+                    bridge.host_enabled()
+
+    def test_installer_phase_is_bound_to_requested_identity(self):
+        with tempfile.TemporaryDirectory() as temp:
+            pending = Path(temp) / 'pending.json'
+            pending.write_text(json.dumps({'target': {'manifest_sha256': IDENTITY}, 'phase': 'BACKUP'}))
+            real_fstat = os.fstat
+            def trusted_stat(fd):
+                info = real_fstat(fd)
+                return SimpleNamespace(st_mode=0o100600, st_uid=0, st_size=info.st_size)
+            with patch.object(bridge, 'PENDING', pending), patch.object(bridge.os, 'fstat', side_effect=trusted_stat):
+                self.assertEqual(bridge.installer_phase(IDENTITY), 'BACKUP')
+                with self.assertRaises(bridge.Stop):
+                    bridge.installer_phase('c' * 64)
+
+    def test_installed_metadata_is_atomic_and_contains_only_verified_version(self):
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            manifest = {'commit': COMMIT, 'schema_migrations': [{'name': 'MigrationOne'}]}
+            with patch.object(bridge, 'STATUS_DIR', directory), \
+                 patch.object(bridge, 'INSTALLED', directory / 'installed.json'), \
+                 patch.object(bridge.os, 'fchown'):
+                bridge.publish_installed(manifest)
+            value = json.loads((directory / 'installed.json').read_text())
+            self.assertEqual(value['gitSha'], COMMIT)
+            self.assertEqual(value['schemaMigrations'], ['MigrationOne'])
+            self.assertEqual((directory / 'installed.json').stat().st_mode & 0o777, 0o640)
+            self.assertFalse(list(directory.glob('.installed-*')))
+
     def test_execute_leaves_no_stale_request(self):
         with tempfile.TemporaryDirectory() as temp:
             inbox = Path(temp)
             request = inbox / 'request.json'
             states = []
-            with patch.object(bridge, 'INBOX', inbox), patch.object(bridge, 'REQUEST', request), \
-                    patch.object(bridge, 'directory'), patch.object(bridge.os, 'fchown'):
-                bridge.execute(
-                    IDENTITY, lambda _, state, phase: states.append((state, phase)),
-                    bridge.create_verifier_request, bridge.cleanup_verifier_request,
-                    lambda _: COMMIT,
-                    lambda *_: {'manifest_sha256': IDENTITY, 'commit': COMMIT},
-                    lambda *_: None, lambda: None)
+            bridge.execute(
+                IDENTITY, lambda _, state, phase: states.append((state, phase)),
+                lambda _: COMMIT,
+                lambda *_: {'manifest_sha256': IDENTITY, 'commit': COMMIT},
+                lambda *_: None, lambda: None)
             self.assertFalse(request.exists())
             self.assertEqual(states[-1], ('INSTALLED', 'COMPLETE'))
-
-    def test_request_removed_after_success(self):
-        with tempfile.TemporaryDirectory() as temp:
-            inbox = Path(temp)
-            request = inbox / 'request.json'
-            with patch.object(bridge, 'INBOX', inbox), patch.object(bridge, 'REQUEST', request), \
-                    patch.object(bridge, 'directory'), patch.object(bridge.os, 'fchown'):
-                token = bridge.create_verifier_request(IDENTITY)
-                self.assertEqual(json.loads(request.read_text())['manifestSha256'], IDENTITY)
-                bridge.cleanup_verifier_request(token)
-                self.assertFalse(request.exists())
-
-    def test_replaced_request_is_retained_for_operator(self):
-        with tempfile.TemporaryDirectory() as temp:
-            inbox = Path(temp)
-            request = inbox / 'request.json'
-            with patch.object(bridge, 'INBOX', inbox), patch.object(bridge, 'REQUEST', request), \
-                    patch.object(bridge, 'directory'), patch.object(bridge.os, 'fchown'):
-                token = bridge.create_verifier_request(IDENTITY)
-                request.unlink()
-                request.write_text('replacement')
-                with self.assertRaises(bridge.Stop):
-                    bridge.cleanup_verifier_request(token)
-                self.assertEqual(request.read_text(), 'replacement')
-                self.assertEqual(inbox.stat().st_mode & 0o777, 0o770)
 
     def test_durable_status_replaces_receipt(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -235,13 +231,22 @@ class RealBoundaryFunctions(unittest.TestCase):
         valid = dict(status='HOST_VERIFIED_READ_ONLY', manifestSha256=IDENTITY,
                      commit=COMMIT, installation_enabled=False,
                      provenance_signature='UNSIGNED')
-        with patch.object(bridge.subprocess, 'run', return_value=SimpleNamespace(
-                returncode=0, stdout=json.dumps(valid))):
+        def verify(raw, modules, client, source, trust):
+            self.assertEqual(json.loads(raw)['manifestSha256'], IDENTITY)
+            trust(); trust()
+            return valid
+        anchor = {'QUALIFIED': {}, 'load_helpers': lambda _: {
+            'update_source': SimpleNamespace(GitHubClient=lambda _token: object())},
+            'GitSource': lambda *_: object(), 'verify_request': verify}
+        with patch.object(bridge, 'trusted_anchor_path'), \
+             patch.object(bridge.runpy, 'run_path', return_value=anchor):
             self.assertEqual(bridge.verify_host(IDENTITY, boundary), COMMIT)
-        with patch.object(bridge.subprocess, 'run', return_value=SimpleNamespace(
-                returncode=1, stdout='')):
+            anchor['verify_request'] = lambda *_: valid | {'manifestSha256': 'c' * 64}
             with self.assertRaises(bridge.Stop):
                 bridge.verify_host(IDENTITY, boundary)
+        failed = SimpleNamespace(returncode=1, poll=lambda: 1,
+                                 communicate=lambda **_kwargs: ('', ''))
+        with patch.object(bridge.subprocess, 'Popen', return_value=failed):
             with self.assertRaises(bridge.Stop):
                 bridge.install({'commit': COMMIT}, IDENTITY, boundary)
 

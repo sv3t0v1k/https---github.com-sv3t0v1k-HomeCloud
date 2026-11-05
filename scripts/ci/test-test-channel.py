@@ -77,6 +77,8 @@ def suspended_install_process(channel, ready_pipe, state, applied, manifest):
             'backend': 'sha256:' + 'e' * 64, 'frontend': 'sha256:' + 'f' * 64}))
         patches.enter_context(patch.object(installer, 'compose', side_effect=fake_compose))
         patches.enter_context(patch.object(installer, 'backup', return_value='20261031_120000_aabbccdd'))
+        patches.enter_context(patch.object(installer, 'ensure_recovery_pins'))
+        patches.enter_context(patch.object(installer, 'sync_recovery_pins'))
         installer.deploy(manifest)
 
 
@@ -307,6 +309,7 @@ class TestChannelTests(unittest.TestCase):
             ('start', 'START_SERVICES'),
             ('verify-started', 'START_SERVICES'),
             ('smoke', 'SMOKE'),
+            ('recovery-sync', 'SMOKE'),
             ('state-write', 'COMMIT_STATE'),
         )
         previous = 'd' * 40
@@ -366,6 +369,9 @@ class TestChannelTests(unittest.TestCase):
                     def fake_smoke():
                         failure('smoke')
 
+                    def fake_sync(*_args):
+                        failure('recovery-sync')
+
                     # ExitStack avoids Python 3.9's 20-block compiler limit for
                     # many context managers in one with-statement.
                     with ExitStack() as patches:
@@ -385,6 +391,8 @@ class TestChannelTests(unittest.TestCase):
                         patches.enter_context(patch.object(installer, 'verify_pulled', side_effect=fake_pull))
                         patches.enter_context(patch.object(installer, 'compose', side_effect=fake_compose))
                         patches.enter_context(patch.object(installer, 'backup', side_effect=fake_backup))
+                        patches.enter_context(patch.object(installer, 'ensure_recovery_pins'))
+                        patches.enter_context(patch.object(installer, 'sync_recovery_pins', side_effect=fake_sync))
                         patches.enter_context(patch.object(installer, 'rewrite_refs', side_effect=fake_rewrite))
                         patches.enter_context(patch.object(installer, 'smoke', side_effect=fake_smoke))
                         patches.enter_context(patch.multiple(
@@ -744,6 +752,62 @@ class TestChannelTests(unittest.TestCase):
                     {role: image['ref'] for role, image in self.state['active']['images'].items()})
                 self.assertEqual(report['status'], 'MANUAL_RECOVERY_REQUIRED')
                 self.assertFalse(report['automatic_rollback'])
+
+
+class RecoveryPinTests(unittest.TestCase):
+    @staticmethod
+    def checkpoint(backend, frontend):
+        return {'images': {
+            role: {'ref': 'ghcr.io/owner/homecloud/' + role + '@sha256:' + digest * 64}
+            for role, digest in (('backend', backend), ('frontend', frontend))}}
+
+    def test_sync_changes_only_verified_pins_atomically(self):
+        before = self.checkpoint('1', '2')
+        after = self.checkpoint('3', '4')
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'recovery.env'
+            path.write_text('DB_NAME=homecloud\n' + ''.join(
+                key + '=' + before['images'][role]['ref'] + '\n' for key, role in
+                (('RELEASE_BACKEND_IMAGE', 'backend'),
+                 ('RELEASE_FRONTEND_IMAGE', 'frontend'), ('BACKEND_IMAGE', 'backend'))))
+            path.chmod(0o600)
+            def values(*_args):
+                return dict(line.split('=', 1) for line in path.read_text().splitlines())
+            with patch.object(installer, 'RECOVERY', path), \
+                 patch.object(installer, 'env_values', return_value={'DB_NAME': 'homecloud'}), \
+                 patch.object(installer.boundary, 'validate_backup_configuration', side_effect=values), \
+                 patch.object(installer.os, 'fchown'), \
+                 patch.object(installer, 'private_file', side_effect=lambda p: p):
+                installer.sync_recovery_pins(before, after)
+                updated = values()
+                self.assertEqual(updated['DB_NAME'], 'homecloud')
+                self.assertEqual(updated['RELEASE_BACKEND_IMAGE'], after['images']['backend']['ref'])
+                self.assertEqual(updated['RELEASE_FRONTEND_IMAGE'], after['images']['frontend']['ref'])
+                self.assertEqual(updated['BACKEND_IMAGE'], after['images']['backend']['ref'])
+                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+                self.assertFalse(list(Path(tmp).glob('.recovery-env-*')))
+
+    def test_sync_refuses_unrelated_drift_and_unrecognized_pin(self):
+        before = self.checkpoint('1', '2')
+        after = self.checkpoint('3', '4')
+        for bad in ('DB_NAME=other', 'RELEASE_BACKEND_IMAGE=unrecognized'):
+            with self.subTest(bad=bad), tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp) / 'recovery.env'
+                original = 'DB_NAME=homecloud\n' + ''.join(
+                    key + '=' + before['images'][role]['ref'] + '\n' for key, role in
+                    (('RELEASE_BACKEND_IMAGE', 'backend'),
+                     ('RELEASE_FRONTEND_IMAGE', 'frontend'), ('BACKEND_IMAGE', 'backend')))
+                original = '\n'.join(bad if line.startswith(bad.split('=')[0] + '=') else line
+                                     for line in original.splitlines()) + '\n'
+                path.write_text(original)
+                with patch.object(installer, 'RECOVERY', path), \
+                     patch.object(installer, 'env_values', return_value={'DB_NAME': 'homecloud'}), \
+                     patch.object(installer.boundary, 'validate_backup_configuration',
+                                  side_effect=lambda *_: dict(line.split('=', 1) for line in path.read_text().splitlines())), \
+                     patch.object(installer, 'private_file', side_effect=lambda p: p):
+                    with self.assertRaises(installer.Stop):
+                        installer.sync_recovery_pins(before, after)
+                    self.assertEqual(path.read_text(), original)
 
 
 if __name__ == '__main__':
