@@ -952,31 +952,67 @@ export class FilesService {
 
   async search(userId: number, query: string, limit = 20, offset = 0) {
     const pattern = `%${query.replace(/[!%_]/g, (char) => `!${char}`)}%`;
-
-    const files = await this.fileRepository
-      .createQueryBuilder("file")
-      .where("file.userId = :userId", { userId })
-      .andWhere("file.isDeleted = :isDeleted", { isDeleted: false })
-      .andWhere("file.name ILIKE :query ESCAPE '!'", { query: pattern })
-      .orderBy("file.isFolder", "DESC")
-      .addOrderBy("file.name", "ASC")
-      .addOrderBy("file.id", "ASC")
-      .take(limit)
-      .skip(offset)
-      .getMany();
-
-    const folders = await this.folderRepository
-      .createQueryBuilder("folder")
-      .where("folder.userId = :userId", { userId })
-      .andWhere("folder.isDeleted = :isDeleted", { isDeleted: false })
-      .andWhere("folder.name ILIKE :query ESCAPE '!'", { query: pattern })
-      .orderBy("folder.name", "ASC")
-      .addOrderBy("folder.id", "ASC")
-      .take(limit)
-      .skip(offset)
-      .getMany();
-
-    return { files, folders };
+    type SearchRow = {
+      kind: "file" | "folder";
+      id: number;
+      name: string;
+      parentId: number | null;
+      size: string | null;
+      mimeType: string | null;
+      shareFileId: number | null;
+      createdAt: Date;
+      updatedAt: Date;
+    };
+    const rows: SearchRow[] = await this.fileRepository.query(
+      `WITH RECURSIVE visible_folders AS (
+         SELECT id FROM folders
+         WHERE "userId" = $1 AND NOT "isDeleted" AND "parentId" IS NULL
+         UNION ALL
+         SELECT child.id FROM folders child
+         JOIN visible_folders parent ON child."parentId" = parent.id
+         WHERE child."userId" = $1 AND NOT child."isDeleted"
+       ), matches AS (
+         SELECT 'folder' AS kind, folder.id, folder.name,
+                folder."parentId", NULL::bigint AS size,
+                NULL::varchar AS "mimeType", mirror.id AS "shareFileId",
+                folder."createdAt", folder."updatedAt"
+         FROM folders folder
+         JOIN visible_folders visible ON visible.id = folder.id
+         JOIN LATERAL (
+           SELECT id FROM files
+           WHERE "folderId" = folder.id AND "userId" = $1
+             AND "isFolder" AND NOT "isDeleted"
+           ORDER BY id LIMIT 1
+         ) mirror ON true
+         WHERE folder.name ILIKE $2 ESCAPE '!'
+         UNION ALL
+         SELECT 'file' AS kind, file.id, file.name,
+                file."parentId", file.size, file."mimeType",
+                NULL::integer AS "shareFileId", file."createdAt", file."updatedAt"
+         FROM files file
+         WHERE file."userId" = $1 AND NOT file."isDeleted" AND NOT file."isFolder"
+           AND (file."parentId" IS NULL OR file."parentId" IN (SELECT id FROM visible_folders))
+           AND file.name ILIKE $2 ESCAPE '!'
+       )
+       SELECT * FROM matches
+       ORDER BY CASE kind WHEN 'folder' THEN 0 ELSE 1 END, name, id
+       LIMIT $3 OFFSET $4`,
+      [userId, pattern, limit + 1, offset],
+    );
+    const page = rows.slice(0, limit);
+    return {
+      files: page.filter((row) => row.kind === "file").map((row) => ({
+        id: row.id, name: row.name, parentId: row.parentId,
+        size: row.size, mimeType: row.mimeType,
+        createdAt: row.createdAt, updatedAt: row.updatedAt,
+      })),
+      folders: page.filter((row) => row.kind === "folder").map((row) => ({
+        id: row.id, name: row.name, parentId: row.parentId,
+        shareFileId: row.shareFileId,
+        createdAt: row.createdAt, updatedAt: row.updatedAt,
+      })),
+      limit, offset, hasMore: rows.length > limit,
+    };
   }
 
   async getStorageInfo(userId: number) {

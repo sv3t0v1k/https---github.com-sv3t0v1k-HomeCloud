@@ -87,62 +87,26 @@ describe("GS-1A: HTTP search contract", () => {
   });
 });
 
-describe("GS-1A: query builder contract", () => {
-  function builder() {
-    return {
-      where: jest.fn().mockReturnThis(),
-      andWhere: jest.fn().mockReturnThis(),
-      orderBy: jest.fn().mockReturnThis(),
-      addOrderBy: jest.fn().mockReturnThis(),
-      take: jest.fn().mockReturnThis(),
-      skip: jest.fn().mockReturnThis(),
-      getMany: jest.fn().mockResolvedValue([]),
-    };
-  }
+describe("GS-1A: search response contract", () => {
+  it("escapes LIKE characters and exposes only public fields", async () => {
+    const query = jest.fn().mockResolvedValue([{
+      kind: "file", id: 9, name: "100%_!.txt", parentId: null,
+      size: "12", mimeType: "text/plain", shareFileId: null,
+      createdAt: new Date(), updatedAt: new Date(),
+      storagePath: "/private/path", relativeObjectKey: "private-key",
+      storageLocationId: "private-location", userId: 42,
+    }]);
+    const service = new FilesService({ query } as never, {} as never, {} as never, {} as never);
 
-  it("escapes LIKE wildcards, scopes by owner and bounds both queries", async () => {
-    const fileQuery = builder();
-    const folderQuery = builder();
+    const result = await service.search(42, "100%_!", 7, 14);
 
-    const service = new FilesService(
-      { createQueryBuilder: jest.fn(() => fileQuery) } as never,
-      { createQueryBuilder: jest.fn(() => folderQuery) } as never,
-      {} as never,
-      {} as never,
-    );
-
-    await service.search(42, "100%_!", 7, 14);
-
-    expect(fileQuery.where).toHaveBeenCalledWith(
-      "file.userId = :userId", { userId: 42 },
-    );
-    expect(folderQuery.where).toHaveBeenCalledWith(
-      "folder.userId = :userId", { userId: 42 },
-    );
-
-    expect(fileQuery.andWhere).toHaveBeenCalledWith(
-      "file.isDeleted = :isDeleted", { isDeleted: false },
-    );
-    expect(folderQuery.andWhere).toHaveBeenCalledWith(
-      "folder.isDeleted = :isDeleted", { isDeleted: false },
-    );
-
-    expect(fileQuery.andWhere).toHaveBeenCalledWith(
-      "file.name ILIKE :query ESCAPE '!'",
-      { query: "%100!%!_!!%" },
-    );
-    expect(folderQuery.andWhere).toHaveBeenCalledWith(
-      "folder.name ILIKE :query ESCAPE '!'",
-      { query: "%100!%!_!!%" },
-    );
-
-    for (const query of [fileQuery, folderQuery]) {
-      expect(query.take).toHaveBeenCalledWith(7);
-      expect(query.skip).toHaveBeenCalledWith(14);
-      expect(query.getMany).toHaveBeenCalledTimes(1);
-    }
-
-    expect(fileQuery.addOrderBy).toHaveBeenCalledWith("file.id", "ASC");
-    expect(folderQuery.addOrderBy).toHaveBeenCalledWith("folder.id", "ASC");
+    expect(query).toHaveBeenCalledWith(expect.stringContaining("LIMIT $3 OFFSET $4"),
+      [42, "%100!%!_!!%", 8, 14]);
+    expect(result).toEqual({
+      files: [{ id: 9, name: "100%_!.txt", parentId: null,
+        size: "12", mimeType: "text/plain",
+        createdAt: expect.any(Date), updatedAt: expect.any(Date) }],
+      folders: [], limit: 7, offset: 14, hasMore: false,
+    });
   });
 });

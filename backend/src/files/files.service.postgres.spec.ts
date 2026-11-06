@@ -150,7 +150,8 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
       await addFile(owner.id, "100%_!-deleted.txt", true);
       await addFile(other.id, "100%_!-other.txt");
 
-      await folders.save({ name: "100%_!-folder", userId: owner.id });
+      const matchingFolder = await folders.save({ name: "100%_!-folder", userId: owner.id });
+      await createMirror(owner.id, matchingFolder.id, matchingFolder.name);
       await folders.save({ name: "100ABC!-folder", userId: owner.id });
       await folders.save({ name: "100%_!-other", userId: other.id });
       await folders.save({
@@ -184,20 +185,50 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
           isFolder: false,
           userId: owner.id,
         }));
-        await folders.save({
+        const folder = await folders.save({
           name: `item-${index}`,
           userId: owner.id,
         });
+        await createMirror(owner.id, folder.id, folder.name);
       }
 
       const result = await service.search(owner.id, "item", 2, 2);
 
-      expect(result.files.map((item) => item.name)).toEqual([
-        "item-2", "item-3",
-      ]);
+      expect(result.files).toEqual([]);
       expect(result.folders.map((item) => item.name)).toEqual([
         "item-2", "item-3",
       ]);
+      expect(result).toMatchObject({ limit: 2, offset: 2, hasMore: true });
+      const next = await service.search(owner.id, "item", 2, 4);
+      expect(next.folders).toEqual([]);
+      expect(next.files.map((item) => item.name)).toEqual(["item-0", "item-1"]);
+    });
+
+    it("скрывает потомков удалённой папки и внутренние поля", async () => {
+      const owner = await createUser();
+      const folders = dataSource.getRepository(FolderEntity);
+      const files = dataSource.getRepository(FileEntity);
+      const deleted = await folders.save({ name: "hidden-root", userId: owner.id, isDeleted: true });
+      const child = await folders.save({ name: "match-child", userId: owner.id, parentId: deleted.id });
+      await createMirror(owner.id, child.id, child.name);
+      const visible = await folders.save({ name: "match-visible", userId: owner.id });
+      await createMirror(owner.id, visible.id, visible.name);
+      const hiddenKey = randomUUID();
+      await files.save(files.create({ name: "match-hidden.txt", userId: owner.id,
+        parentId: child.id, storagePath: `/storage/${hiddenKey}`,
+        storageLocationId: LEGACY_STORAGE_LOCATION.id, relativeObjectKey: hiddenKey,
+        size: 1, mimeType: "text/plain", isFolder: false }));
+      const visibleKey = randomUUID();
+      await files.save(files.create({ name: "match-visible.txt", userId: owner.id,
+        parentId: visible.id, storagePath: `/storage/${visibleKey}`,
+        storageLocationId: LEGACY_STORAGE_LOCATION.id, relativeObjectKey: visibleKey,
+        size: 1, mimeType: "text/plain", isFolder: false }));
+
+      const result = await service.search(owner.id, "match", 20, 0);
+      expect(result.folders.map((item) => item.name)).toEqual(["match-visible"]);
+      expect(result.files.map((item) => item.name)).toEqual(["match-visible.txt"]);
+      expect(result.hasMore).toBe(false);
+      expect(JSON.stringify(result)).not.toMatch(/storagePath|relativeObjectKey|storageLocationId|userId/);
     });
   });
 
