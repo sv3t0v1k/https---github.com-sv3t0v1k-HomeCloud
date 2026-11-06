@@ -7,6 +7,7 @@ import { NextFunction, Request, Response } from "express";
 import { clientIp } from "./trusted-proxy";
 import * as crypto from "crypto";
 import { JwtService } from "@nestjs/jwt";
+import { bearerTokenFromHeader } from "../auth/guards/bearer-token";
 import { browserDownloadErrorLocation } from "../sharing/browser-download-redirect";
 import {
   UploadRateLimitService,
@@ -73,15 +74,10 @@ export function getSearchRateLimitOptions(jwtService?: JwtService) {
     max: 12,
     message: { statusCode: 429, message: "Too many search requests" },
     keyGenerator: (req: Request): string => {
-      const auth = req.headers.authorization;
-      if (
-        jwtService &&
-        typeof auth === "string" &&
-        auth.length <= 4096 &&
-        /^Bearer [^ ]+$/.test(auth)
-      ) {
+      const token = bearerTokenFromHeader(req.headers.authorization);
+      if (jwtService && token) {
         try {
-          const payload = jwtService.verify(auth.slice(7));
+          const payload = jwtService.verify(token);
           if (Number.isSafeInteger(payload?.sub) && payload.sub > 0) {
             return `user:${payload.sub}`;
           }

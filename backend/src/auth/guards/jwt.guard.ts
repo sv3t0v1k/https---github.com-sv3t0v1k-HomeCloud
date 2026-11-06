@@ -2,6 +2,7 @@ import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from
 import { Reflector } from "@nestjs/core";
 import { JwtService } from "@nestjs/jwt";
 import { Request } from "express";
+import { bearerTokenFromHeader } from "./bearer-token";
 
 @Injectable()
 export class JwtGuard implements CanActivate {
@@ -12,15 +13,14 @@ export class JwtGuard implements CanActivate {
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
     const request = ctx.switchToHttp().getRequest<Request>();
-    const authHeader = request.headers.authorization;
-
-    if (!authHeader) throw new UnauthorizedException();
-
-    const [type, token] = authHeader.split(" ");
-    if (type !== "Bearer" || !token) throw new UnauthorizedException();
+    const token = bearerTokenFromHeader(request.headers.authorization);
+    if (!token) throw new UnauthorizedException();
 
     try {
       const payload = this.jwtService.verify(token);
+      if (!Number.isSafeInteger(payload?.sub) || payload.sub <= 0) {
+        throw new UnauthorizedException();
+      }
       request.user = { userId: payload.sub, email: payload.email };
       return true;
     } catch {

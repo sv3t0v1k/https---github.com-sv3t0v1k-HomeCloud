@@ -19,7 +19,7 @@ describe("GS-1A: JWT и лимит поиска", () => {
     folders: [],
   }));
 
-  beforeAll(async () => {
+  beforeEach(async () => {
     const moduleRef = await Test.createTestingModule({
       imports: [JwtModule.register({ secret: "gs1a-test-secret" })],
       controllers: [FilesController],
@@ -42,7 +42,7 @@ describe("GS-1A: JWT и лимит поиска", () => {
     await app.init();
   });
 
-  afterAll(async () => {
+  afterEach(async () => {
     await app.close();
   });
 
@@ -73,6 +73,54 @@ describe("GS-1A: JWT и лимит поиска", () => {
       .expect(401);
 
     expect(search).not.toHaveBeenCalled();
+  });
+
+  it("отклоняет дополнительные компоненты Authorization", async () => {
+    const token = jwt.sign({
+      sub: 42,
+      email: "owner@example.test",
+    });
+
+    for (const authorization of [
+      `Bearer ${token} extra`,
+      `Bearer  ${token}`,
+    ]) {
+      await request(app.getHttpServer())
+        .get(endpoint)
+        .set("Authorization", authorization)
+        .query({ q: "report" })
+        .expect(401);
+    }
+
+    expect(search).not.toHaveBeenCalled();
+
+    await request(app.getHttpServer())
+      .get(endpoint)
+      .set("Authorization", `Bearer ${token}`)
+      .query({ q: "report" })
+      .expect(200);
+
+    expect(search).toHaveBeenCalledTimes(1);
+  });
+
+  it("сохраняет ключ пользователя при смене JWT и IP", () => {
+    const first = jwt.sign({ sub: 42, email: "owner@example.test" });
+    const second = jwt.sign({
+      sub: 42, email: "owner@example.test", version: 2,
+    });
+
+    const options = getSearchRateLimitOptions(jwt);
+    const firstRequest = {
+      headers: { authorization: `Bearer ${first}` },
+      ip: "192.0.2.10",
+    } as Parameters<typeof options.keyGenerator>[0];
+    const secondRequest = {
+      headers: { authorization: `Bearer ${second}` },
+      ip: "198.51.100.20",
+    } as Parameters<typeof options.keyGenerator>[0];
+
+    expect(options.keyGenerator(firstRequest)).toBe("user:42");
+    expect(options.keyGenerator(secondRequest)).toBe("user:42");
   });
 
   it("ограничивает пользователя, а не IP или отдельный JWT", async () => {
