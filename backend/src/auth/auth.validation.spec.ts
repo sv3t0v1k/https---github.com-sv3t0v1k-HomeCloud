@@ -65,7 +65,7 @@ describe("AuthController refresh/logout validation (Phase 11.2B)", () => {
 
   afterEach(() => jest.clearAllMocks());
 
-  const authHeader = { Authorization: "Bearer faketoken" };
+  const authHeader = { Authorization: "Bearer header.payload.signature" };
 
   async function post(path: string, body: any, auth = false) {
     let r = request(app.getHttpServer()).post(`/api/v1/auth/${path}`).send(body);

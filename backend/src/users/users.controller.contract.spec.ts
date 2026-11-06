@@ -18,7 +18,7 @@ const CONFIG = {
   JWT_REFRESH_EXPIRES_IN: "7d",
 };
 
-const AUTH = { Authorization: "Bearer faketoken" };
+const AUTH = { Authorization: "Bearer header.payload.signature" };
 
 /**
  * Phase 11.2C — regression coverage for users not-found error contracts.

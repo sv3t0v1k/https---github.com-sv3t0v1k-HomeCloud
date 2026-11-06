@@ -51,7 +51,7 @@ describe("PreviewsController thumbnail cache boundary (Phase 11.3)", () => {
   const authed = () =>
     request(app.getHttpServer())
       .get("/api/v1/previews/1/thumbnail")
-      .set("Authorization", "Bearer faketoken");
+      .set("Authorization", "Bearer header.payload.signature");
 
   it("authenticated thumbnail → private cache policy, not public, content unchanged", async () => {
     const res = await authed();
