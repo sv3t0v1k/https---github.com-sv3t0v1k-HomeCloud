@@ -1,0 +1,34 @@
+{
+  "codeCommit": "a10aa06835dd8aeddbb706eb2e586e13732efb4b",
+  "frontend": {
+    "success": true,
+    "passed": 402,
+    "failed": 0,
+    "skipped": 0,
+    "files": 33
+  },
+  "lint": "PASS",
+  "build": "PASS",
+  "browser": {
+    "engine": "IAB Chromium",
+    "widths": [
+      320,
+      390,
+      768,
+      1440
+    ],
+    "horizontalOverflow": false,
+    "preview": "PASS",
+    "lazyFullPath": "PASS",
+    "paginationAndBack": "PASS",
+    "real401LoginReturn": "PASS",
+    "synthetic400": "PASS",
+    "synthetic429RetryAfter": "PASS",
+    "realSql503": "PASS",
+    "ownerSwitchIsolation": "PASS",
+    "movedResult": "PASS",
+    "safariFirefoxScreenReaderZoom": "NOT_RUN"
+  },
+  "independentReview": "PASS",
+  "highCriticalOpen": 0
+}

@@ -1,0 +1,33 @@
+{
+  "unauthenticated": 401,
+  "firstPage": {
+    "files": 18,
+    "folders": 2,
+    "hasMore": true
+  },
+  "tail": {
+    "files": 14,
+    "folders": 0,
+    "hasMore": false
+  },
+  "isolation": "PASS",
+  "invalidQuery": 400,
+  "root": {
+    "folders": 3,
+    "files": 16
+  },
+  "preview": {
+    "type": "text",
+    "contentMatches": true
+  },
+  "path": {
+    "name": "Дом — ремонт",
+    "parentId": 4
+  },
+  "credentialsMode": "384",
+  "actualSqlTimeout": {
+    "status": 503,
+    "durationMs": 2011,
+    "recovery": 200
+  }
+}
