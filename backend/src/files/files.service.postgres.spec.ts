@@ -184,6 +184,28 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
       });
       await createMirror(owner.id, normal.id, normal.name);
 
+      const nested = await folders.save({
+        name: "match-nested",
+        userId: owner.id,
+        parentId: legacy.id,
+      });
+      await createMirror(owner.id, nested.id, nested.name);
+
+      const broken = await folders.save({
+        name: "match-broken",
+        userId: owner.id,
+      });
+      const brokenMirror = await createMirror(owner.id, broken.id, broken.name);
+      await files.update({ id: brokenMirror.id }, { isDeleted: true });
+
+      const brokenChild = await folders.save({
+        name: "match-broken-child",
+        userId: owner.id,
+        parentId: broken.id,
+      });
+      await createMirror(owner.id, brokenChild.id, brokenChild.name);
+
+
       const deleted = await folders.save({
         name: "match-deleted",
         userId: owner.id,
@@ -205,6 +227,8 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
       }
 
       await addFile(owner.id, legacy.id, "match-owned.txt");
+      await addFile(owner.id, nested.id, "match-nested.txt");
+      await addFile(owner.id, brokenChild.id, "match-broken-child.txt");
       await addFile(other.id, legacy.id, "match-foreign.txt");
       await addFile(owner.id, deleted.id, "match-hidden.txt");
       await addFile(owner.id, normal.id, "match-normal.txt");
@@ -214,7 +238,6 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
       expect(result.folders.map(item => item.name)).toEqual(["match-normal"]);
       expect(result.files.map(item => item.name)).toEqual([
         "match-normal.txt",
-        "match-owned.txt",
       ]);
 
       const foreign = await service.search(other.id, "match", 50, 0);
@@ -222,6 +245,8 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
       expect(foreign.folders).toEqual([]);
 
       await expect(service.findFolder(owner.id, legacy.id))
+        .rejects.toThrow("Folder mirror not found");
+      await expect(service.findFolder(owner.id, broken.id))
         .rejects.toThrow("Folder mirror not found");
     });
 

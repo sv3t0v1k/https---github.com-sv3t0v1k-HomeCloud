@@ -965,12 +965,25 @@ export class FilesService {
     };
     const rows: SearchRow[] = await this.fileRepository.query(
       `WITH RECURSIVE visible_folders AS (
-         SELECT id FROM folders
-         WHERE "userId" = $1 AND NOT "isDeleted" AND "parentId" IS NULL
+         SELECT root.id FROM folders root
+         WHERE root."userId" = $1 AND NOT root."isDeleted"
+           AND root."parentId" IS NULL
+           AND EXISTS (
+             SELECT 1 FROM files mirror
+             WHERE mirror."folderId" = root.id
+               AND mirror."userId" = $1
+               AND mirror."isFolder" AND NOT mirror."isDeleted"
+           )
          UNION ALL
          SELECT child.id FROM folders child
          JOIN visible_folders parent ON child."parentId" = parent.id
          WHERE child."userId" = $1 AND NOT child."isDeleted"
+           AND EXISTS (
+             SELECT 1 FROM files mirror
+             WHERE mirror."folderId" = child.id
+               AND mirror."userId" = $1
+               AND mirror."isFolder" AND NOT mirror."isDeleted"
+           )
        ), matches AS (
          SELECT 'folder' AS kind, folder.id, folder.name,
                 folder."parentId", NULL::bigint AS size,
