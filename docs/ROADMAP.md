@@ -1,6 +1,8 @@
 # HomeCloud — единый roadmap
 
-**Актуальный test checkpoint на 2026-10-30:** установлен backend `0387feda2496adc3c0e97d2653c7de6bc055a9d7` и frontend `52ddb5dac277a11ec783b4ca9bdeb89e992c4487`. Browser Acceptance QA, включая UX v2, ZIP и Public Sharing, принята в проверенном тестовом объёме; backup/isolated restore, метаданные установленной версии, 30 миграций и health 4/4 — PASS. QA-данные перемещены в корзину, evidence сохранены. [Границы и доказательства](#test-deployment-and-browser-acceptance-2026-10-30). Production — **NO_GO**, Multi-Storage — **DEFERRED**.
+**TEST Channel v1 — Operational E2E PASS на VM 120 (2026-11-06).** Защищённый `test` на `76474223ebd7a2fc0dab418a2778dcdd42ab18bc`; установка I → J из административного UI, backup, restore и version rollback проверены на TEST. Четыре контейнера healthy, 30 миграций, HTTPS, авторизация и контрольные суммы тестовых файлов подтверждены. [Итоговый checkpoint](./evidence/test-channel-v1-operational-20261106.md). **Production RELEASE — NO_GO.** Периодическое обнаружение TEST-сборок ещё не введено в эксплуатацию: timer выключен, временный токен удалён, `AUTO_UPDATE=false`.
+
+**Исторический test checkpoint на 2026-10-30:** установлен backend `0387feda2496adc3c0e97d2653c7de6bc055a9d7` и frontend `52ddb5dac277a11ec783b4ca9bdeb89e992c4487`. Browser Acceptance QA, включая UX v2, ZIP и Public Sharing, принята в проверенном тестовом объёме; backup/isolated restore, метаданные установленной версии, 30 миграций и health 4/4 — PASS. QA-данные перемещены в корзину, evidence сохранены. [Границы и доказательства](#test-deployment-and-browser-acceptance-2026-10-30). Production — **NO_GO**, Multi-Storage — **DEFERRED**.
 
 **Состояние на 2026-10-13:** полный 50 ГиБ Browser E2E — **PASS** в IAB/localhost ([доказательства](./evidence/browser-50gib-qualification-20261006/report.md)); универсальное хранение и очередь с докачкой подтверждены; единственный Mac тестовый стек — `homecloud-preview`, основной `docker-compose.yml`, HTTP localhost:8080 и постоянные volumes; TLS не требуется для ежедневной работы. Safari 50 ГиБ — **UNQUALIFIED**, production — **NOT_READY / NO_GO**. Предпроизводственная версия `v0.9.0-local.1` не вводит новую Phase. [Контракт версии](./local-release-baseline.md).
 
@@ -39,7 +41,9 @@
 | Полный 50 ГиБ IAB Browser E2E — ненумерованный checkpoint | `PASS` | `167498d`; [scope/evidence](./evidence/browser-50gib-qualification-20261006/report.md); Safari 50 ГиБ UNQUALIFIED |
 | Test deployment / Browser Acceptance, включая UX v2 и ZIP | `PASS` в проверенном тестовом объёме | Разные SHA backend/frontend, QA, backup/restore, metadata, 30 миграций и health 4/4 подтверждены; [test checkpoint](#test-deployment-and-browser-acceptance-2026-10-30) |
 | Public Folder Sharing v1.0 — анонимная загрузка в общую папку | `PARTIAL` | Safari Browser Acceptance PASS в проверенном тестовом объёме; исторический план и ограничения сохраняются. [Test checkpoint](#test-deployment-and-browser-acceptance-2026-10-30) |
-| Updates v1 — этап 1: версии и обнаружение | `PARTIAL` | Read-only обнаружение и UI установлены; опубликованный совместимый beta-кандидат не подтверждён, установка не реализована. [Контракт](./updates-stage-1.md), [test checkpoint](#test-deployment-and-browser-acceptance-2026-10-30) |
+| TEST Channel v1 — ручная установка и восстановление | `Operational E2E PASS` на VM 120 | UI install I → J, backup, restore, version rollback, 30 миграций, HTTPS/auth и SHA256 файлов; [checkpoint](./evidence/test-channel-v1-operational-20261106.md) |
+| Периодическое обнаружение TEST-сборок | `NOT_IN_SERVICE` | Host discovery и UI реализованы; разовый E2E подтверждён, timer выключен, отдельный токен минимальных прав ещё не введён; [план](./updates-test-discovery.md) |
+| Production RELEASE | `NO_GO` | TEST qualification не является production release qualification; [production gate](./final-production-acceptance.md) |
 | Multi-Storage и выбор пользователем места хранения | `DEFERRED` | Исторические checkpoint’ы и зависимости сохранены в соответствующих разделах; продолжение только после отдельного решения |
 
 ## Completed
