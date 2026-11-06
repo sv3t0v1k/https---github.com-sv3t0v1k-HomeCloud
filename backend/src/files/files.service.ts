@@ -14,6 +14,7 @@ import { FolderEntity } from "../entities/folder.entity";
 import { StorageService } from "../storage/storage.service";
 import { UsersService } from "../users/users.service";
 import { allocateNamespaceName } from "./namespace-name";
+import { searchQuery } from "./search-input";
 
 @Injectable()
 export class FilesService {
@@ -69,7 +70,13 @@ export class FilesService {
     parentId?: number,
     search?: string,
     includeDeleted = false,
+    limit = 20,
+    offset = 0,
   ) {
+    if (search !== undefined) {
+      const result = await this.searchPage(userId, searchQuery(search, 1), limit, offset, { parentId: parentId ?? null });
+      return result.files.map((file) => ({ ...file, isFolder: false, isDeleted: false }));
+    }
     let query = this.fileRepository
       .createQueryBuilder("file")
       .where("file.userId = :userId", { userId })
@@ -85,12 +92,6 @@ export class FilesService {
       query = query.andWhere("file.parentId = :parentId", { parentId });
     } else {
       query = query.andWhere("file.parentId IS NULL");
-    }
-
-    if (search) {
-      query = query.andWhere("file.name ILIKE :search", {
-        search: `%${search}%`,
-      });
     }
 
     query.orderBy("file.isFolder", "DESC").addOrderBy("file.name", "ASC");
@@ -952,6 +953,17 @@ export class FilesService {
   }
 
   async search(userId: number, query: string, limit = 20, offset = 0) {
+    return this.searchPage(userId, searchQuery(query), limit, offset);
+  }
+
+  private async searchPage(
+    userId: number, query: string, limit: number, offset: number,
+    scope?: { parentId: number | null },
+  ) {
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50 ||
+        !Number.isSafeInteger(offset) || offset < 0 || offset > 10000) {
+      throw new BadRequestException("Invalid search pagination");
+    }
     const pattern = `%${query.replace(/[!%_]/g, (char) => `!${char}`)}%`;
     type SearchRow = {
       kind: "file" | "folder";
@@ -960,6 +972,7 @@ export class FilesService {
       parentId: number | null;
       size: string | null;
       mimeType: string | null;
+      isStarred: boolean | null;
       shareFileId: number | null;
       createdAt: Date;
       updatedAt: Date;
@@ -993,6 +1006,7 @@ export class FilesService {
          SELECT 'folder' AS kind, folder.id, folder.name,
                 folder."parentId", NULL::bigint AS size,
                 NULL::varchar AS "mimeType", mirror.id AS "shareFileId",
+                NULL::boolean AS "isStarred",
                 folder."createdAt", folder."updatedAt"
          FROM folders folder
          JOIN visible_folders visible ON visible.id = folder.id
@@ -1006,16 +1020,17 @@ export class FilesService {
          UNION ALL
          SELECT 'file' AS kind, file.id, file.name,
                 file."parentId", file.size, file."mimeType",
-                NULL::integer AS "shareFileId", file."createdAt", file."updatedAt"
+                NULL::integer AS "shareFileId", file."isStarred", file."createdAt", file."updatedAt"
          FROM files file
          WHERE file."userId" = $1 AND NOT file."isDeleted" AND NOT file."isFolder"
            AND (file."parentId" IS NULL OR file."parentId" IN (SELECT id FROM visible_folders))
            AND file.name ILIKE $2 ESCAPE '!'
        )
        SELECT * FROM matches
+       WHERE ($5::boolean = false OR (kind = 'file' AND "parentId" IS NOT DISTINCT FROM $6::integer))
        ORDER BY CASE kind WHEN 'folder' THEN 0 ELSE 1 END, name, id
        LIMIT $3 OFFSET $4`,
-          [userId, pattern, limit + 1, offset],
+          [userId, pattern, limit + 1, offset, scope !== undefined, scope?.parentId ?? null],
         );
       });
     } catch (error) {
@@ -1030,7 +1045,7 @@ export class FilesService {
     return {
       files: page.filter((row) => row.kind === "file").map((row) => ({
         id: row.id, name: row.name, parentId: row.parentId,
-        size: row.size, mimeType: row.mimeType,
+        size: row.size, mimeType: row.mimeType, isStarred: row.isStarred,
         createdAt: row.createdAt, updatedAt: row.updatedAt,
       })),
       folders: page.filter((row) => row.kind === "folder").map((row) => ({

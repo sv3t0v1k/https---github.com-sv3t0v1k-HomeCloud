@@ -1,10 +1,12 @@
 import { PassportStrategy } from "@nestjs/passport";
-import { Strategy, ExtractJwt } from "passport-jwt";
+import { Strategy } from "passport-jwt";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { UserEntity } from "../entities/user.entity";
 import { ConfigService } from "@nestjs/config";
+import { Request } from "express";
+import { bearerTokenFromHeader } from "./guards/bearer-token";
 
 export interface JwtPayload {
   sub: number;
@@ -24,12 +26,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private configService: ConfigService,
   ) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: (request: Request) =>
+        bearerTokenFromHeader(request.headers.authorization) ?? null,
       secretOrKey: configService.get("JWT_SECRET"),
     });
   }
 
   async validate(payload: JwtPayload): Promise<UserInfo> {
+    if (!Number.isSafeInteger(payload?.sub) || payload.sub <= 0) {
+      throw new UnauthorizedException();
+    }
     const user = await this.userRepository.findOne({
       where: { id: payload.sub, isActive: true },
     });

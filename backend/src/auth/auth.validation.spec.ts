@@ -1,6 +1,6 @@
 import { Test } from "@nestjs/testing";
 import { ValidationPipe } from "@nestjs/common";
-import { Reflector } from "@nestjs/core";
+import { JwtStrategy } from "./jwt.strategy";
 import { JwtService } from "@nestjs/jwt";
 import { ConfigModule } from "@nestjs/config";
 import request from "supertest";
@@ -42,7 +42,7 @@ describe("AuthController refresh/logout validation (Phase 11.2B)", () => {
           useValue: { verifyRefreshToken: verifyRefresh, refresh, logout },
         },
         { provide: JwtService, useValue: { verify: jwtVerify, sign: jest.fn() } },
-        { provide: Reflector, useValue: {} },
+        { provide: JwtStrategy, useValue: { validate: async () => ({ userId: 1, email: "u@t.c" }) } },
       ],
     }).compile();
 

@@ -252,14 +252,10 @@ export function applySecurityMiddleware(
         res.status(429).json({ statusCode: 429, message: error.message });
         return;
       }
-      const auth = req.headers.authorization;
-      if (
-        typeof auth === "string" &&
-        auth.length <= 4096 &&
-        /^Bearer [^ ]+$/.test(auth)
-      ) {
+      const token = bearerTokenFromHeader(req.headers.authorization);
+      if (token) {
         try {
-          const payload = transfer.jwtService.verify(auth.slice(7));
+          const payload = transfer.jwtService.verify(token);
           if (Number.isSafeInteger(payload.sub) && payload.sub > 0)
             markVerifiedTransfer(req, payload.sub);
         } catch {
@@ -274,10 +270,18 @@ export function applySecurityMiddleware(
     rateLimit({ ...getGlobalRateLimitOptions(), skip: hasVerifiedTransfer }),
   );
 
-  app.use(
-    "/api/v1/files/search",
-    rateLimit(getSearchRateLimitOptions(transfer?.jwtService)),
-  );
+  // Один MemoryStore и один бюджет для нового и совместимого поиска.
+  const searchLimiter = rateLimit(getSearchRateLimitOptions(transfer?.jwtService));
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const pathname = req.path;
+    const legacy = /^\/api\/v1\/files\/?$/i.test(pathname) &&
+      Object.prototype.hasOwnProperty.call(req.query, "search");
+    if ((req.method === "GET" || req.method === "HEAD") &&
+        (/^\/api\/v1\/files\/search\/?$/i.test(pathname) || legacy)) {
+      return searchLimiter(req, res, next);
+    }
+    next();
+  });
 
   app.use("/api/v1/auth", rateLimit(getAuthRateLimitOptions()));
 

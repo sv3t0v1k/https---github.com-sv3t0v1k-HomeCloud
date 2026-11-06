@@ -12,6 +12,7 @@ import * as path from "node:path";
 import { randomUUID } from "node:crypto";
 import { DataSource } from "typeorm";
 import { JwtGuard } from "../auth/guards/jwt.guard";
+import { JwtStrategy } from "../auth/jwt.strategy";
 import { applySecurityMiddleware } from "../common/security.config";
 import { FileEntity } from "../entities/file.entity";
 import { FolderEntity } from "../entities/folder.entity";
@@ -77,6 +78,7 @@ postgres(
     await database.getRepository(UploadWorkspaceEntity).save(LEGACY_UPLOAD_WORKSPACE);
       const config = new ConfigService({
         NODE_ENV: "test",
+        JWT_SECRET: "upload-rate-postgres-test-no-production-credentials",
         STORAGE_PATH: root,
         MAX_FILE_SIZE: 10,
         MAX_TOTAL_SIZE: 10,
@@ -114,6 +116,7 @@ postgres(
         controllers: [UploadsController],
         providers: [
           JwtGuard,
+          { provide: JwtStrategy, useValue: new JwtStrategy(database.getRepository(UserEntity), config) },
           UploadRateLimitService,
           UploadRateLimitInterceptor,
           IngressFileCleanupInterceptor,

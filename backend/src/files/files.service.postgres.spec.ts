@@ -360,6 +360,62 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
       }
     });
 
+    it.each(["global", "legacy"])("отменяет реальный %s поиск по SQL timeout и восстанавливает соединение", async (mode) => {
+      const owner = await createUser();
+      const lock = dataSource.createQueryRunner();
+      await lock.connect();
+      await lock.startTransaction();
+      const before = await dataSource.query("SHOW statement_timeout");
+      try {
+        await lock.query("LOCK TABLE files IN ACCESS EXCLUSIVE MODE");
+        const pending = mode === "global"
+          ? service.search(owner.id, "match")
+          : service.findAll(owner.id, undefined, "match");
+        await expect(pending).rejects.toMatchObject({
+          status: 503, message: "Search temporarily unavailable",
+        });
+      } finally {
+        await lock.rollbackTransaction();
+        await lock.release();
+      }
+      expect(await dataSource.query("SHOW statement_timeout")).toEqual(before);
+      expect((await service.search(owner.id, "match")).files).toEqual([]);
+    }, 10000);
+
+    it("ограничивает старый поиск текущей папкой, буквальным ILIKE и безопасной страницей", async () => {
+      const owner = await createUser();
+      const other = await createUser();
+      const folders = dataSource.getRepository(FolderEntity);
+      const folder = await folders.save({ name: "visible", userId: owner.id });
+      await createMirror(owner.id, folder.id, folder.name);
+      const files = dataSource.getRepository(FileEntity);
+      async function add(userId: number, name: string, parentId: number | null, isDeleted = false) {
+        const key = randomUUID();
+        return files.save(files.create({ name, userId, parentId, isDeleted,
+          storagePath: `/private/${key}`, storageLocationId: LEGACY_STORAGE_LOCATION.id,
+          relativeObjectKey: key, size: 1, mimeType: "text/plain", isFolder: false }));
+      }
+      await add(owner.id, "100%_!-root", null);
+      await add(other.id, "100%_!-other", folder.id);
+      await add(owner.id, "100%_!-deleted", folder.id, true);
+      await add(owner.id, "100ABC!-wildcard", folder.id);
+      for (let n = 0; n < 55; n++) await add(owner.id, `100%_!-${String(n).padStart(2, "0")}`, folder.id);
+      const first = await service.findAll(owner.id, folder.id, "100%_!");
+      expect(first).toHaveLength(20);
+      expect(first[0]).toMatchObject({ name: "100%_!-00", isFolder: false, isDeleted: false, isStarred: false });
+      const all = await service.findAll(owner.id, folder.id, "100%_!", false, 50);
+      expect(all).toHaveLength(50);
+      const tail = await service.findAll(owner.id, folder.id, "100%_!", false, 50, 50);
+      expect(tail.map(file => file.name)).toEqual(Array.from({ length: 5 }, (_, n) => `100%_!-${50 + n}`));
+      expect(JSON.stringify(all)).not.toMatch(/storagePath|relativeObjectKey|storageLocationId|userId/);
+      expect((await service.findAll(owner.id, undefined, "100%_!")).map(file => file.name)).toEqual(["100%_!-root"]);
+      await files.update({ folderId: folder.id, isFolder: true }, { isDeleted: true });
+      expect(await service.findAll(owner.id, folder.id, "100%_!")).toEqual([]);
+      await files.update({ folderId: folder.id, isFolder: true }, { isDeleted: false });
+      await folders.update(folder.id, { isDeleted: true });
+      expect(await service.findAll(owner.id, folder.id, "100%_!")).toEqual([]);
+    });
+
     it("соблюдает limit, offset и стабильную сортировку", async () => {
       const owner = await createUser();
       const files = dataSource.getRepository(FileEntity);

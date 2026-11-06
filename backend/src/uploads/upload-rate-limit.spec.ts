@@ -15,6 +15,7 @@ import * as http from "node:http";
 import { randomUUID } from "node:crypto";
 import { AddressInfo } from "node:net";
 import { JwtGuard } from "../auth/guards/jwt.guard";
+import { JwtStrategy } from "../auth/jwt.strategy";
 import {
   applySecurityMiddleware,
   getGlobalRateLimitOptions,
@@ -95,6 +96,7 @@ describe("authenticated upload rate policy (HTTP)", () => {
       controllers: [UploadsController],
       providers: [
         JwtGuard,
+        { provide: JwtStrategy, useValue: { validate: async (payload: { sub: number; email: string }) => ({ userId: payload.sub, email: payload.email }) } },
         UploadRateLimitService,
         UploadRateLimitInterceptor,
         IngressFileCleanupInterceptor,

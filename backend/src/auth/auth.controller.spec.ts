@@ -1,5 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { Reflector } from "@nestjs/core";
+import { JwtStrategy } from "./jwt.strategy";
 import { JwtService } from "@nestjs/jwt";
 import { ConfigService, ConfigModule } from "@nestjs/config";
 import request from "supertest";
@@ -54,7 +54,7 @@ describe("AuthController", () => {
         providers: [
           { provide: AuthService, useValue: mockAuthService },
           { provide: JwtService, useValue: mockJwtService },
-          { provide: Reflector, useValue: {} },
+          { provide: JwtStrategy, useValue: { validate: async () => ({ userId: 1, email: "user@test.com" }) } },
         ],
       }).compile();
 

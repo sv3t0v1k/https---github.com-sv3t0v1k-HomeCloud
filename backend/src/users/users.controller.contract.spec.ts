@@ -1,7 +1,7 @@
 import { Test } from "@nestjs/testing";
 import { ValidationPipe, NotFoundException } from "@nestjs/common";
 import { getRepositoryToken } from "@nestjs/typeorm";
-import { Reflector } from "@nestjs/core";
+import { JwtStrategy } from "../auth/jwt.strategy";
 import { JwtService } from "@nestjs/jwt";
 import { ConfigModule } from "@nestjs/config";
 import request from "supertest";
@@ -42,7 +42,7 @@ describe("UsersController not-found contracts (Phase 11.2C)", () => {
           provide: JwtService,
           useValue: { verify: jest.fn(() => ({ sub: 1, email: "u@t.c" })), sign: jest.fn() },
         },
-        { provide: Reflector, useValue: {} },
+        { provide: JwtStrategy, useValue: { validate: async () => ({ userId: 1, email: "u@t.c" }) } },
       ],
     }).compile();
 

@@ -20,6 +20,7 @@ import * as fs from "fs";
 import { IsInt, IsOptional, IsString, MaxLength, Min } from "class-validator";
 import { JwtGuard } from "../auth/guards/jwt.guard";
 import { FilesService } from "./files.service";
+import { searchPageNumber, searchQuery } from "./search-input";
 import { StorageService } from "../storage/storage.service";
 
 type RangeParseResult =
@@ -121,8 +122,16 @@ export class FilesController {
     @NestRequest() req: ExpressRequest & { user: { userId: number } },
     @Query("parentId") parentId?: string,
     @Query("search") search?: string,
+    @Query("limit") limitRaw?: string,
+    @Query("offset") offsetRaw?: string,
   ) {
     const userId = req.user.userId;
+    if (search !== undefined) {
+      const query = searchQuery(search, 1);
+      const parent = parentId === undefined ? undefined : searchPageNumber(parentId, 0, 2147483647, 1);
+      return this.filesService.findAll(userId, parent, query, false,
+        searchPageNumber(limitRaw, 20, 50, 1), searchPageNumber(offsetRaw, 0, 10000));
+    }
     const parentIdNum = parentId ? parseInt(parentId, 10) : undefined;
     return this.filesService.findAll(userId, parentIdNum, search);
   }
@@ -219,39 +228,9 @@ export class FilesController {
     @Query("limit") limitRaw?: string,
     @Query("offset") offsetRaw?: string,
   ) {
-    if (typeof q !== "string") {
-      throw new BadRequestException("Invalid search query");
-    }
-    const query = q.trim();
-    if (
-      query.length < 2 ||
-      query.length > 100 ||
-      [...query].some((char) => {
-        const code = char.charCodeAt(0);
-        return code < 32 || code === 127;
-      })
-    ) {
-      throw new BadRequestException("Invalid search query");
-    }
-
-    const pageNumber = (value: unknown, fallback: number, max: number) => {
-      if (value === undefined) return fallback;
-      if (typeof value !== "string" || !/^(0|[1-9]\d*)$/.test(value)) {
-        throw new BadRequestException("Invalid search pagination");
-      }
-      const number = Number(value);
-      if (!Number.isSafeInteger(number) || number > max) {
-        throw new BadRequestException("Invalid search pagination");
-      }
-      return number;
-    };
-
-    const limit = pageNumber(limitRaw, 20, 50);
-    const offset = pageNumber(offsetRaw, 0, 10000);
-    if (limit === 0) {
-      throw new BadRequestException("Invalid search limit");
-    }
-
+    const query = searchQuery(q);
+    const limit = searchPageNumber(limitRaw, 20, 50, 1);
+    const offset = searchPageNumber(offsetRaw, 0, 10000);
     return this.filesService.search(req.user.userId, query, limit, offset);
   }
 
