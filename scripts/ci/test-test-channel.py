@@ -613,6 +613,33 @@ class TestChannelTests(unittest.TestCase):
             with self.assertRaisesRegex(installer.Stop, 'runtime image refs'):
                 installer.require_checkpoint_refs(self.state)
 
+    def test_backup_uses_running_test_admin_id_for_compose_identity(self):
+        active = self.state['active']
+        current = {f'RELEASE_{role.upper()}_IMAGE': active['images'][role]['ref']
+                   for role in ('backend', 'frontend')}
+        current['UPDATE_ADMIN_USER_ID'] = '1'
+        backup_id = '20261105_230000_1234abcd'
+
+        def run_backup(*args, **kwargs):
+            self.assertEqual(args[0], 'bash')
+            self.assertEqual(kwargs['env']['UPDATE_ADMIN_USER_ID'], '1')
+            return json.dumps({'event': 'backup_completed', 'backup_id': backup_id})
+
+        with patch.object(installer, 'backup_configuration', return_value={}), \
+             patch.object(installer, 'env_values', return_value=current), \
+             patch.object(installer, 'run', side_effect=run_backup), \
+             patch.object(installer, 'verify_backup') as verified:
+            self.assertEqual(installer.backup(active), backup_id)
+            verified.assert_called_once_with(backup_id, active)
+
+        current['UPDATE_ADMIN_USER_ID'] = '1\nCOMPOSE_FILE=untrusted'
+        with patch.object(installer, 'backup_configuration', return_value={}), \
+             patch.object(installer, 'env_values', return_value=current), \
+             patch.object(installer, 'run') as run:
+            with self.assertRaisesRegex(installer.Stop, 'invalid TEST update admin ID'):
+                installer.backup(active)
+            run.assert_not_called()
+
     def test_post_start_verification_rejects_wrong_image_id_or_ref(self):
         ids = {role: 'sha256:' + 'e' * 64 for role in ('backend', 'frontend')}
         refs = {role: installer.image_ref(self.manifest, role) for role in ids}
