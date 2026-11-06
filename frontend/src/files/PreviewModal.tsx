@@ -11,7 +11,7 @@ type PreviewState =
   | { status: 'ready'; preview: PreviewPayload; imageUrl?: string }
   | { status: 'error'; message: string }
 
-export function PreviewModal({ file, onClose }: { file: FileItem; onClose(): void }) {
+export function PreviewModal({ file, onClose }: { file: Pick<FileItem, 'id' | 'name'>; onClose(): void }) {
   const [state, setState] = useState<PreviewState>({ status: 'loading' })
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const dialogRef = useDialogFocus(onClose, closeButtonRef)

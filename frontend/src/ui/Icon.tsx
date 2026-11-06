@@ -1,8 +1,10 @@
 import type { ReactNode, SVGProps } from 'react'
 
-type IconName = 'lock' | 'cloud' | 'home' | 'menu' | 'trash' | 'user' | 'folder' | 'file' | 'image' | 'text' | 'more' | 'upload' | 'download' | 'plus' | 'close' | 'chevron' | 'check' | 'link' | 'copy' | 'edit' | 'move' | 'grid' | 'list'
+type IconName = 'search' | 'arrow-left' | 'lock' | 'cloud' | 'home' | 'menu' | 'trash' | 'user' | 'folder' | 'file' | 'image' | 'text' | 'more' | 'upload' | 'download' | 'plus' | 'close' | 'chevron' | 'check' | 'link' | 'copy' | 'edit' | 'move' | 'grid' | 'list'
 
 const paths: Record<IconName, ReactNode> = {
+  search: <><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></>,
+  'arrow-left': <path d="M20 12H4m7-7-7 7 7 7"/>,
   lock: <><path d="M5 10h14v11H5Z"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/></>,
   folder: <path d="M3 7V5h6l2 2h10v13H3Z"/>,
   file: <path d="M14 3H5v18h14V8ZM14 3v5h5"/>,

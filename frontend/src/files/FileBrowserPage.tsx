@@ -17,6 +17,7 @@ import { ShareDialog } from '../sharing/ShareDialog'
 import type { ShareTarget } from '../sharing/api'
 import { PreviewModal } from './PreviewModal'
 import { safeOperationError } from './operationErrors'
+import { locatedTarget, searchReturn } from './searchNavigation'
 
 interface Crumb { id: number; name: string }
 interface FolderLocationState { crumbs?: Crumb[] }
@@ -33,6 +34,9 @@ type RemovedItem = { kind: 'file' | 'folder'; id: number }
 export function FileBrowserPage({ revision = 0 }: { revision?: number }) {
   const { folderId: folderIdParam } = useParams()
   const location = useLocation()
+  const target = locatedTarget(location.state)
+  const searchBack = searchReturn(location.state)
+  const locatedKey = target ? `${target.kind}:${target.id}` : undefined
   const navigate = useNavigate()
   const [reloadKey, setReloadKey] = useState(0)
   const [page, setPage] = useState<PageState>({ status: 'loading' })
@@ -133,6 +137,7 @@ export function FileBrowserPage({ revision = 0 }: { revision?: number }) {
       {dropError ? <p className="inline-alert" role="alert">{dropError}</p> : null}
       {collecting ? <p role="status">Добавляем папки и файлы…</p> : null}
       <Breadcrumbs crumbs={crumbs} />
+      {searchBack ? <div className="located-object-note"><Link className="text-link" to={searchBack}><Icon name="arrow-left" />Вернуться к результатам поиска</Link>{readyPage && target ? <span role="status">{(target.kind === 'file' ? readyPage.contents.files : readyPage.contents.folders).some(item => item.id === target.id) ? 'Найденный объект выделен в папке.' : 'Расположение изменилось или объект больше недоступен. Повторите поиск.'}</span> : null}</div> : null}
       <div className="page-heading"><h2 id="files-heading">{title}</h2></div>
       {folderIdParam === undefined || folderId !== null ? (
         <div className="files-toolbar">
@@ -163,8 +168,9 @@ export function FileBrowserPage({ revision = 0 }: { revision?: number }) {
         <DirectoryAccessState message="У вас нет доступа к этой папке." />
       ) : null}
       {readyPage ? (
-        <>{readyPage.warning ? <div className="inline-alert" role="alert">{readyPage.warning} <button className="text-link" onClick={() => setReloadKey((key) => key + 1)} type="button">Повторить</button></div> : null}<DirectoryTable key={`directory-${folderId}`} contents={readyPage.contents} currentFolderId={readyPage.folderId} onChanged={refresh} onOpenFolder={openFolder} /></>
+        <>{readyPage.warning ? <div className="inline-alert" role="alert">{readyPage.warning} <button className="text-link" onClick={() => setReloadKey((key) => key + 1)} type="button">Повторить</button></div> : null}<DirectoryTable key={`directory-${folderId}`} contents={readyPage.contents} currentFolderId={readyPage.folderId} onChanged={refresh} onOpenFolder={openFolder} locatedKey={locatedKey} /></>
       ) : null}
+      {!providedQueue ? <UploadManager queue={queue} /> : null}
     </section>
   )
 }
@@ -237,7 +243,7 @@ function Breadcrumbs({ crumbs }: { crumbs: Crumb[] }) {
 
 type ItemAction = { kind: 'file' | 'folder'; item: FileItem | FolderItem; action: 'rename' | 'move' | 'copy' | 'trash' }
 
-function DirectoryTable({ contents, currentFolderId, onChanged, onOpenFolder }: { contents: FolderContents; currentFolderId: number | null; onChanged(remove?: RemovedItem): void; onOpenFolder(folder: FolderItem): void }) {
+function DirectoryTable({ contents, currentFolderId, onChanged, onOpenFolder, locatedKey }: { contents: FolderContents; currentFolderId: number | null; onChanged(remove?: RemovedItem): void; onOpenFolder(folder: FolderItem): void; locatedKey?: string }) {
   const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null)
   const [action, setAction] = useState<ItemAction | null>(null)
   const [pending, setPending] = useState(false)
@@ -252,6 +258,16 @@ function DirectoryTable({ contents, currentFolderId, onChanged, onOpenFolder }: 
   const [archiveHandedOff, setArchiveHandedOff] = useState(false)
   const [fileHandedOff, setFileHandedOff] = useState(false)
   const archivePendingRef = useRef(false)
+  useEffect(() => {
+    if (!locatedKey) return
+    const exists = [...contents.files.map(item => `file:${item.id}`), ...contents.folders.map(item => `folder:${item.id}`)].includes(locatedKey)
+    if (!exists) return
+    setQuery('')
+    setSelection(new Set([locatedKey]))
+    const row = document.querySelector<HTMLElement>(`[data-object-key="${locatedKey}"]`)
+    row?.scrollIntoView?.({ block: 'center' })
+    row?.querySelector<HTMLButtonElement>('.file-name')?.focus({ preventScroll: true })
+  }, [locatedKey, contents])
   useEffect(() => {
     const valid = new Set([...contents.folders.map((item) => `folder:${item.id}`), ...contents.files.map((item) => `file:${item.id}`)])
     setSelection((previous) => new Set([...previous].filter((key) => valid.has(key))))
@@ -357,7 +373,7 @@ function DirectoryTable({ contents, currentFolderId, onChanged, onOpenFolder }: 
           <caption className="sr-only">Файлы и папки в текущем расположении</caption>
           <thead className="directory-header"><tr><th scope="col">Название</th><th scope="col">Тип</th><th scope="col">Размер</th><th scope="col">Изменено</th><th scope="col"><span className="sr-only">Действия</span></th></tr></thead>
           <tbody>
-            {folders.map((folder) => <tr className={`directory-row${selection.has(`folder:${folder.id}`) ? ' is-selected' : ''}`} key={`folder-${folder.id}`} onContextMenu={(event) => contextMenu(event, `folder:${folder.id}`)} onClick={(event) => { if (!(event.target as HTMLElement).closest('.file-actions, input, label')) select(`folder:${folder.id}`, event) }}>
+            {folders.map((folder) => <tr data-object-key={`folder:${folder.id}`} className={`directory-row${selection.has(`folder:${folder.id}`) ? ' is-selected' : ''}${locatedKey === `folder:${folder.id}` ? ' is-located' : ''}`} key={`folder-${folder.id}`} onContextMenu={(event) => contextMenu(event, `folder:${folder.id}`)} onClick={(event) => { if (!(event.target as HTMLElement).closest('.file-actions, input, label')) select(`folder:${folder.id}`, event) }}>
               <td className="file-name-cell"><label className="selection-hit"><input aria-label={`Выбрать ${folder.name}`} type="checkbox" checked={selection.has(`folder:${folder.id}`)} onChange={() => {}} onClick={(event) => select(`folder:${folder.id}`, event, true)} /></label><span className="file-icon file-icon-folder"><Icon name="folder" /></span><button className="file-name" onDoubleClick={() => onOpenFolder(folder)} onKeyDown={(event) => { if (event.key === "Enter") onOpenFolder(folder) }} type="button">{folder.name}</button></td>
               <td className="file-meta"><span className="mobile-label">Тип: </span>Папка</td><td className="file-meta"><span className="mobile-label">Размер: </span>—</td><td className="file-meta"><span className="mobile-label">Изменено: </span>{formatDate(folder.updatedAt)}</td>
               <td className="file-actions"><ActionMenu label={`Действия: ${folder.name}`} disabled={pending} items={[
@@ -396,7 +412,7 @@ function FileRow({ disabled, file, onAction, onDownloadStarted, onDownloadHanded
     finally { downloadPending.current = false }
   }
   const fileType = file.mimeType?.startsWith('image/') ? 'image' : file.mimeType?.startsWith('text/') ? 'text' : 'file'
-  return <tr className={`directory-row${selected ? ' is-selected' : ''}`} onContextMenu={onContextMenu} onClick={(event) => { if (!(event.target as HTMLElement).closest('.file-actions, input, label')) onSelect(event) }}>
+  return <tr data-object-key={`file:${file.id}`} className={`directory-row${selected ? ' is-selected' : ''}`} onContextMenu={onContextMenu} onClick={(event) => { if (!(event.target as HTMLElement).closest('.file-actions, input, label')) onSelect(event) }}>
     <td className="file-name-cell"><label className="selection-hit"><input aria-label={`Выбрать ${file.name}`} type="checkbox" checked={selected} onChange={() => {}} onClick={(event) => onSelect(event, true)} /></label><span className={`file-icon file-icon-${fileType}`}><Icon name={fileType} /></span><button className="file-name" onDoubleClick={(event) => { event.currentTarget.focus(); setShowPreview(true) }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); setShowPreview(true) } }} title={file.name} type="button">{file.name}</button></td>
     <td className="file-meta"><span className="mobile-label">Тип: </span>{fileType === 'image' ? 'Изображение' : fileType === 'text' ? 'Текстовый документ' : file.mimeType === 'application/pdf' ? 'Документ PDF' : 'Файл'}</td>
     <td className="file-meta"><span className="mobile-label">Размер: </span>{formatBytes(file.size)}</td>
@@ -503,12 +519,11 @@ export function UploadQueueProvider({ ownerId, children }: { ownerId: number; ch
     void queue.discover().catch(() => setDiscoveryError(true))
     return () => queue.dispose()
   }, [queue])
-  return <UploadQueueContext.Provider value={queue}>{discoveryError ? <p className="inline-alert" role="alert">Не удалось проверить незавершённые загрузки. <button className="text-link" onClick={() => { void queue.discover().then(() => setDiscoveryError(false)).catch(() => setDiscoveryError(true)) }} type="button">Проверить снова</button></p> : null}{children}</UploadQueueContext.Provider>
+  return <UploadQueueContext.Provider value={queue}>{discoveryError ? <p className="inline-alert" role="alert">Не удалось проверить незавершённые загрузки. <button className="text-link" onClick={() => { void queue.discover().then(() => setDiscoveryError(false)).catch(() => setDiscoveryError(true)) }} type="button">Проверить снова</button></p> : null}{children}<UploadManager queue={queue} /></UploadQueueContext.Provider>
 }
 
 function UploadControl({ enabled, parentId, onUploaded, queue }: { enabled: boolean; parentId?: number; onUploaded(): void; queue: UploadQueue }) {
   const items = useSyncExternalStore(queue.subscribe, queue.getSnapshot)
-  const [collapsed, setCollapsed] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [createBusy, setCreateBusy] = useState(false)
   useEffect(() => setCreateOpen(false), [parentId])
@@ -527,7 +542,7 @@ function UploadControl({ enabled, parentId, onUploaded, queue }: { enabled: bool
   }, [items, onUploaded])
   async function add(entries: Parameters<typeof enqueueTree>[0], target = parentId) {
     if (busy.current || !enabled) return
-    busy.current = true; setCollecting(true); setTreeError(null); setCollapsed(false)
+    busy.current = true; setCollecting(true); setTreeError(null)
     try { await enqueueTree(entries, queue, target, () => alive.current, onUploaded) }
     catch (cause) { if (alive.current) setTreeError(cause instanceof Error && !(cause instanceof ApiError) ? cause.message : 'Не удалось добавить папку. Уже добавленные объекты сохранены. Проверьте результат перед повтором.') }
     finally { busy.current = false; if (alive.current) setCollecting(false) }
@@ -543,8 +558,6 @@ function UploadControl({ enabled, parentId, onUploaded, queue }: { enabled: bool
       if ((cause as { name?: string }).name !== 'AbortError') setTreeError('Не удалось прочитать папку. Повторите выбор или перетащите её в окно.')
     }
   }
-  const problems = items.filter((item) => item.state === 'error' || item.needsFile).length
-  const allCompleted = items.length > 0 && items.every((item) => item.state === 'completed')
   return <section aria-label="Добавление и загрузки" className="upload-control">
     <ActionMenu label="Добавить" triggerLabel="Добавить" disabled={!enabled || collecting} items={[
       { label: 'Загрузить файлы', icon: 'upload', onSelect: () => inputRef.current?.click() },
@@ -559,13 +572,23 @@ function UploadControl({ enabled, parentId, onUploaded, queue }: { enabled: bool
     <p className="upload-details muted">Перетащите файлы или папки сюда — загрузка начнётся сразу.</p><details className="upload-details muted folder-picker-note"><summary>О загрузке папок</summary><p>Выбор папки через список файлов может пропустить пустые каталоги. Перетащите папку или создайте их вручную. Пустые файлы пока не поддерживаются.</p></details>
     {collecting ? <p role="status">Добавляем папки и файлы…</p> : null}
     {treeError ? <p className="inline-alert" role="alert">{treeError}</p> : null}
+
+  </section>
+}
+
+function UploadManager({ queue }: { queue: UploadQueue }) {
+  const items = useSyncExternalStore(queue.subscribe, queue.getSnapshot)
+  const [collapsed, setCollapsed] = useState(false)
+  const problems = items.filter((item) => item.state === 'error' || item.needsFile).length
+  const allCompleted = items.length > 0 && items.every((item) => item.state === 'completed')
+  return <>
     {items.length ? <div className="upload-manager" aria-label="Загрузки">
       <div className="upload-manager-header"><button className="button button--ghost upload-summary" aria-expanded={!collapsed} aria-controls="upload-list" onClick={() => setCollapsed((value) => !value)} type="button"><Icon name="upload" />Загрузки · {items.filter((item) => item.state === 'completed').length}/{items.length}{problems ? ` · Требуют внимания: ${problems}` : ''}<span>{collapsed ? 'Развернуть' : 'Свернуть'}</span></button>{allCompleted ? <button className="button button--ghost upload-dismiss" onClick={() => queue.dismissCompleted()} type="button">Закрыть</button> : null}</div>
       <div id="upload-list" hidden={collapsed}>
       <ul className="upload-queue">{items.map((item) => <UploadRow key={item.id} item={item} queue={queue} />)}</ul>
       </div>
     </div> : null}
-  </section>
+  </>
 }
 
 const uploadStateLabels: Record<UploadQueueItem['state'], string> = {
