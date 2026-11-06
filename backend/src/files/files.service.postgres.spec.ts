@@ -334,6 +334,32 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
       }));
     }, 30000);
 
+    it("сбрасывает statement_timeout после отмены транзакции", async () => {
+      const runner = dataSource.createQueryRunner();
+      await runner.connect();
+
+      try {
+        const before = await runner.query("SHOW statement_timeout");
+        await runner.startTransaction();
+
+        try {
+          await runner.query("SET LOCAL statement_timeout = '25ms'");
+          await expect(
+            runner.query("SELECT pg_sleep(0.1)")
+          ).rejects.toMatchObject({
+            driverError: { code: "57014" },
+          });
+        } finally {
+          await runner.rollbackTransaction();
+        }
+
+        expect(await runner.query("SHOW statement_timeout")).toEqual(before);
+      } finally {
+        if (runner.isTransactionActive) await runner.rollbackTransaction();
+        await runner.release();
+      }
+    });
+
     it("соблюдает limit, offset и стабильную сортировку", async () => {
       const owner = await createUser();
       const files = dataSource.getRepository(FileEntity);
