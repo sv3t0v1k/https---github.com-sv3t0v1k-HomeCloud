@@ -168,6 +168,86 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
       ]);
     });
 
+    it("измеряет поиск по широкому и глубокому дереву", async () => {
+      const owner = await createUser();
+      const folders = dataSource.getRepository(FolderEntity);
+      const repository = dataSource.getRepository(FileEntity);
+
+      const root = await folders.save({
+        name: "perf-root",
+        userId: owner.id,
+      });
+      await createMirror(owner.id, root.id, root.name);
+
+      await dataSource.query(
+        `INSERT INTO folders ("name", "userId", "parentId")
+         SELECT 'perf-item-' || n, $1, $2
+         FROM generate_series(1, 3000) AS g(n)`,
+        [owner.id, root.id],
+      );
+
+      await dataSource.query(
+        `INSERT INTO files ("name", "userId", "isFolder",
+                            "folderId", "size")
+         SELECT name, $1, true, id, 0
+         FROM folders
+         WHERE "userId" = $1 AND "parentId" = $2`,
+        [owner.id, root.id],
+      );
+
+      // Воспроизводим индекс из production-миграции.
+      await dataSource.query(
+        `CREATE UNIQUE INDEX IF NOT EXISTS "uq_files_folderId"
+         ON "files"("folderId")
+         WHERE "folderId" IS NOT NULL`,
+      );
+
+      // Отдельная цепочка глубиной 80 уровней.
+      let deepParentId = root.id;
+      for (let depth = 1; depth <= 80; depth++) {
+        const nested = await folders.save({
+          name: `perf-depth-${depth}`,
+          userId: owner.id,
+          parentId: deepParentId,
+        });
+        await createMirror(owner.id, nested.id, nested.name);
+        deepParentId = nested.id;
+      }
+
+      const spy = jest.spyOn(repository, "query");
+      let result: Awaited<ReturnType<FilesService["search"]>>;
+      let captured: [string, unknown[]] | undefined;
+
+      try {
+        result = await service.search(owner.id, "perf-item", 50, 0);
+        captured = spy.mock.calls.find(([sql]) =>
+          sql.includes("WITH RECURSIVE visible_folders")
+        ) as [string, unknown[]] | undefined;
+      } finally {
+        spy.mockRestore();
+      }
+
+      expect(result.folders).toHaveLength(50);
+      expect(result.files).toHaveLength(0);
+      expect(result.hasMore).toBe(true);
+
+      if (!captured) throw new Error("Search SQL not captured");
+
+      const plans = await dataSource.query(
+        `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${captured[0]}`,
+        captured[1],
+      );
+
+      const plan = plans[0]["QUERY PLAN"][0];
+      console.info("GS-1A PostgreSQL performance:", JSON.stringify({
+        folders: 3000,
+        planningMs: plan["Planning Time"],
+        executionMs: plan["Execution Time"],
+        totalCost: plan.Plan["Total Cost"],
+        sharedHitBlocks: plan.Plan["Shared Hit Blocks"],
+      }));
+    }, 30000);
+
     it("соблюдает limit, offset и стабильную сортировку", async () => {
       const owner = await createUser();
       const files = dataSource.getRepository(FileEntity);
