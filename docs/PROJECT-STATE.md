@@ -1,5 +1,7 @@
 # HomeCloud — текущее состояние проекта
 
+**TEST Channel v1 — Operational E2E PASS на VM 120 (2026-11-06):** защищённый `test` и установленная TEST-версия — `76474223ebd7a2fc0dab418a2778dcdd42ab18bc`. Ручная установка из UI, backup/restore и version rollback подтверждены в тестовом контуре; 4/4 healthy, 30 миграций, HTTPS, авторизация и файлы проверены. [Checkpoint](./evidence/test-channel-v1-operational-20261106.md). **Production RELEASE — NO_GO.** Периодическое обнаружение ещё не введено: timer выключен, временный токен удалён, `AUTO_UPDATE=false`.
+
 **Текущий локальный baseline — 2026-10-06:** `167498dd60bb298168a8b8b8a5a7a6154e2137ee` подтвердил полный 50 ГиБ UI upload/native download в IAB, три SHA-256, восстановление и очистку; [отчёт](./evidence/browser-50gib-qualification-20261006/report.md). Финальная нумерованная предпроизводственная версия — `v0.9.0-local.1`; [контракт](./local-release-baseline.md). Production **NOT_READY / NO_GO**, Safari 50 ГиБ **UNQUALIFIED**.
 
 Ниже исторические Phase/checkpoints отражают результат на дату их выполнения. Старые числа тестов, ограничения 50 ГиБ/O(N²), незавершённые механизмы TLS/secrets/backup и прежние temporary runtime paths не описывают текущий baseline; текущие контракты задают README, ROADMAP, runbook и профильные документы.
