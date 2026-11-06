@@ -168,6 +168,63 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
       ]);
     });
 
+    it("сохраняет границы доступа для legacy-папки без зеркала", async () => {
+      const owner = await createUser();
+      const other = await createUser();
+      const folders = dataSource.getRepository(FolderEntity);
+      const files = dataSource.getRepository(FileEntity);
+
+      const legacy = await folders.save({
+        name: "match-legacy",
+        userId: owner.id,
+      });
+      const normal = await folders.save({
+        name: "match-normal",
+        userId: owner.id,
+      });
+      await createMirror(owner.id, normal.id, normal.name);
+
+      const deleted = await folders.save({
+        name: "match-deleted",
+        userId: owner.id,
+        parentId: legacy.id,
+        isDeleted: true,
+      });
+
+      async function addFile(userId: number, parentId: number, name: string) {
+        const key = randomUUID();
+        return files.save(files.create({
+          name, userId, parentId,
+          storagePath: `/storage/${key}`,
+          storageLocationId: LEGACY_STORAGE_LOCATION.id,
+          relativeObjectKey: key,
+          size: 1,
+          mimeType: "text/plain",
+          isFolder: false,
+        }));
+      }
+
+      await addFile(owner.id, legacy.id, "match-owned.txt");
+      await addFile(other.id, legacy.id, "match-foreign.txt");
+      await addFile(owner.id, deleted.id, "match-hidden.txt");
+      await addFile(owner.id, normal.id, "match-normal.txt");
+
+      const result = await service.search(owner.id, "match", 50, 0);
+
+      expect(result.folders.map(item => item.name)).toEqual(["match-normal"]);
+      expect(result.files.map(item => item.name)).toEqual([
+        "match-normal.txt",
+        "match-owned.txt",
+      ]);
+
+      const foreign = await service.search(other.id, "match", 50, 0);
+      expect(foreign.files).toEqual([]);
+      expect(foreign.folders).toEqual([]);
+
+      await expect(service.findFolder(owner.id, legacy.id))
+        .rejects.toThrow("Folder mirror not found");
+    });
+
     it("измеряет поиск по широкому и глубокому дереву", async () => {
       const owner = await createUser();
       const folders = dataSource.getRepository(FolderEntity);
