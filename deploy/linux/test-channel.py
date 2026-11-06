@@ -584,6 +584,14 @@ def backup(active):
     require(current.get('RELEASE_BACKEND_IMAGE') == environment['RELEASE_BACKEND_IMAGE']
             and current.get('RELEASE_FRONTEND_IMAGE') == environment['RELEASE_FRONTEND_IMAGE'],
             'runtime image refs differ from checkpoint')
+    # The TEST admin ID is part of backend Compose config. Keep the backup
+    # helper's config hash identical to the running, pinned backend container.
+    if 'UPDATE_ADMIN_USER_ID' in current:
+        admin_id = current['UPDATE_ADMIN_USER_ID']
+        require(isinstance(admin_id, str) and
+                re.fullmatch(r'(?:[1-9][0-9]{0,18})?', admin_id) is not None,
+                'invalid TEST update admin ID')
+        environment['UPDATE_ADMIN_USER_ID'] = admin_id
     output = run('bash', str(ROOT / 'scripts/backup.sh'), '--yes', env=environment, timeout=3600)
     completed = []
     for line in output.splitlines():
