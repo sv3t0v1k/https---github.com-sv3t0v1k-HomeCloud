@@ -23,7 +23,7 @@ export function LoginPage() {
   }
 
   if (session.status === 'authenticated') {
-    return <Navigate to="/files" replace />
+    return <Navigate to={readReturnPath(location.state)} replace />
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {

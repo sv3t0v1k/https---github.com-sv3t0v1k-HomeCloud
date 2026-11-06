@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom'
+import { Routes, Route, Navigate, Link, Outlet, useLocation, useNavigate, useOutletContext } from 'react-router-dom'
 
 import { safeOperationError } from './files/operationErrors'
 import { useDialogFocus } from './accessibility/useDialogFocus'
@@ -11,6 +11,9 @@ import { ProtectedRoute } from './routing/ProtectedRoute'
 import { Icon } from './ui/Icon'
 import { AccountDialog } from './account/AccountDialog'
 import { PublicSharePage } from './sharing/PublicSharePage'
+import { GlobalSearchPage } from './files/GlobalSearchPage'
+import { SearchSessionProvider } from './files/useGlobalSearch'
+import { searchOrigin } from './files/searchNavigation'
 
 function App() {
   return (
@@ -19,9 +22,12 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/share/:token" element={<PublicSharePage />} />
         <Route element={<ProtectedRoute />}>
-          <Route path="/files" element={<FileBrowserLayout />} />
-          <Route path="/files/folders/:folderId" element={<FileBrowserLayout />} />
-          <Route path="/files/trash" element={<FileBrowserLayout trash />} />
+          <Route path="/files" element={<FileBrowserLayout />}>
+            <Route index element={<DirectoryRoute />} />
+            <Route path="folders/:folderId" element={<DirectoryRoute />} />
+            <Route path="trash" element={<DirectoryRoute />} />
+            <Route path="search" element={<GlobalSearchPage />} />
+          </Route>
         </Route>
         <Route path="/" element={<Navigate to="/files" replace />} />
         <Route path="*" element={<div className="empty-state"><h2>Страница не найдена</h2><Link to="/files">К моим файлам</Link></div>} />
@@ -30,27 +36,34 @@ function App() {
   )
 }
 
-function FileBrowserLayout({ trash = false }: { trash?: boolean }) {
+function DirectoryRoute() {
+  const { revision } = useOutletContext<{ revision: number }>()
+  return <FileBrowserPage revision={revision} />
+}
+
+function FileBrowserLayout() {
   const session = useSession()
   const navigate = useNavigate()
+  const location = useLocation()
+  const trash = location.pathname === '/files/trash'
   const [accountOpen, setAccountOpen] = useState(false)
   const [trashOpen, setTrashOpen] = useState(trash)
   const [revision, setRevision] = useState(0)
   const backgroundRef = useRef<HTMLDivElement>(null)
   useEffect(() => { if (trash) setTrashOpen(true) }, [trash])
   function closeTrash() { setTrashOpen(false); setRevision((value) => value + 1); if (trash) navigate('/files', { replace: true }) }
-  return <UploadQueueProvider key={session.user?.id ?? 0} ownerId={session.user?.id ?? 0}>
+  return <SearchSessionProvider key={session.user?.id ?? 0} ownerId={session.user?.id ?? 0}><UploadQueueProvider ownerId={session.user?.id ?? 0}>
     <div className="app-shell ux-v2">
       <div className="app-frame" ref={backgroundRef}>
         <a className="skip-link" href="#workspace">Перейти к содержимому</a>
         <Navbar onOpenAccount={() => setAccountOpen(true)} />
-        <main className="workspace" id="workspace" tabIndex={-1}><FileBrowserPage revision={revision} /></main>
+        <main className="workspace" id="workspace" tabIndex={-1}><Outlet context={{ revision }} /></main>
         <button aria-label="Открыть корзину" className="trash-launcher" onClick={(event) => { event.currentTarget.focus(); setTrashOpen(true) }} type="button"><Icon name="trash" height={25} width={25} /><span aria-hidden="true" className="trash-launcher-tooltip">Корзина</span></button>
       </div>
       {trashOpen ? <TrashDialog background={backgroundRef.current} onClose={closeTrash} /> : null}
       {accountOpen ? <AccountDialog onClose={() => setAccountOpen(false)} /> : null}
     </div>
-  </UploadQueueProvider>
+  </UploadQueueProvider></SearchSessionProvider>
 }
 
 function TrashDialog({ background, onClose }: { background: HTMLElement | null; onClose(): void }) {
@@ -71,8 +84,31 @@ function TrashDialog({ background, onClose }: { background: HTMLElement | null; 
 
 function Navbar({ onOpenAccount }: { onOpenAccount(): void }) {
   const session = useSession()
+  const navigate = useNavigate()
+  const location = useLocation()
   const [loggingOut, setLoggingOut] = useState(false)
   const [logoutError, setLogoutError] = useState<string | null>(null)
+
+  function openSearch() {
+    if (location.pathname === '/files/search') {
+      document.getElementById('global-search-query')?.focus()
+    } else {
+      navigate('/files/search', { state: { returnTo: searchOrigin(location.pathname, location.state), focusSearch: true } })
+    }
+  }
+  useEffect(() => {
+    const shortcut = (event: KeyboardEvent) => {
+      const target = event.target
+      if (event.defaultPrevented || event.altKey || !(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'k' ||
+        (target instanceof HTMLElement && (target.closest('input, textarea, select, [contenteditable="true"]') || target.closest('[role="dialog"]'))) ||
+        document.querySelector('[aria-modal="true"]')) return
+      event.preventDefault()
+      if (location.pathname === '/files/search') document.getElementById('global-search-query')?.focus()
+      else navigate('/files/search', { state: { returnTo: searchOrigin(location.pathname, location.state), focusSearch: true } })
+    }
+    window.addEventListener('keydown', shortcut)
+    return () => window.removeEventListener('keydown', shortcut)
+  }, [location.pathname, location.state, navigate])
 
   async function handleLogout() {
     if (loggingOut) return
@@ -92,6 +128,7 @@ function Navbar({ onOpenAccount }: { onOpenAccount(): void }) {
   return (
     <header className="topbar">
       <Link className="brand" to="/files"><span className="brand-mark"><Icon name="cloud" /></span><span>HomeCloud</span></Link>
+      <button className="global-search-launcher button button--ghost" aria-label="Поиск во всех файлах" aria-keyshortcuts="Control+k Meta+k" onClick={openSearch} type="button"><Icon name="search" /><span>Поиск во всех файлах</span><kbd>⌘ / Ctrl K</kbd></button>
       <div className="account-area">
         {session.status === 'authenticated' ? <button aria-label={`Открыть аккаунт: ${session.user.name}`} className="button button--ghost" onClick={(event) => { event.currentTarget.focus(); onOpenAccount() }} type="button"><Icon name="user" /><span>{session.user.name}</span></button> : null}
         {logoutError ? <span className="inline-alert" role="alert">{logoutError}</span> : null}
