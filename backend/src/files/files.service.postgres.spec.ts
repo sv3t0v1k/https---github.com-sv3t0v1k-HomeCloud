@@ -233,19 +233,70 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
 
       if (!captured) throw new Error("Search SQL not captured");
 
-      const plans = await dataSource.query(
-        `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${captured[0]}`,
-        captured[1],
+      const explain = async () => {
+        const rows = await dataSource.query(
+          `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${captured[0]}`,
+          captured[1],
+        );
+        return rows[0]["QUERY PLAN"][0];
+      };
+
+      const before = await explain();
+
+      await dataSource.query("ANALYZE folders");
+      await dataSource.query("ANALYZE files");
+
+      const after = await explain();
+
+      type PlanNode = {
+        "Node Type": string;
+        "Relation Name"?: string;
+        "CTE Name"?: string;
+        "Index Name"?: string;
+        "Actual Total Time": number;
+        "Actual Rows": number;
+        "Actual Loops": number;
+        "Rows Removed by Filter"?: number;
+        "Rows Removed by Join Filter"?: number;
+        "Shared Hit Blocks"?: number;
+        Plans?: PlanNode[];
+      };
+
+      const describe = (node: PlanNode, depth = 0): string[] => {
+        const line = [
+          " ".repeat(depth * 2) + node["Node Type"],
+          node["Relation Name"] ?? node["CTE Name"] ?? "",
+          "index=" + (node["Index Name"] ?? "-"),
+          "ms=" + node["Actual Total Time"],
+          "loops=" + node["Actual Loops"],
+          "rows=" + node["Actual Rows"],
+          "hits=" + (node["Shared Hit Blocks"] ?? 0),
+          "filtered=" + (node["Rows Removed by Filter"] ?? 0),
+          "joinFiltered=" + (node["Rows Removed by Join Filter"] ?? 0),
+        ].join(" ");
+
+        return [
+          line,
+          ...(node.Plans ?? []).flatMap(child => describe(child, depth + 1)),
+        ];
+      };
+
+      console.info("GS-1A comparison:", JSON.stringify({
+        beforeMs: before["Execution Time"],
+        afterMs: after["Execution Time"],
+        beforePlanningMs: before["Planning Time"],
+        afterPlanningMs: after["Planning Time"],
+      }));
+
+      console.info(
+        "GS-1A plan BEFORE ANALYZE:\n" +
+        describe(before.Plan).join("\n"),
       );
 
-      const plan = plans[0]["QUERY PLAN"][0];
-      console.info("GS-1A PostgreSQL performance:", JSON.stringify({
-        folders: 3000,
-        planningMs: plan["Planning Time"],
-        executionMs: plan["Execution Time"],
-        totalCost: plan.Plan["Total Cost"],
-        sharedHitBlocks: plan.Plan["Shared Hit Blocks"],
-      }));
+      console.info(
+        "GS-1A plan AFTER ANALYZE:\n" +
+        describe(after.Plan).join("\n"),
+      );
     }, 30000);
 
     it("соблюдает limit, offset и стабильную сортировку", async () => {
