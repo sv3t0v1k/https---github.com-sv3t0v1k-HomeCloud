@@ -7,6 +7,7 @@ import { NextFunction, Request, Response } from "express";
 import { clientIp } from "./trusted-proxy";
 import * as crypto from "crypto";
 import { JwtService } from "@nestjs/jwt";
+import { bearerTokenFromHeader } from "../auth/guards/bearer-token";
 import { browserDownloadErrorLocation } from "../sharing/browser-download-redirect";
 import {
   UploadRateLimitService,
@@ -63,6 +64,29 @@ export function getGlobalRateLimitOptions() {
     max: 100,
     message: { statusCode: 429, message: "Too many requests" },
     handler: publicDownloadRateLimitHandler,
+  };
+}
+
+
+export function getSearchRateLimitOptions(jwtService?: JwtService) {
+  return {
+    windowMs: 60 * 1000,
+    max: 12,
+    message: { statusCode: 429, message: "Too many search requests" },
+    keyGenerator: (req: Request): string => {
+      const token = bearerTokenFromHeader(req.headers.authorization);
+      if (jwtService && token) {
+        try {
+          const payload = jwtService.verify(token);
+          if (Number.isSafeInteger(payload?.sub) && payload.sub > 0) {
+            return `user:${payload.sub}`;
+          }
+        } catch {
+          // Недействительные JWT учитываются по IP; JwtGuard отклонит их.
+        }
+      }
+      return `ip:${clientIp(req)}`;
+    },
   };
 }
 
@@ -228,14 +252,10 @@ export function applySecurityMiddleware(
         res.status(429).json({ statusCode: 429, message: error.message });
         return;
       }
-      const auth = req.headers.authorization;
-      if (
-        typeof auth === "string" &&
-        auth.length <= 4096 &&
-        /^Bearer [^ ]+$/.test(auth)
-      ) {
+      const token = bearerTokenFromHeader(req.headers.authorization);
+      if (token) {
         try {
-          const payload = transfer.jwtService.verify(auth.slice(7));
+          const payload = transfer.jwtService.verify(token);
           if (Number.isSafeInteger(payload.sub) && payload.sub > 0)
             markVerifiedTransfer(req, payload.sub);
         } catch {
@@ -249,6 +269,19 @@ export function applySecurityMiddleware(
     "/api/v1",
     rateLimit({ ...getGlobalRateLimitOptions(), skip: hasVerifiedTransfer }),
   );
+
+  // Один MemoryStore и один бюджет для нового и совместимого поиска.
+  const searchLimiter = rateLimit(getSearchRateLimitOptions(transfer?.jwtService));
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const pathname = req.path;
+    const legacy = /^\/api\/v1\/files\/?$/i.test(pathname) &&
+      Object.prototype.hasOwnProperty.call(req.query, "search");
+    if ((req.method === "GET" || req.method === "HEAD") &&
+        (/^\/api\/v1\/files\/search\/?$/i.test(pathname) || legacy)) {
+      return searchLimiter(req, res, next);
+    }
+    next();
+  });
 
   app.use("/api/v1/auth", rateLimit(getAuthRateLimitOptions()));
 

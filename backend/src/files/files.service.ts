@@ -4,6 +4,7 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  ServiceUnavailableException,
   Logger,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
@@ -13,6 +14,7 @@ import { FolderEntity } from "../entities/folder.entity";
 import { StorageService } from "../storage/storage.service";
 import { UsersService } from "../users/users.service";
 import { allocateNamespaceName } from "./namespace-name";
+import { searchQuery } from "./search-input";
 
 @Injectable()
 export class FilesService {
@@ -68,7 +70,13 @@ export class FilesService {
     parentId?: number,
     search?: string,
     includeDeleted = false,
+    limit = 20,
+    offset = 0,
   ) {
+    if (search !== undefined) {
+      const result = await this.searchPage(userId, searchQuery(search, 1), limit, offset, { parentId: parentId ?? null });
+      return result.files.map((file) => ({ ...file, isFolder: false, isDeleted: false }));
+    }
     let query = this.fileRepository
       .createQueryBuilder("file")
       .where("file.userId = :userId", { userId })
@@ -84,12 +92,6 @@ export class FilesService {
       query = query.andWhere("file.parentId = :parentId", { parentId });
     } else {
       query = query.andWhere("file.parentId IS NULL");
-    }
-
-    if (search) {
-      query = query.andWhere("file.name ILIKE :search", {
-        search: `%${search}%`,
-      });
     }
 
     query.orderBy("file.isFolder", "DESC").addOrderBy("file.name", "ASC");
@@ -950,25 +952,109 @@ export class FilesService {
     return this.changeFilePlacement(userId, id, undefined, targetParentId ?? null, false);
   }
 
-  async search(userId: number, query: string) {
-    const files = await this.fileRepository
-      .createQueryBuilder("file")
-      .where("file.userId = :userId", { userId })
-      .andWhere("file.isDeleted = :isDeleted", { isDeleted: false })
-      .andWhere("file.name ILIKE :query", { query: `%${query}%` })
-      .orderBy("file.isFolder", "DESC")
-      .addOrderBy("file.name", "ASC")
-      .getMany();
+  async search(userId: number, query: string, limit = 20, offset = 0) {
+    return this.searchPage(userId, searchQuery(query), limit, offset);
+  }
 
-    const folders = await this.folderRepository
-      .createQueryBuilder("folder")
-      .where("folder.userId = :userId", { userId })
-      .andWhere("folder.isDeleted = :isDeleted", { isDeleted: false })
-      .andWhere("folder.name ILIKE :query", { query: `%${query}%` })
-      .orderBy("folder.name", "ASC")
-      .getMany();
-
-    return { files, folders };
+  private async searchPage(
+    userId: number, query: string, limit: number, offset: number,
+    scope?: { parentId: number | null },
+  ) {
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50 ||
+        !Number.isSafeInteger(offset) || offset < 0 || offset > 10000) {
+      throw new BadRequestException("Invalid search pagination");
+    }
+    const pattern = `%${query.replace(/[!%_]/g, (char) => `!${char}`)}%`;
+    type SearchRow = {
+      kind: "file" | "folder";
+      id: number;
+      name: string;
+      parentId: number | null;
+      size: string | null;
+      mimeType: string | null;
+      isStarred: boolean | null;
+      shareFileId: number | null;
+      createdAt: Date;
+      updatedAt: Date;
+    };
+    let rows: SearchRow[];
+    try {
+      rows = await this.fileRepository.manager.transaction(async (manager) => {
+        await manager.query("SET LOCAL statement_timeout = '2000ms'");
+        return manager.query(
+          `WITH RECURSIVE visible_folders AS (
+         SELECT root.id FROM folders root
+         WHERE root."userId" = $1 AND NOT root."isDeleted"
+           AND root."parentId" IS NULL
+           AND EXISTS (
+             SELECT 1 FROM files mirror
+             WHERE mirror."folderId" = root.id
+               AND mirror."userId" = $1
+               AND mirror."isFolder" AND NOT mirror."isDeleted"
+           )
+         UNION ALL
+         SELECT child.id FROM folders child
+         JOIN visible_folders parent ON child."parentId" = parent.id
+         WHERE child."userId" = $1 AND NOT child."isDeleted"
+           AND EXISTS (
+             SELECT 1 FROM files mirror
+             WHERE mirror."folderId" = child.id
+               AND mirror."userId" = $1
+               AND mirror."isFolder" AND NOT mirror."isDeleted"
+           )
+       ), matches AS (
+         SELECT 'folder' AS kind, folder.id, folder.name,
+                folder."parentId", NULL::bigint AS size,
+                NULL::varchar AS "mimeType", mirror.id AS "shareFileId",
+                NULL::boolean AS "isStarred",
+                folder."createdAt", folder."updatedAt"
+         FROM folders folder
+         JOIN visible_folders visible ON visible.id = folder.id
+         JOIN LATERAL (
+           SELECT id FROM files
+           WHERE "folderId" = folder.id AND "userId" = $1
+             AND "isFolder" AND NOT "isDeleted"
+           ORDER BY id LIMIT 1
+         ) mirror ON true
+         WHERE folder.name ILIKE $2 ESCAPE '!'
+         UNION ALL
+         SELECT 'file' AS kind, file.id, file.name,
+                file."parentId", file.size, file."mimeType",
+                NULL::integer AS "shareFileId", file."isStarred", file."createdAt", file."updatedAt"
+         FROM files file
+         WHERE file."userId" = $1 AND NOT file."isDeleted" AND NOT file."isFolder"
+           AND (file."parentId" IS NULL OR file."parentId" IN (SELECT id FROM visible_folders))
+           AND file.name ILIKE $2 ESCAPE '!'
+       )
+       SELECT * FROM matches
+       WHERE ($5::boolean = false OR (kind = 'file' AND "parentId" IS NOT DISTINCT FROM $6::integer))
+       ORDER BY CASE kind WHEN 'folder' THEN 0 ELSE 1 END, name, id
+       LIMIT $3 OFFSET $4`,
+          [userId, pattern, limit + 1, offset, scope !== undefined, scope?.parentId ?? null],
+        );
+      });
+    } catch (error) {
+      if (
+        (error as { driverError?: { code?: string } })?.driverError?.code === "57014"
+      ) {
+        throw new ServiceUnavailableException("Search temporarily unavailable");
+      }
+      throw error;
+    }
+    const page = rows.slice(0, limit);
+    return {
+      files: page.filter((row) => row.kind === "file").map((row) => ({
+        id: row.id, name: row.name, parentId: row.parentId,
+        size: row.size, mimeType: row.mimeType, isStarred: row.isStarred,
+        createdAt: row.createdAt, updatedAt: row.updatedAt,
+      })),
+      folders: page.filter((row) => row.kind === "folder").map((row) => ({
+        id: row.id, name: row.name, parentId: row.parentId,
+        shareFileId: row.shareFileId,
+        createdAt: row.createdAt, updatedAt: row.updatedAt,
+      })),
+      limit, offset, hasMore: rows.length > limit,
+    };
   }
 
   async getStorageInfo(userId: number) {

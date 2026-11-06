@@ -1,5 +1,5 @@
 import { Test } from "@nestjs/testing";
-import { Reflector } from "@nestjs/core";
+import { JwtStrategy } from "../auth/jwt.strategy";
 import { JwtService } from "@nestjs/jwt";
 import { ConfigModule } from "@nestjs/config";
 import request from "supertest";
@@ -33,7 +33,7 @@ describe("PreviewsController thumbnail cache boundary (Phase 11.3)", () => {
       providers: [
         { provide: PreviewsService, useValue: { getThumbnail } },
         { provide: JwtService, useValue: { verify: jwtVerify, sign: jest.fn() } },
-        { provide: Reflector, useValue: {} },
+        { provide: JwtStrategy, useValue: { validate: async () => ({ userId: 1, email: "u@t.c" }) } },
       ],
     }).compile();
 
@@ -51,7 +51,7 @@ describe("PreviewsController thumbnail cache boundary (Phase 11.3)", () => {
   const authed = () =>
     request(app.getHttpServer())
       .get("/api/v1/previews/1/thumbnail")
-      .set("Authorization", "Bearer faketoken");
+      .set("Authorization", "Bearer header.payload.signature");
 
   it("authenticated thumbnail → private cache policy, not public, content unchanged", async () => {
     const res = await authed();

@@ -5,7 +5,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { ConfigService } from "@nestjs/config";
-import { DataSource } from "typeorm";
+import { DataSource, EntityManager } from "typeorm";
 import { FileEntity } from "../entities/file.entity";
 import { FolderEntity } from "../entities/folder.entity";
 import { RefreshTokenEntity } from "../entities/refresh-token.entity";
@@ -122,6 +122,363 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
       userId,
     }));
   }
+
+  describe("GS-1A: реальный PostgreSQL", () => {
+    it("ищет LIKE-символы буквально, без чужих и удалённых записей", async () => {
+      const owner = await createUser();
+      const other = await createUser();
+      const files = dataSource.getRepository(FileEntity);
+      const folders = dataSource.getRepository(FolderEntity);
+
+      async function addFile(userId: number, name: string, isDeleted = false) {
+        const key = randomUUID();
+        return files.save(files.create({
+          name,
+          storagePath: `/storage/${key}`,
+          storageLocationId: LEGACY_STORAGE_LOCATION.id,
+          relativeObjectKey: key,
+          size: 1,
+          mimeType: "text/plain",
+          isFolder: false,
+          isDeleted,
+          userId,
+        }));
+      }
+
+      await addFile(owner.id, "100%_!.txt");
+      await addFile(owner.id, "100ABC!.txt");
+      await addFile(owner.id, "100%_!-deleted.txt", true);
+      await addFile(other.id, "100%_!-other.txt");
+
+      const matchingFolder = await folders.save({ name: "100%_!-folder", userId: owner.id });
+      await createMirror(owner.id, matchingFolder.id, matchingFolder.name);
+      await folders.save({ name: "100ABC!-folder", userId: owner.id });
+      await folders.save({ name: "100%_!-other", userId: other.id });
+      await folders.save({
+        name: "100%_!-deleted",
+        userId: owner.id,
+        isDeleted: true,
+      });
+
+      const result = await service.search(owner.id, "100%_!", 20, 0);
+
+      expect(result.files.map((item) => item.name)).toEqual(["100%_!.txt"]);
+      expect(result.folders.map((item) => item.name)).toEqual([
+        "100%_!-folder",
+      ]);
+    });
+
+    it("сохраняет границы доступа для legacy-папки без зеркала", async () => {
+      const owner = await createUser();
+      const other = await createUser();
+      const folders = dataSource.getRepository(FolderEntity);
+      const files = dataSource.getRepository(FileEntity);
+
+      const legacy = await folders.save({
+        name: "match-legacy",
+        userId: owner.id,
+      });
+      const normal = await folders.save({
+        name: "match-normal",
+        userId: owner.id,
+      });
+      await createMirror(owner.id, normal.id, normal.name);
+
+      const nested = await folders.save({
+        name: "match-nested",
+        userId: owner.id,
+        parentId: legacy.id,
+      });
+      await createMirror(owner.id, nested.id, nested.name);
+
+      const broken = await folders.save({
+        name: "match-broken",
+        userId: owner.id,
+      });
+      const brokenMirror = await createMirror(owner.id, broken.id, broken.name);
+      await files.update({ id: brokenMirror.id }, { isDeleted: true });
+
+      const brokenChild = await folders.save({
+        name: "match-broken-child",
+        userId: owner.id,
+        parentId: broken.id,
+      });
+      await createMirror(owner.id, brokenChild.id, brokenChild.name);
+
+
+      const deleted = await folders.save({
+        name: "match-deleted",
+        userId: owner.id,
+        parentId: legacy.id,
+        isDeleted: true,
+      });
+
+      async function addFile(userId: number, parentId: number, name: string) {
+        const key = randomUUID();
+        return files.save(files.create({
+          name, userId, parentId,
+          storagePath: `/storage/${key}`,
+          storageLocationId: LEGACY_STORAGE_LOCATION.id,
+          relativeObjectKey: key,
+          size: 1,
+          mimeType: "text/plain",
+          isFolder: false,
+        }));
+      }
+
+      await addFile(owner.id, legacy.id, "match-owned.txt");
+      await addFile(owner.id, nested.id, "match-nested.txt");
+      await addFile(owner.id, brokenChild.id, "match-broken-child.txt");
+      await addFile(other.id, legacy.id, "match-foreign.txt");
+      await addFile(owner.id, deleted.id, "match-hidden.txt");
+      await addFile(owner.id, normal.id, "match-normal.txt");
+
+      const result = await service.search(owner.id, "match", 50, 0);
+
+      expect(result.folders.map(item => item.name)).toEqual(["match-normal"]);
+      expect(result.files.map(item => item.name)).toEqual([
+        "match-normal.txt",
+      ]);
+
+      const foreign = await service.search(other.id, "match", 50, 0);
+      expect(foreign.files).toEqual([]);
+      expect(foreign.folders).toEqual([]);
+
+      await expect(service.findFolder(owner.id, legacy.id))
+        .rejects.toThrow("Folder mirror not found");
+      await expect(service.findFolder(owner.id, broken.id))
+        .rejects.toThrow("Folder mirror not found");
+    });
+
+    it("измеряет поиск по широкому и глубокому дереву", async () => {
+      const owner = await createUser();
+      const folders = dataSource.getRepository(FolderEntity);
+
+      const root = await folders.save({
+        name: "perf-root",
+        userId: owner.id,
+      });
+      await createMirror(owner.id, root.id, root.name);
+
+      await dataSource.query(
+        `INSERT INTO folders ("name", "userId", "parentId")
+         SELECT 'perf-item-' || n, $1, $2
+         FROM generate_series(1, 3000) AS g(n)`,
+        [owner.id, root.id],
+      );
+
+      await dataSource.query(
+        `INSERT INTO files ("name", "userId", "isFolder",
+                            "folderId", "size")
+         SELECT name, $1, true, id, 0
+         FROM folders
+         WHERE "userId" = $1 AND "parentId" = $2`,
+        [owner.id, root.id],
+      );
+
+      // Воспроизводим индекс из production-миграции.
+      await dataSource.query(
+        `CREATE UNIQUE INDEX IF NOT EXISTS "uq_files_folderId"
+         ON "files"("folderId")
+         WHERE "folderId" IS NOT NULL`,
+      );
+
+      // Отдельная цепочка глубиной 80 уровней.
+      let deepParentId = root.id;
+      for (let depth = 1; depth <= 80; depth++) {
+        const nested = await folders.save({
+          name: `perf-depth-${depth}`,
+          userId: owner.id,
+          parentId: deepParentId,
+        });
+        await createMirror(owner.id, nested.id, nested.name);
+        deepParentId = nested.id;
+      }
+
+      await dataSource.query("ANALYZE folders");
+      await dataSource.query("ANALYZE files");
+
+      const spy = jest.spyOn(EntityManager.prototype, "query");
+      let result: Awaited<ReturnType<FilesService["search"]>>;
+      let captured: [string, unknown[]] | undefined;
+
+      try {
+        result = await service.search(owner.id, "perf-item", 50, 0);
+        captured = spy.mock.calls.find(([sql]) =>
+          sql.includes("WITH RECURSIVE visible_folders")
+        ) as [string, unknown[]] | undefined;
+      } finally {
+        spy.mockRestore();
+      }
+
+      expect(result.folders).toHaveLength(50);
+      expect(result.files).toHaveLength(0);
+      expect(result.hasMore).toBe(true);
+
+      if (!captured) throw new Error("Search SQL not captured");
+
+      const plans = await dataSource.query(
+        `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${captured[0]}`,
+        captured[1],
+      );
+
+      const plan = plans[0]["QUERY PLAN"][0];
+
+      console.info("GS-1A PostgreSQL performance:", JSON.stringify({
+        folders: 3081,
+        depth: 80,
+        pageSize: 50,
+        planningMs: plan["Planning Time"],
+        executionMs: plan["Execution Time"],
+        sharedHitBlocks: plan.Plan["Shared Hit Blocks"],
+      }));
+    }, 30000);
+
+    it("сбрасывает statement_timeout после отмены транзакции", async () => {
+      const runner = dataSource.createQueryRunner();
+      await runner.connect();
+
+      try {
+        const before = await runner.query("SHOW statement_timeout");
+        await runner.startTransaction();
+
+        try {
+          await runner.query("SET LOCAL statement_timeout = '25ms'");
+          await expect(
+            runner.query("SELECT pg_sleep(0.1)")
+          ).rejects.toMatchObject({
+            driverError: { code: "57014" },
+          });
+        } finally {
+          await runner.rollbackTransaction();
+        }
+
+        expect(await runner.query("SHOW statement_timeout")).toEqual(before);
+      } finally {
+        if (runner.isTransactionActive) await runner.rollbackTransaction();
+        await runner.release();
+      }
+    });
+
+    it.each(["global", "legacy"])("отменяет реальный %s поиск по SQL timeout и восстанавливает соединение", async (mode) => {
+      const owner = await createUser();
+      const lock = dataSource.createQueryRunner();
+      await lock.connect();
+      await lock.startTransaction();
+      const before = await dataSource.query("SHOW statement_timeout");
+      try {
+        await lock.query("LOCK TABLE files IN ACCESS EXCLUSIVE MODE");
+        const pending = mode === "global"
+          ? service.search(owner.id, "match")
+          : service.findAll(owner.id, undefined, "match");
+        await expect(pending).rejects.toMatchObject({
+          status: 503, message: "Search temporarily unavailable",
+        });
+      } finally {
+        await lock.rollbackTransaction();
+        await lock.release();
+      }
+      expect(await dataSource.query("SHOW statement_timeout")).toEqual(before);
+      expect((await service.search(owner.id, "match")).files).toEqual([]);
+    }, 10000);
+
+    it("ограничивает старый поиск текущей папкой, буквальным ILIKE и безопасной страницей", async () => {
+      const owner = await createUser();
+      const other = await createUser();
+      const folders = dataSource.getRepository(FolderEntity);
+      const folder = await folders.save({ name: "visible", userId: owner.id });
+      await createMirror(owner.id, folder.id, folder.name);
+      const files = dataSource.getRepository(FileEntity);
+      async function add(userId: number, name: string, parentId: number | null, isDeleted = false) {
+        const key = randomUUID();
+        return files.save(files.create({ name, userId, parentId, isDeleted,
+          storagePath: `/private/${key}`, storageLocationId: LEGACY_STORAGE_LOCATION.id,
+          relativeObjectKey: key, size: 1, mimeType: "text/plain", isFolder: false }));
+      }
+      await add(owner.id, "100%_!-root", null);
+      await add(other.id, "100%_!-other", folder.id);
+      await add(owner.id, "100%_!-deleted", folder.id, true);
+      await add(owner.id, "100ABC!-wildcard", folder.id);
+      for (let n = 0; n < 55; n++) await add(owner.id, `100%_!-${String(n).padStart(2, "0")}`, folder.id);
+      const first = await service.findAll(owner.id, folder.id, "100%_!");
+      expect(first).toHaveLength(20);
+      expect(first[0]).toMatchObject({ name: "100%_!-00", isFolder: false, isDeleted: false, isStarred: false });
+      const all = await service.findAll(owner.id, folder.id, "100%_!", false, 50);
+      expect(all).toHaveLength(50);
+      const tail = await service.findAll(owner.id, folder.id, "100%_!", false, 50, 50);
+      expect(tail.map(file => file.name)).toEqual(Array.from({ length: 5 }, (_, n) => `100%_!-${50 + n}`));
+      expect(JSON.stringify(all)).not.toMatch(/storagePath|relativeObjectKey|storageLocationId|userId/);
+      expect((await service.findAll(owner.id, undefined, "100%_!")).map(file => file.name)).toEqual(["100%_!-root"]);
+      await files.update({ folderId: folder.id, isFolder: true }, { isDeleted: true });
+      expect(await service.findAll(owner.id, folder.id, "100%_!")).toEqual([]);
+      await files.update({ folderId: folder.id, isFolder: true }, { isDeleted: false });
+      await folders.update(folder.id, { isDeleted: true });
+      expect(await service.findAll(owner.id, folder.id, "100%_!")).toEqual([]);
+    });
+
+    it("соблюдает limit, offset и стабильную сортировку", async () => {
+      const owner = await createUser();
+      const files = dataSource.getRepository(FileEntity);
+      const folders = dataSource.getRepository(FolderEntity);
+
+      for (let index = 3; index >= 0; index--) {
+        const key = randomUUID();
+        await files.save(files.create({
+          name: `item-${index}`,
+          storagePath: `/storage/${key}`,
+          storageLocationId: LEGACY_STORAGE_LOCATION.id,
+          relativeObjectKey: key,
+          size: 1,
+          mimeType: "text/plain",
+          isFolder: false,
+          userId: owner.id,
+        }));
+        const folder = await folders.save({
+          name: `item-${index}`,
+          userId: owner.id,
+        });
+        await createMirror(owner.id, folder.id, folder.name);
+      }
+
+      const result = await service.search(owner.id, "item", 2, 2);
+
+      expect(result.files).toEqual([]);
+      expect(result.folders.map((item) => item.name)).toEqual([
+        "item-2", "item-3",
+      ]);
+      expect(result).toMatchObject({ limit: 2, offset: 2, hasMore: true });
+      const next = await service.search(owner.id, "item", 2, 4);
+      expect(next.folders).toEqual([]);
+      expect(next.files.map((item) => item.name)).toEqual(["item-0", "item-1"]);
+    });
+
+    it("скрывает потомков удалённой папки и внутренние поля", async () => {
+      const owner = await createUser();
+      const folders = dataSource.getRepository(FolderEntity);
+      const files = dataSource.getRepository(FileEntity);
+      const deleted = await folders.save({ name: "hidden-root", userId: owner.id, isDeleted: true });
+      const child = await folders.save({ name: "match-child", userId: owner.id, parentId: deleted.id });
+      await createMirror(owner.id, child.id, child.name);
+      const visible = await folders.save({ name: "match-visible", userId: owner.id });
+      await createMirror(owner.id, visible.id, visible.name);
+      const hiddenKey = randomUUID();
+      await files.save(files.create({ name: "match-hidden.txt", userId: owner.id,
+        parentId: child.id, storagePath: `/storage/${hiddenKey}`,
+        storageLocationId: LEGACY_STORAGE_LOCATION.id, relativeObjectKey: hiddenKey,
+        size: 1, mimeType: "text/plain", isFolder: false }));
+      const visibleKey = randomUUID();
+      await files.save(files.create({ name: "match-visible.txt", userId: owner.id,
+        parentId: visible.id, storagePath: `/storage/${visibleKey}`,
+        storageLocationId: LEGACY_STORAGE_LOCATION.id, relativeObjectKey: visibleKey,
+        size: 1, mimeType: "text/plain", isFolder: false }));
+
+      const result = await service.search(owner.id, "match", 20, 0);
+      expect(result.folders.map((item) => item.name)).toEqual(["match-visible"]);
+      expect(result.files.map((item) => item.name)).toEqual(["match-visible.txt"]);
+      expect(result.hasMore).toBe(false);
+      expect(JSON.stringify(result)).not.toMatch(/storagePath|relativeObjectKey|storageLocationId|userId/);
+    });
+  });
 
   it("удаляет дерево и зеркала с отличающимися id", async () => {
     const user = await createUser();
