@@ -123,6 +123,84 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
     }));
   }
 
+  describe("GS-1A: реальный PostgreSQL", () => {
+    it("ищет LIKE-символы буквально, без чужих и удалённых записей", async () => {
+      const owner = await createUser();
+      const other = await createUser();
+      const files = dataSource.getRepository(FileEntity);
+      const folders = dataSource.getRepository(FolderEntity);
+
+      async function addFile(userId: number, name: string, isDeleted = false) {
+        const key = randomUUID();
+        return files.save(files.create({
+          name,
+          storagePath: `/storage/${key}`,
+          storageLocationId: LEGACY_STORAGE_LOCATION.id,
+          relativeObjectKey: key,
+          size: 1,
+          mimeType: "text/plain",
+          isFolder: false,
+          isDeleted,
+          userId,
+        }));
+      }
+
+      await addFile(owner.id, "100%_!.txt");
+      await addFile(owner.id, "100ABC!.txt");
+      await addFile(owner.id, "100%_!-deleted.txt", true);
+      await addFile(other.id, "100%_!-other.txt");
+
+      await folders.save({ name: "100%_!-folder", userId: owner.id });
+      await folders.save({ name: "100ABC!-folder", userId: owner.id });
+      await folders.save({ name: "100%_!-other", userId: other.id });
+      await folders.save({
+        name: "100%_!-deleted",
+        userId: owner.id,
+        isDeleted: true,
+      });
+
+      const result = await service.search(owner.id, "100%_!", 20, 0);
+
+      expect(result.files.map((item) => item.name)).toEqual(["100%_!.txt"]);
+      expect(result.folders.map((item) => item.name)).toEqual([
+        "100%_!-folder",
+      ]);
+    });
+
+    it("соблюдает limit, offset и стабильную сортировку", async () => {
+      const owner = await createUser();
+      const files = dataSource.getRepository(FileEntity);
+      const folders = dataSource.getRepository(FolderEntity);
+
+      for (let index = 3; index >= 0; index--) {
+        const key = randomUUID();
+        await files.save(files.create({
+          name: `item-${index}`,
+          storagePath: `/storage/${key}`,
+          storageLocationId: LEGACY_STORAGE_LOCATION.id,
+          relativeObjectKey: key,
+          size: 1,
+          mimeType: "text/plain",
+          isFolder: false,
+          userId: owner.id,
+        }));
+        await folders.save({
+          name: `item-${index}`,
+          userId: owner.id,
+        });
+      }
+
+      const result = await service.search(owner.id, "item", 2, 2);
+
+      expect(result.files.map((item) => item.name)).toEqual([
+        "item-2", "item-3",
+      ]);
+      expect(result.folders.map((item) => item.name)).toEqual([
+        "item-2", "item-3",
+      ]);
+    });
+  });
+
   it("удаляет дерево и зеркала с отличающимися id", async () => {
     const user = await createUser();
     const folders = dataSource.getRepository(FolderEntity);

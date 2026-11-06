@@ -950,22 +950,30 @@ export class FilesService {
     return this.changeFilePlacement(userId, id, undefined, targetParentId ?? null, false);
   }
 
-  async search(userId: number, query: string) {
+  async search(userId: number, query: string, limit = 20, offset = 0) {
+    const pattern = `%${query.replace(/[!%_]/g, (char) => `!${char}`)}%`;
+
     const files = await this.fileRepository
       .createQueryBuilder("file")
       .where("file.userId = :userId", { userId })
       .andWhere("file.isDeleted = :isDeleted", { isDeleted: false })
-      .andWhere("file.name ILIKE :query", { query: `%${query}%` })
+      .andWhere("file.name ILIKE :query ESCAPE '!'", { query: pattern })
       .orderBy("file.isFolder", "DESC")
       .addOrderBy("file.name", "ASC")
+      .addOrderBy("file.id", "ASC")
+      .take(limit)
+      .skip(offset)
       .getMany();
 
     const folders = await this.folderRepository
       .createQueryBuilder("folder")
       .where("folder.userId = :userId", { userId })
       .andWhere("folder.isDeleted = :isDeleted", { isDeleted: false })
-      .andWhere("folder.name ILIKE :query", { query: `%${query}%` })
+      .andWhere("folder.name ILIKE :query ESCAPE '!'", { query: pattern })
       .orderBy("folder.name", "ASC")
+      .addOrderBy("folder.id", "ASC")
+      .take(limit)
+      .skip(offset)
       .getMany();
 
     return { files, folders };

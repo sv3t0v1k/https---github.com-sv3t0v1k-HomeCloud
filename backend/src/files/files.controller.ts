@@ -216,12 +216,43 @@ export class FilesController {
   async search(
     @NestRequest() req: ExpressRequest & { user: { userId: number } },
     @Query("q") q?: string,
+    @Query("limit") limitRaw?: string,
+    @Query("offset") offsetRaw?: string,
   ) {
-    const userId = req.user.userId;
-    if (!q) {
-      throw new BadRequestException("Query parameter q is required");
+    if (typeof q !== "string") {
+      throw new BadRequestException("Invalid search query");
     }
-    return this.filesService.search(userId, q);
+    const query = q.trim();
+    if (
+      query.length < 2 ||
+      query.length > 100 ||
+      [...query].some((char) => {
+        const code = char.charCodeAt(0);
+        return code < 32 || code === 127;
+      })
+    ) {
+      throw new BadRequestException("Invalid search query");
+    }
+
+    const pageNumber = (value: unknown, fallback: number, max: number) => {
+      if (value === undefined) return fallback;
+      if (typeof value !== "string" || !/^(0|[1-9]\d*)$/.test(value)) {
+        throw new BadRequestException("Invalid search pagination");
+      }
+      const number = Number(value);
+      if (!Number.isSafeInteger(number) || number > max) {
+        throw new BadRequestException("Invalid search pagination");
+      }
+      return number;
+    };
+
+    const limit = pageNumber(limitRaw, 20, 50);
+    const offset = pageNumber(offsetRaw, 0, 10000);
+    if (limit === 0) {
+      throw new BadRequestException("Invalid search limit");
+    }
+
+    return this.filesService.search(req.user.userId, query, limit, offset);
   }
 
   @Get("storage-info")
