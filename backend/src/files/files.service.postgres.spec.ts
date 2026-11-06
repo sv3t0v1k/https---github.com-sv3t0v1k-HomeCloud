@@ -5,7 +5,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { ConfigService } from "@nestjs/config";
-import { DataSource } from "typeorm";
+import { DataSource, EntityManager } from "typeorm";
 import { FileEntity } from "../entities/file.entity";
 import { FolderEntity } from "../entities/folder.entity";
 import { RefreshTokenEntity } from "../entities/refresh-token.entity";
@@ -253,7 +253,6 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
     it("измеряет поиск по широкому и глубокому дереву", async () => {
       const owner = await createUser();
       const folders = dataSource.getRepository(FolderEntity);
-      const repository = dataSource.getRepository(FileEntity);
 
       const root = await folders.save({
         name: "perf-root",
@@ -299,7 +298,7 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
       await dataSource.query("ANALYZE folders");
       await dataSource.query("ANALYZE files");
 
-      const spy = jest.spyOn(repository, "query");
+      const spy = jest.spyOn(EntityManager.prototype, "query");
       let result: Awaited<ReturnType<FilesService["search"]>>;
       let captured: [string, unknown[]] | undefined;
 

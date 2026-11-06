@@ -4,6 +4,7 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  ServiceUnavailableException,
   Logger,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
@@ -963,8 +964,12 @@ export class FilesService {
       createdAt: Date;
       updatedAt: Date;
     };
-    const rows: SearchRow[] = await this.fileRepository.query(
-      `WITH RECURSIVE visible_folders AS (
+    let rows: SearchRow[];
+    try {
+      rows = await this.fileRepository.manager.transaction(async (manager) => {
+        await manager.query("SET LOCAL statement_timeout = '2000ms'");
+        return manager.query(
+          `WITH RECURSIVE visible_folders AS (
          SELECT root.id FROM folders root
          WHERE root."userId" = $1 AND NOT root."isDeleted"
            AND root."parentId" IS NULL
@@ -1010,8 +1015,17 @@ export class FilesService {
        SELECT * FROM matches
        ORDER BY CASE kind WHEN 'folder' THEN 0 ELSE 1 END, name, id
        LIMIT $3 OFFSET $4`,
-      [userId, pattern, limit + 1, offset],
-    );
+          [userId, pattern, limit + 1, offset],
+        );
+      });
+    } catch (error) {
+      if (
+        (error as { driverError?: { code?: string } })?.driverError?.code === "57014"
+      ) {
+        throw new ServiceUnavailableException("Search temporarily unavailable");
+      }
+      throw error;
+    }
     const page = rows.slice(0, limit);
     return {
       files: page.filter((row) => row.kind === "file").map((row) => ({

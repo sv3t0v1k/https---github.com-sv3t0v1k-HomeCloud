@@ -96,17 +96,49 @@ describe("GS-1A: search response contract", () => {
       storagePath: "/private/path", relativeObjectKey: "private-key",
       storageLocationId: "private-location", userId: 42,
     }]);
-    const service = new FilesService({ query } as never, {} as never, {} as never, {} as never);
+    const manager = {
+      transaction: async (
+        action: (scope: { query: typeof query }) => Promise<unknown>,
+      ) => action({ query }),
+    };
+    const service = new FilesService(
+      { manager } as never, {} as never, {} as never, {} as never,
+    );
 
     const result = await service.search(42, "100%_!", 7, 14);
 
-    expect(query).toHaveBeenCalledWith(expect.stringContaining("LIMIT $3 OFFSET $4"),
-      [42, "%100!%!_!!%", 8, 14]);
+    expect(query).toHaveBeenNthCalledWith(
+      1, "SET LOCAL statement_timeout = '2000ms'",
+    );
+    expect(query).toHaveBeenNthCalledWith(
+      2, expect.stringContaining("LIMIT $3 OFFSET $4"),
+      [42, "%100!%!_!!%", 8, 14],
+    );
     expect(result).toEqual({
       files: [{ id: 9, name: "100%_!.txt", parentId: null,
         size: "12", mimeType: "text/plain",
         createdAt: expect.any(Date), updatedAt: expect.any(Date) }],
       folders: [], limit: 7, offset: 14, hasMore: false,
     });
+  });
+});
+
+describe("GS-1A: ограничение времени SQL", () => {
+  it("возвращает безопасную ошибку 503 при таймауте PostgreSQL", async () => {
+    const query = jest.fn()
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce({ driverError: { code: "57014" } });
+    const manager = {
+      transaction: async (
+        action: (scope: { query: typeof query }) => Promise<unknown>,
+      ) => action({ query }),
+    };
+    const service = new FilesService(
+      { manager } as never, {} as never, {} as never, {} as never,
+    );
+    await expect(service.search(42, "report")).rejects.toThrow(
+      "Search temporarily unavailable",
+    );
+    expect(query).toHaveBeenCalledTimes(2);
   });
 });
