@@ -160,7 +160,9 @@ def verify_complete(receipt=None):
             'receipt is not confirmed complete')
     identity = status['manifestSha256']
     last, _ = json_file(CHANNEL / 'last-status.json', 0o600, 0)
-    state, _ = json_file(CHANNEL / 'state.json', 0o600, 0)
+    # The installer appends each prior active manifest to history. A successful
+    # second install already exceeds the generic 64 KiB checkpoint limit.
+    state, _ = json_file(CHANNEL / 'state.json', 0o600, 0, 16 * 1024 * 1024)
     installed, _ = json_file(INSTALLED, 0o640, 65533, 4096)
     require(last.get('status') == 'INSTALLED' and last.get('manifest_sha256') == identity and
             type(last.get('commit')) is str and SHA.fullmatch(last['commit']),
