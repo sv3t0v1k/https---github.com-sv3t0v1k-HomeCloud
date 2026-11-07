@@ -22,6 +22,8 @@ jobs:
           test "$(uname -m)" = x86_64
           python3 scripts/ci/test-update-install-host.py
           python3 scripts/ci/test-update-install-bridge.py
+          python3 scripts/ci/test-update-status-archive.py
+          python3 scripts/ci/test-update-admission.py
           python3 scripts/ci/test-update-host-discover.py
           python3 scripts/ci/test-phase3-host-evidence.py
           python3 scripts/ci/test-test-channel.py
@@ -47,6 +49,7 @@ jobs:
           sudo setfacl -R -b -k /home/hs
           sudo install -o root -g root -m 0755 /home/hs/homecloud-test/deploy/linux/update-host-verify.py /usr/local/sbin/homecloud-update-verify
           sudo install -o root -g root -m 0755 /home/hs/homecloud-test/deploy/linux/update-install-bridge.py /usr/local/sbin/homecloud-update-install
+          sudo install -o root -g root -m 0700 /home/hs/homecloud-test/deploy/linux/update-status-archive.py /usr/local/sbin/homecloud-update-archive
           sudo stat -c '%u:%g %a %n' /home/hs/homecloud-test /usr/local/sbin/homecloud-update-verify /usr/local/sbin/homecloud-update-install
       - name: Проверить root, ACL, SHA256 и ожидаемый target gate
         env:

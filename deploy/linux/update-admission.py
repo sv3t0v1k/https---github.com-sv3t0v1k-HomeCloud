@@ -12,6 +12,7 @@ INBOX = Path('/var/lib/homecloud-update/inbox')
 STATE_DIR = Path('/var/lib/homecloud-update/status')
 REQUEST = INBOX / 'request.json'
 RECEIPT = STATE_DIR / 'current.json'
+ARCHIVING = STATE_DIR / 'archiving.json'
 SHA = re.compile(r'[a-f0-9]{64}\Z')
 UID = 1001
 GID = 65533
@@ -63,11 +64,13 @@ def read_request():
 
 
 def receipt_exists():
-    try:
-        RECEIPT.lstat()
-    except FileNotFoundError:
-        return False
-    return True  # Even symlink or corrupted receipt blocks any new request.
+    for path in (RECEIPT, ARCHIVING):
+        try:
+            path.lstat()
+        except FileNotFoundError:
+            continue
+        return True  # Even a symlink or corrupt transition blocks admission.
+    return False
 
 
 def emit_status(manifest_sha256):

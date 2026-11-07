@@ -51,6 +51,7 @@ export function UpdatesSection() {
   const [submitting, setSubmitting] = useState(false)
   const [refresh, setRefresh] = useState(0)
   const refreshedInstall = useRef<string | null>(null)
+  const queuedAt = useRef<number | null>(null)
   useEffect(() => {
     const controller = new AbortController()
     void apiRequest<{ admin: boolean }>({ method: 'GET', url: '/updates/access', signal: controller.signal })
@@ -77,7 +78,7 @@ export function UpdatesSection() {
         const value = await apiRequest<InstallStatus>({ method: 'GET', url: '/updates/installations/current', signal: controller.signal })
         if (!stopped) {
           // The inbox can exist before admission publishes its durable receipt.
-          setJob((previous) => previous?.status === 'QUEUED' && value.status === 'NO_JOB' ? previous : value)
+          setJob(value)
           setStatusError(false)
         }
       } catch {
@@ -97,6 +98,13 @@ export function UpdatesSection() {
       setRefresh((value) => value + 1)
     }
   }, [job])
+  useEffect(() => {
+    if (job?.status === 'NO_JOB' && queuedAt.current !== null) {
+      queuedAt.current = null
+      setResult(null)
+      setRefresh((value) => value + 1)
+    }
+  }, [job])
 
   const available = result?.channel === 'test' && result.status === 'available' ? result.available : null
   const canSubmit = available && /^[a-f0-9]{64}$/.test(available.manifestSha256) && job?.status === 'NO_JOB' && !statusError && !submitting
@@ -105,6 +113,7 @@ export function UpdatesSection() {
     setSubmitting(true); setConfirm(false); setSubmitError(null)
     try {
       const accepted = await apiRequest<InstallStatus>({ method: 'POST', url: '/updates/installations', data: { manifestSha256: available.manifestSha256 } })
+      queuedAt.current = Date.now()
       setJob(accepted)
     } catch {
       setSubmitError('Приём заявки не подтверждён. Проверьте статус перед повторной попыткой; предыдущая установка может требовать проверки оператором.')
