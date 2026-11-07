@@ -35,6 +35,7 @@ class ArchiveTests(unittest.TestCase):
             patch.object(archive, 'INBOX', self.inbox),
             patch.object(archive, 'CHANNEL', self.channel),
             patch.object(archive, 'CURRENT', self.current),
+            patch.object(archive, 'INSTALLED', self.status / 'installed.json'),
             patch.object(archive, 'ARCHIVE', self.status / 'archive'),
             patch.object(archive, 'MARKER', self.status / 'archiving.json'),
             patch.object(archive, 'directory'),
@@ -164,6 +165,31 @@ class ArchiveTests(unittest.TestCase):
             with self.assertRaises(archive.Refusal):
                 archive.verify_complete()
             images.assert_called_once()
+
+    def test_completed_install_with_large_history_can_be_archived(self):
+        last = self.channel / 'last-status.json'
+        state_file = self.channel / 'state.json'
+        installed = self.status / 'installed.json'
+        last.write_text(json.dumps({'status': 'INSTALLED', 'manifest_sha256': IDENTITY,
+                                    'commit': COMMIT}))
+        active = {'manifest': {'manifest_sha256': IDENTITY, 'commit': COMMIT},
+                  'images': {'backend': {}, 'frontend': {}},
+                  'schema_migrations': [{'name': 'MigrationOne'}]}
+        state_file.write_text(json.dumps({'format': 'homecloud-test-install-v1',
+                                          'active': active,
+                                          'history': [{'prior': 'x' * 70000}]}))
+        installed.write_text(json.dumps({'format': 'homecloud-installed-test-v1',
+                                         'version': COMMIT[:7], 'gitSha': COMMIT,
+                                         'schemaMigrations': ['MigrationOne']}))
+        for path, mode in ((last, 0o600), (state_file, 0o600), (installed, 0o640)):
+            path.chmod(mode)
+        self.assertGreater(state_file.stat().st_size, 65536)
+        self.original_fstat = os.fstat
+        with patch.object(archive.os, 'fstat', side_effect=self.fake_root_stat), \
+             patch.object(archive, 'trusted_parents'), \
+             patch.object(archive, 'project_name', return_value='homecloud-e2e-120'), \
+             patch.object(archive, 'verify_images'):
+            self.assertEqual(archive.verify_complete()[0], IDENTITY)
 
     def test_parallel_archive_rejected_by_shared_lock(self):
         self.original_fstat = os.fstat
