@@ -6,7 +6,7 @@ import { ConfigService } from "@nestjs/config";
 import { constants } from "fs";
 import { link, lstat, open, unlink } from "fs/promises";
 import { randomUUID } from "crypto";
-import { isAbsolute, join } from "path";
+import { dirname, isAbsolute, join } from "path";
 import { UpdatesService } from "./updates.service";
 
 const HASH = /^[a-f0-9]{64}$/;
@@ -59,6 +59,27 @@ export class UpdateInstallService {
         phase: v.phase as string | null, updatedAt: v.updatedAt };
     } catch (error) {
       if ((error as { code?: string }).code === "ENOENT") {
+        try {
+          await lstat(join(dirname(paths.status), "archiving.json"));
+          return { status: "UNKNOWN_REQUIRES_REVIEW", manifestSha256: null, phase: null, updatedAt: null };
+        } catch (markerError) {
+          if ((markerError as { code?: string }).code !== "ENOENT") {
+            return { status: "UNKNOWN_REQUIRES_REVIEW", manifestSha256: null, phase: null, updatedAt: null };
+          }
+        }
+        try {
+          const request = await lstat(join(paths.inbox, "request.json"));
+          if (!request.isFile() || request.isSymbolicLink() || request.uid !== 1001 ||
+              request.gid !== 65533 || (request.mode & 0o777) !== 0o600 ||
+              request.size < 1 || request.size > 512 || request.nlink < 1 || request.nlink > 2) {
+            throw new Error("Unsafe queued request");
+          }
+          return { status: "QUEUED", manifestSha256: null, phase: null, updatedAt: null };
+        } catch (requestError) {
+          if ((requestError as { code?: string }).code !== "ENOENT") {
+            return { status: "UNKNOWN_REQUIRES_REVIEW", manifestSha256: null, phase: null, updatedAt: null };
+          }
+        }
         return { status: "NO_JOB", manifestSha256: null, phase: null, updatedAt: null };
       }
       // Missing/corrupt permissions or malformed receipt are never treated as idle.

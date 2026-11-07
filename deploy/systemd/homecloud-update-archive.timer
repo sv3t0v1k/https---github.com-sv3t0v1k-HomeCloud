@@ -1,0 +1,10 @@
+[Unit]
+Description=Retry safe archival after interrupted TEST installation
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+Unit=homecloud-update-archive.service
+
+[Install]
+WantedBy=timers.target

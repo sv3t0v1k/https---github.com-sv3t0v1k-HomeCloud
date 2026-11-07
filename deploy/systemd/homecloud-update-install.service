@@ -8,6 +8,7 @@ User=root
 Group=root
 EnvironmentFile=-/etc/homecloud-test/update-worker.env
 ExecStart=/usr/bin/python3 -I -S /usr/local/sbin/homecloud-update-install
+ExecStartPost=/usr/bin/python3 -I -S /usr/local/sbin/homecloud-update-archive
 TimeoutStartSec=7500
 UMask=0077
 NoNewPrivileges=yes

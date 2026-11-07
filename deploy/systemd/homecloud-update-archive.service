@@ -1,0 +1,13 @@
+[Unit]
+Description=Archive only a verified completed HomeCloud TEST installation
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/bin/python3 -I -S /usr/local/sbin/homecloud-update-archive
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/homecloud-update/status
