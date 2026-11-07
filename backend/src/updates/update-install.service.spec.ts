@@ -48,6 +48,23 @@ describe("UpdateInstallService — admission-only", () => {
     expect(readFile).not.toHaveBeenCalled();
   });
 
+  it("blocks a new request while archival is incomplete", async () => {
+    const service = new UpdateInstallService({ get: configured } as unknown as ConfigService, {} as UpdatesService);
+    jest.spyOn(fs, "open").mockRejectedValue({ code: "ENOENT" });
+    jest.spyOn(fs, "lstat").mockResolvedValue({ isFile: () => true } as never);
+    await expect(service.status()).resolves.toMatchObject({ status: "UNKNOWN_REQUIRES_REVIEW" });
+  });
+
+  it("reports an admitted inbox request as queued before the receipt appears", async () => {
+    const service = new UpdateInstallService({ get: configured } as unknown as ConfigService, {} as UpdatesService);
+    jest.spyOn(fs, "open").mockRejectedValue({ code: "ENOENT" });
+    jest.spyOn(fs, "lstat")
+      .mockRejectedValueOnce({ code: "ENOENT" })
+      .mockResolvedValueOnce({ isFile: () => true, isSymbolicLink: () => false,
+        uid: 1001, gid: 65533, mode: 0o600, size: 120, nlink: 1 } as never);
+    await expect(service.status()).resolves.toMatchObject({ status: "QUEUED" });
+  });
+
   it("refuses a matching request while previous work needs review", async () => {
     const updates = { check: jest.fn() } as unknown as UpdatesService;
     const service = new UpdateInstallService({ get: configured } as unknown as ConfigService, updates);
