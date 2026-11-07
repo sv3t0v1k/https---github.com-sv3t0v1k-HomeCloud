@@ -4,6 +4,8 @@ import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
 import stat
+import tempfile
+from unittest.mock import patch
 import unittest
 
 SCRIPT = Path(__file__).resolve().parents[2] / 'deploy/linux/update-admission.py'
@@ -67,6 +69,16 @@ class AdmissionTests(unittest.TestCase):
         self.assertTrue(flags & agent.os.O_NOFOLLOW)
         self.assertTrue(flags & agent.os.O_NONBLOCK)
         self.assertTrue(flags & agent.os.O_CLOEXEC)
+
+    def test_archival_marker_blocks_admission_even_without_receipt(self):
+        with tempfile.TemporaryDirectory() as temp:
+            marker = Path(temp) / 'archiving.json'
+            marker.write_text('{}')
+            with patch.object(agent, 'RECEIPT', Path(temp) / 'current.json'), \
+                 patch.object(agent, 'ARCHIVING', marker):
+                self.assertTrue(agent.receipt_exists())
+                marker.unlink()
+                self.assertFalse(agent.receipt_exists())
 
 
 if __name__ == '__main__':
