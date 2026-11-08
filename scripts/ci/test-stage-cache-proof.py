@@ -118,8 +118,90 @@ class CacheTests(unittest.TestCase):
                 dict(id='export',name='exporting to oci image format',
                      completed='now'),
             ]
-            with self.subTest(operation=operation),self.assertRaises(ValueError):
-                proof.verify('\\n'.join(map(json.dumps,rows)))
+            with self.subTest(operation=operation),self.assertRaisesRegex(ValueError, "rebuilt operations"):
+                proof.verify(chr(10).join(map(json.dumps,rows)))
+
+
+    def test_complete_frontend_stage_graph(self):
+        dockerfile = (
+            Path(__file__).resolve().parents[2]
+            / 'frontend' / 'Dockerfile'
+        ).read_text()
+
+        expected = proof.expected_operations(dockerfile, 'builder')
+        self.assertEqual(sum(expected.values()), 8)
+
+        rows = [
+            dict(
+                id=f'op-{i}',
+                name=f'[{stage} 1/1] {opcode} {command}',
+                completed='now',
+                cached=True,
+            )
+            for i, (stage, opcode, command)
+            in enumerate(expected.elements())
+        ]
+        rows.append(dict(
+            id='export',
+            name='exporting to oci image format',
+            completed='now',
+        ))
+
+        def progress(events):
+            return chr(10).join(map(json.dumps, events))
+
+        self.assertEqual(
+            len(proof.verify(
+                progress(rows), 3,
+                dockerfile=dockerfile, target='builder'
+            )),
+            8,
+        )
+
+        for marker in (
+            'COPY --from=deps',
+            'COPY package.json',
+            'RUN npm run build',
+        ):
+            with self.subTest(missing=marker):
+                incomplete = [
+                    row for row in rows
+                    if marker not in row.get('name', '')
+                ]
+                with self.assertRaisesRegex(
+                    ValueError, 'graph mismatch'
+                ):
+                    proof.verify(
+                        progress(incomplete), 3,
+                        dockerfile=dockerfile, target='builder'
+                    )
+
+        for marker in ('COPY --from=deps', 'RUN npm run build'):
+            with self.subTest(uncached=marker):
+                changed = copy.deepcopy(rows)
+                for row in changed:
+                    if marker in row.get('name', ''):
+                        row['cached'] = False
+                with self.assertRaisesRegex(
+                    ValueError, 'rebuilt operations'
+                ):
+                    proof.verify(
+                        progress(changed), 3,
+                        dockerfile=dockerfile, target='builder'
+                    )
+
+        extra = copy.deepcopy(rows)
+        extra.insert(0, dict(
+            id='unexpected',
+            name='[builder 5/5] RUN echo unexpected',
+            cached=True,
+            completed='now',
+        ))
+        with self.assertRaisesRegex(ValueError, 'graph mismatch'):
+            proof.verify(
+                progress(extra), 3,
+                dockerfile=dockerfile, target='builder'
+            )
 
 
 if __name__ == '__main__':

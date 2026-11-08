@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Reject re-executed stage exports: only cached runtime-build operations qualify."""
 import json
+from collections import Counter
 import hashlib
 from pathlib import Path
 import re
 import sys
 
 
-def verify(text, minimum_runs=1):
+def verify(text, minimum_runs=1, dockerfile=None, target=None):
     vertices = {}
     for line in text.splitlines():
         try:
@@ -29,7 +30,130 @@ def verify(text, minimum_runs=1):
         raise ValueError('Missing completed OCI export in build progress')
     if any(not v.get('completed') or v.get('cached') is not True for v in operations):
         raise ValueError('Stage export rebuilt operations; actual runtime-build environment is not bound')
+    if dockerfile is not None:
+        expected = expected_operations(dockerfile, target)
+        actual = Counter()
+        for vertex in operations:
+            match = re.fullmatch(
+                r'\[([A-Za-z0-9_-]+)\s+\d+/\d+\]\s+'
+                r'(RUN|COPY|ADD)\s+(.+)',
+                vertex.get('name', '')
+            )
+            if not match:
+                raise ValueError('Unrecognized Buildx operation vertex')
+            stage, opcode, command = match.groups()
+            actual[(stage, opcode, normalize(command))] += 1
+
+        if actual != expected:
+            raise ValueError(
+                'Buildx/Dockerfile operation graph mismatch: '
+                f'missing={sum((expected-actual).values())}, '
+                f'unexpected={sum((actual-expected).values())}'
+            )
     return operations
+
+
+def normalize(command):
+    return re.sub(r'\s+', ' ', command).strip()
+
+
+def expected_operations(dockerfile, target):
+    """Require every RUN/COPY/ADD in the reachable Dockerfile stages."""
+    logical = []
+    pending = ''
+    for raw in dockerfile.splitlines():
+        line = raw.strip()
+        if not line or line.startswith('#'):
+            continue
+        if line.endswith(chr(92)):
+            pending += line[:-1].rstrip() + ' '
+            continue
+        logical.append(pending + line)
+        pending = ''
+
+    if pending:
+        raise ValueError('Unterminated Dockerfile continuation')
+
+    stages = {}
+    current = None
+    allowed = {
+        'ARG', 'ENV', 'WORKDIR', 'LABEL', 'USER', 'CMD',
+        'ENTRYPOINT', 'EXPOSE', 'VOLUME', 'HEALTHCHECK',
+        'STOPSIGNAL', 'SHELL',
+    }
+
+    for line in logical:
+        match = re.fullmatch(r'([A-Za-z]+)\s+(.+)', line)
+        if not match:
+            raise ValueError('Invalid Dockerfile instruction')
+
+        opcode = match.group(1).upper()
+        command = normalize(match.group(2))
+
+        if opcode == 'FROM':
+            alias = re.fullmatch(
+                r'(.+)\s+[Aa][Ss]\s+([A-Za-z0-9_.-]+)',
+                command
+            )
+            if not alias:
+                raise ValueError('Unnamed Dockerfile stage')
+
+            name = alias.group(2)
+            if name in stages:
+                raise ValueError('Duplicate Dockerfile stage')
+
+            source = alias.group(1).split()[-1]
+            stages[name] = {
+                'depends': {source} if source in stages else set(),
+                'operations': [],
+            }
+            current = name
+            continue
+
+        if current is None:
+            if opcode != 'ARG':
+                raise ValueError('Dockerfile instruction before FROM')
+            continue
+
+        if opcode in ('RUN', 'COPY', 'ADD'):
+            stages[current]['operations'].append((opcode, command))
+            if opcode in ('COPY', 'ADD'):
+                refs = re.findall(
+                    r'(?:^|\s)--from=([^\s]+)',
+                    command
+                )
+                for ref in refs:
+                    if ref not in stages:
+                        raise ValueError('Unknown COPY/ADD stage reference')
+                    stages[current]['depends'].add(ref)
+        elif opcode not in allowed:
+            raise ValueError('Unsupported Dockerfile opcode')
+
+    if target not in stages:
+        raise ValueError('Missing Dockerfile target stage')
+
+    expected = Counter()
+    visited = set()
+    active = set()
+
+    def visit(stage):
+        if stage in active:
+            raise ValueError('Cyclic Dockerfile stage graph')
+        if stage in visited:
+            return
+
+        active.add(stage)
+        for dependency in sorted(stages[stage]['depends']):
+            visit(dependency)
+        for opcode, command in stages[stage]['operations']:
+            expected[(stage, opcode, command)] += 1
+        active.remove(stage)
+        visited.add(stage)
+
+    visit(target)
+    if not expected:
+        raise ValueError('Empty Dockerfile operation graph')
+    return expected
 
 
 def file_digest(path):
@@ -129,7 +253,15 @@ def main():
     result = dict(format='homecloud-stage-cache-proof-v1', role=role, source_commit=source, status='BLOCKED')
     try:
         runs = {'backend-deps': 4, 'backend-builder': 5, 'frontend-deps': 2, 'frontend-builder': 3}
-        result['operations'] = verify(Path(progress).read_text(), runs[role])
+        component, target = role.split('-', 1)
+        dockerfile = Path(component) / 'Dockerfile'
+        result['dockerfile_sha256'] = file_digest(dockerfile)
+        result['operations'] = verify(
+            Path(progress).read_text(),
+            runs[role],
+            dockerfile=dockerfile.read_text(),
+            target=target,
+        )
         result['progress_sha256'] = hashlib.sha256(Path(progress).read_bytes()).hexdigest()
         result['metadata_sha256'] = hashlib.sha256(Path(metadata).read_bytes()).hexdigest()
         build = json.loads(Path(metadata).read_text())
