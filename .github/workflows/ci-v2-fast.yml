@@ -176,9 +176,15 @@ jobs:
         shell: bash
         run: |
           mkdir -p "$RUNNER_TEMP/homecloud-compose-bin"
-          curl --fail --silent --show-error --location https://github.com/docker/compose/releases/download/v5.6.0/docker-compose-linux-x86_64 -o "$RUNNER_TEMP/homecloud-compose-bin/docker-compose"
-          echo "40343e21ca777173e69cff5dbafeb37c6f81f3b0d57d9e597f036e95eb63e76a  $RUNNER_TEMP/homecloud-compose-bin/docker-compose" | sha256sum --check
+          compose_image="docker.io/docker/compose-bin@sha256:1937db832e42161ab9b2bd35f3cfa24be06f8179dc4e2fc9e978e1380ee8b6be"
+          docker pull --platform linux/amd64 "$compose_image"
+          test "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$compose_image")" = linux/amd64
+          compose_container="$(docker create --platform linux/amd64 --entrypoint /docker-compose "$compose_image" version --short)"
+          trap 'docker rm "$compose_container" >/dev/null 2>&1 || :' EXIT
+          docker cp "$compose_container:/docker-compose" "$RUNNER_TEMP/homecloud-compose-bin/docker-compose"
+          test -s "$RUNNER_TEMP/homecloud-compose-bin/docker-compose"
           chmod +x "$RUNNER_TEMP/homecloud-compose-bin/docker-compose"
+          test "$("$RUNNER_TEMP/homecloud-compose-bin/docker-compose" version --short)" = 5.6.0
           cat > "$RUNNER_TEMP/homecloud-compose-bin/docker" <<'SHIM'
           #!/bin/sh
           set -eu
