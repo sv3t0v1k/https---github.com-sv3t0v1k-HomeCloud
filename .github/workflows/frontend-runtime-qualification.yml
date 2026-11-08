@@ -124,7 +124,7 @@ jobs:
               nginx -v
               packages="$(apk info -v)"
               printf "%s\n" "$packages"
-              for expected in brotli-libs-1.2.1-r0 curl-8.23.0-r0 libcurl-8.23.0-r0 libx11-1.8.14-r0 libexpat-2.9.0-r0 pcre2-10.49-r0 tiff-4.7.2-r0; do
+              for expected in brotli-libs-1.2.1-r0 curl-8.23.0-r0 libcurl-8.23.0-r0 libx11-1.8.14-r0 libexpat-2.10.0-r0 pcre2-10.49-r0 tiff-4.7.2-r0; do
                 printf "%s\n" "$packages" | grep -Fx "$expected" >/dev/null
               done' 2>&1 | tee evidence/runtime-versions.txt
 
@@ -161,6 +161,15 @@ jobs:
             --source '${{ steps.source.outputs.commit }}' --provenance evidence/offline-frontend.json \
             --output evidence/frontend.binding.json
 
+      - name: Qualify cached frontend deps and builder stages
+        id: stages
+        if: always() && steps.binding.outcome == 'success' && steps.scanner.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp evidence/frontend.binding.json frontend.binding.json
+          sh scripts/ci/qualify-stages.sh "$RUNNER_TEMP/homecloud-trivy/trivy" frontend '${{ steps.source.outputs.commit }}' evidence/stages-frontend
+
       - name: Require complete passing qualification
         if: always()
         run: |
@@ -174,6 +183,12 @@ jobs:
           test '${{ steps.scanner.outcome }}' = success
           test '${{ steps.scan.outcome }}' = success
           test '${{ steps.binding.outcome }}' = success
+          test '${{ steps.stages.outcome }}' = success
+          for stage in deps builder; do
+            for suffix in scan.json binding.json cache.json build.json; do
+              test -s "evidence/stages-frontend/frontend-$stage.$suffix"
+            done
+          done
           for file in evidence/offline-frontend.json evidence/loaded.binding.json evidence/runtime-versions.txt evidence/nginx-test.txt evidence/image-frontend.json evidence/image-frontend.evidence.json evidence/frontend.binding.json; do
             test -s "$file"
           done

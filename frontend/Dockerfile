@@ -41,7 +41,7 @@ RUN apk add --no-cache --upgrade \
     curl=8.23.0-r0 \
     libcurl=8.23.0-r0 \
     libx11=1.8.14-r0 \
-    libexpat=2.9.0-r0 \
+    libexpat=2.10.0-r0 \
     pcre2=10.49-r0 \
     tiff=4.7.2-r0
 COPY --from=builder /app/dist /usr/share/nginx/html
