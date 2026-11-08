@@ -444,6 +444,29 @@ def verify_pulled(manifest):
     return ids
 
 
+def verify_ci_only_blob(oid):
+    """Verify actual SHA-1 Git blob bytes, not only tree metadata."""
+    require(bool(re.fullmatch(r'[a-f0-9]{40}', oid)),
+            'unsafe CI-only Git object')
+    require(run('git', 'cat-file', '-t', oid) == 'blob',
+            'unsafe CI-only Git object')
+    size = int(run('git', 'cat-file', '-s', oid))
+    require(0 <= size <= 16 * 1024 * 1024,
+            'unsafe CI-only Git object')
+    result = subprocess.run(
+        ['git', '-c', 'core.hooksPath=/dev/null',
+         '-c', 'core.fsmonitor=false',
+         'cat-file', 'blob', oid],
+        cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        timeout=30, env=boundary.clean_environment())
+    raw = result.stdout
+    actual = hashlib.sha1(
+        b'blob ' + str(len(raw)).encode('ascii') + b'\0' + raw
+    ).hexdigest()
+    require(result.returncode == 0 and len(raw) == size
+            and actual == oid, 'unsafe CI-only Git object')
+
+
 def precheck_source(manifest, rollback):
     """Complete all avoidable Git/source checks BEFORE creating pending.json."""
     require(run('git', 'status', '--porcelain', '--untracked-files=no') == '',
@@ -483,10 +506,12 @@ def precheck_source(manifest, rollback):
         ).split(chr(9))
         require(
             len(entry) == 2 and entry[1] == path and
+            len(entry[0].split()) == 3 and
             entry[0].split()[:2] in
             (['100644', 'blob'], ['100755', 'blob']),
             'unsafe CI-only Git object'
         )
+        verify_ci_only_blob(entry[0].split()[2])
     for name in LOCKED_FILES:
         source = subprocess.run(['git', '-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', 'show', manifest['commit'] + ':' + name], cwd=ROOT,
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30, env=boundary.clean_environment())

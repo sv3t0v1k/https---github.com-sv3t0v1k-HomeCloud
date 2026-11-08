@@ -138,8 +138,7 @@ class TestChannelTests(unittest.TestCase):
                 raise AssertionError('Unexpected Git command: ' + str(args))
 
             with self.subTest(path=path):
-                with patch.object(installer, 'run',
-                                  side_effect=fake_run):
+                with patch.object(installer, 'run', side_effect=fake_run), patch.object(installer, 'verify_ci_only_blob'):
                     with patch.object(installer,
                                       'require_current_test_head'):
                         with patch.object(installer,
@@ -969,7 +968,7 @@ class RealGitPolicyTests(unittest.TestCase):
             m + b" " + k + b" " + h + b"\t" + n + b"\0"
             for m, k, h, n in rows
         )
-        return self.git("mktree", "-z", data=raw).decode().strip()
+        return self.git("mktree", "-z", "--missing", data=raw).decode().strip()
 
     def test_real_git_trust_policy(self):
         objects = ROOT / ".git" / "objects"
@@ -1020,6 +1019,7 @@ class RealGitPolicyTests(unittest.TestCase):
 
         scenarios = [
             ("scripts/ci/stage-cache-proof.py", "100644", "blob", True),
+            ("scripts/ci/stage-cache-proof.py", "100644", "missing-blob", False),
             ("scripts/ci/test-stage-cache-proof.py", "100755", "blob", True),
             ("scripts/ci/provenance.py", "100644", "blob", False),
             ("scripts/backup.sh", "100644", "blob", False),
@@ -1038,6 +1038,9 @@ class RealGitPolicyTests(unittest.TestCase):
                 oid = ""
             elif kind == "commit":
                 oid = base
+            elif kind == "missing-blob":
+                oid = "f" * 40
+                kind = "blob"
             else:
                 oid = self.git(
                     "hash-object", "-w", "--stdin",
@@ -1069,7 +1072,9 @@ class RealGitPolicyTests(unittest.TestCase):
                 if permitted:
                     host.target_sources(manifest, contract, source)
                 else:
-                    with self.assertRaises(ValueError):
+                    with self.assertRaises(
+                        (ValueError, subprocess.CalledProcessError)
+                    ):
                         host.target_sources(manifest, contract, source)
 
                 with patch.object(

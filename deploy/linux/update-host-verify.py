@@ -99,9 +99,21 @@ class GitSource:
             entry = entries.get(path)
             require(entry is not None and entry[0] in (b'100644', b'100755')
                     and entry[1] == b'blob', 'target file missing or not regular')
+            require(len(entry) == 3, 'invalid target tree entry')
             oid = entry[2].decode('ascii')
-            require(int(self.git('cat-file', '-s', oid)) <= MAX_BLOB, 'target blob too large')
-            return self.git('cat-file', 'blob', oid)
+            require(re.fullmatch(r'[a-f0-9]{40}', oid),
+                    'invalid target blob identity')
+            require(self.git('cat-file', '-t', oid).strip() == b'blob',
+                    'target is not a blob')
+            size = int(self.git('cat-file', '-s', oid))
+            require(0 <= size <= MAX_BLOB, 'target blob too large')
+            raw = self.git('cat-file', 'blob', oid)
+            actual = hashlib.sha1(
+                b'blob ' + str(len(raw)).encode('ascii') + b'\0' + raw
+            ).hexdigest()
+            require(len(raw) == size and actual == oid,
+                    'target blob integrity mismatch')
+            return raw
         return read, entries
 
 
@@ -134,6 +146,7 @@ def target_sources(manifest, contract, source):
             entry[1] == b'blob',
             'unsafe CI-only Git object'
         )
+        read(path)
     for path, expected in QUALIFIED.values():
         require(hashlib.sha256(read(path)).hexdigest() == expected,
                 'target host helper changed; separate qualification required')
