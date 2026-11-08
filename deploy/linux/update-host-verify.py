@@ -23,6 +23,21 @@ QUALIFIED = {
 }
 MAX_BLOB = 16 * 1024 * 1024
 
+CI_ONLY_SCRIPT_CHANGES = frozenset({
+    'scripts/ci/check-excluded-history.py',
+    'scripts/ci/install-npm.py',
+    'scripts/ci/install-oci-scanner.sh',
+    'scripts/ci/install-trivy.sh',
+    'scripts/ci/qualify-stages.sh',
+    'scripts/ci/stage-cache-proof.py',
+    'scripts/ci/test-check-excluded-history.py',
+    'scripts/ci/test-install-npm.py',
+    'scripts/ci/test-install-oci-scanner.py',
+    'scripts/ci/test-stage-cache-proof.py',
+    'scripts/ci/test-update-host-verify.py',
+    'scripts/ci/test-test-channel.py',
+})
+
 
 def require(ok, reason):
     if not ok:
@@ -93,11 +108,32 @@ class GitSource:
 def target_sources(manifest, contract, source):
     # Preserve the existing installer gate, without importing installer code.
     current = source.head().decode('ascii')
-    for directory in ('deploy', 'scripts'):
-        require(source.git('rev-parse', current + ':' + directory) ==
-                source.git('rev-parse', manifest['commit'] + ':' + directory),
-                'root helper tree changed; separate qualification required')
+    require(
+        source.git('rev-parse', current + ':deploy') ==
+        source.git('rev-parse', manifest['commit'] + ':deploy'),
+        'root helper tree changed; separate qualification required'
+    )
+    diff = source.git(
+        'diff-tree', '-r', '-z', '--no-renames', '--name-only',
+        current, manifest['commit'], '--', 'scripts'
+    )
+    changed = {
+        path.decode('utf-8')
+        for path in diff.split(bytes([0])) if path
+    }
+    require(
+        changed <= CI_ONLY_SCRIPT_CHANGES,
+        'root helper tree changed; separate qualification required'
+    )
     read, entries = source.reader(manifest['commit'])
+    for path in changed:
+        entry = entries.get(path)
+        require(
+            entry is not None and
+            entry[0] in (b'100644', b'100755') and
+            entry[1] == b'blob',
+            'unsafe CI-only Git object'
+        )
     for path, expected in QUALIFIED.values():
         require(hashlib.sha256(read(path)).hexdigest() == expected,
                 'target host helper changed; separate qualification required')

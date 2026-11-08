@@ -95,6 +95,71 @@ class TestChannelTests(unittest.TestCase):
                           history=[])
         self.applied = sorted(item['name'] for item in self.manifest['schema_migrations'])
 
+
+    def test_ci_only_scripts_match_verifier_and_installer(self):
+        host = load(
+            'd52_host_verify',
+            ROOT / 'deploy/linux/update-host-verify.py'
+        )
+        self.assertEqual(
+            installer.CI_ONLY_SCRIPT_CHANGES,
+            host.CI_ONLY_SCRIPT_CHANGES
+        )
+
+        for path, permitted in (
+            ('scripts/ci/stage-cache-proof.py', True),
+            ('scripts/ci/test-test-channel.py', True),
+            ('scripts/ci/provenance.py', False),
+            ('scripts/ci/test-channel.py', False),
+            ('scripts/backup.sh', False),
+        ):
+            def fake_run(*args, **kwargs):
+                if args[:3] == ('git', 'status', '--porcelain'):
+                    return ''
+                if args[:3] == ('git', 'rev-parse', 'HEAD'):
+                    return 'b' * 40
+                if args[:3] == ('git', 'remote', 'get-url'):
+                    return 'https://github.com/' + REPO
+                if args[:3] == ('git', 'rev-parse', 'FETCH_HEAD'):
+                    return SHA
+                if args[:2] == ('git', 'rev-parse') and (
+                    args[2].endswith(':deploy')
+                ):
+                    return 'same-tree'
+                if args[:2] == ('git', 'diff-tree'):
+                    return path + chr(0)
+                if args[:2] == ('git', 'ls-tree'):
+                    return (
+                        '100644 blob ' + 'f' * 40
+                        + chr(9) + args[-1]
+                    )
+                if args[:2] == ('git', 'fetch'):
+                    return ''
+                raise AssertionError('Unexpected Git command: ' + str(args))
+
+            with self.subTest(path=path):
+                with patch.object(installer, 'run',
+                                  side_effect=fake_run):
+                    with patch.object(installer,
+                                      'require_current_test_head'):
+                        with patch.object(installer,
+                                          'LOCKED_FILES', ()):
+                            if permitted:
+                                self.assertEqual(
+                                    installer.precheck_source(
+                                        self.manifest, False
+                                    ),
+                                    'b' * 40
+                                )
+                            else:
+                                with self.assertRaisesRegex(
+                                    installer.Stop,
+                                    'root helper tree changed'
+                                ):
+                                    installer.precheck_source(
+                                        self.manifest, False
+                                    )
+
     def test_exact_pair_and_manifest_checksum(self):
         self.assertEqual(contract.shape(self.manifest)['commit'], SHA)
         for mutation in (lambda x: x['images']['frontend'].update(digest='sha256:' + '9' * 64),

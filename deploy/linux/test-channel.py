@@ -37,6 +37,21 @@ LOCKED_FILES = ('docker-compose.yml', 'docker-compose.production.yml',
                 'scripts/recovery-pending.sql', 'deploy/linux/root-boundary.py', 'deploy/linux/startup-gate.sh',
                 'scripts/ci/provenance.py')
 
+CI_ONLY_SCRIPT_CHANGES = frozenset({
+    'scripts/ci/check-excluded-history.py',
+    'scripts/ci/install-npm.py',
+    'scripts/ci/install-oci-scanner.sh',
+    'scripts/ci/install-trivy.sh',
+    'scripts/ci/qualify-stages.sh',
+    'scripts/ci/stage-cache-proof.py',
+    'scripts/ci/test-check-excluded-history.py',
+    'scripts/ci/test-install-npm.py',
+    'scripts/ci/test-install-oci-scanner.py',
+    'scripts/ci/test-stage-cache-proof.py',
+    'scripts/ci/test-update-host-verify.py',
+    'scripts/ci/test-test-channel.py',
+})
+
 boundary_spec = importlib.util.spec_from_file_location('root_boundary_installer', ROOT / 'deploy/linux/root-boundary.py')
 boundary = importlib.util.module_from_spec(boundary_spec)
 boundary_spec.loader.exec_module(boundary)
@@ -447,10 +462,31 @@ def precheck_source(manifest, rollback):
         require(run('git', 'rev-parse', 'FETCH_HEAD') == manifest['commit'],
                 'fetched test source mismatch')
     # Additional helper modules must not shadow imports after target checkout.
-    for directory in ('deploy', 'scripts'):
-        require(run('git', 'rev-parse', current + ':' + directory) ==
-                run('git', 'rev-parse', manifest['commit'] + ':' + directory),
-                'root helper tree changed; manual qualification required')
+    require(
+        run('git', 'rev-parse', current + ':deploy') ==
+        run('git', 'rev-parse', manifest['commit'] + ':deploy'),
+        'root helper tree changed; manual qualification required'
+    )
+    diff = run(
+        'git', 'diff-tree', '-r', '-z', '--no-renames',
+        '--name-only', current, manifest['commit'],
+        '--', 'scripts'
+    )
+    changed = {path for path in diff.split(chr(0)) if path}
+    require(
+        changed <= CI_ONLY_SCRIPT_CHANGES,
+        'root helper tree changed; manual qualification required'
+    )
+    for path in changed:
+        entry = run(
+            'git', 'ls-tree', manifest['commit'], '--', path
+        ).split(chr(9))
+        require(
+            len(entry) == 2 and entry[1] == path and
+            entry[0].split()[:2] in
+            (['100644', 'blob'], ['100755', 'blob']),
+            'unsafe CI-only Git object'
+        )
     for name in LOCKED_FILES:
         source = subprocess.run(['git', '-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', 'show', manifest['commit'] + ':' + name], cwd=ROOT,
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30, env=boundary.clean_environment())

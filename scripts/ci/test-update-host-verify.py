@@ -108,6 +108,65 @@ class Tests(unittest.TestCase):
         with patch.object(self.source,'git',side_effect=changed), self.assertRaisesRegex(ValueError,'helper tree changed'):
             self.check()
 
+
+    def test_ci_only_script_changes_and_helpers(self):
+        original = self.source.git
+
+        for path, permitted in (
+            ('scripts/ci/stage-cache-proof.py', True),
+            ('scripts/ci/test-update-host-verify.py', True),
+            ('scripts/ci/provenance.py', False),
+            ('scripts/ci/test-channel.py', False),
+            ('scripts/backup.sh', False),
+            ('scripts/unexpected-helper.py', False),
+        ):
+            def fake_git(*args):
+                if args[0] == 'diff-tree':
+                    return path.encode() + bytes([0])
+                return original(*args)
+
+            with self.subTest(path=path):
+                with patch.object(
+                    self.source, 'git', side_effect=fake_git
+                ):
+                    if permitted:
+                        self.assertEqual(
+                            self.check()['status'],
+                            'HOST_VERIFIED_READ_ONLY'
+                        )
+                    else:
+                        with self.assertRaisesRegex(
+                            ValueError, 'root helper tree changed'
+                        ):
+                            self.check()
+
+    def test_ci_only_symlink_is_rejected(self):
+        original_git = self.source.git
+        original_reader = self.source.reader
+        path = 'scripts/ci/stage-cache-proof.py'
+
+        def fake_git(*args):
+            if args[0] == 'diff-tree':
+                return path.encode() + bytes([0])
+            return original_git(*args)
+
+        def fake_reader(commit):
+            read, entries = original_reader(commit)
+            entries = dict(entries)
+            entry = list(entries[path])
+            entry[0] = b'120000'
+            entries[path] = entry
+            return read, entries
+
+        with patch.object(self.source, 'git',
+                          side_effect=fake_git):
+            with patch.object(self.source, 'reader',
+                              side_effect=fake_reader):
+                with self.assertRaisesRegex(
+                    ValueError, 'unsafe CI-only Git object'
+                ):
+                    self.check()
+
     def test_manifest_substitution(self):
         self.manifest['ci']['attempt']='2'
         with self.assertRaises(ValueError): self.check()
