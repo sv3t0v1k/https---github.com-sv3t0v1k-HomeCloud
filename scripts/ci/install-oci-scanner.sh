@@ -45,7 +45,7 @@ test -f "$target" && test -x "$target"
 # Reject an unexpected version before executing any security scan.
 case "$tool" in
   trivy)
-    version=$("$target" --version | sed -n '1p')
+    version=$("$target" --version)
     test "$version" = 'Version: 0.76.0'
     ;;
   gitleaks)
