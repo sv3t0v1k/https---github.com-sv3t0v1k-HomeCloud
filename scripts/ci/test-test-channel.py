@@ -5,6 +5,7 @@ import hashlib
 import gzip
 import io
 import tarfile
+import zlib
 import json
 import subprocess
 import importlib.util
@@ -1020,6 +1021,9 @@ class RealGitPolicyTests(unittest.TestCase):
         scenarios = [
             ("scripts/ci/stage-cache-proof.py", "100644", "blob", True),
             ("scripts/ci/stage-cache-proof.py", "100644", "missing-blob", False),
+            ("scripts/ci/stage-cache-proof.py", "100644", "corrupt-blob", False),
+            ("scripts/ci/stage-cache-proof.py", "100644", "oversized-blob", False),
+            ("scripts/ci/stage-cache-proof.py\trogue", "100644", "blob", False),
             ("scripts/ci/test-stage-cache-proof.py", "100755", "blob", True),
             ("scripts/ci/provenance.py", "100644", "blob", False),
             ("scripts/backup.sh", "100644", "blob", False),
@@ -1040,6 +1044,32 @@ class RealGitPolicyTests(unittest.TestCase):
                 oid = base
             elif kind == "missing-blob":
                 oid = "f" * 40
+                kind = "blob"
+            elif kind == "corrupt-blob":
+                oid = self.git(
+                    "hash-object", "-w", "--stdin",
+                    data=b"original integrity fixture"
+                ).decode().strip()
+                replacement = b"tampered integrity fixture"
+                raw = (
+                    b"blob " + str(len(replacement)).encode()
+                    + b"\0" + replacement
+                )
+                object_path = (
+                    Path(overlay.name) / oid[:2] / oid[2:]
+                )
+                self.assertTrue(object_path.is_file())
+                object_path.chmod(0o600)
+                try:
+                    object_path.write_bytes(zlib.compress(raw))
+                finally:
+                    object_path.chmod(0o444)
+                kind = "blob"
+            elif kind == "oversized-blob":
+                oid = self.git(
+                    "hash-object", "-w", "--stdin",
+                    data=b"x" * (16 * 1024 * 1024 + 1)
+                ).decode().strip()
                 kind = "blob"
             else:
                 oid = self.git(
