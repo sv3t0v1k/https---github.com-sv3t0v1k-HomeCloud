@@ -906,8 +906,7 @@ class RecoveryPinTests(unittest.TestCase):
 class RealGitPolicyTests(unittest.TestCase):
     """Real Git objects, without refs, worktrees or checkout changes."""
 
-    @staticmethod
-    def git(*args, data=None):
+    def git(self, *args, data=None):
         env = os.environ.copy()
         env.update({
             "GIT_AUTHOR_NAME": "HomeCloud Test",
@@ -917,13 +916,21 @@ class RealGitPolicyTests(unittest.TestCase):
             "GIT_NO_REPLACE_OBJECTS": "1",
             "GIT_OPTIONAL_LOCKS": "0",
         })
-        return subprocess.run(
+        env.update(self.git_env)
+        result = subprocess.run(
             ["git", "-c", "core.hooksPath=/dev/null",
-             "-c", "commit.gpgsign=false", *args],
+             "-c", "commit.gpgsign=false",
+             "-c", f"safe.directory={ROOT}", *args],
             cwd=ROOT, env=env, input=data,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            check=True
-        ).stdout
+            check=False
+        )
+        if result.returncode:
+            self.fail(
+                "Git fixture failed: "
+                + result.stderr.decode("utf-8", errors="replace")
+            )
+        return result.stdout
 
     def replace_in_tree(self, tree, parts, mode, kind, oid):
         rows = []
@@ -965,14 +972,30 @@ class RealGitPolicyTests(unittest.TestCase):
         return self.git("mktree", "-z", data=raw).decode().strip()
 
     def test_real_git_trust_policy(self):
+        objects = ROOT / ".git" / "objects"
+        self.assertTrue(objects.is_dir())
+
+        overlay = tempfile.TemporaryDirectory(
+            prefix="d52-git-objects-",
+            dir=ROOT / ".git"
+        )
+        self.addCleanup(overlay.cleanup)
+        self.git_env = {
+            "GIT_OBJECT_DIRECTORY": overlay.name,
+            "GIT_ALTERNATE_OBJECT_DIRECTORIES": str(objects),
+            "GIT_CONFIG_COUNT": "1",
+            "GIT_CONFIG_KEY_0": "safe.directory",
+            "GIT_CONFIG_VALUE_0": str(ROOT),
+        }
+
         host = load(
             "real_git_host_verifier",
             ROOT / "deploy/linux/update-host-verify.py"
         )
         modules = host.load_helpers(ROOT)
-        source = host.GitSource(
-            ROOT, modules["boundary"].clean_environment()
-        )
+        source_env = modules["boundary"].clean_environment()
+        source_env.update(self.git_env)
+        source = host.GitSource(ROOT, source_env)
 
         base = self.git("rev-parse", "HEAD").decode().strip()
         base_tree = self.git(
@@ -1053,6 +1076,9 @@ class RealGitPolicyTests(unittest.TestCase):
                     installer, "run", side_effect=fake_run
                 ), patch.object(
                     installer, "require_current_test_head"
+                ), patch.object(
+                    installer.boundary, "clean_environment",
+                    return_value=source_env
                 ):
                     if permitted:
                         self.assertEqual(
