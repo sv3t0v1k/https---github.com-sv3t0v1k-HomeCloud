@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import importlib.util
+import copy
 import json
 from pathlib import Path
 import unittest
@@ -29,6 +30,96 @@ class CacheTests(unittest.TestCase):
                           '{"id":"uncached",'])
         with self.assertRaisesRegex(ValueError, 'truncated'):
             proof.verify(text)
+
+
+    def fixture(self):
+        source='a'*40
+        role='frontend-deps'
+        config='sha256:'+'1'*64
+        manifest='sha256:'+'2'*64
+        archive='sha256:'+'3'*64
+        report='sha256:'+'4'*64
+        build={
+            'containerimage.config.digest':config,
+            'containerimage.digest':manifest,
+            'containerimage.descriptor':{
+                'digest':manifest,
+                'mediaType':'application/vnd.oci.image.manifest.v1+json',
+                'platform':{'os':'linux','architecture':'amd64'},
+                'annotations':{},
+            },
+        }
+        stage={
+            'binding':'ARCHIVE_MANIFEST_CONFIG_SCAN_VERIFIED',
+            'role':role,
+            'source_commit':source,
+            'platform':'linux/amd64',
+            'config_digest':config,
+            'platform_digest':manifest,
+            'archive_sha256':archive,
+            'scan_sha256':report,
+        }
+        runtime={
+            'binding':'ARCHIVE_MANIFEST_CONFIG_SCAN_VERIFIED',
+            'role':'frontend',
+            'source_commit':source,
+            'platform':'linux/amd64',
+            'platform_digest':'sha256:'+'5'*64,
+        }
+        return build,stage,runtime,role,source,archive,report
+
+    def test_exact_stage_metadata_matches_scanned_artifact(self):
+        args=self.fixture()
+        result=proof.check_stage(*args)
+        self.assertEqual(result['config_digest'],
+                         args[1]['config_digest'])
+        self.assertEqual(result['platform_digest'],
+                         args[1]['platform_digest'])
+        self.assertEqual(result['archive_sha256'],args[5])
+        self.assertEqual(result['scan_sha256'],args[6])
+
+    def test_mismatched_stage_identity_fails_closed(self):
+        mutations=(
+            ('config',lambda a:a[0].update({
+                'containerimage.config.digest':'sha256:'+'9'*64})),
+            ('manifest',lambda a:a[0].update({
+                'containerimage.digest':'sha256:'+'9'*64})),
+            ('descriptor',lambda a:a[0]['containerimage.descriptor'].update({
+                'digest':'sha256:'+'9'*64})),
+            ('platform',lambda a:a[0]['containerimage.descriptor']['platform'].update({
+                'architecture':'arm64'})),
+            ('stage role',lambda a:a[1].update({'role':'frontend-builder'})),
+            ('source',lambda a:a[1].update({'source_commit':'b'*40})),
+            ('binding',lambda a:a[1].update({'binding':'UNVERIFIED'})),
+            ('runtime',lambda a:a[2].update({'role':'backend'})),
+            ('stage config',lambda a:a[1].update({
+                'config_digest':'sha256:'+'9'*64})),
+            ('stage manifest',lambda a:a[1].update({
+                'platform_digest':'sha256:'+'9'*64})),
+            ('archive',lambda a:a[1].update({
+                'archive_sha256':'sha256:'+'9'*64})),
+            ('report',lambda a:a[1].update({
+                'scan_sha256':'sha256:'+'9'*64})),
+        )
+        for label,mutate in mutations:
+            with self.subTest(label=label):
+                args=list(copy.deepcopy(self.fixture()))
+                mutate(args)
+                with self.assertRaises(ValueError):
+                    proof.check_stage(*args)
+
+    def test_uncached_copy_or_run_always_blocks(self):
+        for operation in ('RUN npm ci','COPY . .'):
+            rows=[
+                dict(id='run',name='[deps 1/2] RUN npm ci',
+                     completed='now',cached=True),
+                dict(id='other',name='[deps 2/2] '+operation,
+                     completed='now',cached=False),
+                dict(id='export',name='exporting to oci image format',
+                     completed='now'),
+            ]
+            with self.subTest(operation=operation),self.assertRaises(ValueError):
+                proof.verify('\\n'.join(map(json.dumps,rows)))
 
 
 if __name__ == '__main__':

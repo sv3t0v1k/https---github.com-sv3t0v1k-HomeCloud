@@ -17,10 +17,16 @@ for stage in deps builder; do
       --label "org.opencontainers.image.revision=$source" --label "io.homecloud.role=$role" \
       --provenance=false --output "type=oci,dest=$archive" \
       --metadata-file "$output/$role.build.json" "./$component" 2> "$output/$role.progress.jsonl"; then
-    python3 scripts/ci/stage-cache-proof.py "$output/$role.progress.jsonl" "$role" "$source" "$output/$role.cache.json" "$output/$role.build.json" || status=1
-    sh scripts/ci/scan-image.sh "$scanner" archive "$archive" "$output/$role.scan.json" || status=1
-    python3 scripts/ci/oci-scan-binding.py --archive "$archive" --report "$output/$role.scan.json" \
-      --role "$role" --source "$source" --output "$output/$role.binding.json" || status=1
+    if sh scripts/ci/scan-image.sh "$scanner" archive "$archive" "$output/$role.scan.json" &&
+       python3 scripts/ci/oci-scan-binding.py --archive "$archive" --report "$output/$role.scan.json" \
+         --role "$role" --source "$source" --output "$output/$role.binding.json"; then
+      python3 scripts/ci/stage-cache-proof.py \
+        "$output/$role.progress.jsonl" "$role" "$source" \
+        "$output/$role.cache.json" "$output/$role.build.json" \
+        "$output/$role.binding.json" "$archive" "$output/$role.scan.json" || status=1
+    else
+      status=1
+    fi
   else
     status=1
   fi

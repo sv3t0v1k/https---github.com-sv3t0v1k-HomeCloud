@@ -12,6 +12,7 @@ on:
       - scripts/ci/verify-trivy-archive.sh
       - scripts/ci/qualify-stages.sh
       - scripts/ci/stage-cache-proof.py
+      - scripts/ci/test-stage-cache-proof.py
       - scripts/ci/scan-image.sh
       - scripts/ci/scan-policy.py
       - scripts/ci/scan-evidence.py
@@ -40,6 +41,9 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
+
+      - name: Test stage-cache proof regressions
+        run: python3 scripts/ci/test-stage-cache-proof.py
 
       - name: Verify exact PR source and image pins
         id: source
@@ -207,6 +211,18 @@ jobs:
           binding = json.loads(Path('evidence/frontend.binding.json').read_text())
           assert binding['binding'] == 'ARCHIVE_MANIFEST_CONFIG_SCAN_VERIFIED'
           assert binding['platform'] == 'linux/amd64'
+          for stage in ('deps', 'builder'):
+              root = Path(f'evidence/stages-frontend/frontend-{stage}')
+              cache = json.loads(Path(str(root)+'.cache.json').read_text())
+              build = json.loads(Path(str(root)+'.build.json').read_text())
+              scanned = json.loads(Path(str(root)+'.binding.json').read_text())
+              assert cache['status'] == 'CACHED_RUNTIME_BUILD_OPERATIONS'
+              assert cache['role'] == scanned['role'] == f'frontend-{stage}'
+              assert cache['source_commit'] == scanned['source_commit'] == binding['source_commit']
+              assert cache['config_digest'] == scanned['config_digest'] == build['containerimage.config.digest']
+              assert cache['platform_digest'] == scanned['platform_digest'] == build['containerimage.digest']
+              assert cache['archive_sha256'] == scanned['archive_sha256']
+              assert cache['scan_sha256'] == scanned['scan_sha256']
           print('QUALIFIED OCI:', binding['platform_digest'])
           PY
 
