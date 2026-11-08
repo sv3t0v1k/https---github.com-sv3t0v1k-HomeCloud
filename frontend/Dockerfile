@@ -4,10 +4,10 @@ FROM ${NODE_IMAGE} AS npm-base
 RUN apk add --no-cache --upgrade \
     musl=1.2.6-r3 \
     musl-utils=1.2.6-r3 \
-    zlib=1.3.2-r1 \
+    zlib=1.4-r0 \
  && apk info -v | grep -Fx 'musl-1.2.6-r3' \
  && apk info -v | grep -Fx 'musl-utils-1.2.6-r3' \
- && apk info -v | grep -Fx 'zlib-1.3.2-r1'
+ && apk info -v | grep -Fx 'zlib-1.4-r0'
 # SHA256 проверяется до запуска npm; установка из архива остаётся offline.
 RUN node --input-type=module -e ' \
     import {mkdtempSync, writeFileSync, rmSync} from "node:fs"; \
