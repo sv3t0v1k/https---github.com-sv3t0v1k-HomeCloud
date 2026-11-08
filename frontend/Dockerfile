@@ -10,14 +10,14 @@ RUN node --input-type=module -e ' \
     import {execFileSync} from "node:child_process"; \
     const temporary = mkdtempSync(join(tmpdir(), "homecloud-npm-")); \
     try { \
-      const response = await fetch("https://registry.npmjs.org/npm/-/npm-11.21.1.tgz", {signal: AbortSignal.timeout(60000)}); \
+      const response = await fetch("https://registry.npmjs.org/npm/-/npm-11.21.2.tgz", {signal: AbortSignal.timeout(60000)}); \
       if (!response.ok) throw new Error("npm archive HTTP failure"); \
       const bytes = Buffer.from(await response.arrayBuffer()); \
-      if (createHash("sha256").update(bytes).digest("hex") !== "dd77c48eb845f4856c2cdba347cfb52bd877a2655a1ea48ff0c4796e3df9dd7b") throw new Error("npm archive SHA256 mismatch"); \
+      if (createHash("sha256").update(bytes).digest("hex") !== "8ad8563b81e71b90ef405b140bccf3ba9b5e7884ab210bd49ee4e2f4bc6f61f5") throw new Error("npm archive SHA256 mismatch"); \
       const archive = join(temporary, "npm.tgz"); \
       writeFileSync(archive, bytes); \
       execFileSync("npm", ["install", "--global", "--ignore-scripts", "--no-audit", "--no-fund", "--offline", "--cache", join(temporary, "cache"), archive], {stdio: "inherit"}); \
-      if (execFileSync("npm", ["--version"], {encoding: "utf8"}).trim() !== "11.21.1") throw new Error("npm version mismatch"); \
+      if (execFileSync("npm", ["--version"], {encoding: "utf8"}).trim() !== "11.21.2") throw new Error("npm version mismatch"); \
     } finally { rmSync(temporary, {recursive: true, force: true}); }'
 
 FROM npm-base AS deps
