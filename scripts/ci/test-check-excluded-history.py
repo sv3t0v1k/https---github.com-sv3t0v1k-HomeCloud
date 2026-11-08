@@ -31,7 +31,7 @@ class HistoryGuardTests(unittest.TestCase):
         self.assertEqual(
             calls[-1],
             [
-                "git", "log", "--all", "--format=%H", "--",
+                "git", "log", "--full-history", "--all", "--format=%H", "--",
                 ":(literal)" + guard.FORBIDDEN,
             ],
         )

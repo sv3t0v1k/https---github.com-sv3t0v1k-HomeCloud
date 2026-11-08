@@ -25,6 +25,7 @@ def verify(run=subprocess.run):
 
     history = git(
         "log",
+        "--full-history",
         "--all",
         "--format=%H",
         "--",

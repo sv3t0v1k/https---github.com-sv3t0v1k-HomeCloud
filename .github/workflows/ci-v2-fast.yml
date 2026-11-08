@@ -230,7 +230,7 @@ jobs:
           sh scripts/ci/install-oci-scanner.sh gitleaks "$RUNNER_TEMP/gitleaks"
           mkdir "$RUNNER_TEMP/gitleaks-evidence"
           set +e
-          "$RUNNER_TEMP/gitleaks" git --redact=100 --exit-code 42 --report-format json --report-path "$RUNNER_TEMP/gitleaks-evidence/raw-redacted.json" --log-opts="--all -- . :(exclude)scripts/tests/PHASE-5.3.1-TEST-AUDIT.md" .
+          "$RUNNER_TEMP/gitleaks" git --redact=100 --exit-code 42 --report-format json --report-path "$RUNNER_TEMP/gitleaks-evidence/raw-redacted.json" --log-opts="--full-history --all -- . :(exclude)scripts/tests/PHASE-5.3.1-TEST-AUDIT.md" .
           scanner_result=$?
           set -e
           python3 scripts/ci/secret-findings.py --report "$RUNNER_TEMP/gitleaks-evidence/raw-redacted.json" --scanner-exit "$scanner_result" --output "$RUNNER_TEMP/gitleaks-evidence/classification.json"
