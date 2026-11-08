@@ -5,6 +5,8 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - frontend/Dockerfile
+      - frontend/package.json
+      - frontend/package-lock.json
       - scripts/ci/images.lock.json
       - scripts/ci/images.platforms.json
       - .github/workflows/frontend-runtime-qualification.yml
