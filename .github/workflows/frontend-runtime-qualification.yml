@@ -3,22 +3,6 @@ name: Frontend runtime qualification
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    paths:
-      - frontend/**
-      - scripts/ci/images.lock.json
-      - scripts/ci/images.platforms.json
-      - scripts/ci/install-trivy.sh
-      - scripts/ci/install-oci-scanner.sh
-      - scripts/ci/verify-trivy-archive.sh
-      - scripts/ci/qualify-stages.sh
-      - scripts/ci/stage-cache-proof.py
-      - scripts/ci/test-stage-cache-proof.py
-      - scripts/ci/scan-image.sh
-      - scripts/ci/scan-policy.py
-      - scripts/ci/scan-evidence.py
-      - scripts/ci/oci-scan-binding.py
-      - scripts/ci/provenance.py
-      - .github/workflows/frontend-runtime-qualification.yml
 
 permissions:
   contents: read
