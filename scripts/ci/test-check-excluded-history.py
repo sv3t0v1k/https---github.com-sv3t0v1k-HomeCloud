@@ -124,10 +124,22 @@ class RealMergeHistoryTests(unittest.TestCase):
             "-m", "Synthetic merge",
         )
 
+        def synthetic_graph_run(args, **kwargs):
+            # The unit tests separately verify both fail-closed preconditions.
+            # This integration test must work even in a shallow CI checkout.
+            if args == ["git", "rev-parse", "--is-shallow-repository"]:
+                return subprocess.CompletedProcess(args, 0, stdout="false")
+            if args == ["git", "for-each-ref", "--format=%(refname)"]:
+                return subprocess.CompletedProcess(
+                    args, 0, stdout="refs/heads/synthetic"
+                )
+            # The security-relevant Git history walk is never mocked.
+            return subprocess.run(args, **kwargs)
+
         with self.assertRaisesRegex(
             ValueError, "FORBIDDEN_PATH_REACHABLE"
         ):
-            guard.verify(revision=merge)
+            guard.verify(run=synthetic_graph_run, revision=merge)
 
         # Verify Gitleaks' Git pathspec also reaches the side branch.
         scanned = git(
