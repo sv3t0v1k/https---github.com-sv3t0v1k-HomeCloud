@@ -1,6 +1,13 @@
 ARG NODE_IMAGE=docker.io/library/node:24.21.0-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
 ARG NGINX_IMAGE=docker.io/library/nginx:1.30.6-alpine3.24@sha256:0e52bd054126cdc040b1276c0af347aeb02a41b9cfe305d6094767ac30e97949
 FROM ${NODE_IMAGE} AS npm-base
+RUN apk add --no-cache --upgrade \
+    musl=1.2.6-r3 \
+    musl-utils=1.2.6-r3 \
+    zlib=1.3.2-r1 \
+ && apk info -v | grep -Fx 'musl-1.2.6-r3' \
+ && apk info -v | grep -Fx 'musl-utils-1.2.6-r3' \
+ && apk info -v | grep -Fx 'zlib-1.3.2-r1'
 # SHA256 проверяется до запуска npm; установка из архива остаётся offline.
 RUN node --input-type=module -e ' \
     import {mkdtempSync, writeFileSync, rmSync} from "node:fs"; \
