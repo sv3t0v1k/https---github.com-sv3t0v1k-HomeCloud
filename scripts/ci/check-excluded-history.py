@@ -7,7 +7,7 @@ import sys
 FORBIDDEN = "scripts/tests/PHASE-5.3.1-TEST-AUDIT.md"
 
 
-def verify(run=subprocess.run):
+def verify(run=subprocess.run, revision='--all'):
     def git(*args):
         result = run(
             ["git", *args],
@@ -26,7 +26,7 @@ def verify(run=subprocess.run):
     history = git(
         "log",
         "--full-history",
-        "--all",
+        revision,
         "--format=%H",
         "--",
         ":(literal)" + FORBIDDEN,
