@@ -8,6 +8,7 @@ on:
       - scripts/ci/images.lock.json
       - scripts/ci/images.platforms.json
       - scripts/ci/install-trivy.sh
+      - scripts/ci/install-oci-scanner.sh
       - scripts/ci/verify-trivy-archive.sh
       - scripts/ci/qualify-stages.sh
       - scripts/ci/stage-cache-proof.py
@@ -145,10 +146,10 @@ jobs:
             --add-host backend:127.0.0.1 --env INGRESS_PROXY_IP=127.0.0.2 \
             "homecloud-pr-frontend:${{ steps.source.outputs.commit }}" nginx -t 2>&1 | tee evidence/nginx-test.txt
 
-      - name: Install checksum-pinned Trivy
+      - name: Install digest-pinned OCI Trivy
         id: scanner
         if: always() && steps.build.outcome == 'success'
-        run: sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/homecloud-trivy"
+        run: sh scripts/ci/install-oci-scanner.sh trivy "$RUNNER_TEMP/homecloud-trivy/trivy"
 
       - name: Scan exact OCI archive with strict 0C/0H gate
         id: scan
