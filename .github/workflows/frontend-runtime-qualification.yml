@@ -3,11 +3,6 @@ name: Frontend runtime qualification
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    paths:
-      - frontend/Dockerfile
-      - scripts/ci/images.lock.json
-      - scripts/ci/images.platforms.json
-      - .github/workflows/frontend-runtime-qualification.yml
 
 permissions:
   contents: read
@@ -30,6 +25,9 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
+
+      - name: Test stage-cache proof regressions
+        run: python3 scripts/ci/test-stage-cache-proof.py
 
       - name: Verify exact PR source and image pins
         id: source
@@ -122,7 +120,7 @@ jobs:
               nginx -v
               packages="$(apk info -v)"
               printf "%s\n" "$packages"
-              for expected in brotli-libs-1.2.1-r0 curl-8.23.0-r0 libcurl-8.23.0-r0 libx11-1.8.14-r0 libexpat-2.9.0-r0 pcre2-10.49-r0 tiff-4.7.2-r0; do
+              for expected in brotli-libs-1.2.1-r0 curl-8.23.0-r0 libcurl-8.23.0-r0 libx11-1.8.14-r0 libexpat-2.10.0-r0 pcre2-10.49-r0 tiff-4.7.2-r0; do
                 printf "%s\n" "$packages" | grep -Fx "$expected" >/dev/null
               done' 2>&1 | tee evidence/runtime-versions.txt
 
@@ -136,10 +134,10 @@ jobs:
             --add-host backend:127.0.0.1 --env INGRESS_PROXY_IP=127.0.0.2 \
             "homecloud-pr-frontend:${{ steps.source.outputs.commit }}" nginx -t 2>&1 | tee evidence/nginx-test.txt
 
-      - name: Install checksum-pinned Trivy
+      - name: Install digest-pinned OCI Trivy
         id: scanner
         if: always() && steps.build.outcome == 'success'
-        run: sh scripts/ci/install-trivy.sh "$RUNNER_TEMP/homecloud-trivy"
+        run: sh scripts/ci/install-oci-scanner.sh trivy "$RUNNER_TEMP/homecloud-trivy/trivy"
 
       - name: Scan exact OCI archive with strict 0C/0H gate
         id: scan
@@ -159,6 +157,15 @@ jobs:
             --source '${{ steps.source.outputs.commit }}' --provenance evidence/offline-frontend.json \
             --output evidence/frontend.binding.json
 
+      - name: Qualify cached frontend deps and builder stages
+        id: stages
+        if: always() && steps.binding.outcome == 'success' && steps.scanner.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp evidence/frontend.binding.json frontend.binding.json
+          sh scripts/ci/qualify-stages.sh "$RUNNER_TEMP/homecloud-trivy/trivy" frontend '${{ steps.source.outputs.commit }}' evidence/stages-frontend
+
       - name: Require complete passing qualification
         if: always()
         run: |
@@ -172,6 +179,12 @@ jobs:
           test '${{ steps.scanner.outcome }}' = success
           test '${{ steps.scan.outcome }}' = success
           test '${{ steps.binding.outcome }}' = success
+          test '${{ steps.stages.outcome }}' = success
+          for stage in deps builder; do
+            for suffix in scan.json binding.json cache.json build.json; do
+              test -s "evidence/stages-frontend/frontend-$stage.$suffix"
+            done
+          done
           for file in evidence/offline-frontend.json evidence/loaded.binding.json evidence/runtime-versions.txt evidence/nginx-test.txt evidence/image-frontend.json evidence/image-frontend.evidence.json evidence/frontend.binding.json; do
             test -s "$file"
           done
@@ -182,6 +195,18 @@ jobs:
           binding = json.loads(Path('evidence/frontend.binding.json').read_text())
           assert binding['binding'] == 'ARCHIVE_MANIFEST_CONFIG_SCAN_VERIFIED'
           assert binding['platform'] == 'linux/amd64'
+          for stage in ('deps', 'builder'):
+              root = Path(f'evidence/stages-frontend/frontend-{stage}')
+              cache = json.loads(Path(str(root)+'.cache.json').read_text())
+              build = json.loads(Path(str(root)+'.build.json').read_text())
+              scanned = json.loads(Path(str(root)+'.binding.json').read_text())
+              assert cache['status'] == 'CACHED_RUNTIME_BUILD_OPERATIONS'
+              assert cache['role'] == scanned['role'] == f'frontend-{stage}'
+              assert cache['source_commit'] == scanned['source_commit'] == binding['source_commit']
+              assert cache['config_digest'] == scanned['config_digest'] == build['containerimage.config.digest']
+              assert cache['platform_digest'] == scanned['platform_digest'] == build['containerimage.digest']
+              assert cache['archive_sha256'] == scanned['archive_sha256']
+              assert cache['scan_sha256'] == scanned['scan_sha256']
           print('QUALIFIED OCI:', binding['platform_digest'])
           PY
 

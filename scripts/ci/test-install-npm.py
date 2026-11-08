@@ -55,7 +55,7 @@ class NpmBootstrapTests(unittest.TestCase):
             with patch.object(bootstrap, 'SHA256', digest), \
                     patch.object(bootstrap.shutil, 'which', return_value='/ci/bin/npm'), \
                     patch.object(bootstrap.subprocess, 'run') as run, \
-                    patch.object(bootstrap.subprocess, 'check_output', return_value='11.21.1\n') as version:
+                    patch.object(bootstrap.subprocess, 'check_output', return_value=bootstrap.VERSION + '\n') as version:
                 bootstrap.install(archive, cache)
                 command = run.call_args.args[0]
                 self.assertEqual(command, ['/ci/bin/npm', 'install', '--global', '--ignore-scripts',

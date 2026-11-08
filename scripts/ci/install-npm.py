@@ -10,9 +10,9 @@ import tempfile
 import urllib.request
 
 
-VERSION = '11.21.1'
-URL = 'https://registry.npmjs.org/npm/-/npm-11.21.1.tgz'
-SHA256 = 'dd77c48eb845f4856c2cdba347cfb52bd877a2655a1ea48ff0c4796e3df9dd7b'
+VERSION = '11.21.2'
+URL = 'https://registry.npmjs.org/npm/-/npm-11.21.2.tgz'
+SHA256 = '8ad8563b81e71b90ef405b140bccf3ba9b5e7884ab210bd49ee4e2f4bc6f61f5'
 MAX_BYTES = 10 * 1024 * 1024
 
 
