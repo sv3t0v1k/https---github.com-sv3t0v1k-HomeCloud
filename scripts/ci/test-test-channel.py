@@ -902,5 +902,171 @@ class RecoveryPinTests(unittest.TestCase):
                     self.assertEqual(path.read_text(), original)
 
 
+
+class RealGitPolicyTests(unittest.TestCase):
+    """Real Git objects, without refs, worktrees or checkout changes."""
+
+    @staticmethod
+    def git(*args, data=None):
+        env = os.environ.copy()
+        env.update({
+            "GIT_AUTHOR_NAME": "HomeCloud Test",
+            "GIT_AUTHOR_EMAIL": "test@example.invalid",
+            "GIT_COMMITTER_NAME": "HomeCloud Test",
+            "GIT_COMMITTER_EMAIL": "test@example.invalid",
+            "GIT_NO_REPLACE_OBJECTS": "1",
+            "GIT_OPTIONAL_LOCKS": "0",
+        })
+        return subprocess.run(
+            ["git", "-c", "core.hooksPath=/dev/null",
+             "-c", "commit.gpgsign=false", *args],
+            cwd=ROOT, env=env, input=data,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            check=True
+        ).stdout
+
+    def replace_in_tree(self, tree, parts, mode, kind, oid):
+        rows = []
+        found = False
+
+        for rec in self.git("ls-tree", "-z", tree).split(b"\0"):
+            if not rec:
+                continue
+            meta, name = rec.split(b"\t", 1)
+            m, k, old_oid = meta.split()
+            if name == parts[0].encode():
+                found = True
+                if len(parts) > 1:
+                    self.assertEqual(k, b"tree")
+                    old_oid = self.replace_in_tree(
+                        old_oid.decode(), parts[1:],
+                        mode, kind, oid
+                    ).encode()
+                elif mode is None:
+                    continue
+                else:
+                    m, k, old_oid = (
+                        mode.encode(), kind.encode(), oid.encode()
+                    )
+            rows.append((m, k, old_oid, name))
+
+        if not found:
+            self.assertEqual(len(parts), 1)
+            self.assertIsNotNone(mode)
+            rows.append((
+                mode.encode(), kind.encode(),
+                oid.encode(), parts[0].encode()
+            ))
+
+        raw = b"".join(
+            m + b" " + k + b" " + h + b"\t" + n + b"\0"
+            for m, k, h, n in rows
+        )
+        return self.git("mktree", "-z", data=raw).decode().strip()
+
+    def test_real_git_trust_policy(self):
+        host = load(
+            "real_git_host_verifier",
+            ROOT / "deploy/linux/update-host-verify.py"
+        )
+        modules = host.load_helpers(ROOT)
+        source = host.GitSource(
+            ROOT, modules["boundary"].clean_environment()
+        )
+
+        base = self.git("rev-parse", "HEAD").decode().strip()
+        base_tree = self.git(
+            "rev-parse", "HEAD^{tree}"
+        ).decode().strip()
+        read, _ = source.reader(base)
+
+        original = {
+            "commit": base,
+            "repository": "sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud",
+            "source_files": {
+                name: hashlib.sha256(read(name)).hexdigest()
+                for name in contract.FILES
+            },
+            "schema_migrations": contract.schema(ROOT),
+        }
+
+        self.assertEqual(
+            host.CI_ONLY_SCRIPT_CHANGES,
+            installer.CI_ONLY_SCRIPT_CHANGES
+        )
+
+        scenarios = [
+            ("scripts/ci/stage-cache-proof.py", "100644", "blob", True),
+            ("scripts/ci/test-stage-cache-proof.py", "100755", "blob", True),
+            ("scripts/ci/provenance.py", "100644", "blob", False),
+            ("scripts/backup.sh", "100644", "blob", False),
+            ("scripts/ci/unexpected-helper.py", "100644", "blob", False),
+            ("scripts/ci/stage-cache-proof.py", "120000", "blob", False),
+            ("scripts/ci/stage-cache-proof.py", "160000", "commit", False),
+            ("scripts/ci/stage-cache-proof.py", None, "blob", False),
+            ("deploy/linux/update-host-verify.py", "100644", "blob", False),
+            ("deploy/linux/test-channel.py", "100644", "blob", False),
+        ]
+
+        real_run = installer.run
+
+        for path, mode, kind, permitted in scenarios:
+            if mode is None:
+                oid = ""
+            elif kind == "commit":
+                oid = base
+            else:
+                oid = self.git(
+                    "hash-object", "-w", "--stdin",
+                    data=b"git policy regression fixture\n"
+                ).decode().strip()
+
+            tree = self.replace_in_tree(
+                base_tree, path.split("/"), mode, kind, oid
+            )
+            target = self.git(
+                "commit-tree", tree, "-p", base,
+                "-m", "Regression fixture"
+            ).decode().strip()
+
+            manifest = dict(original, commit=target)
+
+            def fake_run(*args, **kwargs):
+                if args[:3] == ("git", "status", "--porcelain"):
+                    return ""
+                if args[:3] == ("git", "remote", "get-url"):
+                    return "https://github.com/" + manifest["repository"]
+                if args[:2] == ("git", "fetch"):
+                    return ""
+                if args[:3] == ("git", "rev-parse", "FETCH_HEAD"):
+                    return target
+                return real_run(*args, **kwargs)
+
+            with self.subTest(path=path, mode=mode):
+                if permitted:
+                    host.target_sources(manifest, contract, source)
+                else:
+                    with self.assertRaises(ValueError):
+                        host.target_sources(manifest, contract, source)
+
+                with patch.object(
+                    installer, "run", side_effect=fake_run
+                ), patch.object(
+                    installer, "require_current_test_head"
+                ):
+                    if permitted:
+                        self.assertEqual(
+                            installer.precheck_source(
+                                manifest, False
+                            ),
+                            base
+                        )
+                    else:
+                        with self.assertRaises(installer.Stop):
+                            installer.precheck_source(
+                                manifest, False
+                            )
+
+
 if __name__ == '__main__':
     unittest.main()
