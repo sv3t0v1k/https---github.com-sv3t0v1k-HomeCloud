@@ -513,6 +513,24 @@ def precheck_source(manifest, rollback):
         )
         verify_ci_only_blob(entry[0].split()[2])
     for name in LOCKED_FILES:
+        installed_entry = run(
+            'git', 'ls-tree', '-z', '--full-tree',
+            current, '--', name
+        )
+        target_entry = run(
+            'git', 'ls-tree', '-z', '--full-tree',
+            manifest['commit'], '--', name
+        )
+        metadata, separator, pathname = installed_entry.partition(chr(9))
+        fields = metadata.split()
+        require(
+            bool(separator) and pathname == name + chr(0)
+            and len(fields) == 3
+            and fields[:2] in
+            (['100644', 'blob'], ['100755', 'blob'])
+            and installed_entry == target_entry,
+            'operational/Compose Git entry changed; manual qualification required'
+        )
         source = subprocess.run(['git', '-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', 'show', manifest['commit'] + ':' + name], cwd=ROOT,
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30, env=boundary.clean_environment())
         require(source.returncode == 0 and hashlib.sha256(source.stdout).digest() ==

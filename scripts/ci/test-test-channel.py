@@ -1033,6 +1033,10 @@ class RealGitPolicyTests(unittest.TestCase):
             ("scripts/ci/stage-cache-proof.py", None, "blob", False),
             ("deploy/linux/update-host-verify.py", "100644", "blob", False),
             ("deploy/linux/test-channel.py", "100644", "blob", False),
+            ("docker-compose.project-test-updates.yml", "100644", "blob", False),
+            ("docker-compose.project-test-updates.yml", "100755", "mode-only", False),
+            ("docker-compose.project-test-updates.yml", "120000", "blob", False),
+            ("docker-compose.project-test-updates.yml", None, "blob", False),
         ]
 
         real_run = installer.run
@@ -1042,6 +1046,18 @@ class RealGitPolicyTests(unittest.TestCase):
                 oid = ""
             elif kind == "commit":
                 oid = base
+            elif kind == "mode-only":
+                original_entry = self.git(
+                    "ls-tree", base, "--", path
+                ).decode().strip()
+                metadata, sep, observed = original_entry.partition("\t")
+                self.assertTrue(sep)
+                self.assertEqual(observed, path)
+                old_mode, old_type, oid = metadata.split()
+                self.assertEqual(old_type, "blob")
+                self.assertIn(old_mode, ("100644", "100755"))
+                mode = "100755" if old_mode == "100644" else "100644"
+                kind = "blob"
             elif kind == "missing-blob":
                 oid = "f" * 40
                 kind = "blob"

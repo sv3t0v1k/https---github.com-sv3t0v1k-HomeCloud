@@ -138,6 +138,17 @@ def target_sources(manifest, contract, source):
         'root helper tree changed; separate qualification required'
     )
     read, entries = source.reader(manifest['commit'])
+    operational = 'docker-compose.project-test-updates.yml'
+    installed_read, installed_entries = source.reader(current)
+    require(
+        installed_entries.get(operational) is not None
+        and installed_entries[operational] == entries.get(operational),
+        'operational/Compose contract changed; separate qualification required'
+    )
+    require(
+        installed_read(operational) == read(operational),
+        'operational/Compose contract changed; separate qualification required'
+    )
     for path in changed:
         entry = entries.get(path)
         require(
