@@ -5,6 +5,7 @@ import hashlib
 import gzip
 import io
 import tarfile
+import zlib
 import json
 import subprocess
 import importlib.util
@@ -94,6 +95,70 @@ class TestChannelTests(unittest.TestCase):
                                       schema_migrations=copy.deepcopy(self.manifest['schema_migrations']), manifest=None),
                           history=[])
         self.applied = sorted(item['name'] for item in self.manifest['schema_migrations'])
+
+
+    def test_ci_only_scripts_match_verifier_and_installer(self):
+        host = load(
+            'd52_host_verify',
+            ROOT / 'deploy/linux/update-host-verify.py'
+        )
+        self.assertEqual(
+            installer.CI_ONLY_SCRIPT_CHANGES,
+            host.CI_ONLY_SCRIPT_CHANGES
+        )
+
+        for path, permitted in (
+            ('scripts/ci/stage-cache-proof.py', True),
+            ('scripts/ci/test-test-channel.py', True),
+            ('scripts/ci/provenance.py', False),
+            ('scripts/ci/test-channel.py', False),
+            ('scripts/backup.sh', False),
+        ):
+            def fake_run(*args, **kwargs):
+                if args[:3] == ('git', 'status', '--porcelain'):
+                    return ''
+                if args[:3] == ('git', 'rev-parse', 'HEAD'):
+                    return 'b' * 40
+                if args[:3] == ('git', 'remote', 'get-url'):
+                    return 'https://github.com/' + REPO
+                if args[:3] == ('git', 'rev-parse', 'FETCH_HEAD'):
+                    return SHA
+                if args[:2] == ('git', 'rev-parse') and (
+                    args[2].endswith(':deploy')
+                ):
+                    return 'same-tree'
+                if args[:2] == ('git', 'diff-tree'):
+                    return path + chr(0)
+                if args[:2] == ('git', 'ls-tree'):
+                    return (
+                        '100644 blob ' + 'f' * 40
+                        + chr(9) + args[-1]
+                    )
+                if args[:2] == ('git', 'fetch'):
+                    return ''
+                raise AssertionError('Unexpected Git command: ' + str(args))
+
+            with self.subTest(path=path):
+                with patch.object(installer, 'run', side_effect=fake_run), patch.object(installer, 'verify_ci_only_blob'):
+                    with patch.object(installer,
+                                      'require_current_test_head'):
+                        with patch.object(installer,
+                                          'LOCKED_FILES', ()):
+                            if permitted:
+                                self.assertEqual(
+                                    installer.precheck_source(
+                                        self.manifest, False
+                                    ),
+                                    'b' * 40
+                                )
+                            else:
+                                with self.assertRaisesRegex(
+                                    installer.Stop,
+                                    'root helper tree changed'
+                                ):
+                                    installer.precheck_source(
+                                        self.manifest, False
+                                    )
 
     def test_exact_pair_and_manifest_checksum(self):
         self.assertEqual(contract.shape(self.manifest)['commit'], SHA)
@@ -835,6 +900,249 @@ class RecoveryPinTests(unittest.TestCase):
                     with self.assertRaises(installer.Stop):
                         installer.sync_recovery_pins(before, after)
                     self.assertEqual(path.read_text(), original)
+
+
+
+class RealGitPolicyTests(unittest.TestCase):
+    """Real Git objects, without refs, worktrees or checkout changes."""
+
+    def git(self, *args, data=None):
+        env = os.environ.copy()
+        env.update({
+            "GIT_AUTHOR_NAME": "HomeCloud Test",
+            "GIT_AUTHOR_EMAIL": "test@example.invalid",
+            "GIT_COMMITTER_NAME": "HomeCloud Test",
+            "GIT_COMMITTER_EMAIL": "test@example.invalid",
+            "GIT_NO_REPLACE_OBJECTS": "1",
+            "GIT_OPTIONAL_LOCKS": "0",
+        })
+        env.update(self.git_env)
+        result = subprocess.run(
+            ["git", "-c", "core.hooksPath=/dev/null",
+             "-c", "commit.gpgsign=false",
+             "-c", f"safe.directory={ROOT}", *args],
+            cwd=ROOT, env=env, input=data,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            check=False
+        )
+        if result.returncode:
+            self.fail(
+                "Git fixture failed: "
+                + result.stderr.decode("utf-8", errors="replace")
+            )
+        return result.stdout
+
+    def replace_in_tree(self, tree, parts, mode, kind, oid):
+        rows = []
+        found = False
+
+        for rec in self.git("ls-tree", "-z", tree).split(b"\0"):
+            if not rec:
+                continue
+            meta, name = rec.split(b"\t", 1)
+            m, k, old_oid = meta.split()
+            if name == parts[0].encode():
+                found = True
+                if len(parts) > 1:
+                    self.assertEqual(k, b"tree")
+                    old_oid = self.replace_in_tree(
+                        old_oid.decode(), parts[1:],
+                        mode, kind, oid
+                    ).encode()
+                elif mode is None:
+                    continue
+                else:
+                    m, k, old_oid = (
+                        mode.encode(), kind.encode(), oid.encode()
+                    )
+            rows.append((m, k, old_oid, name))
+
+        if not found:
+            self.assertEqual(len(parts), 1)
+            self.assertIsNotNone(mode)
+            rows.append((
+                mode.encode(), kind.encode(),
+                oid.encode(), parts[0].encode()
+            ))
+
+        raw = b"".join(
+            m + b" " + k + b" " + h + b"\t" + n + b"\0"
+            for m, k, h, n in rows
+        )
+        return self.git("mktree", "-z", "--missing", data=raw).decode().strip()
+
+    def test_real_git_trust_policy(self):
+        objects = ROOT / ".git" / "objects"
+        self.assertTrue(objects.is_dir())
+
+        overlay = tempfile.TemporaryDirectory(
+            prefix="d52-git-objects-",
+            dir=ROOT / ".git"
+        )
+        self.addCleanup(overlay.cleanup)
+        self.git_env = {
+            "GIT_OBJECT_DIRECTORY": overlay.name,
+            "GIT_ALTERNATE_OBJECT_DIRECTORIES": str(objects),
+            "GIT_CONFIG_COUNT": "1",
+            "GIT_CONFIG_KEY_0": "safe.directory",
+            "GIT_CONFIG_VALUE_0": str(ROOT),
+        }
+
+        host = load(
+            "real_git_host_verifier",
+            ROOT / "deploy/linux/update-host-verify.py"
+        )
+        modules = host.load_helpers(ROOT)
+        source_env = modules["boundary"].clean_environment()
+        source_env.update(self.git_env)
+        source = host.GitSource(ROOT, source_env)
+
+        base = self.git("rev-parse", "HEAD").decode().strip()
+        base_tree = self.git(
+            "rev-parse", "HEAD^{tree}"
+        ).decode().strip()
+        read, _ = source.reader(base)
+
+        original = {
+            "commit": base,
+            "repository": "sv3t0v1k/https---github.com-sv3t0v1k-HomeCloud",
+            "source_files": {
+                name: hashlib.sha256(read(name)).hexdigest()
+                for name in contract.FILES
+            },
+            "schema_migrations": contract.schema(ROOT),
+        }
+
+        self.assertEqual(
+            host.CI_ONLY_SCRIPT_CHANGES,
+            installer.CI_ONLY_SCRIPT_CHANGES
+        )
+
+        scenarios = [
+            ("scripts/ci/stage-cache-proof.py", "100644", "blob", True),
+            ("scripts/ci/stage-cache-proof.py", "100644", "missing-blob", False),
+            ("scripts/ci/stage-cache-proof.py", "100644", "corrupt-blob", False),
+            ("scripts/ci/stage-cache-proof.py", "100644", "oversized-blob", False),
+            ("scripts/ci/stage-cache-proof.py\trogue", "100644", "blob", False),
+            ("scripts/ci/test-stage-cache-proof.py", "100755", "blob", True),
+            ("scripts/ci/provenance.py", "100644", "blob", False),
+            ("scripts/backup.sh", "100644", "blob", False),
+            ("scripts/ci/unexpected-helper.py", "100644", "blob", False),
+            ("scripts/ci/stage-cache-proof.py", "120000", "blob", False),
+            ("scripts/ci/stage-cache-proof.py", "160000", "commit", False),
+            ("scripts/ci/stage-cache-proof.py", None, "blob", False),
+            ("deploy/linux/update-host-verify.py", "100644", "blob", False),
+            ("deploy/linux/test-channel.py", "100644", "blob", False),
+            ("docker-compose.project-test-updates.yml", "100644", "blob", False),
+            ("docker-compose.project-test-updates.yml", "100755", "mode-only", False),
+            ("docker-compose.project-test-updates.yml", "120000", "blob", False),
+            ("docker-compose.project-test-updates.yml", None, "blob", False),
+        ]
+
+        real_run = installer.run
+
+        for path, mode, kind, permitted in scenarios:
+            if mode is None:
+                oid = ""
+            elif kind == "commit":
+                oid = base
+            elif kind == "mode-only":
+                original_entry = self.git(
+                    "ls-tree", base, "--", path
+                ).decode().strip()
+                metadata, sep, observed = original_entry.partition("\t")
+                self.assertTrue(sep)
+                self.assertEqual(observed, path)
+                old_mode, old_type, oid = metadata.split()
+                self.assertEqual(old_type, "blob")
+                self.assertIn(old_mode, ("100644", "100755"))
+                mode = "100755" if old_mode == "100644" else "100644"
+                kind = "blob"
+            elif kind == "missing-blob":
+                oid = "f" * 40
+                kind = "blob"
+            elif kind == "corrupt-blob":
+                oid = self.git(
+                    "hash-object", "-w", "--stdin",
+                    data=b"original integrity fixture"
+                ).decode().strip()
+                replacement = b"tampered integrity fixture"
+                raw = (
+                    b"blob " + str(len(replacement)).encode()
+                    + b"\0" + replacement
+                )
+                object_path = (
+                    Path(overlay.name) / oid[:2] / oid[2:]
+                )
+                self.assertTrue(object_path.is_file())
+                object_path.chmod(0o600)
+                try:
+                    object_path.write_bytes(zlib.compress(raw))
+                finally:
+                    object_path.chmod(0o444)
+                kind = "blob"
+            elif kind == "oversized-blob":
+                oid = self.git(
+                    "hash-object", "-w", "--stdin",
+                    data=b"x" * (16 * 1024 * 1024 + 1)
+                ).decode().strip()
+                kind = "blob"
+            else:
+                oid = self.git(
+                    "hash-object", "-w", "--stdin",
+                    data=b"git policy regression fixture\n"
+                ).decode().strip()
+
+            tree = self.replace_in_tree(
+                base_tree, path.split("/"), mode, kind, oid
+            )
+            target = self.git(
+                "commit-tree", tree, "-p", base,
+                "-m", "Regression fixture"
+            ).decode().strip()
+
+            manifest = dict(original, commit=target)
+
+            def fake_run(*args, **kwargs):
+                if args[:3] == ("git", "status", "--porcelain"):
+                    return ""
+                if args[:3] == ("git", "remote", "get-url"):
+                    return "https://github.com/" + manifest["repository"]
+                if args[:2] == ("git", "fetch"):
+                    return ""
+                if args[:3] == ("git", "rev-parse", "FETCH_HEAD"):
+                    return target
+                return real_run(*args, **kwargs)
+
+            with self.subTest(path=path, mode=mode):
+                if permitted:
+                    host.target_sources(manifest, contract, source)
+                else:
+                    with self.assertRaises(
+                        (ValueError, subprocess.CalledProcessError)
+                    ):
+                        host.target_sources(manifest, contract, source)
+
+                with patch.object(
+                    installer, "run", side_effect=fake_run
+                ), patch.object(
+                    installer, "require_current_test_head"
+                ), patch.object(
+                    installer.boundary, "clean_environment",
+                    return_value=source_env
+                ):
+                    if permitted:
+                        self.assertEqual(
+                            installer.precheck_source(
+                                manifest, False
+                            ),
+                            base
+                        )
+                    else:
+                        with self.assertRaises(installer.Stop):
+                            installer.precheck_source(
+                                manifest, False
+                            )
 
 
 if __name__ == '__main__':

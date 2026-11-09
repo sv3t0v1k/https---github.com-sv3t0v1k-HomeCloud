@@ -23,6 +23,21 @@ QUALIFIED = {
 }
 MAX_BLOB = 16 * 1024 * 1024
 
+CI_ONLY_SCRIPT_CHANGES = frozenset({
+    'scripts/ci/check-excluded-history.py',
+    'scripts/ci/install-npm.py',
+    'scripts/ci/install-oci-scanner.sh',
+    'scripts/ci/install-trivy.sh',
+    'scripts/ci/qualify-stages.sh',
+    'scripts/ci/stage-cache-proof.py',
+    'scripts/ci/test-check-excluded-history.py',
+    'scripts/ci/test-install-npm.py',
+    'scripts/ci/test-install-oci-scanner.py',
+    'scripts/ci/test-stage-cache-proof.py',
+    'scripts/ci/test-update-host-verify.py',
+    'scripts/ci/test-test-channel.py',
+})
+
 
 def require(ok, reason):
     if not ok:
@@ -84,20 +99,65 @@ class GitSource:
             entry = entries.get(path)
             require(entry is not None and entry[0] in (b'100644', b'100755')
                     and entry[1] == b'blob', 'target file missing or not regular')
+            require(len(entry) == 3, 'invalid target tree entry')
             oid = entry[2].decode('ascii')
-            require(int(self.git('cat-file', '-s', oid)) <= MAX_BLOB, 'target blob too large')
-            return self.git('cat-file', 'blob', oid)
+            require(re.fullmatch(r'[a-f0-9]{40}', oid),
+                    'invalid target blob identity')
+            require(self.git('cat-file', '-t', oid).strip() == b'blob',
+                    'target is not a blob')
+            size = int(self.git('cat-file', '-s', oid))
+            require(0 <= size <= MAX_BLOB, 'target blob too large')
+            raw = self.git('cat-file', 'blob', oid)
+            actual = hashlib.sha1(
+                b'blob ' + str(len(raw)).encode('ascii') + b'\0' + raw
+            ).hexdigest()
+            require(len(raw) == size and actual == oid,
+                    'target blob integrity mismatch')
+            return raw
         return read, entries
 
 
 def target_sources(manifest, contract, source):
     # Preserve the existing installer gate, without importing installer code.
     current = source.head().decode('ascii')
-    for directory in ('deploy', 'scripts'):
-        require(source.git('rev-parse', current + ':' + directory) ==
-                source.git('rev-parse', manifest['commit'] + ':' + directory),
-                'root helper tree changed; separate qualification required')
+    require(
+        source.git('rev-parse', current + ':deploy') ==
+        source.git('rev-parse', manifest['commit'] + ':deploy'),
+        'root helper tree changed; separate qualification required'
+    )
+    diff = source.git(
+        'diff-tree', '-r', '-z', '--no-renames', '--name-only',
+        current, manifest['commit'], '--', 'scripts'
+    )
+    changed = {
+        path.decode('utf-8')
+        for path in diff.split(bytes([0])) if path
+    }
+    require(
+        changed <= CI_ONLY_SCRIPT_CHANGES,
+        'root helper tree changed; separate qualification required'
+    )
     read, entries = source.reader(manifest['commit'])
+    operational = 'docker-compose.project-test-updates.yml'
+    installed_read, installed_entries = source.reader(current)
+    require(
+        installed_entries.get(operational) is not None
+        and installed_entries[operational] == entries.get(operational),
+        'operational/Compose contract changed; separate qualification required'
+    )
+    require(
+        installed_read(operational) == read(operational),
+        'operational/Compose contract changed; separate qualification required'
+    )
+    for path in changed:
+        entry = entries.get(path)
+        require(
+            entry is not None and
+            entry[0] in (b'100644', b'100755') and
+            entry[1] == b'blob',
+            'unsafe CI-only Git object'
+        )
+        read(path)
     for path, expected in QUALIFIED.values():
         require(hashlib.sha256(read(path)).hexdigest() == expected,
                 'target host helper changed; separate qualification required')

@@ -37,6 +37,21 @@ LOCKED_FILES = ('docker-compose.yml', 'docker-compose.production.yml',
                 'scripts/recovery-pending.sql', 'deploy/linux/root-boundary.py', 'deploy/linux/startup-gate.sh',
                 'scripts/ci/provenance.py')
 
+CI_ONLY_SCRIPT_CHANGES = frozenset({
+    'scripts/ci/check-excluded-history.py',
+    'scripts/ci/install-npm.py',
+    'scripts/ci/install-oci-scanner.sh',
+    'scripts/ci/install-trivy.sh',
+    'scripts/ci/qualify-stages.sh',
+    'scripts/ci/stage-cache-proof.py',
+    'scripts/ci/test-check-excluded-history.py',
+    'scripts/ci/test-install-npm.py',
+    'scripts/ci/test-install-oci-scanner.py',
+    'scripts/ci/test-stage-cache-proof.py',
+    'scripts/ci/test-update-host-verify.py',
+    'scripts/ci/test-test-channel.py',
+})
+
 boundary_spec = importlib.util.spec_from_file_location('root_boundary_installer', ROOT / 'deploy/linux/root-boundary.py')
 boundary = importlib.util.module_from_spec(boundary_spec)
 boundary_spec.loader.exec_module(boundary)
@@ -429,6 +444,29 @@ def verify_pulled(manifest):
     return ids
 
 
+def verify_ci_only_blob(oid):
+    """Verify actual SHA-1 Git blob bytes, not only tree metadata."""
+    require(bool(re.fullmatch(r'[a-f0-9]{40}', oid)),
+            'unsafe CI-only Git object')
+    require(run('git', 'cat-file', '-t', oid) == 'blob',
+            'unsafe CI-only Git object')
+    size = int(run('git', 'cat-file', '-s', oid))
+    require(0 <= size <= 16 * 1024 * 1024,
+            'unsafe CI-only Git object')
+    result = subprocess.run(
+        ['git', '-c', 'core.hooksPath=/dev/null',
+         '-c', 'core.fsmonitor=false',
+         'cat-file', 'blob', oid],
+        cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        timeout=30, env=boundary.clean_environment())
+    raw = result.stdout
+    actual = hashlib.sha1(
+        b'blob ' + str(len(raw)).encode('ascii') + b'\0' + raw
+    ).hexdigest()
+    require(result.returncode == 0 and len(raw) == size
+            and actual == oid, 'unsafe CI-only Git object')
+
+
 def precheck_source(manifest, rollback):
     """Complete all avoidable Git/source checks BEFORE creating pending.json."""
     require(run('git', 'status', '--porcelain', '--untracked-files=no') == '',
@@ -447,11 +485,52 @@ def precheck_source(manifest, rollback):
         require(run('git', 'rev-parse', 'FETCH_HEAD') == manifest['commit'],
                 'fetched test source mismatch')
     # Additional helper modules must not shadow imports after target checkout.
-    for directory in ('deploy', 'scripts'):
-        require(run('git', 'rev-parse', current + ':' + directory) ==
-                run('git', 'rev-parse', manifest['commit'] + ':' + directory),
-                'root helper tree changed; manual qualification required')
+    require(
+        run('git', 'rev-parse', current + ':deploy') ==
+        run('git', 'rev-parse', manifest['commit'] + ':deploy'),
+        'root helper tree changed; manual qualification required'
+    )
+    diff = run(
+        'git', 'diff-tree', '-r', '-z', '--no-renames',
+        '--name-only', current, manifest['commit'],
+        '--', 'scripts'
+    )
+    changed = {path for path in diff.split(chr(0)) if path}
+    require(
+        changed <= CI_ONLY_SCRIPT_CHANGES,
+        'root helper tree changed; manual qualification required'
+    )
+    for path in changed:
+        entry = run(
+            'git', 'ls-tree', manifest['commit'], '--', path
+        ).split(chr(9))
+        require(
+            len(entry) == 2 and entry[1] == path and
+            len(entry[0].split()) == 3 and
+            entry[0].split()[:2] in
+            (['100644', 'blob'], ['100755', 'blob']),
+            'unsafe CI-only Git object'
+        )
+        verify_ci_only_blob(entry[0].split()[2])
     for name in LOCKED_FILES:
+        installed_entry = run(
+            'git', 'ls-tree', '-z', '--full-tree',
+            current, '--', name
+        )
+        target_entry = run(
+            'git', 'ls-tree', '-z', '--full-tree',
+            manifest['commit'], '--', name
+        )
+        metadata, separator, pathname = installed_entry.partition(chr(9))
+        fields = metadata.split()
+        require(
+            bool(separator) and pathname == name + chr(0)
+            and len(fields) == 3
+            and fields[:2] in
+            (['100644', 'blob'], ['100755', 'blob'])
+            and installed_entry == target_entry,
+            'operational/Compose Git entry changed; manual qualification required'
+        )
         source = subprocess.run(['git', '-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', 'show', manifest['commit'] + ':' + name], cwd=ROOT,
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30, env=boundary.clean_environment())
         require(source.returncode == 0 and hashlib.sha256(source.stdout).digest() ==
