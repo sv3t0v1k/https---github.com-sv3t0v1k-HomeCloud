@@ -15,6 +15,7 @@ import { StorageService } from "../storage/storage.service";
 import { UsersService } from "../users/users.service";
 import { allocateNamespaceName } from "./namespace-name";
 import { searchQuery } from "./search-input";
+import { assertVisibleAncestors } from "./file-visibility";
 
 @Injectable()
 export class FilesService {
@@ -134,6 +135,52 @@ export class FilesService {
         throw new NotFoundException("Folder mirror not found");
       }
       return { ...folder, shareFileId };
+    });
+  }
+
+  /**
+   * Authorize a content read while the owner lock is held.
+   * The caller must open the secure file descriptor inside access().
+   * The transaction releases its lock after access() finishes.
+   */
+  async withVisibleContentFile<T>(
+    userId: number,
+    id: number,
+    access: (file: FileEntity) => Promise<T> | T,
+  ): Promise<T> {
+    if (
+      !Number.isSafeInteger(userId) ||
+      userId <= 0 ||
+      !Number.isSafeInteger(id) ||
+      id <= 0 ||
+      id > 2147483647
+    ) {
+      throw new NotFoundException("File not found");
+    }
+
+    return this.fileRepository.manager.transaction(async (manager) => {
+      const owners: Array<{ id: number }> = await manager.query(
+        'SELECT id FROM users WHERE id=$1 AND "isActive"=TRUE FOR SHARE',
+        [userId],
+      );
+      if (owners.length !== 1) {
+        throw new NotFoundException("File not found");
+      }
+
+      const file = await manager.findOne(FileEntity, {
+        where: { id, userId, isDeleted: false },
+      });
+      if (!file || file.isDeleted || file.isFolder || !file.storagePath) {
+        throw new NotFoundException("File not found");
+      }
+
+      await assertVisibleAncestors(
+        manager,
+        userId,
+        file.parentId ?? null,
+      );
+
+      return access(file);
     });
   }
 

@@ -360,30 +360,29 @@ export async function streamOriginalDownload(
     Number(id) > 2147483647
   )
     throw new BadRequestException("Invalid file id");
-  const file = await filesService.findOne(req.user.userId, parseInt(id, 10));
-  if (file.isFolder) {
-    throw new BadRequestException("Folders cannot be downloaded as files");
-  }
-  if (file.isDeleted || !file.storagePath) {
-    throw new NotFoundException("File not found");
-  }
+  // Visibility and storage opening share one PostgreSQL transaction.
+  // Keep the validated FD, not a pathname that may be swapped afterward.
+  const { file, safePath, fd } = await filesService.withVisibleContentFile(
+    req.user.userId,
+    Number(id),
+    (authorized) => {
+      let resolved: string;
+      try {
+        resolved = storageService.resolveFilePath(authorized);
+      } catch {
+        throw new NotFoundException("File not found on storage");
+      }
 
-  let safePath: string;
-  try {
-    safePath = storageService.resolveFilePath(file);
-    safePath = storageService.ensureWithinStorageRoot(
-      fs.realpathSync(safePath),
-    );
-  } catch {
-    throw new NotFoundException("File not found on storage");
-  }
+      let descriptor: number;
+      try {
+        descriptor = storageService.openReadOnlyFileSecure(resolved);
+      } catch {
+        throw new NotFoundException("File not found on storage");
+      }
 
-  let fd: number;
-  try {
-    fd = fs.openSync(safePath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
-  } catch {
-    throw new NotFoundException("File not found on storage");
-  }
+      return { file: authorized, safePath: resolved, fd: descriptor };
+    },
+  );
 
   let streamOwnsDescriptor = false;
   try {
