@@ -140,4 +140,45 @@ describe("Thumbnail PostgreSQL timeout protection", () => {
     expect(state.activeThumbnails).toBe(0);
   });
 
+
+  it.each([
+    { name: "lock timeout", error: { code: "55P03" } },
+    {
+      name: "statement timeout",
+      error: { driverError: { code: "57014" } },
+    },
+  ])("bounds full preview SQL: $name", async ({ error }) => {
+    const query = jest.fn(async (sql: string) => {
+      if (sql.startsWith("SET LOCAL ")) return [];
+      if (sql === "SELECT id FROM users WHERE id=$1 FOR SHARE") {
+        throw error;
+      }
+      throw new Error("Unexpected SQL");
+    });
+
+    const manager = { query, findOne: jest.fn() };
+    const repository = {
+      manager: {
+        transaction: async (
+          callback: (value: typeof manager) => Promise<unknown>,
+        ) => callback(manager),
+      },
+    };
+
+    const service = new PreviewsService(
+      repository as never,
+      {} as never,
+    );
+
+    await expect(service.getPreview(7, 5))
+      .rejects.toBeInstanceOf(ServiceUnavailableException);
+
+    expect(query.mock.calls.map(([sql]) => sql)).toEqual([
+      "SET LOCAL lock_timeout = '1500ms'",
+      "SET LOCAL statement_timeout = '2500ms'",
+      "SELECT id FROM users WHERE id=$1 FOR SHARE",
+    ]);
+    expect(manager.findOne).not.toHaveBeenCalled();
+  });
+
 });

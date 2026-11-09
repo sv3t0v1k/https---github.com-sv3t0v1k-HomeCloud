@@ -398,6 +398,57 @@ describePostgres("Thumbnail visibility — PostgreSQL", () => {
     await assertThumbnail(image.id);
   }, 20_000);
 
+  it("bounds blocked preview and download authorization", async () => {
+    const image = await createImage(null);
+    const locker = db.createQueryRunner();
+
+    await locker.connect();
+
+    try {
+      await locker.startTransaction();
+
+      const locked: Array<{ id: number }> = await locker.query(
+        "SELECT id FROM users WHERE id=$1 FOR UPDATE",
+        [owner.id],
+      );
+      expect(locked).toHaveLength(1);
+
+      await expect(previews.getPreview(owner.id, image.id))
+        .rejects.toBeInstanceOf(ServiceUnavailableException);
+
+      const access = jest.fn((file: FileEntity) => file.id);
+
+      await expect(
+        files.withVisibleContentFile(owner.id, image.id, access),
+      ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+      expect(access).not.toHaveBeenCalled();
+    } finally {
+      try {
+        if (locker.isTransactionActive) {
+          await locker.rollbackTransaction();
+        }
+      } finally {
+        await locker.release();
+      }
+    }
+
+    // Both routes must recover when the owner lock is released.
+    await expect(previews.getPreview(owner.id, image.id))
+      .resolves.toMatchObject({
+        type: "image",
+        mimeType: "image/png",
+      });
+
+    await expect(
+      files.withVisibleContentFile(
+        owner.id,
+        image.id,
+        (file) => file.id,
+      ),
+    ).resolves.toBe(image.id);
+  }, 20_000);
+
   it("blocks individual file deletion until thumbnail reading finishes", async () => {
     const image = await createImage(null);
 

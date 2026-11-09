@@ -1,4 +1,4 @@
-import { NotFoundException } from "@nestjs/common";
+import { NotFoundException, ServiceUnavailableException } from "@nestjs/common";
 import { Repository } from "typeorm";
 
 import { FileEntity } from "../entities/file.entity";
@@ -21,12 +21,20 @@ describe("FilesService visible content boundary", () => {
   let currentFile: FileEntity | null;
   let active: boolean;
   let visible: boolean;
+  let failureCode: string | null;
 
   const query = jest.fn(async (sql: string) => {
+    if (sql.startsWith("SET LOCAL ")) return [];
     if (sql.includes("WITH RECURSIVE ancestor_chain")) {
       return [{ visible }];
     }
     if (sql.includes("SELECT id FROM users")) {
+      if (failureCode !== null) {
+        throw Object.assign(
+          new Error("PostgreSQL query interrupted"),
+          { driverError: { code: failureCode } },
+        );
+      }
       return active ? [{ id: 7 }] : [];
     }
     throw new Error("Unexpected SQL");
@@ -53,6 +61,7 @@ describe("FilesService visible content boundary", () => {
     currentFile = { ...original };
     active = true;
     visible = true;
+    failureCode = null;
   });
 
   it("allows the owner to access an active root-level file", async () => {
@@ -66,7 +75,12 @@ describe("FilesService visible content boundary", () => {
     expect(findOne).toHaveBeenCalledWith(FileEntity, {
       where: { id: 5, userId: 7, isDeleted: false },
     });
-    expect(query).toHaveBeenCalledTimes(1);
+    expect(query).toHaveBeenCalledTimes(3);
+    expect(query.mock.calls.slice(0, 2).map(([sql]) => sql))
+      .toEqual([
+        "SET LOCAL lock_timeout = '1500ms'",
+        "SET LOCAL statement_timeout = '2500ms'",
+      ]);
     expect(access).toHaveBeenCalledTimes(1);
   });
 
@@ -78,8 +92,8 @@ describe("FilesService visible content boundary", () => {
       service.withVisibleContentFile(7, 5, access),
     ).resolves.toBe("allowed");
 
-    expect(query).toHaveBeenCalledTimes(2);
-    expect(query.mock.calls[1][0])
+    expect(query).toHaveBeenCalledTimes(4);
+    expect(query.mock.calls[3][0])
       .toContain("WITH RECURSIVE ancestor_chain");
     expect(access).toHaveBeenCalledTimes(1);
   });
@@ -157,4 +171,25 @@ describe("FilesService visible content boundary", () => {
     release();
     await expect(result).resolves.toBe("opened");
   });
+
+  it.each(["55P03", "57014"])(
+    "rejects blocked content access with HTTP 503: %s",
+    async (code) => {
+      failureCode = code;
+      const access = jest.fn();
+
+      await expect(
+        service.withVisibleContentFile(7, 5, access),
+      ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+      expect(query.mock.calls.map(([sql]) => sql)).toEqual([
+        "SET LOCAL lock_timeout = '1500ms'",
+        "SET LOCAL statement_timeout = '2500ms'",
+        'SELECT id FROM users WHERE id=$1 AND "isActive"=TRUE FOR SHARE',
+      ]);
+      expect(findOne).not.toHaveBeenCalled();
+      expect(access).not.toHaveBeenCalled();
+    },
+  );
+
 });

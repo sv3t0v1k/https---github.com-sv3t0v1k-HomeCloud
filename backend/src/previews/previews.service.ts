@@ -470,6 +470,9 @@ export class PreviewsService {
     fileId: number,
   ): Promise<{ type: string; content: string | Buffer; mimeType: string }> {
     return this.fileRepository.manager.transaction(async (manager) => {
+      await manager.query("SET LOCAL lock_timeout = '1500ms'");
+      await manager.query("SET LOCAL statement_timeout = '2500ms'");
+
       // Serialize visibility checks against folder move/delete/restore.
       const owner: Array<{ id: number }> = await manager.query(
         "SELECT id FROM users WHERE id=$1 FOR SHARE",
@@ -532,6 +535,19 @@ export class PreviewsService {
       }
 
       return { type: "image", content: data, mimeType };
+    }).catch((error: unknown) => {
+      const databaseError = error as {
+        code?: unknown;
+        driverError?: { code?: unknown };
+      } | null;
+      const code = databaseError?.driverError?.code ??
+        databaseError?.code;
+
+      if (code === "55P03" || code === "57014") {
+        throw new ServiceUnavailableException("Preview database wait timed out");
+      }
+
+      throw error;
     });
   }
 

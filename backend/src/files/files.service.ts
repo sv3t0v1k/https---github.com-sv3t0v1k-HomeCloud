@@ -159,6 +159,9 @@ export class FilesService {
     }
 
     return this.fileRepository.manager.transaction(async (manager) => {
+      await manager.query("SET LOCAL lock_timeout = '1500ms'");
+      await manager.query("SET LOCAL statement_timeout = '2500ms'");
+
       const owners: Array<{ id: number }> = await manager.query(
         'SELECT id FROM users WHERE id=$1 AND "isActive"=TRUE FOR SHARE',
         [userId],
@@ -181,6 +184,19 @@ export class FilesService {
       );
 
       return access(file);
+    }).catch((error: unknown) => {
+      const databaseError = error as {
+        code?: unknown;
+        driverError?: { code?: unknown };
+      } | null;
+      const code = databaseError?.driverError?.code ??
+        databaseError?.code;
+
+      if (code === "55P03" || code === "57014") {
+        throw new ServiceUnavailableException("Content database wait timed out");
+      }
+
+      throw error;
     });
   }
 
