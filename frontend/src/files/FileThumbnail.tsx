@@ -1,59 +1,150 @@
 import { useEffect, useRef, useState } from 'react'
 
+import { tokenStorage } from '../auth/tokenStorage'
 import { Icon } from '../ui/Icon'
-import { queueThumbnail } from './thumbnailQueue'
+import {
+  onThumbnailQueueCapacity,
+  promoteThumbnail,
+  queueThumbnail,
+  ThumbnailQueuePressureError,
+} from './thumbnailQueue'
 
 export function FileThumbnail({ fileId }: { fileId: number }) {
   const element = useRef<HTMLSpanElement>(null)
-  const [visible, setVisible] = useState(false)
+  const objectUrl = useRef<string | null>(null)
+  const inViewport = useRef(false)
+
+  const [shouldLoad, setShouldLoad] = useState(false)
   const [url, setUrl] = useState<string | null>(null)
 
+  // The object URL belongs to the mounted file version, not
+  // to the current intersection state.
   useEffect(() => {
+    setUrl(null)
+
+    return () => {
+      if (objectUrl.current) {
+        URL.revokeObjectURL(objectUrl.current)
+        objectUrl.current = null
+      }
+    }
+  }, [fileId])
+
+  useEffect(() => {
+    const target = element.current
+    if (!target) return
+
     if (typeof IntersectionObserver === 'undefined') {
-      setVisible(true)
+      inViewport.current = true
+      setShouldLoad(true)
       return
     }
 
-    const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) {
-        setVisible(true)
-        observer.disconnect()
-      }
+    let nearby = false
+    let visible = false
+
+    const update = () => {
+      setShouldLoad(nearby || visible)
+    }
+
+    // Prefetch starts shortly before the file enters the viewport.
+    const prefetchObserver = new IntersectionObserver((entries) => {
+      nearby = entries.some((entry) => entry.isIntersecting)
+      update()
     }, { rootMargin: '160px' })
 
-    if (element.current) observer.observe(element.current)
-    return () => observer.disconnect()
-  }, [])
+    // Actual visibility takes precedence over background prefetch.
+    const viewportObserver = new IntersectionObserver((entries) => {
+      visible = entries.some((entry) => entry.isIntersecting)
+      inViewport.current = visible
 
-  useEffect(() => {
-    if (!visible) return
+      if (visible) promoteThumbnail(fileId)
+      update()
+    }, { rootMargin: '0px' })
 
-    const controller = new AbortController()
-    let objectUrl: string | null = null
-
-    queueThumbnail(fileId, controller.signal)
-      .then((blob) => {
-        if (controller.signal.aborted) return
-
-        const created = URL.createObjectURL(blob)
-
-        if (controller.signal.aborted) {
-          URL.revokeObjectURL(created)
-          return
-        }
-
-        objectUrl = created
-        setUrl(created)
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setUrl(null)
-      })
+    prefetchObserver.observe(target)
+    viewportObserver.observe(target)
 
     return () => {
-      controller.abort()
-      if (objectUrl) URL.revokeObjectURL(objectUrl)
+      prefetchObserver.disconnect()
+      viewportObserver.disconnect()
+      inViewport.current = false
     }
-  }, [fileId, visible])
+  }, [fileId])
+
+  useEffect(() => {
+    if (!shouldLoad || objectUrl.current) return
+
+    const controller = new AbortController()
+    const ownerGeneration = tokenStorage.getOwnerGeneration()
+    let mounted = true
+
+    let stopWaiting: (() => void) | null = null
+
+    const attempt = () => {
+      if (
+        !mounted ||
+        controller.signal.aborted ||
+        objectUrl.current ||
+        tokenStorage.getOwnerGeneration() !== ownerGeneration
+      ) return
+
+      void queueThumbnail(
+        fileId,
+        controller.signal,
+        inViewport.current ? 'visible' : 'prefetch',
+      )
+        .then((blob) => {
+          if (
+            !mounted ||
+            controller.signal.aborted ||
+            tokenStorage.getOwnerGeneration() !== ownerGeneration
+          ) return
+
+          const created = URL.createObjectURL(blob)
+
+          if (
+            !mounted ||
+            controller.signal.aborted ||
+            tokenStorage.getOwnerGeneration() !== ownerGeneration
+          ) {
+            URL.revokeObjectURL(created)
+            return
+          }
+
+          objectUrl.current = created
+          setUrl(created)
+        })
+        .catch((error: unknown) => {
+          if (
+            !mounted ||
+            controller.signal.aborted ||
+            tokenStorage.getOwnerGeneration() !== ownerGeneration
+          ) return
+
+          if (error instanceof ThumbnailQueuePressureError) {
+            // Subscribe once and retry only after pending capacity opens.
+            stopWaiting = onThumbnailQueueCapacity(() => {
+              stopWaiting?.()
+              stopWaiting = null
+              attempt()
+            })
+          } else {
+            setUrl(null)
+          }
+        })
+    }
+
+    attempt()
+
+    // Leaving both observer zones cancels queued or active fetching.
+    // A completed thumbnail remains displayed until file unmount/version change.
+    return () => {
+      mounted = false
+      stopWaiting?.()
+      controller.abort()
+    }
+  }, [fileId, shouldLoad])
 
   return (
     <span
