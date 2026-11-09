@@ -18,6 +18,7 @@ export class StorageService implements OnModuleDestroy {
   private readonly tempPath: string;
   private readonly registry: StorageRegistry;
   private readonly ssdBinding: ApprovedRoot | undefined;
+  private readonly secureReadBoundary?: SecureFilesystem;
 
   constructor(private configService: ConfigService) {
     this.storagePath = configService.get("STORAGE_PATH") || "/storage";
@@ -30,14 +31,42 @@ export class StorageService implements OnModuleDestroy {
     ]);
     try {
       this.ensureDirectories();
+
+      if (process.platform === "linux") {
+        // Acquire the root capability once, before accepting read requests.
+        const root = this.registry.mounts
+          .assertAccess(LEGACY_STORAGE_ID).root;
+        const expected = fs.lstatSync(root);
+
+        const boundary = new SecureFilesystem(root, expected);
+
+        try {
+          // Revalidate the registry's original mount pin after acquiring
+          // the native descriptor. A swap during acquisition fails closed.
+          this.registry.mounts.assertAccess(LEGACY_STORAGE_ID);
+        } catch (error) {
+          boundary.close();
+          throw error;
+        }
+
+        this.secureReadBoundary = boundary;
+      }
     } catch (error) {
-      this.registry.close();
+      try {
+        this.secureReadBoundary?.close();
+      } finally {
+        this.registry.close();
+      }
       throw error;
     }
   }
 
   onModuleDestroy(): void {
-    this.registry.close();
+    try {
+      this.secureReadBoundary?.close();
+    } finally {
+      this.registry.close();
+    }
   }
 
   private ensureDirectories() {
@@ -79,24 +108,27 @@ export class StorageService implements OnModuleDestroy {
    * The caller owns the returned FD and must close it.
    */
   openReadOnlyFileSecure(absolutePath: string): number {
-    if (process.platform !== "linux") {
+    const boundary = this.secureReadBoundary;
+    if (!boundary) {
       throw new Error("Secure storage reads require Linux");
     }
 
-    // Validate the metadata bridge and currently approved storage root.
+    // Validate the logical placement against the current registry.
     this.registry.keyFromAbsolute(absolutePath);
+    this.registry.mounts.assertAccess(LEGACY_STORAGE_ID);
 
-    const root = this.registry.mounts
-      .assertAccess(LEGACY_STORAGE_ID).root;
-    const expected = fs.lstatSync(root);
-    const boundary = new SecureFilesystem(root, expected);
+    // Always open relative to the original, long-lived native root FD.
+    // No fresh lstat(root) is trusted as a new security identity.
+    const fd = boundary.open(absolutePath, "r");
 
     try {
-      // Native openat2 resolves beneath a pinned root FD:
-      // no symlinks, magic links or mount boundary crossings.
-      return boundary.open(absolutePath, "r");
-    } finally {
-      boundary.close();
+      // Detect replacement that occurred during path validation.
+      // The native FD already prevents reading from the replacement.
+      this.registry.mounts.assertAccess(LEGACY_STORAGE_ID);
+      return fd;
+    } catch (error) {
+      fs.closeSync(fd);
+      throw error;
     }
   }
 
