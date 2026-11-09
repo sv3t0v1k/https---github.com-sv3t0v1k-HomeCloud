@@ -11,8 +11,10 @@ import sharp from "sharp";
 jest.mock("sharp", () => ({
   __esModule: true,
   default: jest.fn(() => ({
+    rotate: jest.fn().mockReturnThis(),
     resize: jest.fn().mockReturnThis(),
     png: jest.fn().mockReturnThis(),
+    timeout: jest.fn().mockReturnThis(),
     toBuffer: jest.fn().mockResolvedValue(Buffer.from("fake-thumbnail")),
   })),
 }));
@@ -45,8 +47,9 @@ describe("PreviewsService - Post-Review Fixes", () => {
   describe("getThumbnail - memory safety", () => {
     it("should reject large image before reading into memory", async () => {
       const tempFile = path.join("/tmp", `large-${Date.now()}.jpg`);
-      const largeSize = 10 * 1024 * 1024;
-      fs.writeFileSync(tempFile, Buffer.alloc(largeSize));
+      const largeSize = 40 * 1024 * 1024;
+      fs.writeFileSync(tempFile, Buffer.alloc(0));
+      fs.truncateSync(tempFile, largeSize);
 
       mockFileRepository.findOne.mockResolvedValue({
         id: 1,
@@ -65,7 +68,13 @@ describe("PreviewsService - Post-Review Fixes", () => {
 
     it("should accept small valid image", async () => {
       const tempFile = path.join("/tmp", `small-${Date.now()}.jpg`);
-      fs.writeFileSync(tempFile, Buffer.alloc(1024));
+      fs.writeFileSync(
+        tempFile,
+        Buffer.concat([
+          Buffer.from([0xff, 0xd8, 0xff]),
+          Buffer.alloc(1021),
+        ]),
+      );
 
       mockFileRepository.findOne.mockResolvedValue({
         id: 1,
@@ -122,6 +131,9 @@ describe("PreviewsService logical placement with real storage resolver", () => {
     const service=new PreviewsService(repo as any,storage);
     expect(await service.getPreview(1,1)).toMatchObject({content:"logical preview",type:"text"});
     file.mimeType="image/png";
+    fs.writeFileSync(target, Buffer.from([
+      137, 80, 78, 71, 13, 10, 26, 10,
+    ]));
     expect(await service.getThumbnail(1,1)).toEqual(Buffer.from("fake-thumbnail"));
     file.storagePath=path.join(root,"other.txt"); fs.writeFileSync(file.storagePath,"wrong");
     await expect(service.getPreview(1,1)).rejects.toBeInstanceOf(NotFoundException);

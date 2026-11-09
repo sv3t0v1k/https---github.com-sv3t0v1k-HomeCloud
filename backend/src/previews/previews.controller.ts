@@ -1,5 +1,6 @@
 import {
   Controller,
+  BadRequestException,
   Get,
   Param,
   UseGuards,
@@ -28,7 +29,7 @@ export class PreviewsController {
     const userId = req.user.userId;
     const buffer = await this.previewsService.getThumbnail(
       userId,
-      parseInt(id, 10),
+      parsePreviewId(id),
     );
     res.set({
       "Content-Type": "image/png",
@@ -43,6 +44,17 @@ export class PreviewsController {
     @Param("id") id: string,
   ) {
     const userId = req.user.userId;
-    return this.previewsService.getPreview(userId, parseInt(id, 10));
+    return this.previewsService.getPreview(userId, parsePreviewId(id));
   }
+}
+
+function parsePreviewId(value: string): number {
+  if (!/^[1-9][0-9]*$/.test(value)) {
+    throw new BadRequestException("Invalid file ID");
+  }
+  const id = Number(value);
+  if (!Number.isSafeInteger(id)) {
+    throw new BadRequestException("Invalid file ID");
+  }
+  return id;
 }

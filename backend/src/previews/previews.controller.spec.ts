@@ -66,6 +66,21 @@ describe("PreviewsController thumbnail cache boundary (Phase 11.3)", () => {
     expect(getThumbnail).toHaveBeenCalledWith(1, 1);
   });
 
+  it.each([
+    "0",
+    "-1",
+    "1abc",
+    "9007199254740992",
+    "1.5",
+  ])("rejects malformed thumbnail ID %s before service access", async (id) => {
+    const res = await request(app.getHttpServer())
+      .get(`/api/v1/previews/${id}/thumbnail`)
+      .set("Authorization", "Bearer header.payload.signature");
+
+    expect(res.status).toBe(400);
+    expect(getThumbnail).not.toHaveBeenCalled();
+  });
+
   it("missing Authorization → auth requirement enforced (guard rejects)", async () => {
     const res = await request(app.getHttpServer()).get(
       "/api/v1/previews/1/thumbnail",
