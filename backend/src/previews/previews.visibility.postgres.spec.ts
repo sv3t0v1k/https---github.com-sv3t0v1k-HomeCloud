@@ -309,6 +309,68 @@ describePostgres("Thumbnail visibility — PostgreSQL", () => {
       .rejects.toBeInstanceOf(NotFoundException);
   });
 
+  it("blocks individual file deletion until thumbnail reading finishes", async () => {
+    const image = await createImage(null);
+
+    let release!: () => void;
+    const hold = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    let notify!: () => void;
+    const reached = new Promise<void>((resolve) => {
+      notify = resolve;
+    });
+
+    const target = previews as unknown as {
+      readBoundedImage(filePath: string): Promise<Buffer>;
+    };
+    const originalRead = target.readBoundedImage.bind(previews);
+
+    const spy = jest.spyOn(target, "readBoundedImage")
+      .mockImplementation(async (filePath) => {
+        notify();
+        await hold;
+        return originalRead(filePath);
+      });
+
+    let thumbnail: Promise<Buffer> | undefined;
+    let deletion: Promise<unknown> | undefined;
+
+    try {
+      thumbnail = previews.getThumbnail(owner.id, image.id);
+      await reached;
+
+      deletion = files.removeFile(owner.id, image.id);
+
+      const deletedEarly = await Promise.race([
+        deletion.then(() => true),
+        new Promise<boolean>((resolve) =>
+          setTimeout(() => resolve(false), 100)),
+      ]);
+
+      expect(deletedEarly).toBe(false);
+
+      release();
+      const png = await thumbnail;
+      expect((await sharp(png).metadata()).format).toBe("png");
+
+      await deletion;
+      const updated = await db.getRepository(FileEntity)
+        .findOneByOrFail({ id: image.id });
+      expect(updated.isDeleted).toBe(true);
+
+      await expect(previews.getThumbnail(owner.id, image.id))
+        .rejects.toBeInstanceOf(NotFoundException);
+    } finally {
+      release();
+      if (thumbnail && deletion) {
+        await Promise.allSettled([thumbnail, deletion]);
+      }
+      spy.mockRestore();
+    }
+  }, 20_000);
+
   it("blocks concurrent folder deletion until image reading finishes", async () => {
     const root = await createFolder(owner.id);
     const image = await createImage(root.id);

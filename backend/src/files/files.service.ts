@@ -477,16 +477,52 @@ export class FilesService {
   }
 
   async removeFile(userId: number, id: number) {
-    const file = await this.findOne(userId, id);
-    if (file.isFolder) {
-      throw new BadRequestException("Cannot delete folder via files endpoint");
+    const runner = this.fileRepository.manager.connection.createQueryRunner();
+    let transactionStarted = false;
+
+    try {
+      await runner.connect();
+      await runner.startTransaction();
+      transactionStarted = true;
+
+      // All owner writers acquire the user lock before file locks.
+      // This conflicts with thumbnail/preview readers' FOR SHARE.
+      const owner: Array<{ id: number }> = await runner.manager.query(
+        "SELECT id FROM users WHERE id=$1 FOR UPDATE",
+        [userId],
+      );
+      if (owner.length !== 1) {
+        throw new NotFoundException("File not found");
+      }
+
+      const file = await runner.manager.findOne(FileEntity, {
+        where: { id, userId },
+        lock: { mode: "pessimistic_write" },
+      });
+      if (!file) {
+        throw new NotFoundException("File not found");
+      }
+      if (file.isFolder) {
+        throw new BadRequestException(
+          "Cannot delete folder via files endpoint",
+        );
+      }
+
+      file.isDeleted = true;
+      file.deletedAt = new Date();
+      await runner.manager.save(file);
+
+      await runner.commitTransaction();
+      transactionStarted = false;
+      return { message: "File moved to trash" };
+    } catch (error) {
+      if (transactionStarted) {
+        await runner.rollbackTransaction();
+      }
+      throw error;
+    } finally {
+      await runner.release();
     }
-
-    file.isDeleted = true;
-    file.deletedAt = new Date();
-    await this.fileRepository.save(file);
-
-    return { message: "File moved to trash" };
   }
 
   async removeFolder(userId: number, id: number) {
