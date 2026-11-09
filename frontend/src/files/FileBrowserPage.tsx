@@ -16,6 +16,7 @@ import { UploadQueue, type UploadQueueItem } from './uploadQueue'
 import { ShareDialog } from '../sharing/ShareDialog'
 import type { ShareTarget } from '../sharing/api'
 import { PreviewModal } from './PreviewModal'
+import { FileThumbnail } from './FileThumbnail'
 import { safeOperationError } from './operationErrors'
 import { locatedTarget, searchReturn } from './searchNavigation'
 
@@ -413,7 +414,7 @@ function FileRow({ disabled, file, onAction, onDownloadStarted, onDownloadHanded
   }
   const fileType = file.mimeType?.startsWith('image/') ? 'image' : file.mimeType?.startsWith('text/') ? 'text' : 'file'
   return <tr data-object-key={`file:${file.id}`} className={`directory-row${selected ? ' is-selected' : ''}`} onContextMenu={onContextMenu} onClick={(event) => { if (!(event.target as HTMLElement).closest('.file-actions, input, label')) onSelect(event) }}>
-    <td className="file-name-cell"><label className="selection-hit"><input aria-label={`Выбрать ${file.name}`} type="checkbox" checked={selected} onChange={() => {}} onClick={(event) => onSelect(event, true)} /></label><span className={`file-icon file-icon-${fileType}`}><Icon name={fileType} /></span><button className="file-name" onDoubleClick={(event) => { event.currentTarget.focus(); setShowPreview(true) }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); setShowPreview(true) } }} title={file.name} type="button">{file.name}</button></td>
+    <td className="file-name-cell"><label className="selection-hit"><input aria-label={`Выбрать ${file.name}`} type="checkbox" checked={selected} onChange={() => {}} onClick={(event) => onSelect(event, true)} /></label>{fileType === 'image' ? <FileThumbnail fileId={file.id} /> : <span className={`file-icon file-icon-${fileType}`}><Icon name={fileType} /></span>}<button className="file-name" onDoubleClick={(event) => { event.currentTarget.focus(); setShowPreview(true) }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); setShowPreview(true) } }} title={file.name} type="button">{file.name}</button></td>
     <td className="file-meta"><span className="mobile-label">Тип: </span>{fileType === 'image' ? 'Изображение' : fileType === 'text' ? 'Текстовый документ' : file.mimeType === 'application/pdf' ? 'Документ PDF' : 'Файл'}</td>
     <td className="file-meta"><span className="mobile-label">Размер: </span>{formatBytes(file.size)}</td>
     <td className="file-meta"><span className="mobile-label">Изменено: </span>{formatDate(file.updatedAt)}</td>
