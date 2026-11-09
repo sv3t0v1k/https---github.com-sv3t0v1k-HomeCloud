@@ -60,6 +60,8 @@ export class PreviewsController {
   }
 
   @Get(":id")
+  @Header("Cache-Control", "private, no-store")
+  @Header("Vary", "Authorization")
   async getPreview(
     @NestRequest() req: ExpressRequest & { user: { userId: number } },
     @Param("id") id: string,

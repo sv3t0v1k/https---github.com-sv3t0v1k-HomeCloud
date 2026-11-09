@@ -197,6 +197,43 @@ describePostgres("Thumbnail visibility — PostgreSQL", () => {
       .rejects.toBeInstanceOf(NotFoundException);
   });
 
+  it("denies old preview of an individually deleted file", async () => {
+    const image = await createImage(null);
+
+    await expect(previews.getPreview(owner.id, image.id))
+      .resolves.toMatchObject({ type: "image", mimeType: "image/png" });
+
+    await files.removeFile(owner.id, image.id);
+
+    await expect(previews.getPreview(owner.id, image.id))
+      .rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it("denies old preview below a deleted ancestor", async () => {
+    const root = await createFolder(owner.id);
+    const nested = await createFolder(owner.id, root.id);
+    const image = await createImage(nested.id);
+
+    await files.removeFolder(owner.id, root.id);
+
+    await expect(previews.getPreview(owner.id, image.id))
+      .rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it("denies old preview when a legacy mirror is missing", async () => {
+    const root = await createFolder(owner.id);
+    const image = await createImage(root.id);
+
+    await db.getRepository(FileEntity).delete({
+      userId: owner.id,
+      folderId: root.id,
+      isFolder: true,
+    });
+
+    await expect(previews.getPreview(owner.id, image.id))
+      .rejects.toBeInstanceOf(NotFoundException);
+  });
+
   it("denies an image after deleting its ancestor, then permits restoration", async () => {
     const root = await createFolder(owner.id);
     const nested = await createFolder(owner.id, root.id);

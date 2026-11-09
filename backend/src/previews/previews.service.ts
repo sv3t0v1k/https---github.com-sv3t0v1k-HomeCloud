@@ -359,60 +359,150 @@ export class PreviewsService {
     }, signal);
   }
 
+  private async readSecurePreviewBytes(
+    filePath: string,
+    isText: boolean,
+  ): Promise<{ data: Buffer; truncated: boolean }> {
+    // Descriptor-based confinement is mandatory. No pathname fallback.
+    let fd: number;
+    try {
+      fd = this.storageService.openReadOnlyFileSecure(filePath);
+    } catch {
+      throw new NotFoundException("File not found on storage");
+    }
+
+    try {
+      const before = fs.fstatSync(fd);
+
+      if (
+        !before.isFile() ||
+        before.nlink !== 1 ||
+        !Number.isSafeInteger(before.size) ||
+        before.size < 0
+      ) {
+        throw new BadRequestException("Invalid preview file");
+      }
+
+      if (!isText && before.size > this.maxPreviewBytes) {
+        throw new BadRequestException(
+          "Image exceeds maximum preview size",
+        );
+      }
+
+      const length = Math.min(before.size, this.maxPreviewBytes);
+      const data = Buffer.alloc(length);
+      let offset = 0;
+
+      while (offset < length) {
+        const bytesRead = await new Promise<number>((resolve, reject) => {
+          fs.read(
+            fd,
+            data,
+            offset,
+            length - offset,
+            offset,
+            (error, count) => {
+              if (error) reject(error);
+              else resolve(count);
+            },
+          );
+        });
+
+        if (bytesRead <= 0) {
+          throw new BadRequestException("Preview changed during reading");
+        }
+
+        offset += bytesRead;
+      }
+
+      const after = fs.fstatSync(fd);
+      if (
+        after.size !== before.size ||
+        after.dev !== before.dev ||
+        after.ino !== before.ino ||
+        after.mtimeMs !== before.mtimeMs ||
+        after.ctimeMs !== before.ctimeMs
+      ) {
+        throw new BadRequestException("Preview changed during reading");
+      }
+
+      return {
+        data,
+        truncated: isText && before.size > this.maxPreviewBytes,
+      };
+    } finally {
+      fs.closeSync(fd);
+    }
+  }
+
   async getPreview(
     userId: number,
     fileId: number,
   ): Promise<{ type: string; content: string | Buffer; mimeType: string }> {
-    const file = await this.fileRepository.findOne({
-      where: { id: fileId, userId },
-    });
-    if (!file) {
-      throw new NotFoundException("File not found");
-    }
+    return this.fileRepository.manager.transaction(async (manager) => {
+      // Serialize visibility checks against folder move/delete/restore.
+      const owner: Array<{ id: number }> = await manager.query(
+        "SELECT id FROM users WHERE id=$1 FOR SHARE",
+        [userId],
+      );
+      if (owner.length !== 1) {
+        throw new NotFoundException("File not found");
+      }
 
-    let filePath: string;
-    try { filePath = this.storageService.resolveFilePath(file); }
-    catch { throw new NotFoundException("File not found on storage"); }
-
-    const mimeType = file.mimeType || "";
-
-    if (
-      mimeType.startsWith("text/") ||
-      mimeType === "application/json" ||
-      mimeType === "application/javascript" ||
-      mimeType === "application/xml"
-    ) {
-      const stream = fs.createReadStream(filePath, {
-        encoding: "utf-8",
+      const file = await manager.findOne(FileEntity, {
+        where: { id: fileId, userId, isDeleted: false },
       });
-      let content = "";
-      let total = 0;
-      for await (const chunk of stream) {
-        total += chunk.length;
-        if (total > this.maxPreviewBytes) {
-          content += "\n... (truncated)";
-          break;
-        }
-        content += chunk;
-      }
-      return { type: "text", content, mimeType };
-    }
 
-    if (mimeType.startsWith("image/")) {
-      const stats = await fs.promises.stat(filePath);
-      if (stats.size > this.maxPreviewBytes) {
-        throw new BadRequestException("Image exceeds maximum preview size");
+      if (!file || file.isDeleted || file.isFolder) {
+        throw new NotFoundException("File not found");
       }
-      const buffer = fs.readFileSync(filePath);
-      const chunks: Buffer[] = [buffer];
-      return { type: "image", content: Buffer.concat(chunks), mimeType };
-    }
 
-    return {
-      type: "unsupported",
-      content: "Preview not available for this file type.",
-      mimeType: "text/plain",
-    };
+      await this.assertVisibleAncestors(
+        manager,
+        userId,
+        file.parentId ?? null,
+      );
+
+      let filePath: string;
+      try {
+        filePath = this.storageService.resolveFilePath(file);
+      } catch {
+        throw new NotFoundException("File not found on storage");
+      }
+
+      const mimeType = file.mimeType || "";
+      const isText =
+        mimeType.startsWith("text/") ||
+        mimeType === "application/json" ||
+        mimeType === "application/javascript" ||
+        mimeType === "application/xml";
+
+      const isImage = mimeType.startsWith("image/");
+
+      if (!isText && !isImage) {
+        return {
+          type: "unsupported",
+          content: "Preview not available for this file type.",
+          mimeType: "text/plain",
+        };
+      }
+
+      const { data, truncated } = await this.readSecurePreviewBytes(
+        filePath,
+        isText,
+      );
+
+      if (isText) {
+        const suffix = truncated ? "\n... (truncated)" : "";
+        return {
+          type: "text",
+          content: data.toString("utf8") + suffix,
+          mimeType,
+        };
+      }
+
+      return { type: "image", content: data, mimeType };
+    });
   }
 
   async getFileInfo(userId: number, fileId: number): Promise<FileEntity> {

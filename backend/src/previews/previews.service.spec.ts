@@ -107,6 +107,54 @@ describe("PreviewsService - Post-Review Fixes", () => {
     });
   });
 
+  describe("getPreview - visibility boundary", () => {
+    it("rejects a deleted file before opening storage", async () => {
+      mockFileRepository.findOne.mockResolvedValue({
+        id: 1,
+        userId: 1,
+        isDeleted: true,
+        isFolder: false,
+        parentId: null,
+        mimeType: "text/plain",
+        storagePath: "/storage/deleted.txt",
+      });
+
+      await expect(service.getPreview(1, 1))
+        .rejects.toBeInstanceOf(NotFoundException);
+
+      expect(mockStorageService.openReadOnlyFileSecure)
+        .not.toHaveBeenCalled();
+    });
+
+    it("rejects an invisible ancestor before opening storage", async () => {
+      mockFileRepository.findOne.mockResolvedValue({
+        id: 1,
+        userId: 1,
+        isDeleted: false,
+        isFolder: false,
+        parentId: 42,
+        mimeType: "text/plain",
+        storagePath: "/storage/hidden.txt",
+      });
+
+      mockFileRepository.manager.transaction = async (
+        run: (manager: any) => Promise<any>,
+      ) => run({
+        findOne: mockFileRepository.findOne,
+        query: async (sql: string) =>
+          sql.includes("WITH RECURSIVE ancestor_chain")
+            ? [{ visible: false }]
+            : [{ id: 1 }],
+      });
+
+      await expect(service.getPreview(1, 1))
+        .rejects.toBeInstanceOf(NotFoundException);
+
+      expect(mockStorageService.openReadOnlyFileSecure)
+        .not.toHaveBeenCalled();
+    });
+  });
+
   describe("getPreview - memory safety", () => {
     it("should reject large image before reading into memory", async () => {
       const tempFile = path.join("/tmp", `large-preview-${Date.now()}.jpg`);

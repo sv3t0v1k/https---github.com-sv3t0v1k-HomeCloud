@@ -22,16 +22,22 @@ const CONFIG = {
 describe("PreviewsController thumbnail cache boundary (Phase 11.3)", () => {
   let app: any;
   const getThumbnail = jest.fn();
+  const getPreview = jest.fn();
   const jwtVerify = jest.fn(() => ({ sub: 1, email: "u@t.c" }));
 
   beforeAll(async () => {
     getThumbnail.mockResolvedValue(Buffer.from("thumbnail-bytes"));
+    getPreview.mockResolvedValue({
+      type: "unsupported",
+      content: "Preview not available",
+      mimeType: "text/plain",
+    });
 
     const mod = await Test.createTestingModule({
       imports: [ConfigModule.forRoot({ isGlobal: true, load: [() => CONFIG] })],
       controllers: [PreviewsController],
       providers: [
-        { provide: PreviewsService, useValue: { getThumbnail } },
+        { provide: PreviewsService, useValue: { getThumbnail, getPreview } },
         { provide: JwtService, useValue: { verify: jwtVerify, sign: jest.fn() } },
         { provide: JwtStrategy, useValue: { validate: async () => ({ userId: 1, email: "u@t.c" }) } },
       ],
@@ -135,6 +141,18 @@ describe("PreviewsController thumbnail cache boundary (Phase 11.3)", () => {
       finish(Buffer.from("thumbnail-bytes"));
     }
   }, 10_000);
+
+  it("legacy preview is authenticated and never publicly cached", async () => {
+    const res = await request(app.getHttpServer())
+      .get("/api/v1/previews/1")
+      .set("Authorization", "Bearer header.payload.signature");
+
+    expect(res.status).toBe(200);
+    expect(res.headers["cache-control"]).toContain("no-store");
+    expect(res.headers["cache-control"]).toContain("private");
+    expect(res.headers["vary"]).toContain("Authorization");
+    expect(getPreview).toHaveBeenCalledWith(1, 1);
+  });
 
   it("missing Authorization → auth requirement enforced (guard rejects)", async () => {
     const res = await request(app.getHttpServer()).get(
