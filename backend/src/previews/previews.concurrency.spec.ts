@@ -2,7 +2,10 @@ import { ServiceUnavailableException } from "@nestjs/common";
 import { PreviewsService } from "./previews.service";
 
 type SlotService = {
-  withThumbnailSlot<T>(run: () => Promise<T>): Promise<T>;
+  withThumbnailSlot<T>(
+    run: () => Promise<T>,
+    signal?: AbortSignal,
+  ): Promise<T>;
 };
 
 describe("Thumbnail concurrency protection", () => {
@@ -82,6 +85,193 @@ describe("Thumbnail concurrency protection", () => {
       await expect(slot(async () => "recovered"))
         .resolves.toBe("recovered");
     } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("removes an aborted waiter without consuming capacity", async () => {
+    const slot = createSlot();
+    let release!: () => void;
+    const hold = new Promise<void>((resolve) => { release = resolve; });
+
+    const running = [slot(() => hold), slot(() => hold)];
+    const controller = new AbortController();
+    let entered = false;
+
+    const waiting = slot(async () => {
+      entered = true;
+    }, controller.signal);
+
+    const rejected = (async () => {
+      await expect(waiting)
+        .rejects.toBeInstanceOf(ServiceUnavailableException);
+    })();
+
+    controller.abort();
+    await rejected;
+    expect(entered).toBe(false);
+
+    const next = Array.from({ length: 16 }, () =>
+      slot(async () => "ok"),
+    );
+
+    await expect(slot(async () => "overflow"))
+      .rejects.toBeInstanceOf(ServiceUnavailableException);
+
+    release();
+    await Promise.all(running);
+    await expect(Promise.all(next))
+      .resolves.toEqual(Array(16).fill("ok"));
+  });
+
+  it("holds an aborted active slot until actual completion", async () => {
+    const slot = createSlot();
+    let release!: () => void;
+    const hold = new Promise<void>((resolve) => { release = resolve; });
+
+    const controller = new AbortController();
+    const first = slot(() => hold, controller.signal);
+    const rejected = (async () => {
+      await expect(first)
+        .rejects.toBeInstanceOf(ServiceUnavailableException);
+    })();
+
+    const second = slot(() => hold);
+    let started = false;
+
+    const third = slot(async () => {
+      started = true;
+      return "third";
+    });
+
+    controller.abort();
+    await Promise.resolve();
+    expect(started).toBe(false);
+
+    release();
+    await rejected;
+    await second;
+    await expect(third).resolves.toBe("third");
+    expect(started).toBe(true);
+
+    await expect(slot(async () => "recovered"))
+      .resolves.toBe("recovered");
+  });
+
+  it("rejects cancellation before admission", async () => {
+    const slot = createSlot();
+    const controller = new AbortController();
+    controller.abort();
+
+    let started = false;
+    await expect(slot(async () => {
+      started = true;
+    }, controller.signal)).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+
+    expect(started).toBe(false);
+    await expect(slot(async () => "ok")).resolves.toBe("ok");
+  });
+
+  it("rejects cancellation between queue wake-up and execution", async () => {
+    const slot = createSlot();
+
+    let release!: () => void;
+    const hold = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    const first = slot(() => hold);
+    const second = slot(() => hold);
+
+    const controller = new AbortController();
+    let entered = false;
+
+    const waiting = slot(async () => {
+      entered = true;
+      return "unexpected";
+    }, controller.signal);
+
+    const rejected = (async () => {
+      await expect(waiting)
+        .rejects.toBeInstanceOf(ServiceUnavailableException);
+    })();
+
+    release();
+
+    // Active tasks wake the waiter in microtasks. Abort before
+    // the awakened waiter can enter its own task callback.
+    queueMicrotask(() => controller.abort());
+
+    await rejected;
+    await Promise.all([first, second]);
+
+    expect(entered).toBe(false);
+
+    await expect(slot(async () => "recovered"))
+      .resolves.toBe("recovered");
+  });
+
+  it("handles repeated abort and timeout without leaking capacity", async () => {
+    jest.useFakeTimers();
+
+    let release!: () => void;
+
+    try {
+      const slot = createSlot();
+      const hold = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+
+      const running = [slot(() => hold), slot(() => hold)];
+      const controller = new AbortController();
+      let entered = 0;
+
+      const cancelled = slot(async () => {
+        entered += 1;
+      }, controller.signal);
+
+      const cancelledCheck = (async () => {
+        await expect(cancelled)
+          .rejects.toBeInstanceOf(ServiceUnavailableException);
+      })();
+
+      const expired = slot(async () => {
+        entered += 1;
+      });
+
+      const expiredCheck = (async () => {
+        await expect(expired)
+          .rejects.toBeInstanceOf(ServiceUnavailableException);
+      })();
+
+      controller.abort();
+      controller.abort();
+
+      await cancelledCheck;
+      await jest.advanceTimersByTimeAsync(5_001);
+      await expiredCheck;
+
+      expect(entered).toBe(0);
+
+      const next = Array.from({ length: 16 }, () =>
+        slot(async () => "accepted"),
+      );
+
+      await expect(slot(async () => "overflow"))
+        .rejects.toBeInstanceOf(ServiceUnavailableException);
+
+      release();
+      await Promise.all(running);
+
+      await expect(Promise.all(next))
+        .resolves.toEqual(Array(16).fill("accepted"));
+
+      await expect(slot(async () => "recovered"))
+        .resolves.toBe("recovered");
+    } finally {
+      release?.();
       jest.useRealTimers();
     }
   });

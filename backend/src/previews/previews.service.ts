@@ -23,40 +23,83 @@ export class PreviewsService {
   private activeThumbnails = 0;
   private readonly thumbnailWaiters: Array<() => void> = [];
 
-  private async withThumbnailSlot<T>(run: () => Promise<T>): Promise<T> {
+  private assertThumbnailActive(signal?: AbortSignal): void {
+    if (signal?.aborted) {
+      throw new ServiceUnavailableException("Thumbnail request cancelled");
+    }
+  }
+
+  private async withThumbnailSlot<T>(
+    run: () => Promise<T>,
+    signal?: AbortSignal,
+  ): Promise<T> {
+    this.assertThumbnailActive(signal);
+
     if (this.activeThumbnails >= 2) {
       if (this.thumbnailWaiters.length >= 16) {
         throw new ServiceUnavailableException("Thumbnail service is busy");
       }
+
       await new Promise<void>((resolve, reject) => {
+        let settled = false;
         let timer: ReturnType<typeof setTimeout>;
 
-        const wake = () => {
+        const cleanup = () => {
           clearTimeout(timer);
+          signal?.removeEventListener("abort", cancel);
+        };
+
+        const remove = () => {
+          const index = this.thumbnailWaiters.indexOf(wake);
+          if (index >= 0) this.thumbnailWaiters.splice(index, 1);
+        };
+
+        const wake = () => {
+          if (settled) return;
+          settled = true;
+          cleanup();
           resolve();
         };
 
-        timer = setTimeout(() => {
-          const index = this.thumbnailWaiters.indexOf(wake);
-          if (index < 0) return;
+        const cancel = () => {
+          if (settled) return;
+          settled = true;
+          remove();
+          cleanup();
+          reject(
+            new ServiceUnavailableException("Thumbnail request cancelled"),
+          );
+        };
 
-          this.thumbnailWaiters.splice(index, 1);
+        const expire = () => {
+          if (settled) return;
+          settled = true;
+          remove();
+          cleanup();
           reject(
             new ServiceUnavailableException(
               "Thumbnail queue wait timed out",
             ),
           );
-        }, 5_000);
+        };
 
+        timer = setTimeout(expire, 5_000);
         this.thumbnailWaiters.push(wake);
+        signal?.addEventListener("abort", cancel, { once: true });
+
+        if (signal?.aborted) cancel();
       });
     } else {
       this.activeThumbnails += 1;
     }
 
     try {
-      return await run();
+      this.assertThumbnailActive(signal);
+      const result = await run();
+      this.assertThumbnailActive(signal);
+      return result;
     } finally {
+      // An active operation retains its slot until it actually settles.
       const next = this.thumbnailWaiters.shift();
       if (next) next();
       else this.activeThumbnails -= 1;
@@ -82,7 +125,11 @@ export class PreviewsService {
     return false;
   }
 
-  private async readBoundedImage(filePath: string): Promise<Buffer> {
+  private async readBoundedImage(
+    filePath: string,
+    signal?: AbortSignal,
+  ): Promise<Buffer> {
+    this.assertThumbnailActive(signal);
     // Linux openat2: pinned root, no symlinks, no mount escapes.
     // Never fall back to pathname-based fs.promises.open().
     const fd = this.storageService.openReadOnlyFileSecure(filePath);
@@ -104,6 +151,7 @@ export class PreviewsService {
       let offset = 0;
 
       while (offset < data.length) {
+        this.assertThumbnailActive(signal);
         const bytesRead = await new Promise<number>((resolve, reject) => {
           fs.read(
             fd,
@@ -122,6 +170,7 @@ export class PreviewsService {
           throw new BadRequestException("Image changed during reading");
         }
         offset += bytesRead;
+        this.assertThumbnailActive(signal);
       }
 
       const after = fs.fstatSync(fd);
@@ -206,14 +255,18 @@ export class PreviewsService {
   private async readAuthorizedThumbnail(
     userId: number,
     fileId: number,
+    signal?: AbortSignal,
   ): Promise<Buffer> {
+    this.assertThumbnailActive(signal);
     return this.fileRepository.manager.transaction(async (manager) => {
+      this.assertThumbnailActive(signal);
       // Folder deletion/move obtains FOR UPDATE on the same user.
       // Hold FOR SHARE until the image bytes have been read.
       const owner: Array<{ id: number }> = await manager.query(
         "SELECT id FROM users WHERE id=$1 FOR SHARE",
         [userId],
       );
+      this.assertThumbnailActive(signal);
       if (owner.length !== 1) {
         throw new NotFoundException("File not found");
       }
@@ -230,6 +283,7 @@ export class PreviewsService {
         userId,
         file.parentId ?? null,
       );
+      this.assertThumbnailActive(signal);
 
       const mimeType = file.mimeType || "";
       if (!["image/jpeg", "image/png", "image/webp"].includes(mimeType)) {
@@ -243,7 +297,9 @@ export class PreviewsService {
         throw new NotFoundException("File not found on storage");
       }
 
-      const data = await this.readBoundedImage(filePath);
+      this.assertThumbnailActive(signal);
+      const data = await this.readBoundedImage(filePath, signal);
+      this.assertThumbnailActive(signal);
       if (!this.matchesImageHeader(data, mimeType)) {
         throw new BadRequestException("Image format mismatch");
       }
@@ -251,10 +307,18 @@ export class PreviewsService {
     });
   }
 
-  async getThumbnail(userId: number, fileId: number): Promise<Buffer> {
+  async getThumbnail(
+    userId: number,
+    fileId: number,
+    signal?: AbortSignal,
+  ): Promise<Buffer> {
     return this.withThumbnailSlot(async () => {
       try {
-        const data = await this.readAuthorizedThumbnail(userId, fileId);
+        this.assertThumbnailActive(signal);
+        const data = await this.readAuthorizedThumbnail(
+          userId, fileId, signal,
+        );
+        this.assertThumbnailActive(signal);
 
         const result = await sharp(data, {
           limitInputPixels: this.maxThumbnailPixels,
@@ -273,12 +337,16 @@ export class PreviewsService {
           .timeout({ seconds: 10 })
           .toBuffer();
 
+        // Sharp may not stop native processing immediately.
+        // Keep its active slot until toBuffer() settles.
+        this.assertThumbnailActive(signal);
         if (!result.length || result.length > 2 * 1024 * 1024) {
           throw new BadRequestException("Thumbnail output exceeds limit");
         }
 
         return result;
       } catch (error) {
+        this.assertThumbnailActive(signal);
         if (
           error instanceof NotFoundException ||
           error instanceof ServiceUnavailableException
@@ -288,7 +356,7 @@ export class PreviewsService {
         this.logger.warn("Failed to generate thumbnail for file");
         throw new BadRequestException("Failed to generate thumbnail");
       }
-    });
+    }, signal);
   }
 
   async getPreview(

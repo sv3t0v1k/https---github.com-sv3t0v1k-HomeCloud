@@ -64,7 +64,9 @@ describe("PreviewsController thumbnail cache boundary (Phase 11.3)", () => {
     expect(cc).not.toContain("public");
     expect((res.headers["vary"] as string) || "").toContain("Authorization");
     expect(res.headers["content-type"]).toContain("image/png");
-    expect(getThumbnail).toHaveBeenCalledWith(1, 1);
+    expect(getThumbnail).toHaveBeenCalledWith(
+      1, 1, expect.any(AbortSignal),
+    );
   });
 
   it.each([
@@ -81,6 +83,58 @@ describe("PreviewsController thumbnail cache boundary (Phase 11.3)", () => {
     expect(res.status).toBe(400);
     expect(getThumbnail).not.toHaveBeenCalled();
   });
+
+  it("aborts processing after real HTTP disconnect", async () => {
+    let entered!: (signal: AbortSignal) => void;
+    const started = new Promise<AbortSignal>((resolve) => {
+      entered = resolve;
+    });
+
+    let finish!: (buffer: Buffer) => void;
+    const work = new Promise<Buffer>((resolve) => {
+      finish = resolve;
+    });
+
+    getThumbnail.mockImplementationOnce(
+      (_userId: number, _fileId: number, signal: AbortSignal) => {
+        entered(signal);
+        return work;
+      },
+    );
+
+    const client = authed().end(() => undefined);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const deadline = <T>(promise: Promise<T>) =>
+      Promise.race([
+        promise,
+        new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(() => reject(
+            new Error("HTTP disconnect test timed out"),
+          ), 3_000);
+        }),
+      ]);
+
+    try {
+      const signal = await deadline(started);
+      if (timer) clearTimeout(timer);
+
+      const disconnected = new Promise<void>((resolve) => {
+        if (signal.aborted) resolve();
+        else signal.addEventListener("abort", () => resolve(), {
+          once: true,
+        });
+      });
+
+      client.abort();
+      await deadline(disconnected);
+      expect(signal.aborted).toBe(true);
+    } finally {
+      if (timer) clearTimeout(timer);
+      client.abort();
+      finish(Buffer.from("thumbnail-bytes"));
+    }
+  }, 10_000);
 
   it("missing Authorization → auth requirement enforced (guard rejects)", async () => {
     const res = await request(app.getHttpServer()).get(

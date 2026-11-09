@@ -27,15 +27,36 @@ export class PreviewsController {
     @Res() res: Response,
   ) {
     const userId = req.user.userId;
-    const buffer = await this.previewsService.getThumbnail(
-      userId,
-      parsePreviewId(id),
-    );
-    res.set({
-      "Content-Type": "image/png",
-      "Content-Length": buffer.length,
-    });
-    res.send(buffer);
+    const fileId = parsePreviewId(id);
+    const controller = new AbortController();
+
+    const onClose = () => {
+      if (!res.writableEnded) controller.abort();
+    };
+
+    res.once("close", onClose);
+    if (res.destroyed && !res.writableEnded) controller.abort();
+
+    try {
+      const buffer = await this.previewsService.getThumbnail(
+        userId,
+        fileId,
+        controller.signal,
+      );
+
+      if (controller.signal.aborted || res.destroyed) return;
+
+      res.set({
+        "Content-Type": "image/png",
+        "Content-Length": buffer.length,
+      });
+      res.send(buffer);
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      throw error;
+    } finally {
+      res.off("close", onClose);
+    }
   }
 
   @Get(":id")
