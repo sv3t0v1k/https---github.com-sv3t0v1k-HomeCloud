@@ -138,33 +138,114 @@ export class PreviewsService {
     private storageService: StorageService,
   ) {}
 
-  async getThumbnail(userId: number, fileId: number): Promise<Buffer> {
-    const file = await this.fileRepository.findOne({
-      where: { id: fileId, userId, isDeleted: false },
-    });
-    if (!file || file.isFolder) {
+  private async assertVisibleAncestors(
+    manager: import("typeorm").EntityManager,
+    userId: number,
+    parentId: number | null,
+  ): Promise<void> {
+    if (parentId === null) return;
+    if (!Number.isSafeInteger(parentId) || parentId <= 0) {
       throw new NotFoundException("File not found");
     }
 
-    let filePath: string;
-    try {
-      filePath = this.storageService.resolveFilePath(file);
-    } catch {
-      throw new NotFoundException("File not found on storage");
-    }
+    const rows: Array<{ visible: boolean }> = await manager.query(
+      `
+      WITH RECURSIVE ancestor_chain AS (
+        SELECT folder.id, folder."parentId", folder."isDeleted",
+               ARRAY[folder.id]::integer[] AS visited,
+               FALSE AS cycle
+        FROM folders folder
+        WHERE folder.id = $2 AND folder."userId" = $1
 
-    const mimeType = file.mimeType || "";
-    if (!["image/jpeg", "image/png", "image/webp"].includes(mimeType)) {
-      throw new BadRequestException("Image format not supported");
-    }
+        UNION ALL
 
+        SELECT parent.id, parent."parentId", parent."isDeleted",
+               chain.visited || parent.id,
+               parent.id = ANY(chain.visited)
+        FROM folders parent
+        JOIN ancestor_chain chain ON parent.id = chain."parentId"
+        WHERE parent."userId" = $1
+          AND NOT chain.cycle
+          AND cardinality(chain.visited) < 256
+      )
+      SELECT (
+        COALESCE(bool_and(
+          NOT chain."isDeleted"
+          AND NOT chain.cycle
+          AND EXISTS (
+            SELECT 1 FROM files mirror
+            WHERE mirror."folderId" = chain.id
+              AND mirror."userId" = $1
+              AND mirror."isFolder"
+              AND NOT mirror."isDeleted"
+              AND mirror."parentId"
+                  IS NOT DISTINCT FROM chain."parentId"
+          )
+        ), FALSE)
+        AND COALESCE(bool_or(chain."parentId" IS NULL), FALSE)
+      ) AS visible
+      FROM ancestor_chain chain
+      `,
+      [userId, parentId],
+    );
+
+    if (rows.length !== 1 || rows[0].visible !== true) {
+      throw new NotFoundException("File not found");
+    }
+  }
+
+  private async readAuthorizedThumbnail(
+    userId: number,
+    fileId: number,
+  ): Promise<Buffer> {
+    return this.fileRepository.manager.transaction(async (manager) => {
+      // Folder deletion/move obtains FOR UPDATE on the same user.
+      // Hold FOR SHARE until the image bytes have been read.
+      const owner: Array<{ id: number }> = await manager.query(
+        "SELECT id FROM users WHERE id=$1 FOR SHARE",
+        [userId],
+      );
+      if (owner.length !== 1) {
+        throw new NotFoundException("File not found");
+      }
+
+      const file = await manager.findOne(FileEntity, {
+        where: { id: fileId, userId, isDeleted: false },
+      });
+      if (!file || file.isFolder) {
+        throw new NotFoundException("File not found");
+      }
+
+      await this.assertVisibleAncestors(
+        manager,
+        userId,
+        file.parentId ?? null,
+      );
+
+      const mimeType = file.mimeType || "";
+      if (!["image/jpeg", "image/png", "image/webp"].includes(mimeType)) {
+        throw new BadRequestException("Image format not supported");
+      }
+
+      let filePath: string;
+      try {
+        filePath = this.storageService.resolveFilePath(file);
+      } catch {
+        throw new NotFoundException("File not found on storage");
+      }
+
+      const data = await this.readBoundedImage(filePath);
+      if (!this.matchesImageHeader(data, mimeType)) {
+        throw new BadRequestException("Image format mismatch");
+      }
+      return data;
+    });
+  }
+
+  async getThumbnail(userId: number, fileId: number): Promise<Buffer> {
     return this.withThumbnailSlot(async () => {
       try {
-        const data = await this.readBoundedImage(filePath);
-
-        if (!this.matchesImageHeader(data, mimeType)) {
-          throw new BadRequestException("Image format mismatch");
-        }
+        const data = await this.readAuthorizedThumbnail(userId, fileId);
 
         const result = await sharp(data, {
           limitInputPixels: this.maxThumbnailPixels,
@@ -188,7 +269,13 @@ export class PreviewsService {
         }
 
         return result;
-      } catch {
+      } catch (error) {
+        if (
+          error instanceof NotFoundException ||
+          error instanceof ServiceUnavailableException
+        ) {
+          throw error;
+        }
         this.logger.warn("Failed to generate thumbnail for file");
         throw new BadRequestException("Failed to generate thumbnail");
       }

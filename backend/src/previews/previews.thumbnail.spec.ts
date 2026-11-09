@@ -13,11 +13,15 @@ describe("Thumbnail processing with real Sharp", () => {
   let mimeType: string;
   let service: PreviewsService;
   let findOne: jest.Mock;
+  let parentId: number | null;
+  let ancestorsVisible: boolean;
 
   beforeEach(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), "hc-thumbnail-"));
     imagePath = path.join(root, "image.png");
     mimeType = "image/png";
+    parentId = null;
+    ancestorsVisible = true;
 
     findOne = jest.fn(async ({ where }) => {
       if (where.userId !== 1 || where.isDeleted !== false) return null;
@@ -27,11 +31,25 @@ describe("Thumbnail processing with real Sharp", () => {
         isDeleted: false,
         isFolder: false,
         mimeType,
+        parentId,
       };
     });
 
     service = new PreviewsService(
-      { findOne } as any,
+      {
+        findOne,
+        manager: {
+          transaction: async (run: (manager: any) => Promise<any>) =>
+            run({
+              findOne: (_entity: unknown, options: any) =>
+                findOne(options),
+              query: async (sql: string) =>
+                sql.includes("WITH RECURSIVE ancestor_chain")
+                  ? [{ visible: ancestorsVisible }]
+                  : [{ id: 1 }],
+            }),
+        },
+      } as any,
       { resolveFilePath: () => imagePath } as any,
     );
   });
@@ -101,6 +119,14 @@ describe("Thumbnail processing with real Sharp", () => {
 
     await expect(service.getThumbnail(1, 1))
       .rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("refuses images below an invisible ancestor", async () => {
+    parentId = 42;
+    ancestorsVisible = false;
+
+    await expect(service.getThumbnail(1, 1))
+      .rejects.toBeInstanceOf(NotFoundException);
   });
 
   it("does not query another owner's image", async () => {

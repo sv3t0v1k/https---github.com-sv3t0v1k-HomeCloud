@@ -28,6 +28,13 @@ describe("PreviewsService - Post-Review Fixes", () => {
     mockFileRepository = {
       findOne: jest.fn(),
     };
+    mockFileRepository.manager = {
+      transaction: async (run: (manager: any) => Promise<any>) =>
+        run({
+          findOne: mockFileRepository.findOne,
+          query: async () => [{ id: 1, visible: true }],
+        }),
+    };
     mockStorageService = {
       resolveFilePath: jest.fn((file) => file.storagePath),
       placementForPath: jest.fn((storagePath: string) => ({ storagePath, storageLocationId: "f2f5c4b0-8d57-4c49-9f8c-0d095b344601", relativeObjectKey: storagePath.replace(/^\/storage\//, "") })),
@@ -127,7 +134,14 @@ describe("PreviewsService logical placement with real storage resolver", () => {
   it("reads text preview and thumbnail from the logical object, rejecting mismatched bridge", async () => {
     const target=path.join(root,"text.txt"); fs.writeFileSync(target,"logical preview");
     const file={id:1,userId:1,mimeType:"text/plain",...storage.placementForPath(target)};
-    const repo={findOne:jest.fn().mockResolvedValue(file)};
+    const findOne=jest.fn().mockResolvedValue(file);
+    const repo={
+      findOne,
+      manager: {
+        transaction: async (run: (manager: any) => Promise<any>) =>
+          run({ findOne, query: async () => [{ id: 1, visible: true }] }),
+      },
+    };
     const service=new PreviewsService(repo as any,storage);
     expect(await service.getPreview(1,1)).toMatchObject({content:"logical preview",type:"text"});
     file.mimeType="image/png";
