@@ -316,6 +316,7 @@ describePostgres("Thumbnail visibility — PostgreSQL", () => {
     let controller: AbortController | undefined;
 
     await blocker.connect();
+    const cancelSpy = jest.spyOn(db.manager, "query");
 
     try {
       await blocker.startTransaction();
@@ -372,6 +373,17 @@ describePostgres("Thumbnail visibility — PostgreSQL", () => {
       expect(outcome.error)
         .toBeInstanceOf(ServiceUnavailableException);
       expect(state.activeThumbnails).toBe(0);
+
+      const cancelIndex = cancelSpy.mock.calls.findIndex(
+        ([sql]) => String(sql).includes("pg_cancel_backend(pid)"),
+      );
+      expect(cancelIndex).toBeGreaterThanOrEqual(0);
+
+      const cancelResult = cancelSpy.mock.results[cancelIndex];
+      expect(cancelResult.type).toBe("return");
+      await expect(cancelResult.value).resolves.toEqual([
+        { cancelled: true },
+      ]);
     } finally {
       controller?.abort();
       if (blocker.isTransactionActive) {
@@ -379,6 +391,7 @@ describePostgres("Thumbnail visibility — PostgreSQL", () => {
       }
       await blocker.release();
       if (pending) await Promise.allSettled([pending]);
+      cancelSpy.mockRestore();
     }
 
     // Pool connection and processing slot recover.

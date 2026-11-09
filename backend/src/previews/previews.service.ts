@@ -8,6 +8,7 @@ import {
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import sharp from "sharp";
+import { randomUUID } from "node:crypto";
 import * as fs from "fs";
 import { FileEntity } from "../entities/file.entity";
 import { assertVisibleAncestors } from "../files/file-visibility";
@@ -197,6 +198,64 @@ export class PreviewsService {
     private storageService: StorageService,
   ) {}
 
+  private async registerThumbnailSqlCancellation(
+    manager: import("typeorm").EntityManager,
+    signal?: AbortSignal,
+  ): Promise<() => void> {
+    if (!signal) return () => {};
+    this.assertThumbnailActive(signal);
+
+    // SET LOCAL creates a transaction-scoped cancellation identity.
+    // A recycled pool connection cannot match an earlier identity.
+    const marker = `hc-thumbnail:${randomUUID()}`;
+    const rows: Array<{ pid: number; marker: string }> =
+      await manager.query(
+        `SELECT pg_backend_pid() AS pid,
+                set_config('application_name', $1, true) AS marker`,
+        [marker],
+      );
+
+    const pid = Number(rows[0]?.pid);
+    if (
+      rows.length !== 1 ||
+      !Number.isSafeInteger(pid) ||
+      pid <= 0 ||
+      rows[0].marker !== marker
+    ) {
+      throw new ServiceUnavailableException(
+        "Thumbnail database session unavailable",
+      );
+    }
+
+    const onAbort = () => {
+      // Never release the worker slot here. The original SQL and
+      // TypeORM transaction must settle before slot release.
+      void this.fileRepository.manager.query(
+        `SELECT pg_cancel_backend(pid) AS cancelled
+         FROM pg_stat_activity
+         WHERE pid = $1
+           AND application_name = $2
+           AND usename = current_user
+           AND state = 'active'`,
+        [pid, marker],
+      ).catch(() => {
+        // Existing lock_timeout remains the fail-safe.
+        this.logger.warn(
+          "Failed to request thumbnail SQL cancellation",
+        );
+      });
+    };
+
+    signal.addEventListener("abort", onAbort, { once: true });
+
+    if (signal.aborted) {
+      signal.removeEventListener("abort", onAbort);
+      this.assertThumbnailActive(signal);
+    }
+
+    return () => signal.removeEventListener("abort", onAbort);
+  }
+
   private async readAuthorizedThumbnail(
     userId: number,
     fileId: number,
@@ -212,50 +271,56 @@ export class PreviewsService {
       await manager.query("SET LOCAL statement_timeout = '2500ms'");
       this.assertThumbnailActive(signal);
 
-      // Folder deletion/move obtains FOR UPDATE on the same user.
-      // Hold FOR SHARE until the image bytes have been read.
-      const owner: Array<{ id: number }> = await manager.query(
-        "SELECT id FROM users WHERE id=$1 FOR SHARE",
-        [userId],
-      );
-      this.assertThumbnailActive(signal);
-      if (owner.length !== 1) {
-        throw new NotFoundException("File not found");
-      }
-
-      const file = await manager.findOne(FileEntity, {
-        where: { id: fileId, userId, isDeleted: false },
-      });
-      if (!file || file.isFolder) {
-        throw new NotFoundException("File not found");
-      }
-
-      await assertVisibleAncestors(
-        manager,
-        userId,
-        file.parentId ?? null,
-      );
-      this.assertThumbnailActive(signal);
-
-      const mimeType = file.mimeType || "";
-      if (!["image/jpeg", "image/png", "image/webp"].includes(mimeType)) {
-        throw new BadRequestException("Image format not supported");
-      }
-
-      let filePath: string;
+      const disableCancellation =
+        await this.registerThumbnailSqlCancellation(manager, signal);
       try {
-        filePath = this.storageService.resolveFilePath(file);
-      } catch {
-        throw new NotFoundException("File not found on storage");
-      }
+        // Folder deletion/move obtains FOR UPDATE on the same user.
+        // Hold FOR SHARE until the image bytes have been read.
+        const owner: Array<{ id: number }> = await manager.query(
+          "SELECT id FROM users WHERE id=$1 FOR SHARE",
+          [userId],
+        );
+        this.assertThumbnailActive(signal);
+        if (owner.length !== 1) {
+          throw new NotFoundException("File not found");
+        }
 
-      this.assertThumbnailActive(signal);
-      const data = await this.readBoundedImage(filePath, signal);
-      this.assertThumbnailActive(signal);
-      if (!this.matchesImageHeader(data, mimeType)) {
-        throw new BadRequestException("Image format mismatch");
+        const file = await manager.findOne(FileEntity, {
+          where: { id: fileId, userId, isDeleted: false },
+        });
+        if (!file || file.isFolder) {
+          throw new NotFoundException("File not found");
+        }
+
+        await assertVisibleAncestors(
+          manager,
+          userId,
+          file.parentId ?? null,
+        );
+        this.assertThumbnailActive(signal);
+
+        const mimeType = file.mimeType || "";
+        if (!["image/jpeg", "image/png", "image/webp"].includes(mimeType)) {
+          throw new BadRequestException("Image format not supported");
+        }
+
+        let filePath: string;
+        try {
+          filePath = this.storageService.resolveFilePath(file);
+        } catch {
+          throw new NotFoundException("File not found on storage");
+        }
+
+        this.assertThumbnailActive(signal);
+        const data = await this.readBoundedImage(filePath, signal);
+        this.assertThumbnailActive(signal);
+        if (!this.matchesImageHeader(data, mimeType)) {
+          throw new BadRequestException("Image format mismatch");
+        }
+        return data;
+      } finally {
+        disableCancellation();
       }
-      return data;
     });
   }
 
