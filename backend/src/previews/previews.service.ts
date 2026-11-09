@@ -205,6 +205,13 @@ export class PreviewsService {
     this.assertThumbnailActive(signal);
     return this.fileRepository.manager.transaction(async (manager) => {
       this.assertThumbnailActive(signal);
+
+      // Bound PostgreSQL work while the thumbnail slot is occupied.
+      // LOCAL settings expire at transaction end and cannot leak to pool users.
+      await manager.query("SET LOCAL lock_timeout = '1500ms'");
+      await manager.query("SET LOCAL statement_timeout = '2500ms'");
+      this.assertThumbnailActive(signal);
+
       // Folder deletion/move obtains FOR UPDATE on the same user.
       // Hold FOR SHARE until the image bytes have been read.
       const owner: Array<{ id: number }> = await manager.query(
@@ -298,6 +305,19 @@ export class PreviewsService {
         ) {
           throw error;
         }
+        const databaseError = error as {
+          code?: unknown;
+          driverError?: { code?: unknown };
+        } | null;
+        const code = databaseError?.driverError?.code ??
+          databaseError?.code;
+
+        if (code === "55P03" || code === "57014") {
+          throw new ServiceUnavailableException(
+            "Thumbnail database wait timed out",
+          );
+        }
+
         this.logger.warn("Failed to generate thumbnail for file");
         throw new BadRequestException("Failed to generate thumbnail");
       }

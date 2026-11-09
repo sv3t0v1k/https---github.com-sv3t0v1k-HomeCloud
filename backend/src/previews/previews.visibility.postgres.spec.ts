@@ -1,4 +1,4 @@
-import { NotFoundException } from "@nestjs/common";
+import { NotFoundException, ServiceUnavailableException } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
@@ -308,6 +308,82 @@ describePostgres("Thumbnail visibility — PostgreSQL", () => {
     await expect(previews.getThumbnail(owner.id, image.id))
       .rejects.toBeInstanceOf(NotFoundException);
   });
+
+  it("bounds blocked PostgreSQL reads after abort signal", async () => {
+    const image = await createImage(null);
+    const blocker = db.createQueryRunner();
+    let pending: Promise<Buffer> | undefined;
+    let controller: AbortController | undefined;
+
+    await blocker.connect();
+
+    try {
+      await blocker.startTransaction();
+
+      // Simulate a concurrent metadata writer holding FOR UPDATE.
+      const locked = await blocker.query(
+        "SELECT id FROM users WHERE id=$1 FOR UPDATE",
+        [owner.id],
+      );
+      expect(locked).toHaveLength(1);
+
+      controller = new AbortController();
+      pending = previews.getThumbnail(
+        owner.id,
+        image.id,
+        controller.signal,
+      );
+
+      const settled = pending.then(
+        () => ({ ok: true as const, error: null }),
+        (error: unknown) => ({ ok: false as const, error }),
+      );
+
+      // Observe the actual PostgreSQL lock wait before aborting.
+      let blocked = false;
+      for (let attempt = 0; attempt < 50; attempt++) {
+        const [row] = await db.query(
+          `SELECT COUNT(*)::int AS total
+           FROM pg_stat_activity
+           WHERE datname = current_database()
+             AND wait_event_type = 'Lock'
+             AND query LIKE '%users WHERE id=$1 FOR SHARE%'`,
+        );
+        if (Number(row.total) > 0) {
+          blocked = true;
+          break;
+        }
+        await new Promise<void>((resolve) =>
+          setTimeout(resolve, 20),
+        );
+      }
+
+      expect(blocked).toBe(true);
+      controller.abort();
+
+      // The slot must remain occupied until PostgreSQL settles.
+      const state = previews as unknown as {
+        activeThumbnails: number;
+      };
+      expect(state.activeThumbnails).toBe(1);
+
+      const outcome = await settled;
+      expect(outcome.ok).toBe(false);
+      expect(outcome.error)
+        .toBeInstanceOf(ServiceUnavailableException);
+      expect(state.activeThumbnails).toBe(0);
+    } finally {
+      controller?.abort();
+      if (blocker.isTransactionActive) {
+        await blocker.rollbackTransaction();
+      }
+      await blocker.release();
+      if (pending) await Promise.allSettled([pending]);
+    }
+
+    // Pool connection and processing slot recover.
+    await assertThumbnail(image.id);
+  }, 20_000);
 
   it("blocks individual file deletion until thumbnail reading finishes", async () => {
     const image = await createImage(null);
