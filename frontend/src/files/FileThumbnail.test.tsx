@@ -114,6 +114,42 @@ describe('FileThumbnail', () => {
     await expect(Promise.all(running)).resolves.toHaveLength(4)
   })
 
+  it('revokes stale thumbnails when file version changes', async () => {
+    vi.stubGlobal('IntersectionObserver', undefined)
+
+    const revoke = vi.fn()
+    const create = vi.fn()
+      .mockReturnValueOnce('blob:first')
+      .mockReturnValueOnce('blob:second')
+
+    vi.stubGlobal('URL', {
+      ...URL,
+      createObjectURL: create,
+      revokeObjectURL: revoke,
+    })
+
+    load.mockResolvedValue(blob())
+
+    const view = render(<FileThumbnail key="v1" fileId={42} />)
+
+    await waitFor(() => {
+      expect(view.container.querySelector('img'))
+        .toHaveAttribute('src', 'blob:first')
+    })
+
+    view.rerender(<FileThumbnail key="v2" fileId={42} />)
+
+    await waitFor(() => {
+      expect(view.container.querySelector('img'))
+        .toHaveAttribute('src', 'blob:second')
+    })
+
+    expect(revoke).toHaveBeenCalledWith('blob:first')
+
+    view.unmount()
+    expect(revoke).toHaveBeenCalledWith('blob:second')
+  })
+
   it('limits simultaneous requests to four', async () => {
     const finish: Array<(value: Blob) => void> = []
 

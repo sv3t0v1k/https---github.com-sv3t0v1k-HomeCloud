@@ -57,6 +57,28 @@ export function buildCorsOptions(configService: ConfigService) {
   };
 }
 
+const THUMBNAIL_PATH =
+  /^\/api\/v1\/previews\/[1-9][0-9]*\/thumbnail\/?$/i;
+
+function isThumbnailRequest(req: Request): boolean {
+  return (
+    (req.method === "GET" || req.method === "HEAD") &&
+    THUMBNAIL_PATH.test(req.originalUrl.split("?")[0])
+  );
+}
+
+export function getThumbnailRateLimitOptions() {
+  return {
+    keyGenerator: clientIp,
+    windowMs: 60 * 1000,
+    max: 240,
+    message: {
+      statusCode: 429,
+      message: "Too many thumbnail requests",
+    },
+  };
+}
+
 export function getGlobalRateLimitOptions() {
   return {
     keyGenerator: clientIp,
@@ -265,9 +287,23 @@ export function applySecurityMiddleware(
       next();
     });
   }
+  // Dedicated bounded IP budget before exempting exact thumbnail reads.
+  // All other routes and methods retain the ordinary global budget.
+  const thumbnailLimiter = rateLimit(getThumbnailRateLimitOptions());
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (isThumbnailRequest(req)) {
+      return thumbnailLimiter(req, res, next);
+    }
+    next();
+  });
+
   app.use(
     "/api/v1",
-    rateLimit({ ...getGlobalRateLimitOptions(), skip: hasVerifiedTransfer }),
+    rateLimit({
+      ...getGlobalRateLimitOptions(),
+      skip: (req: Request) =>
+        hasVerifiedTransfer(req) || isThumbnailRequest(req),
+    }),
   );
 
   // Один MemoryStore и один бюджет для нового и совместимого поиска.

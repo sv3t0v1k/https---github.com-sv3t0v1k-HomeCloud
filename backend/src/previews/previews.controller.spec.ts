@@ -59,7 +59,8 @@ describe("PreviewsController thumbnail cache boundary (Phase 11.3)", () => {
     expect(res.status).toBe(200);
     const cc = (res.headers["cache-control"] as string) || "";
     expect(cc).toContain("private");
-    expect(cc).toContain("max-age=86400");
+    expect(cc).toContain("no-store");
+    expect(cc).not.toContain("max-age");
     expect(cc).not.toContain("public");
     expect((res.headers["vary"] as string) || "").toContain("Authorization");
     expect(res.headers["content-type"]).toContain("image/png");

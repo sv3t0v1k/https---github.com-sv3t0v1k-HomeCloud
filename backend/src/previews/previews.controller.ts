@@ -19,7 +19,7 @@ export class PreviewsController {
   constructor(private previewsService: PreviewsService) {}
 
   @Get(":id/thumbnail")
-  @Header("Cache-Control", "private, max-age=86400")
+  @Header("Cache-Control", "private, no-store")
   @Header("Vary", "Authorization")
   async getThumbnail(
     @NestRequest() req: ExpressRequest & { user: { userId: number } },
