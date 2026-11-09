@@ -1,3 +1,4 @@
+import { tokenStorage } from '../auth/tokenStorage'
 import { fetchFileThumbnail } from './thumbnailApi'
 
 const MAX_CONCURRENT = 4
@@ -20,6 +21,8 @@ export function queueThumbnail(
     return Promise.reject(new DOMException('Cancelled', 'AbortError'))
   }
 
+  const ownerGeneration = tokenStorage.getOwnerGeneration()
+
   return new Promise<Blob>((resolve, reject) => {
     let state: 'queued' | 'running' | 'finished' = 'queued'
 
@@ -35,7 +38,10 @@ export function queueThumbnail(
     const job: Job = {
       run() {
         if (state !== 'queued') return
-        if (signal.aborted) {
+        if (
+          signal.aborted ||
+          tokenStorage.getOwnerGeneration() !== ownerGeneration
+        ) {
           cancelQueued()
           return
         }

@@ -1,6 +1,7 @@
 import { act, cleanup, render, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { tokenStorage } from '../auth/tokenStorage'
 import { fetchFileThumbnail } from './thumbnailApi'
 import { FileThumbnail } from './FileThumbnail'
 import { queueThumbnail } from './thumbnailQueue'
@@ -78,6 +79,39 @@ describe('FileThumbnail', () => {
     expect(view.container.querySelector('img')).toBeNull()
     expect(view.container.querySelector('.file-icon-image'))
       .toHaveAttribute('data-thumbnail-status', 'placeholder')
+  })
+
+  it('rejects queued requests after an owner change', async () => {
+    const finish: Array<(value: Blob) => void> = []
+
+    load.mockImplementation(() => new Promise((resolve) => {
+      finish.push(resolve)
+    }))
+
+    const controllers = Array.from(
+      { length: 5 },
+      () => new AbortController(),
+    )
+
+    const running = controllers.slice(0, 4).map((controller, index) =>
+      queueThumbnail(index + 1, controller.signal),
+    )
+
+    const queued = queueThumbnail(99, controllers[4].signal)
+    const rejected = expect(queued).rejects.toMatchObject({
+      name: 'AbortError',
+    })
+
+    expect(load).toHaveBeenCalledTimes(4)
+
+    tokenStorage.clear()
+    finish[0](blob())
+
+    await rejected
+    expect(load).toHaveBeenCalledTimes(4)
+
+    finish.slice(1).forEach((resolve) => resolve(blob()))
+    await expect(Promise.all(running)).resolves.toHaveLength(4)
   })
 
   it('limits simultaneous requests to four', async () => {
