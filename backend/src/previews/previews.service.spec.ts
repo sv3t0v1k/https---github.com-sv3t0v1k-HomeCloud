@@ -37,6 +37,14 @@ describe("PreviewsService - Post-Review Fixes", () => {
     };
     mockStorageService = {
       resolveFilePath: jest.fn((file) => file.storagePath),
+      openReadOnlyFileSecure: jest.fn((absolute: string) =>
+        fs.openSync(
+          absolute,
+          fs.constants.O_RDONLY |
+            fs.constants.O_NOFOLLOW |
+            fs.constants.O_NONBLOCK,
+        ),
+      ),
       placementForPath: jest.fn((storagePath: string) => ({ storagePath, storageLocationId: "f2f5c4b0-8d57-4c49-9f8c-0d095b344601", relativeObjectKey: storagePath.replace(/^\/storage\//, "") })),
       fileExists: jest.fn(),
     };
@@ -129,6 +137,15 @@ describe("PreviewsService logical placement with real storage resolver", () => {
   beforeEach(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(),"hc-preview-placement-"));
     storage = new StorageService(new ConfigService({STORAGE_PATH:root}));
+    jest.spyOn(storage, "openReadOnlyFileSecure")
+      .mockImplementation((absolute: string) =>
+        fs.openSync(
+          absolute,
+          fs.constants.O_RDONLY |
+            fs.constants.O_NOFOLLOW |
+            fs.constants.O_NONBLOCK,
+        ),
+      );
   });
   afterEach(() => fs.rmSync(root,{recursive:true,force:true}));
   it("reads text preview and thumbnail from the logical object, rejecting mismatched bridge", async () => {

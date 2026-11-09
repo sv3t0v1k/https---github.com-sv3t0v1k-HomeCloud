@@ -43,6 +43,13 @@ describePostgres("Thumbnail visibility — PostgreSQL", () => {
 
   const storage = {
     resolveFilePath: (file: FileEntity) => file.storagePath,
+    openReadOnlyFileSecure: (absolute: string) =>
+      fs.openSync(
+        absolute,
+        fs.constants.O_RDONLY |
+          fs.constants.O_NOFOLLOW |
+          fs.constants.O_NONBLOCK,
+      ),
   };
 
   beforeAll(async () => {

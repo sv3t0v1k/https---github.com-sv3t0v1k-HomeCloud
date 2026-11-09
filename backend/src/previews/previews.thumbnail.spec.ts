@@ -15,6 +15,7 @@ describe("Thumbnail processing with real Sharp", () => {
   let findOne: jest.Mock;
   let parentId: number | null;
   let ancestorsVisible: boolean;
+  let secureOpen: jest.Mock;
 
   beforeEach(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), "hc-thumbnail-"));
@@ -22,6 +23,14 @@ describe("Thumbnail processing with real Sharp", () => {
     mimeType = "image/png";
     parentId = null;
     ancestorsVisible = true;
+    secureOpen = jest.fn((absolutePath: string) =>
+      fs.openSync(
+        absolutePath,
+        fs.constants.O_RDONLY |
+          fs.constants.O_NOFOLLOW |
+          fs.constants.O_NONBLOCK,
+      ),
+    );
 
     findOne = jest.fn(async ({ where }) => {
       if (where.userId !== 1 || where.isDeleted !== false) return null;
@@ -50,7 +59,10 @@ describe("Thumbnail processing with real Sharp", () => {
             }),
         },
       } as any,
-      { resolveFilePath: () => imagePath } as any,
+      {
+        resolveFilePath: () => imagePath,
+        openReadOnlyFileSecure: secureOpen,
+      } as any,
     );
   });
 
@@ -119,6 +131,17 @@ describe("Thumbnail processing with real Sharp", () => {
 
     await expect(service.getThumbnail(1, 1))
       .rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("fails closed when secure open is unavailable", async () => {
+    secureOpen.mockImplementationOnce(() => {
+      throw new Error("secure open unavailable");
+    });
+
+    await expect(service.getThumbnail(1, 1))
+      .rejects.toBeInstanceOf(BadRequestException);
+
+    expect(secureOpen).toHaveBeenCalledWith(imagePath);
   });
 
   it("refuses images below an invisible ancestor", async () => {

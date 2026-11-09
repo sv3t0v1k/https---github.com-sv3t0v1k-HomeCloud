@@ -83,15 +83,13 @@ export class PreviewsService {
   }
 
   private async readBoundedImage(filePath: string): Promise<Buffer> {
-    const handle = await fs.promises.open(
-      filePath,
-      fs.constants.O_RDONLY |
-        fs.constants.O_NOFOLLOW |
-        fs.constants.O_NONBLOCK,
-    );
+    // Linux openat2: pinned root, no symlinks, no mount escapes.
+    // Never fall back to pathname-based fs.promises.open().
+    const fd = this.storageService.openReadOnlyFileSecure(filePath);
 
     try {
-      const before = await handle.stat();
+      const before = fs.fstatSync(fd);
+
       if (
         !before.isFile() ||
         before.nlink !== 1 ||
@@ -106,16 +104,27 @@ export class PreviewsService {
       let offset = 0;
 
       while (offset < data.length) {
-        const { bytesRead } = await handle.read(
-          data, offset, data.length - offset, offset,
-        );
+        const bytesRead = await new Promise<number>((resolve, reject) => {
+          fs.read(
+            fd,
+            data,
+            offset,
+            data.length - offset,
+            offset,
+            (error, count) => {
+              if (error) reject(error);
+              else resolve(count);
+            },
+          );
+        });
+
         if (bytesRead <= 0) {
           throw new BadRequestException("Image changed during reading");
         }
         offset += bytesRead;
       }
 
-      const after = await handle.stat();
+      const after = fs.fstatSync(fd);
       if (
         after.size !== before.size ||
         after.dev !== before.dev ||
@@ -128,7 +137,7 @@ export class PreviewsService {
 
       return data;
     } finally {
-      await handle.close();
+      fs.closeSync(fd);
     }
   }
 

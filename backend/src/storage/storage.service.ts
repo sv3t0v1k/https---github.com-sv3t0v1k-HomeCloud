@@ -9,6 +9,7 @@ import { SSD_UPLOAD_WORKSPACE } from "../entities/upload-workspace.entity";
 import { ApprovedRoot, legacyBinding } from "./storage-mount-registry";
 import { LEGACY_STORAGE_ID } from "./storage-mount-registry";
 import { FilePlacement, StorageRegistry } from "./storage-placement";
+import { SecureFilesystem } from "../uploads/secure-filesystem";
 
 @Injectable()
 export class StorageService implements OnModuleDestroy {
@@ -70,6 +71,33 @@ export class StorageService implements OnModuleDestroy {
 
   resolveFilePath(file: FilePlacement, allowMissing = false): string {
     return this.registry.resolve(file, allowMissing);
+  }
+
+  /**
+   * Return a read-only FD opened below a pinned and verified storage root.
+   * No pathname-based fallback: native openat2 is mandatory on Linux.
+   * The caller owns the returned FD and must close it.
+   */
+  openReadOnlyFileSecure(absolutePath: string): number {
+    if (process.platform !== "linux") {
+      throw new Error("Secure storage reads require Linux");
+    }
+
+    // Validate the metadata bridge and currently approved storage root.
+    this.registry.keyFromAbsolute(absolutePath);
+
+    const root = this.registry.mounts
+      .assertAccess(LEGACY_STORAGE_ID).root;
+    const expected = fs.lstatSync(root);
+    const boundary = new SecureFilesystem(root, expected);
+
+    try {
+      // Native openat2 resolves beneath a pinned root FD:
+      // no symlinks, magic links or mount boundary crossings.
+      return boundary.open(absolutePath, "r");
+    } finally {
+      boundary.close();
+    }
   }
 
   getStoragePath(): string {
