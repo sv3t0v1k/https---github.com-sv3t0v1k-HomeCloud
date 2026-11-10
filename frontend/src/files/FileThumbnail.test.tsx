@@ -5,6 +5,10 @@ import { tokenStorage } from '../auth/tokenStorage'
 import { fetchFileThumbnail } from './thumbnailApi'
 import { FileThumbnail } from './FileThumbnail'
 import { queueThumbnail } from './thumbnailQueue'
+import {
+  MAX_RETAINED_THUMBNAILS,
+  retainThumbnailUrl,
+} from './thumbnailUrlBudget'
 
 vi.mock('./thumbnailApi', () => ({
   fetchFileThumbnail: vi.fn(),
@@ -184,6 +188,55 @@ describe('FileThumbnail', () => {
 
     view.unmount()
     expect(revoke).toHaveBeenCalledWith('blob:kept')
+  })
+
+  it('releases an evicted thumbnail and reloads on re-entry', async () => {
+    const observers = mockObservers()
+    const revoke = vi.fn()
+    let created = 0
+
+    vi.stubGlobal('URL', {
+      ...URL,
+      createObjectURL: vi.fn(() => `blob:eviction-${++created}`),
+      revokeObjectURL: revoke,
+    })
+
+    load.mockResolvedValue(blob())
+
+    const view = render(<FileThumbnail fileId={7001} />)
+    const extra: Array<{ release(): void }> = []
+
+    try {
+      act(() => observers.prefetch().emit(true))
+
+      await waitFor(() => {
+        expect(view.container.querySelector('img'))
+          .toHaveAttribute('src', 'blob:eviction-1')
+      })
+
+      act(() => {
+        for (let index = 0; index < MAX_RETAINED_THUMBNAILS; index++) {
+          extra.push(retainThumbnailUrl(blob(), () => {}))
+        }
+      })
+
+      await waitFor(() => {
+        expect(view.container.querySelector('img')).toBeNull()
+      })
+
+      expect(revoke).toHaveBeenCalledWith('blob:eviction-1')
+
+      act(() => observers.prefetch().emit(false))
+      act(() => observers.prefetch().emit(true))
+
+      await waitFor(() => {
+        expect(load).toHaveBeenCalledTimes(2)
+        expect(view.container.querySelector('img')).not.toBeNull()
+      })
+    } finally {
+      view.unmount()
+      extra.forEach((lease) => lease.release())
+    }
   })
 
   it('keeps the fallback icon if loading fails', async () => {

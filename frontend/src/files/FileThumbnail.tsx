@@ -3,6 +3,10 @@ import { useEffect, useRef, useState } from 'react'
 import { tokenStorage } from '../auth/tokenStorage'
 import { Icon } from '../ui/Icon'
 import {
+  retainThumbnailUrl,
+  type ThumbnailUrlLease,
+} from './thumbnailUrlBudget'
+import {
   onThumbnailQueueCapacity,
   promoteThumbnail,
   queueThumbnail,
@@ -11,7 +15,7 @@ import {
 
 export function FileThumbnail({ fileId }: { fileId: number }) {
   const element = useRef<HTMLSpanElement>(null)
-  const objectUrl = useRef<string | null>(null)
+  const objectUrl = useRef<ThumbnailUrlLease | null>(null)
   const inViewport = useRef(false)
 
   const [shouldLoad, setShouldLoad] = useState(false)
@@ -24,7 +28,7 @@ export function FileThumbnail({ fileId }: { fileId: number }) {
 
     return () => {
       if (objectUrl.current) {
-        URL.revokeObjectURL(objectUrl.current)
+        objectUrl.current.release()
         objectUrl.current = null
       }
     }
@@ -50,6 +54,7 @@ export function FileThumbnail({ fileId }: { fileId: number }) {
     // Prefetch starts shortly before the file enters the viewport.
     const prefetchObserver = new IntersectionObserver((entries) => {
       nearby = entries.some((entry) => entry.isIntersecting)
+      if (nearby) objectUrl.current?.touch()
       update()
     }, { rootMargin: '160px' })
 
@@ -58,7 +63,10 @@ export function FileThumbnail({ fileId }: { fileId: number }) {
       visible = entries.some((entry) => entry.isIntersecting)
       inViewport.current = visible
 
-      if (visible) promoteThumbnail(fileId)
+      if (visible) {
+        promoteThumbnail(fileId)
+        objectUrl.current?.touch()
+      }
       update()
     }, { rootMargin: '0px' })
 
@@ -101,19 +109,25 @@ export function FileThumbnail({ fileId }: { fileId: number }) {
             tokenStorage.getOwnerGeneration() !== ownerGeneration
           ) return
 
-          const created = URL.createObjectURL(blob)
+          let lease: ThumbnailUrlLease | null = null
+          lease = retainThumbnailUrl(blob, () => {
+            if (objectUrl.current === lease) {
+              objectUrl.current = null
+              setUrl(null)
+            }
+          })
 
           if (
             !mounted ||
             controller.signal.aborted ||
             tokenStorage.getOwnerGeneration() !== ownerGeneration
           ) {
-            URL.revokeObjectURL(created)
+            lease.release()
             return
           }
 
-          objectUrl.current = created
-          setUrl(created)
+          objectUrl.current = lease
+          setUrl(lease.url)
         })
         .catch((error: unknown) => {
           if (
