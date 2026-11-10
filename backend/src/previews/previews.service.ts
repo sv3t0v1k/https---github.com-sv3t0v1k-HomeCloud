@@ -277,7 +277,7 @@ export class PreviewsService {
         // Folder deletion/move obtains FOR UPDATE on the same user.
         // Hold FOR SHARE until the image bytes have been read.
         const owner: Array<{ id: number }> = await manager.query(
-          "SELECT id FROM users WHERE id=$1 FOR SHARE",
+          'SELECT id FROM users WHERE id=$1 AND "isActive"=TRUE FOR SHARE',
           [userId],
         );
         this.assertThumbnailActive(signal);
@@ -475,7 +475,7 @@ export class PreviewsService {
 
       // Serialize visibility checks against folder move/delete/restore.
       const owner: Array<{ id: number }> = await manager.query(
-        "SELECT id FROM users WHERE id=$1 FOR SHARE",
+        'SELECT id FROM users WHERE id=$1 AND "isActive"=TRUE FOR SHARE',
         [userId],
       );
       if (owner.length !== 1) {

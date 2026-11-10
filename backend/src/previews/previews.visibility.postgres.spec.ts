@@ -197,6 +197,69 @@ describePostgres("Thumbnail visibility — PostgreSQL", () => {
       .rejects.toBeInstanceOf(NotFoundException);
   });
 
+  it("denies content when owner deactivation wins the lock", async () => {
+    const image = await createImage(null);
+    const updater = db.createQueryRunner();
+
+    await updater.connect();
+    const secureOpen = jest.spyOn(storage, "openReadOnlyFileSecure");
+
+    try {
+      await updater.startTransaction();
+
+      await updater.query(
+        "SELECT id FROM users WHERE id=$1 FOR UPDATE",
+        [owner.id],
+      );
+
+      await updater.query(
+        'UPDATE users SET "isActive"=FALSE WHERE id=$1',
+        [owner.id],
+      );
+
+      // Requests have already entered the service, but authorization
+      // must still be checked after the competing writer commits.
+      const thumbnail = previews.getThumbnail(owner.id, image.id).then(
+        () => ({ allowed: true as const }),
+        (error: unknown) => ({ allowed: false as const, error }),
+      );
+
+      const preview = previews.getPreview(owner.id, image.id).then(
+        () => ({ allowed: true as const }),
+        (error: unknown) => ({ allowed: false as const, error }),
+      );
+
+      await updater.commitTransaction();
+
+      const [thumbnailResult, previewResult] = await Promise.all([
+        thumbnail,
+        preview,
+      ]);
+
+      expect(thumbnailResult).toMatchObject({
+        allowed: false,
+        error: expect.any(NotFoundException),
+      });
+
+      expect(previewResult).toMatchObject({
+        allowed: false,
+        error: expect.any(NotFoundException),
+      });
+
+      // Denied requests must never open content from storage.
+      expect(secureOpen).not.toHaveBeenCalled();
+    } finally {
+      try {
+        if (updater.isTransactionActive) {
+          await updater.rollbackTransaction();
+        }
+      } finally {
+        await updater.release();
+        secureOpen.mockRestore();
+      }
+    }
+  }, 15_000);
+
   it("denies old preview of an individually deleted file", async () => {
     const image = await createImage(null);
 
@@ -348,7 +411,7 @@ describePostgres("Thumbnail visibility — PostgreSQL", () => {
            FROM pg_stat_activity
            WHERE datname = current_database()
              AND wait_event_type = 'Lock'
-             AND query LIKE '%users WHERE id=$1 FOR SHARE%'`,
+             AND query LIKE '%users WHERE id=$1 AND "isActive"=TRUE FOR SHARE%'`,
         );
         if (Number(row.total) > 0) {
           blocked = true;

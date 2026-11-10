@@ -13,7 +13,7 @@ describe("Thumbnail PostgreSQL timeout protection", () => {
     },
   ])("bounds database work and maps $name to 503", async ({ error }) => {
     const query = jest.fn(async (sql: string) => {
-      if (sql === "SELECT id FROM users WHERE id=$1 FOR SHARE") {
+      if (sql === 'SELECT id FROM users WHERE id=$1 AND "isActive"=TRUE FOR SHARE') {
         throw error;
       }
       return [];
@@ -43,7 +43,7 @@ describe("Thumbnail PostgreSQL timeout protection", () => {
     expect(query.mock.calls.map(([sql]) => sql)).toEqual([
       "SET LOCAL lock_timeout = '1500ms'",
       "SET LOCAL statement_timeout = '2500ms'",
-      "SELECT id FROM users WHERE id=$1 FOR SHARE",
+      'SELECT id FROM users WHERE id=$1 AND "isActive"=TRUE FOR SHARE',
     ]);
 
     expect(manager.findOne).not.toHaveBeenCalled();
@@ -150,7 +150,7 @@ describe("Thumbnail PostgreSQL timeout protection", () => {
   ])("bounds full preview SQL: $name", async ({ error }) => {
     const query = jest.fn(async (sql: string) => {
       if (sql.startsWith("SET LOCAL ")) return [];
-      if (sql === "SELECT id FROM users WHERE id=$1 FOR SHARE") {
+      if (sql === 'SELECT id FROM users WHERE id=$1 AND "isActive"=TRUE FOR SHARE') {
         throw error;
       }
       throw new Error("Unexpected SQL");
@@ -176,7 +176,7 @@ describe("Thumbnail PostgreSQL timeout protection", () => {
     expect(query.mock.calls.map(([sql]) => sql)).toEqual([
       "SET LOCAL lock_timeout = '1500ms'",
       "SET LOCAL statement_timeout = '2500ms'",
-      "SELECT id FROM users WHERE id=$1 FOR SHARE",
+      'SELECT id FROM users WHERE id=$1 AND "isActive"=TRUE FOR SHARE',
     ]);
     expect(manager.findOne).not.toHaveBeenCalled();
   });
