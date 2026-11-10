@@ -7,12 +7,14 @@ export const MAX_RETAINED_THUMBNAIL_BYTES = 48 * 1024 * 1024
 export type ThumbnailUrlLease = {
   readonly url: string
   touch(): void
+  setVisible(visible: boolean): void
   release(): void
 }
 
 type Entry = {
   url: string
   size: number
+  visible: boolean
   onEvict: () => void
 }
 
@@ -30,9 +32,21 @@ function remove(key: symbol, notify: boolean) {
   if (notify) entry.onEvict()
 }
 
+function selectEvictionVictim(): symbol {
+  const oldest = entries.keys().next().value
+  if (!oldest) throw new Error('Thumbnail budget is empty')
+
+  for (const [key, entry] of entries) {
+    if (!entry.visible) return key
+  }
+
+  return oldest
+}
+
 export function retainThumbnailUrl(
   blob: Blob,
   onEvict: () => void,
+  visible = false,
 ): ThumbnailUrlLease {
   if (
     !Number.isSafeInteger(blob.size) ||
@@ -42,21 +56,22 @@ export function retainThumbnailUrl(
     throw new RangeError('Thumbnail exceeds ObjectURL memory budget')
   }
 
-  const key = Symbol('thumbnail-url')
+  // Allocate before evicting old entries so a failed allocation does
+  // not invalidate currently displayed thumbnails.
   const url = URL.createObjectURL(blob)
 
-  entries.set(key, { url, size: blob.size, onEvict })
-  retainedBytes += blob.size
-
-  // Map insertion order is our LRU. Most recently used entries are last.
+  // Evict before registering the new URL: it can never be returned
+  // already revoked, even when all existing entries are visible.
   while (
-    entries.size > MAX_RETAINED_THUMBNAILS ||
-    retainedBytes > MAX_RETAINED_THUMBNAIL_BYTES
+    entries.size >= MAX_RETAINED_THUMBNAILS ||
+    retainedBytes + blob.size > MAX_RETAINED_THUMBNAIL_BYTES
   ) {
-    const oldest = entries.keys().next().value
-    if (!oldest) break
-    remove(oldest, true)
+    remove(selectEvictionVictim(), true)
   }
+
+  const key = Symbol('thumbnail-url')
+  entries.set(key, { url, size: blob.size, visible, onEvict })
+  retainedBytes += blob.size
 
   return {
     url,
@@ -65,6 +80,11 @@ export function retainThumbnailUrl(
       if (!entry) return
       entries.delete(key)
       entries.set(key, entry)
+    },
+    setVisible(nextVisible: boolean) {
+      const entry = entries.get(key)
+      if (!entry) return
+      entry.visible = nextVisible
     },
     release() {
       remove(key, false)

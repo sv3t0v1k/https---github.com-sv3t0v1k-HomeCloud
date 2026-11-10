@@ -71,6 +71,25 @@ describe('Thumbnail ObjectURL memory budget', () => {
     expect(revoke).toHaveBeenCalledWith('blob:budget-1')
   })
 
+  it('evicts offscreen entries before older visible entries', () => {
+    const visible = hold(1)
+    visible.setVisible(true)
+
+    const offscreenEvicted = vi.fn()
+    hold(1, offscreenEvicted)
+
+    for (let index = 2; index < MAX_RETAINED_THUMBNAILS; index++) {
+      hold(1).setVisible(true)
+    }
+
+    const next = hold(1)
+
+    expect(offscreenEvicted).toHaveBeenCalledOnce()
+    expect(revoke).toHaveBeenCalledWith('blob:budget-2')
+    expect(revoke).not.toHaveBeenCalledWith(visible.url)
+    expect(revoke).not.toHaveBeenCalledWith(next.url)
+  })
+
   it('releases URLs exactly once', () => {
     const lease = hold(1)
     lease.release()

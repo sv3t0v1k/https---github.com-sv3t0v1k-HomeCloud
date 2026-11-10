@@ -17,14 +17,17 @@ export function FileThumbnail({ fileId }: { fileId: number }) {
   const element = useRef<HTMLSpanElement>(null)
   const objectUrl = useRef<ThumbnailUrlLease | null>(null)
   const inViewport = useRef(false)
+  const visibleEvictionRetryUsed = useRef(false)
 
   const [shouldLoad, setShouldLoad] = useState(false)
   const [url, setUrl] = useState<string | null>(null)
+  const [reloadTick, setReloadTick] = useState(0)
 
   // The object URL belongs to the mounted file version, not
   // to the current intersection state.
   useEffect(() => {
     setUrl(null)
+    visibleEvictionRetryUsed.current = false
 
     return () => {
       if (objectUrl.current) {
@@ -61,11 +64,22 @@ export function FileThumbnail({ fileId }: { fileId: number }) {
     // Actual visibility takes precedence over background prefetch.
     const viewportObserver = new IntersectionObserver((entries) => {
       visible = entries.some((entry) => entry.isIntersecting)
+      const entered = visible && !inViewport.current
       inViewport.current = visible
+      objectUrl.current?.setVisible(visible)
+
+      if (!visible) {
+        visibleEvictionRetryUsed.current = false
+      }
 
       if (visible) {
         promoteThumbnail(fileId)
         objectUrl.current?.touch()
+
+        // Also recover when prefetch stays active during viewport entry.
+        if (entered && !objectUrl.current) {
+          setReloadTick((tick) => tick + 1)
+        }
       }
       update()
     }, { rootMargin: '0px' })
@@ -111,11 +125,21 @@ export function FileThumbnail({ fileId }: { fileId: number }) {
 
           let lease: ThumbnailUrlLease | null = null
           lease = retainThumbnailUrl(blob, () => {
-            if (objectUrl.current === lease) {
-              objectUrl.current = null
-              setUrl(null)
+            if (objectUrl.current !== lease) return
+
+            objectUrl.current = null
+            setUrl(null)
+
+            // Exactly one automatic retry per continuous visibility.
+            // Prevents an eviction/fetch storm when >96 items are visible.
+            if (
+              inViewport.current &&
+              !visibleEvictionRetryUsed.current
+            ) {
+              visibleEvictionRetryUsed.current = true
+              setReloadTick((tick) => tick + 1)
             }
-          })
+          }, inViewport.current)
 
           if (
             !mounted ||
@@ -158,7 +182,7 @@ export function FileThumbnail({ fileId }: { fileId: number }) {
       stopWaiting?.()
       controller.abort()
     }
-  }, [fileId, shouldLoad])
+  }, [fileId, shouldLoad, reloadTick])
 
   return (
     <span

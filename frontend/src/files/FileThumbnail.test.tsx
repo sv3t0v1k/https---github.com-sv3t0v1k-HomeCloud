@@ -190,7 +190,7 @@ describe('FileThumbnail', () => {
     expect(revoke).toHaveBeenCalledWith('blob:kept')
   })
 
-  it('releases an evicted thumbnail and reloads on re-entry', async () => {
+  it('reloads an offscreen eviction when entering the viewport', async () => {
     const observers = mockObservers()
     const revoke = vi.fn()
     let created = 0
@@ -226,11 +226,84 @@ describe('FileThumbnail', () => {
 
       expect(revoke).toHaveBeenCalledWith('blob:eviction-1')
 
-      act(() => observers.prefetch().emit(false))
-      act(() => observers.prefetch().emit(true))
+      // Prefetch stays true: viewport entry must independently
+      // trigger reloading without toggling shouldLoad.
+      act(() => observers.viewport().emit(true))
 
       await waitFor(() => {
         expect(load).toHaveBeenCalledTimes(2)
+        expect(view.container.querySelector('img')).not.toBeNull()
+      })
+    } finally {
+      view.unmount()
+      extra.forEach((lease) => lease.release())
+    }
+  })
+
+  it('retries visible eviction once, without an eviction storm', async () => {
+    const observers = mockObservers()
+    const revoke = vi.fn()
+    let created = 0
+
+    vi.stubGlobal('URL', {
+      ...URL,
+      createObjectURL: vi.fn(() => `blob:visible-${++created}`),
+      revokeObjectURL: revoke,
+    })
+
+    load.mockResolvedValue(blob())
+
+    const view = render(<FileThumbnail fileId={7002} />)
+    const extra: Array<{ release(): void }> = []
+
+    try {
+      act(() => observers.viewport().emit(true))
+
+      await waitFor(() => {
+        expect(view.container.querySelector('img'))
+          .toHaveAttribute('src', 'blob:visible-1')
+      })
+
+      // All entries are considered visible, forcing eviction of
+      // the oldest visible thumbnail.
+      act(() => {
+        for (let i = 0; i < MAX_RETAINED_THUMBNAILS; i++) {
+          extra.push(retainThumbnailUrl(blob(), () => {}, true))
+        }
+      })
+
+      await waitFor(() => {
+        expect(load).toHaveBeenCalledTimes(2)
+        expect(view.container.querySelector('img'))
+          .toHaveAttribute('src', 'blob:visible-98')
+      })
+
+      expect(revoke).toHaveBeenCalledWith('blob:visible-1')
+
+      // Evict the reloaded entry while it remains visible.
+      // A second automatic retry would cause an unbounded loop.
+      act(() => {
+        for (let i = 0; i < MAX_RETAINED_THUMBNAILS; i++) {
+          extra.push(retainThumbnailUrl(blob(), () => {}, true))
+        }
+      })
+
+      await waitFor(() => {
+        expect(view.container.querySelector('img')).toBeNull()
+      })
+
+      await act(async () => {
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+      expect(load).toHaveBeenCalledTimes(2)
+
+      // A new visibility period allows another bounded attempt.
+      act(() => observers.viewport().emit(false))
+      act(() => observers.viewport().emit(true))
+
+      await waitFor(() => {
+        expect(load).toHaveBeenCalledTimes(3)
         expect(view.container.querySelector('img')).not.toBeNull()
       })
     } finally {
