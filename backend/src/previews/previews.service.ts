@@ -392,7 +392,9 @@ export class PreviewsService {
   private async readSecurePreviewBytes(
     filePath: string,
     isText: boolean,
+    signal?: AbortSignal,
   ): Promise<{ data: Buffer; truncated: boolean }> {
+    this.assertThumbnailActive(signal);
     // Descriptor-based confinement is mandatory. No pathname fallback.
     let fd: number;
     try {
@@ -424,12 +426,13 @@ export class PreviewsService {
       let offset = 0;
 
       while (offset < length) {
+        this.assertThumbnailActive(signal);
         const bytesRead = await new Promise<number>((resolve, reject) => {
           fs.read(
             fd,
             data,
             offset,
-            length - offset,
+            Math.min(length - offset, 256 * 1024),
             offset,
             (error, count) => {
               if (error) reject(error);
@@ -438,6 +441,7 @@ export class PreviewsService {
           );
         });
 
+        this.assertThumbnailActive(signal);
         if (bytesRead <= 0) {
           throw new BadRequestException("Preview changed during reading");
         }
@@ -445,6 +449,7 @@ export class PreviewsService {
         offset += bytesRead;
       }
 
+      this.assertThumbnailActive(signal);
       const after = fs.fstatSync(fd);
       if (
         after.size !== before.size ||
@@ -468,87 +473,108 @@ export class PreviewsService {
   async getPreview(
     userId: number,
     fileId: number,
+    signal?: AbortSignal,
   ): Promise<{ type: string; content: string | Buffer; mimeType: string }> {
-    return this.fileRepository.manager.transaction(async (manager) => {
-      await manager.query("SET LOCAL lock_timeout = '1500ms'");
-      await manager.query("SET LOCAL statement_timeout = '2500ms'");
+    const deadline = new AbortController();
+    const onAbort = () => deadline.abort();
 
-      // Serialize visibility checks against folder move/delete/restore.
-      const owner: Array<{ id: number }> = await manager.query(
-        'SELECT id FROM users WHERE id=$1 AND "isActive"=TRUE FOR SHARE',
-        [userId],
-      );
-      if (owner.length !== 1) {
-        throw new NotFoundException("File not found");
-      }
+    if (signal?.aborted) deadline.abort();
+    else signal?.addEventListener("abort", onAbort, { once: true });
 
-      const file = await manager.findOne(FileEntity, {
-        where: { id: fileId, userId, isDeleted: false },
-      });
+    // Total deadline including queueing, SQL and file I/O.
+    // Active capacity is retained until underlying work settles.
+    const timer = setTimeout(() => deadline.abort(), 10_000);
 
-      if (!file || file.isDeleted || file.isFolder) {
-        throw new NotFoundException("File not found");
-      }
+    try {
+      return await this.withThumbnailSlot(async () => {
+        this.assertThumbnailActive(deadline.signal);
+        return this.fileRepository.manager.transaction(async (manager) => {
+          await manager.query("SET LOCAL lock_timeout = '1500ms'");
+          await manager.query("SET LOCAL statement_timeout = '2500ms'");
 
-      await assertVisibleAncestors(
-        manager,
-        userId,
-        file.parentId ?? null,
-      );
+          // Serialize visibility checks against folder move/delete/restore.
+          const owner: Array<{ id: number }> = await manager.query(
+            'SELECT id FROM users WHERE id=$1 AND "isActive"=TRUE FOR SHARE',
+            [userId],
+          );
+          if (owner.length !== 1) {
+            throw new NotFoundException("File not found");
+          }
 
-      let filePath: string;
-      try {
-        filePath = this.storageService.resolveFilePath(file);
-      } catch {
-        throw new NotFoundException("File not found on storage");
-      }
+          const file = await manager.findOne(FileEntity, {
+            where: { id: fileId, userId, isDeleted: false },
+          });
 
-      const mimeType = file.mimeType || "";
-      const isText =
-        mimeType.startsWith("text/") ||
-        mimeType === "application/json" ||
-        mimeType === "application/javascript" ||
-        mimeType === "application/xml";
+          if (!file || file.isDeleted || file.isFolder) {
+            throw new NotFoundException("File not found");
+          }
 
-      const isImage = mimeType.startsWith("image/");
+          await assertVisibleAncestors(
+            manager,
+            userId,
+            file.parentId ?? null,
+          );
 
-      if (!isText && !isImage) {
-        return {
-          type: "unsupported",
-          content: "Preview not available for this file type.",
-          mimeType: "text/plain",
-        };
-      }
+          let filePath: string;
+          try {
+            filePath = this.storageService.resolveFilePath(file);
+          } catch {
+            throw new NotFoundException("File not found on storage");
+          }
 
-      const { data, truncated } = await this.readSecurePreviewBytes(
-        filePath,
-        isText,
-      );
+          const mimeType = file.mimeType || "";
+          const isText =
+            mimeType.startsWith("text/") ||
+            mimeType === "application/json" ||
+            mimeType === "application/javascript" ||
+            mimeType === "application/xml";
 
-      if (isText) {
-        const suffix = truncated ? "\n... (truncated)" : "";
-        return {
-          type: "text",
-          content: data.toString("utf8") + suffix,
-          mimeType,
-        };
-      }
+          const isImage = mimeType.startsWith("image/");
 
-      return { type: "image", content: data, mimeType };
-    }).catch((error: unknown) => {
-      const databaseError = error as {
-        code?: unknown;
-        driverError?: { code?: unknown };
-      } | null;
-      const code = databaseError?.driverError?.code ??
-        databaseError?.code;
+          if (!isText && !isImage) {
+            return {
+              type: "unsupported",
+              content: "Preview not available for this file type.",
+              mimeType: "text/plain",
+            };
+          }
 
-      if (code === "55P03" || code === "57014") {
-        throw new ServiceUnavailableException("Preview database wait timed out");
-      }
+          const { data, truncated } = await this.readSecurePreviewBytes(
+            filePath,
+            isText,
+            deadline.signal,
+          );
+          this.assertThumbnailActive(deadline.signal);
 
-      throw error;
-    });
+          if (isText) {
+            const suffix = truncated ? "\n... (truncated)" : "";
+            return {
+              type: "text",
+              content: data.toString("utf8") + suffix,
+              mimeType,
+            };
+          }
+
+          return { type: "image", content: data, mimeType };
+        }).catch((error: unknown) => {
+          const databaseError = error as {
+            code?: unknown;
+            driverError?: { code?: unknown };
+          } | null;
+          const code = databaseError?.driverError?.code ??
+            databaseError?.code;
+
+          if (code === "55P03" || code === "57014") {
+            throw new ServiceUnavailableException("Preview database wait timed out");
+          }
+
+          throw error;
+        });
+      }, deadline.signal);
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+    }
   }
 
   async getFileInfo(userId: number, fileId: number): Promise<FileEntity> {

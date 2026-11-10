@@ -260,6 +260,83 @@ describePostgres("Thumbnail visibility — PostgreSQL", () => {
     }
   }, 15_000);
 
+  it("retains the owner lock until cancelled preview IO settles", async () => {
+    const image = await createImage(null);
+    const controller = new AbortController();
+
+    const internal = previews as unknown as {
+      readSecurePreviewBytes(
+        filePath: string,
+        isText: boolean,
+        signal?: AbortSignal,
+      ): Promise<{ data: Buffer; truncated: boolean }>;
+    };
+
+    let entered!: () => void;
+    let release!: () => void;
+
+    const started = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+
+    const reader = jest.spyOn(internal, "readSecurePreviewBytes")
+      .mockImplementation(async () => {
+        entered();
+        return new Promise((resolve) => {
+          release = () => resolve({
+            data: imageBytes,
+            truncated: false,
+          });
+        });
+      });
+
+    let deletionFinished = false;
+    let deletion: Promise<unknown> | undefined;
+    let preview: Promise<unknown> | undefined;
+
+    try {
+      preview = previews.getPreview(owner.id, image.id, controller.signal);
+
+      const rejection = (async () => {
+        await expect(preview)
+          .rejects.toBeInstanceOf(ServiceUnavailableException);
+      })();
+
+      await started;
+
+      deletion = files.removeFile(owner.id, image.id)
+        .then((result) => {
+          deletionFinished = true;
+          return result;
+        });
+
+      await new Promise<void>((resolve) => setTimeout(resolve, 100));
+      expect(deletionFinished).toBe(false);
+
+      controller.abort();
+
+      await new Promise<void>((resolve) => setTimeout(resolve, 40));
+      expect(deletionFinished).toBe(false);
+
+      release();
+      await rejection;
+      await deletion;
+
+      expect(deletionFinished).toBe(true);
+    } finally {
+      controller.abort();
+      release?.();
+
+      await Promise.allSettled(
+        [preview, deletion].filter(
+          (task): task is Promise<unknown> => task !== undefined,
+        ),
+      );
+
+      reader.mockRestore();
+    }
+  }, 20_000);
+
   it("denies old preview of an individually deleted file", async () => {
     const image = await createImage(null);
 

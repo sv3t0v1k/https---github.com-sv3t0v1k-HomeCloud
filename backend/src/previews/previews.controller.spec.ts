@@ -142,6 +142,66 @@ describe("PreviewsController thumbnail cache boundary (Phase 11.3)", () => {
     }
   }, 10_000);
 
+  it("aborts ordinary preview after HTTP disconnect", async () => {
+    let enter!: (signal: AbortSignal) => void;
+    const started = new Promise<AbortSignal>((resolve) => {
+      enter = resolve;
+    });
+
+    let finish!: () => void;
+    const pending = new Promise<object>((resolve) => {
+      finish = () => resolve({
+        type: "unsupported",
+        content: "unavailable",
+        mimeType: "text/plain",
+      });
+    });
+
+    getPreview.mockImplementationOnce(
+      (_userId: number, _fileId: number, signal: AbortSignal) => {
+        enter(signal);
+        return pending;
+      },
+    );
+
+    const client = request(app.getHttpServer())
+      .get("/api/v1/previews/1")
+      .set("Authorization", "Bearer header.payload.signature")
+      .end(() => undefined);
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = <T>(promise: Promise<T>) =>
+      Promise.race([
+        promise,
+        new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(
+            () => reject(new Error("Preview HTTP disconnect timed out")),
+            3_000,
+          );
+        }),
+      ]);
+
+    try {
+      const signal = await deadline(started);
+      if (timer) clearTimeout(timer);
+
+      const disconnected = new Promise<void>((resolve) => {
+        if (signal.aborted) resolve();
+        else signal.addEventListener("abort", () => resolve(), {
+          once: true,
+        });
+      });
+
+      client.abort();
+      await deadline(disconnected);
+      expect(signal.aborted).toBe(true);
+    } finally {
+      if (timer) clearTimeout(timer);
+      client.abort();
+      finish();
+    }
+  }, 10_000);
+
   it("legacy preview is authenticated and never publicly cached", async () => {
     const res = await request(app.getHttpServer())
       .get("/api/v1/previews/1")
@@ -151,7 +211,7 @@ describe("PreviewsController thumbnail cache boundary (Phase 11.3)", () => {
     expect(res.headers["cache-control"]).toContain("no-store");
     expect(res.headers["cache-control"]).toContain("private");
     expect(res.headers["vary"]).toContain("Authorization");
-    expect(getPreview).toHaveBeenCalledWith(1, 1);
+    expect(getPreview).toHaveBeenCalledWith(1, 1, expect.any(AbortSignal));
   });
 
   it("missing Authorization → auth requirement enforced (guard rejects)", async () => {

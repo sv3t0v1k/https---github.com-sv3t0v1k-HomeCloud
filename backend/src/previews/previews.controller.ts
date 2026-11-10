@@ -65,9 +65,34 @@ export class PreviewsController {
   async getPreview(
     @NestRequest() req: ExpressRequest & { user: { userId: number } },
     @Param("id") id: string,
+    @Res({ passthrough: true }) res: Response,
   ) {
     const userId = req.user.userId;
-    return this.previewsService.getPreview(userId, parsePreviewId(id));
+    const fileId = parsePreviewId(id);
+    const controller = new AbortController();
+
+    const onClose = () => {
+      if (!res.writableEnded) controller.abort();
+    };
+
+    res.once("close", onClose);
+    if (res.destroyed && !res.writableEnded) controller.abort();
+
+    try {
+      const result = await this.previewsService.getPreview(
+        userId,
+        fileId,
+        controller.signal,
+      );
+
+      if (controller.signal.aborted || res.destroyed) return;
+      return result;
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      throw error;
+    } finally {
+      res.off("close", onClose);
+    }
   }
 }
 
