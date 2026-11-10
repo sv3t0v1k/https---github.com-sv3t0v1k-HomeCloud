@@ -559,6 +559,217 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
     expect(storage.deleteFile).toHaveBeenCalledTimes(1);
   });
 
+  // SECURE_COPY_PG_RACE_REGRESSION_V1
+  async function createCopyRegressionSource() {
+    const user = await createUser();
+    const sourcePath = copyStorage.generatePath(
+      user.id,
+      `copy-regression-${randomUUID()}.bin`,
+    );
+    fs.writeFileSync(sourcePath, Buffer.alloc(100, 0x42));
+
+    const files = dataSource.getRepository(FileEntity);
+    const source = await files.save(files.create({
+      name: "copy-regression.bin",
+      ...copyStorage.placementForPath(sourcePath),
+      size: 100,
+      mimeType: "application/octet-stream",
+      isFolder: false,
+      userId: user.id,
+    }));
+
+    return { user, source, sourcePath, files };
+  }
+
+
+  // SECURE_COPY_AMBIGUOUS_COMMIT_PG_V1
+  it.each(["before", "after"] as const)(
+    "secure-copy handles %s COMMIT acknowledgement failure",
+    async (phase) => {
+      const { user, source, sourcePath, files } =
+        await createCopyRegressionSource();
+
+      const realCopy = copyStorage.copyOpenedFileSecure.bind(copyStorage);
+      const realFactory = dataSource.createQueryRunner.bind(dataSource);
+
+      let physicalCopyCompleted = false;
+      const targetedRunners: ReturnType<
+        DataSource["createQueryRunner"]
+      >[] = [];
+
+      const copySpy = jest.spyOn(
+        copyStorage,
+        "copyOpenedFileSecure",
+      ).mockImplementation(async (fd, size, destination) => {
+        const lease = await realCopy(fd, size, destination);
+        physicalCopyCompleted = true;
+        return lease;
+      });
+
+      const factorySpy = jest.spyOn(
+        dataSource,
+        "createQueryRunner",
+      ).mockImplementation((...args) => {
+        const runner = realFactory(...args);
+
+        if (physicalCopyCompleted && targetedRunners.length === 0) {
+          targetedRunners.push(runner);
+          const actualCommit = runner.commitTransaction.bind(runner);
+
+          runner.commitTransaction = async () => {
+            if (phase === "after") {
+              await actualCommit();
+            }
+            throw new Error(`simulated-${phase}-commit-fault`);
+          };
+        }
+
+        return runner;
+      });
+
+      try {
+        await expect(
+          copyService.copyFile(user.id, source.id),
+        ).rejects.toThrow(`simulated-${phase}-commit-fault`);
+      } finally {
+        factorySpy.mockRestore();
+        copySpy.mockRestore();
+      }
+
+      expect(physicalCopyCompleted).toBe(true);
+      expect(targetedRunners).toHaveLength(1);
+      expect(targetedRunners[0].isTransactionActive).toBe(false);
+
+      const expectedCopies = phase === "after" ? 1 : 0;
+
+      expect(await files.countBy({ userId: user.id }))
+        .toBe(1 + expectedCopies);
+
+      const actualOwner = await dataSource
+        .getRepository(UserEntity)
+        .findOneByOrFail({ id: user.id });
+
+      expect(Number(actualOwner.storageUsed))
+        .toBe(expectedCopies * 100);
+
+      expect(fs.readdirSync(path.dirname(sourcePath)))
+        .toHaveLength(1 + expectedCopies);
+
+      expect(fs.readFileSync(sourcePath))
+        .toEqual(Buffer.alloc(100, 0x42));
+
+      // Verify that the pool still works after an interrupted COMMIT.
+      expect(await dataSource.query("SELECT 1 AS healthy"))
+        .toEqual([{ healthy: 1 }]);
+    },
+    15000,
+  );
+
+  it("secure-copy rejects a source inside a deleted folder", async () => {
+    const { user, source, sourcePath, files } =
+      await createCopyRegressionSource();
+
+    const folder = await copyService.createFolder(
+      user.id,
+      "hidden-copy-parent",
+    );
+    const folderId = folder.folderId!;
+    await files.update(source.id, { parentId: folderId });
+    await copyService.removeFolder(user.id, folderId);
+
+    const originalCount = await files.countBy({ userId: user.id });
+
+    await expect(
+      copyService.copyFile(user.id, source.id),
+    ).rejects.toThrow();
+
+    expect(await files.countBy({ userId: user.id }))
+      .toBe(originalCount);
+    expect(fs.readFileSync(sourcePath))
+      .toEqual(Buffer.alloc(100, 0x42));
+    expect(fs.readdirSync(path.dirname(sourcePath)))
+      .toEqual([path.basename(sourcePath)]);
+  });
+
+  it.each(["source", "destination"] as const)(
+    "secure-copy refuses %s deletion during physical I/O",
+    async (victim) => {
+      const { user, source, sourcePath, files } =
+        await createCopyRegressionSource();
+
+      const destination = await copyService.createFolder(
+        user.id,
+        `copy-race-${victim}`,
+      );
+      const targetId = destination.folderId!;
+      const initialCount = await files.countBy({ userId: user.id });
+
+      let signalStarted!: () => void;
+      let resumeCopy!: () => void;
+
+      const started = new Promise<void>((resolve) => {
+        signalStarted = resolve;
+      });
+      const pause = new Promise<void>((resolve) => {
+        resumeCopy = resolve;
+      });
+
+      const nativeCopy =
+        copyStorage.copyOpenedFileSecure.bind(copyStorage);
+
+      const spy = jest.spyOn(
+        copyStorage,
+        "copyOpenedFileSecure",
+      ).mockImplementation(async (...args) => {
+        signalStarted();
+        await pause;
+        return nativeCopy(...args);
+      });
+
+      // Attach rejection handling immediately to avoid an unhandled
+      // promise rejection while PostgreSQL changes the source/destination.
+      const outcome = copyService.copyFile(
+        user.id,
+        source.id,
+        targetId,
+      ).then(
+        () => null,
+        (error: unknown) => error,
+      );
+
+      try {
+        await started;
+
+        if (victim === "source") {
+          await copyService.removeFile(user.id, source.id);
+        } else {
+          await copyService.removeFolder(user.id, targetId);
+        }
+      } finally {
+        resumeCopy();
+        spy.mockRestore();
+      }
+
+      const error = await outcome;
+      expect(error).toBeInstanceOf(Error);
+
+      // The partially written destination must not survive rollback.
+      expect(await files.countBy({ userId: user.id }))
+        .toBe(initialCount);
+      expect(fs.readdirSync(path.dirname(sourcePath)))
+        .toEqual([path.basename(sourcePath)]);
+      expect(fs.readFileSync(sourcePath))
+        .toEqual(Buffer.alloc(100, 0x42));
+
+      const actual = await dataSource
+        .getRepository(UserEntity)
+        .findOneByOrFail({ id: user.id });
+
+      expect(Number(actual.storageUsed)).toBe(0);
+    },
+    15000,
+  );
+
   it("конкурирующие копии атомарно резервируют квоту", async () => {
     const user = await dataSource.getRepository(UserEntity).save({
       email: `${randomUUID()}@example.test`,
