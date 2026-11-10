@@ -582,6 +582,202 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
   }
 
 
+
+  // SECURE_COPY_CANCEL_POSTGRES_V1
+  it("cancels after physical copying without changing PostgreSQL quota", async () => {
+    const { user, source, sourcePath, files } =
+      await createCopyRegressionSource();
+
+    const cancellation = new AbortController();
+    const actualCopy =
+      copyStorage.copyOpenedFileSecure.bind(copyStorage);
+    let physicalCopyFinished = false;
+
+    const spy = jest.spyOn(
+      copyStorage,
+      "copyOpenedFileSecure",
+    ).mockImplementation(async (...args) => {
+      const lease = await actualCopy(...args);
+      physicalCopyFinished = true;
+      cancellation.abort();
+      return lease;
+    });
+
+    try {
+      await expect(
+        copyService.copyFile(
+          user.id, source.id, undefined, cancellation.signal,
+        ),
+      ).rejects.toThrow("File copy cancelled");
+    } finally {
+      spy.mockRestore();
+    }
+
+    expect(physicalCopyFinished).toBe(true);
+    expect(await files.countBy({ userId: user.id })).toBe(1);
+
+    const owner = await dataSource
+      .getRepository(UserEntity)
+      .findOneByOrFail({ id: user.id });
+
+    expect(Number(owner.storageUsed)).toBe(0);
+    expect(fs.readdirSync(path.dirname(sourcePath)))
+      .toEqual([path.basename(sourcePath)]);
+    expect(fs.readFileSync(sourcePath))
+      .toEqual(Buffer.alloc(100, 0x42));
+  });
+
+  it("rolls back real PostgreSQL metadata on cancellation before COMMIT", async () => {
+    const { user, source, sourcePath, files } =
+      await createCopyRegressionSource();
+
+    const cancellation = new AbortController();
+    const actualCopy =
+      copyStorage.copyOpenedFileSecure.bind(copyStorage);
+    const actualFactory =
+      dataSource.createQueryRunner.bind(dataSource);
+
+    let physicalCopyFinished = false;
+    let interceptedSave = false;
+    let completedSave = false;
+
+    const copySpy = jest.spyOn(
+      copyStorage,
+      "copyOpenedFileSecure",
+    ).mockImplementation(async (...args) => {
+      const lease = await actualCopy(...args);
+      physicalCopyFinished = true;
+      return lease;
+    });
+
+    const factorySpy = jest.spyOn(
+      dataSource,
+      "createQueryRunner",
+    ).mockImplementation((...args) => {
+      const runner = actualFactory(...args);
+
+      if (physicalCopyFinished && !interceptedSave) {
+        interceptedSave = true;
+
+        const originalSave = runner.manager.save.bind(
+          runner.manager,
+        ) as (...values: unknown[]) => Promise<unknown>;
+
+        runner.manager.save = (
+          async (...values: unknown[]) => {
+            const saved = await originalSave(...values);
+            completedSave = true;
+            cancellation.abort();
+            return saved;
+          }
+        ) as typeof runner.manager.save;
+      }
+
+      return runner;
+    });
+
+    try {
+      await expect(
+        copyService.copyFile(
+          user.id, source.id, undefined, cancellation.signal,
+        ),
+      ).rejects.toThrow("File copy cancelled");
+    } finally {
+      factorySpy.mockRestore();
+      copySpy.mockRestore();
+    }
+
+    expect(physicalCopyFinished).toBe(true);
+    expect(interceptedSave).toBe(true);
+    expect(completedSave).toBe(true);
+
+    expect(await files.countBy({ userId: user.id })).toBe(1);
+
+    const owner = await dataSource
+      .getRepository(UserEntity)
+      .findOneByOrFail({ id: user.id });
+
+    expect(Number(owner.storageUsed)).toBe(0);
+    expect(fs.readdirSync(path.dirname(sourcePath)))
+      .toEqual([path.basename(sourcePath)]);
+    expect(fs.readFileSync(sourcePath))
+      .toEqual(Buffer.alloc(100, 0x42));
+
+    expect(await dataSource.query("SELECT 1 AS healthy"))
+      .toEqual([{ healthy: 1 }]);
+  });
+
+  it("preserves a real committed copy when cancellation arrives after COMMIT", async () => {
+    const { user, source, sourcePath, files } =
+      await createCopyRegressionSource();
+
+    const cancellation = new AbortController();
+    const actualCopy =
+      copyStorage.copyOpenedFileSecure.bind(copyStorage);
+    const actualFactory =
+      dataSource.createQueryRunner.bind(dataSource);
+
+    let physicalCopyFinished = false;
+    let committed = false;
+    let interceptedCommit = false;
+
+    const copySpy = jest.spyOn(
+      copyStorage,
+      "copyOpenedFileSecure",
+    ).mockImplementation(async (...args) => {
+      const lease = await actualCopy(...args);
+      physicalCopyFinished = true;
+      return lease;
+    });
+
+    const factorySpy = jest.spyOn(
+      dataSource,
+      "createQueryRunner",
+    ).mockImplementation((...args) => {
+      const runner = actualFactory(...args);
+
+      if (physicalCopyFinished && !interceptedCommit) {
+        interceptedCommit = true;
+        const realCommit = runner.commitTransaction.bind(runner);
+
+        runner.commitTransaction = async () => {
+          await realCommit();
+          committed = true;
+          cancellation.abort();
+        };
+      }
+
+      return runner;
+    });
+
+    let copied: FileEntity;
+
+    try {
+      copied = await copyService.copyFile(
+        user.id, source.id, undefined, cancellation.signal,
+      );
+    } finally {
+      factorySpy.mockRestore();
+      copySpy.mockRestore();
+    }
+
+    expect(committed).toBe(true);
+    expect(cancellation.signal.aborted).toBe(true);
+
+    expect(await files.countBy({ userId: user.id })).toBe(2);
+
+    const owner = await dataSource
+      .getRepository(UserEntity)
+      .findOneByOrFail({ id: user.id });
+
+    expect(Number(owner.storageUsed)).toBe(100);
+
+    expect(fs.readFileSync(copied.storagePath))
+      .toEqual(Buffer.alloc(100, 0x42));
+    expect(fs.readFileSync(sourcePath))
+      .toEqual(Buffer.alloc(100, 0x42));
+  });
+
   // SECURE_COPY_AMBIGUOUS_COMMIT_PG_V1
   it.each(["before", "after"] as const)(
     "secure-copy handles %s COMMIT acknowledgement failure",

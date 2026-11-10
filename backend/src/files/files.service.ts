@@ -1045,7 +1045,17 @@ export class FilesService {
     await assertVisibleAncestors(manager, userId, folder.parentId ?? null);
   }
 
-  async copyFile(userId: number, id: number, targetParentId?: number) {
+  async copyFile(
+    userId: number,
+    id: number,
+    targetParentId?: number,
+    signal?: AbortSignal,
+  ) {
+    const assertNotAborted = () => {
+      if (signal?.aborted) {
+        throw new ServiceUnavailableException("File copy cancelled");
+      }
+    };
     if (
       !Number.isSafeInteger(userId) ||
       userId <= 0 ||
@@ -1056,6 +1066,7 @@ export class FilesService {
       throw new NotFoundException("File not found");
     }
 
+    assertNotAborted();
     const user = await this.usersService.findById(userId);
     if (!user) throw new ForbiddenException("User not found");
 
@@ -1073,13 +1084,17 @@ export class FilesService {
         userId,
         id,
         async (file, manager) => {
+          assertNotAborted();
           await this.assertCopyTargetVisible(manager, userId, targetParentId);
+          assertNotAborted();
           const sourcePath = this.storageService.resolveFilePath(file);
           sourceFd = this.storageService.openReadOnlyFileSecure(sourcePath);
+          assertNotAborted();
           return file;
         },
       );
 
+      assertNotAborted();
       const size = parseDatabaseSize(source.size, "Invalid file size metadata");
       if (!Number.isSafeInteger(size) || size < 0) {
         throw new BadRequestException("Invalid file size metadata");
@@ -1090,16 +1105,20 @@ export class FilesService {
       const targetPath = this.storageService.generatePath(userId, safeName);
 
       // No pathname-based copy. No long-lived database lock during I/O.
+      assertNotAborted();
       lease = await this.storageService.copyOpenedFileSecure(
         sourceFd!,
         size,
         targetPath,
+        signal,
       );
+      assertNotAborted();
 
       runner = this.fileRepository.manager.connection.createQueryRunner();
       await runner.connect();
       await runner.startTransaction();
       transactionStarted = true;
+      assertNotAborted();
 
       await runner.manager.query("SET LOCAL lock_timeout = '1500ms'");
       await runner.manager.query("SET LOCAL statement_timeout = '2500ms'");
@@ -1113,6 +1132,7 @@ export class FilesService {
         throw new NotFoundException("File not found");
       }
 
+      assertNotAborted();
       const current = await runner.manager.findOne(FileEntity, {
         where: { id, userId, isDeleted: false },
       });
@@ -1144,6 +1164,7 @@ export class FilesService {
         targetParentId,
       );
 
+      assertNotAborted();
       copy = runner.manager.create(FileEntity, {
         name: displayName,
         ...this.storageService.placementForPath(targetPath),
@@ -1165,6 +1186,7 @@ export class FilesService {
       );
 
       await runner.manager.save(copy);
+      assertNotAborted();
       commitAttempted = true;
       await runner.commitTransaction();
       transactionStarted = false;

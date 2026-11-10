@@ -128,9 +128,18 @@ export class FilesController {
     const userId = req.user.userId;
     if (search !== undefined) {
       const query = searchQuery(search, 1);
-      const parent = parentId === undefined ? undefined : searchPageNumber(parentId, 0, 2147483647, 1);
-      return this.filesService.findAll(userId, parent, query, false,
-        searchPageNumber(limitRaw, 20, 50, 1), searchPageNumber(offsetRaw, 0, 10000));
+      const parent =
+        parentId === undefined
+          ? undefined
+          : searchPageNumber(parentId, 0, 2147483647, 1);
+      return this.filesService.findAll(
+        userId,
+        parent,
+        query,
+        false,
+        searchPageNumber(limitRaw, 20, 50, 1),
+        searchPageNumber(offsetRaw, 0, 10000),
+      );
     }
     const parentIdNum = parentId ? parseInt(parentId, 10) : undefined;
     return this.filesService.findAll(userId, parentIdNum, search);
@@ -322,13 +331,38 @@ export class FilesController {
     @NestRequest() req: ExpressRequest & { user: { userId: number } },
     @Param("id") id: string,
     @Body() dto: CopyFileDto,
+    @Res({ passthrough: true }) res: Response,
   ) {
-    const userId = req.user.userId;
-    return this.filesService.copyFile(
-      userId,
-      parseInt(id, 10),
-      dto.targetParentId,
-    );
+    if (
+      !/^[1-9]\d*$/.test(id) ||
+      !Number.isSafeInteger(Number(id)) ||
+      Number(id) > 2147483647
+    ) {
+      throw new BadRequestException("Invalid file id");
+    }
+
+    const cancellation = new AbortController();
+    const abort = () => cancellation.abort();
+    const onClose = () => {
+      if (!res.writableEnded) abort();
+    };
+
+    req.once("aborted", abort);
+    res.once("close", onClose);
+
+    try {
+      if (req.aborted || res.destroyed) abort();
+
+      return await this.filesService.copyFile(
+        req.user.userId,
+        Number(id),
+        dto.targetParentId,
+        cancellation.signal,
+      );
+    } finally {
+      req.off("aborted", abort);
+      res.off("close", onClose);
+    }
   }
 
   @Post(":id/move")
@@ -381,34 +415,33 @@ export async function streamOriginalDownload(
     assertConnected();
 
     // Authorization and opening share one PostgreSQL transaction.
-    const { file, safePath, fd } =
-      await filesService.withVisibleContentFile(
-        req.user.userId,
-        Number(id),
-        (authorized) => {
-          assertConnected();
+    const { file, safePath, fd } = await filesService.withVisibleContentFile(
+      req.user.userId,
+      Number(id),
+      (authorized) => {
+        assertConnected();
 
-          let resolved: string;
-          try {
-            resolved = storageService.resolveFilePath(authorized);
-          } catch {
-            throw new NotFoundException("File not found on storage");
-          }
+        let resolved: string;
+        try {
+          resolved = storageService.resolveFilePath(authorized);
+        } catch {
+          throw new NotFoundException("File not found on storage");
+        }
 
-          assertConnected();
+        assertConnected();
 
-          let descriptor: number;
-          try {
-            descriptor = storageService.openReadOnlyFileSecure(resolved);
-          } catch {
-            throw new NotFoundException("File not found on storage");
-          }
+        let descriptor: number;
+        try {
+          descriptor = storageService.openReadOnlyFileSecure(resolved);
+        } catch {
+          throw new NotFoundException("File not found on storage");
+        }
 
-          // Register ownership BEFORE callback returns: COMMIT can fail.
-          openedFd = descriptor;
-          return { file: authorized, safePath: resolved, fd: descriptor };
-        },
-      );
+        // Register ownership BEFORE callback returns: COMMIT can fail.
+        openedFd = descriptor;
+        return { file: authorized, safePath: resolved, fd: descriptor };
+      },
+    );
 
     assertConnected();
     const stat = fs.fstatSync(fd);

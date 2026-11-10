@@ -228,6 +228,7 @@ describe("FilesService - Authorization Boundary", () => {
         expect.any(Number),
         10,
         copied.storagePath,
+        undefined,
       );
     });
 
@@ -927,6 +928,7 @@ describe("FilesService - Authorization Boundary", () => {
         expect.any(Number),
         100,
         "/storage/1/test.txt",
+        undefined,
       );
       const qr = mockFileRepository.manager.connection.createQueryRunner();
       expect(qr.manager.create).toHaveBeenCalledWith(
@@ -1149,6 +1151,79 @@ describe("FilesService - Authorization Boundary", () => {
       expect(mockFolderRepository.findOne).toHaveBeenCalledWith({
         where: { id: 2, userId: 1, isDeleted: false },
       });
+    });
+
+    it("rejects cancellation before authorization", async () => {
+      const cancellation = new AbortController();
+      cancellation.abort();
+
+      await expect(
+        service.copyFile(1, 1, undefined, cancellation.signal),
+      ).rejects.toThrow("File copy cancelled");
+
+      expect(mockUsersService.findById).not.toHaveBeenCalled();
+      expect(mockStorageService.openReadOnlyFileSecure).not.toHaveBeenCalled();
+    });
+
+    it("cleans its lease when cancelled immediately after I/O", async () => {
+      const cancellation = new AbortController();
+
+      mockStorageService.copyOpenedFileSecure.mockImplementationOnce(
+        async () => {
+          cancellation.abort();
+          return copyLease;
+        },
+      );
+
+      await expect(
+        service.copyFile(1, 1, undefined, cancellation.signal),
+      ).rejects.toThrow("File copy cancelled");
+
+      expect(mockStorageService.copyOpenedFileSecure).toHaveBeenCalledWith(
+        expect.any(Number),
+        100,
+        "/storage/1/test.txt",
+        cancellation.signal,
+      );
+      expect(copyLease.cleanup).toHaveBeenCalledTimes(1);
+      expect(copyLease.release).toHaveBeenCalledTimes(1);
+    });
+
+    it("rolls back cancellation after metadata save", async () => {
+      const cancellation = new AbortController();
+      const runner = mockFileRepository.manager.connection.createQueryRunner();
+
+      runner.manager.save.mockImplementationOnce(async (value: any) => {
+        value.id = 2;
+        cancellation.abort();
+        return value;
+      });
+
+      await expect(
+        service.copyFile(1, 1, undefined, cancellation.signal),
+      ).rejects.toThrow("File copy cancelled");
+
+      expect(runner.rollbackTransaction).toHaveBeenCalledTimes(1);
+      expect(runner.commitTransaction).not.toHaveBeenCalled();
+      expect(copyLease.cleanup).toHaveBeenCalledTimes(1);
+    });
+
+    it("never deletes a committed copy after cancellation", async () => {
+      const cancellation = new AbortController();
+      const runner = mockFileRepository.manager.connection.createQueryRunner();
+
+      runner.commitTransaction.mockImplementationOnce(async () => {
+        cancellation.abort();
+      });
+
+      await expect(
+        service.copyFile(1, 1, undefined, cancellation.signal),
+      ).resolves.toEqual(expect.objectContaining({ id: 2 }));
+
+      expect(runner.commitTransaction).toHaveBeenCalledTimes(1);
+      expect(runner.rollbackTransaction).not.toHaveBeenCalled();
+      expect(copyLease.cleanup).not.toHaveBeenCalled();
+      expect(copyLease.release).toHaveBeenCalledTimes(1);
     });
 
     it("rejects deleted source before acquiring a descriptor", async () => {

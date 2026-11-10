@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleDestroy } from "@nestjs/common";
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  ServiceUnavailableException,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import * as fs from "fs";
 import * as path from "path";
@@ -19,6 +24,7 @@ export class StorageService implements OnModuleDestroy {
   private readonly registry: StorageRegistry;
   private readonly ssdBinding: ApprovedRoot | undefined;
   private readonly secureReadBoundary?: SecureFilesystem;
+  private activeSecureCopies = 0;
 
   constructor(private configService: ConfigService) {
     this.storagePath = configService.get("STORAGE_PATH") || "/storage";
@@ -34,8 +40,7 @@ export class StorageService implements OnModuleDestroy {
 
       if (process.platform === "linux") {
         // Acquire the root capability once, before accepting read requests.
-        const root = this.registry.mounts
-          .assertAccess(LEGACY_STORAGE_ID).root;
+        const root = this.registry.mounts.assertAccess(LEGACY_STORAGE_ID).root;
         const expected = fs.lstatSync(root);
 
         const boundary = new SecureFilesystem(root, expected);
@@ -296,6 +301,7 @@ export class StorageService implements OnModuleDestroy {
     sourceFd: number,
     expectedSize: number,
     destinationPath: string,
+    signal?: AbortSignal,
   ): Promise<{ cleanup(): void; release(): void }> {
     if (
       !Number.isSafeInteger(sourceFd) ||
@@ -309,121 +315,161 @@ export class StorageService implements OnModuleDestroy {
     const boundary = this.secureReadBoundary;
     if (!boundary) throw new Error("Secure copy requires Linux");
 
-    this.registry.mounts.assertAccess(LEGACY_STORAGE_ID, true);
-    const destination = this.ensureWithinStorageRoot(destinationPath);
-
-    const before = fs.fstatSync(sourceFd);
-    if (
-      !before.isFile() ||
-      before.nlink !== 1 ||
-      before.uid !== process.geteuid?.() ||
-      before.size !== expectedSize
-    ) {
-      throw new Error("Unsafe or changed copy source");
+    if (signal?.aborted) {
+      throw new ServiceUnavailableException("Secure copy cancelled");
+    }
+    if (this.activeSecureCopies >= 4) {
+      throw new ServiceUnavailableException(
+        "Secure copy concurrency limit exceeded",
+      );
     }
 
-    // Native openat2 O_EXCL/O_NOFOLLOW with immutable root FD.
-    const destinationFd = boundary.open(destination, "wx");
-    let complete = false;
-
+    this.activeSecureCopies += 1;
     try {
-      const buffer = Buffer.allocUnsafe(256 * 1024);
-      let position = 0;
+      this.registry.mounts.assertAccess(LEGACY_STORAGE_ID, true);
+      const destination = this.ensureWithinStorageRoot(destinationPath);
 
-      while (position < expectedSize) {
-        const length = Math.min(buffer.length, expectedSize - position);
+      const before = fs.fstatSync(sourceFd);
+      if (
+        !before.isFile() ||
+        before.nlink !== 1 ||
+        before.uid !== process.geteuid?.() ||
+        before.size !== expectedSize
+      ) {
+        throw new Error("Unsafe or changed copy source");
+      }
 
-        const read = await new Promise<number>((resolve, reject) => {
-          fs.read(
-            sourceFd, buffer, 0, length, position,
-            (error, bytesRead) => {
-              if (error) reject(error);
-              else resolve(bytesRead);
-            },
-          );
-        });
+      // Native openat2 O_EXCL/O_NOFOLLOW with immutable root FD.
+      const destinationFd = boundary.open(destination, "wx");
+      let complete = false;
 
-        if (read <= 0) throw new Error("Copy source changed during reading");
+      try {
+        let lastProgress = performance.now();
 
-        let written = 0;
-        while (written < read) {
-          const count = await new Promise<number>((resolve, reject) => {
-            fs.write(
-              destinationFd, buffer, written, read - written,
-              position + written,
-              (error, bytesWritten) => {
+        const assertCopyActive = () => {
+          if (signal?.aborted) {
+            throw new ServiceUnavailableException("Secure copy cancelled");
+          }
+          if (performance.now() - lastProgress > 60_000) {
+            throw new ServiceUnavailableException("Secure copy idle timeout");
+          }
+        };
+
+        assertCopyActive();
+        const buffer = Buffer.allocUnsafe(256 * 1024);
+        let position = 0;
+
+        while (position < expectedSize) {
+          assertCopyActive();
+          const length = Math.min(buffer.length, expectedSize - position);
+
+          const read = await new Promise<number>((resolve, reject) => {
+            fs.read(
+              sourceFd,
+              buffer,
+              0,
+              length,
+              position,
+              (error, bytesRead) => {
                 if (error) reject(error);
-                else resolve(bytesWritten);
+                else resolve(bytesRead);
               },
             );
           });
 
-          if (count <= 0) throw new Error("Copy destination write stalled");
-          written += count;
+          assertCopyActive();
+          if (read <= 0) throw new Error("Copy source changed during reading");
+
+          let written = 0;
+          while (written < read) {
+            const count = await new Promise<number>((resolve, reject) => {
+              fs.write(
+                destinationFd,
+                buffer,
+                written,
+                read - written,
+                position + written,
+                (error, bytesWritten) => {
+                  if (error) reject(error);
+                  else resolve(bytesWritten);
+                },
+              );
+            });
+
+            assertCopyActive();
+            if (count <= 0) throw new Error("Copy destination write stalled");
+            written += count;
+            lastProgress = performance.now();
+          }
+
+          position += read;
         }
 
-        position += read;
-      }
+        assertCopyActive();
+        const after = fs.fstatSync(sourceFd);
+        const result = fs.fstatSync(destinationFd);
 
-      const after = fs.fstatSync(sourceFd);
-      const result = fs.fstatSync(destinationFd);
+        if (
+          before.dev !== after.dev ||
+          before.ino !== after.ino ||
+          before.size !== after.size ||
+          before.mtimeMs !== after.mtimeMs ||
+          before.ctimeMs !== after.ctimeMs ||
+          !result.isFile() ||
+          result.nlink !== 1 ||
+          result.size !== expectedSize
+        ) {
+          throw new Error("Copy source or destination changed");
+        }
 
-      if (
-        before.dev !== after.dev ||
-        before.ino !== after.ino ||
-        before.size !== after.size ||
-        before.mtimeMs !== after.mtimeMs ||
-        before.ctimeMs !== after.ctimeMs ||
-        !result.isFile() ||
-        result.nlink !== 1 ||
-        result.size !== expectedSize
-      ) {
-        throw new Error("Copy source or destination changed");
-      }
-
-      await new Promise<void>((resolve, reject) => {
-        fs.fsync(destinationFd, (error) => {
-          if (error) reject(error);
-          else resolve();
+        await new Promise<void>((resolve, reject) => {
+          fs.fsync(destinationFd, (error) => {
+            if (error) reject(error);
+            else resolve();
+          });
         });
-      });
 
-      this.registry.mounts.assertAccess(LEGACY_STORAGE_ID, true);
+        assertCopyActive();
+        this.registry.mounts.assertAccess(LEGACY_STORAGE_ID, true);
 
-      const parentFd = boundary.directory(path.dirname(destination));
-      try {
-        fs.fsyncSync(parentFd);
-      } finally {
-        fs.closeSync(parentFd);
-      }
-
-      complete = true;
-      let released = false;
-      let removed = false;
-
-      return {
-        cleanup() {
-          if (released) throw new Error("Secure copy lease already released");
-          if (removed) return;
-          boundary.removeOwned(destination, destinationFd);
-          removed = true;
-        },
-        release() {
-          if (released) return;
-          released = true;
-          fs.closeSync(destinationFd);
-        },
-      };
-    } finally {
-      if (!complete) {
+        const parentFd = boundary.directory(path.dirname(destination));
         try {
-          boundary.removeOwned(destination, destinationFd);
-        } catch {
-          this.logger.error("Failed to clean incomplete secure copy");
+          fs.fsyncSync(parentFd);
         } finally {
-          fs.closeSync(destinationFd);
+          fs.closeSync(parentFd);
+        }
+
+        assertCopyActive();
+        complete = true;
+        let released = false;
+        let removed = false;
+
+        return {
+          cleanup() {
+            if (released) throw new Error("Secure copy lease already released");
+            if (removed) return;
+            boundary.removeOwned(destination, destinationFd);
+            removed = true;
+          },
+          release() {
+            if (released) return;
+            released = true;
+            fs.closeSync(destinationFd);
+          },
+        };
+      } finally {
+        if (!complete) {
+          try {
+            boundary.removeOwned(destination, destinationFd);
+          } catch {
+            this.logger.error("Failed to clean incomplete secure copy");
+          } finally {
+            fs.closeSync(destinationFd);
+          }
         }
       }
+    } finally {
+      this.activeSecureCopies -= 1;
     }
   }
 
