@@ -286,6 +286,147 @@ export class StorageService implements OnModuleDestroy {
     return fs.createReadStream(filePath);
   }
 
+  /**
+   * Copy from an already authorized, secure source FD.
+   * The caller retains ownership of sourceFd and of the returned destination
+   * lease. Keep the destination lease open until metadata commit is resolved:
+   * cleanup() removes only the inode created by this operation.
+   */
+  async copyOpenedFileSecure(
+    sourceFd: number,
+    expectedSize: number,
+    destinationPath: string,
+  ): Promise<{ cleanup(): void; release(): void }> {
+    if (
+      !Number.isSafeInteger(sourceFd) ||
+      sourceFd < 0 ||
+      !Number.isSafeInteger(expectedSize) ||
+      expectedSize < 0
+    ) {
+      throw new Error("Invalid secure copy parameters");
+    }
+
+    const boundary = this.secureReadBoundary;
+    if (!boundary) throw new Error("Secure copy requires Linux");
+
+    this.registry.mounts.assertAccess(LEGACY_STORAGE_ID, true);
+    const destination = this.ensureWithinStorageRoot(destinationPath);
+
+    const before = fs.fstatSync(sourceFd);
+    if (
+      !before.isFile() ||
+      before.nlink !== 1 ||
+      before.uid !== process.geteuid?.() ||
+      before.size !== expectedSize
+    ) {
+      throw new Error("Unsafe or changed copy source");
+    }
+
+    // Native openat2 O_EXCL/O_NOFOLLOW with immutable root FD.
+    const destinationFd = boundary.open(destination, "wx");
+    let complete = false;
+
+    try {
+      const buffer = Buffer.allocUnsafe(256 * 1024);
+      let position = 0;
+
+      while (position < expectedSize) {
+        const length = Math.min(buffer.length, expectedSize - position);
+
+        const read = await new Promise<number>((resolve, reject) => {
+          fs.read(
+            sourceFd, buffer, 0, length, position,
+            (error, bytesRead) => {
+              if (error) reject(error);
+              else resolve(bytesRead);
+            },
+          );
+        });
+
+        if (read <= 0) throw new Error("Copy source changed during reading");
+
+        let written = 0;
+        while (written < read) {
+          const count = await new Promise<number>((resolve, reject) => {
+            fs.write(
+              destinationFd, buffer, written, read - written,
+              position + written,
+              (error, bytesWritten) => {
+                if (error) reject(error);
+                else resolve(bytesWritten);
+              },
+            );
+          });
+
+          if (count <= 0) throw new Error("Copy destination write stalled");
+          written += count;
+        }
+
+        position += read;
+      }
+
+      const after = fs.fstatSync(sourceFd);
+      const result = fs.fstatSync(destinationFd);
+
+      if (
+        before.dev !== after.dev ||
+        before.ino !== after.ino ||
+        before.size !== after.size ||
+        before.mtimeMs !== after.mtimeMs ||
+        before.ctimeMs !== after.ctimeMs ||
+        !result.isFile() ||
+        result.nlink !== 1 ||
+        result.size !== expectedSize
+      ) {
+        throw new Error("Copy source or destination changed");
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        fs.fsync(destinationFd, (error) => {
+          if (error) reject(error);
+          else resolve();
+        });
+      });
+
+      this.registry.mounts.assertAccess(LEGACY_STORAGE_ID, true);
+
+      const parentFd = boundary.directory(path.dirname(destination));
+      try {
+        fs.fsyncSync(parentFd);
+      } finally {
+        fs.closeSync(parentFd);
+      }
+
+      complete = true;
+      let released = false;
+      let removed = false;
+
+      return {
+        cleanup() {
+          if (released) throw new Error("Secure copy lease already released");
+          if (removed) return;
+          boundary.removeOwned(destination, destinationFd);
+          removed = true;
+        },
+        release() {
+          if (released) return;
+          released = true;
+          fs.closeSync(destinationFd);
+        },
+      };
+    } finally {
+      if (!complete) {
+        try {
+          boundary.removeOwned(destination, destinationFd);
+        } catch {
+          this.logger.error("Failed to clean incomplete secure copy");
+        } finally {
+          fs.closeSync(destinationFd);
+        }
+      }
+    }
+  }
+
   async copyFile(sourcePath: string, destinationPath: string): Promise<void> {
     this.registry.assertLegacyAccess(true);
     const safeSourcePath = this.ensureWithinStorageRoot(sourcePath);

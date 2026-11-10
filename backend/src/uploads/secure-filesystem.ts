@@ -64,6 +64,13 @@ export class SecureFilesystem {
   open(absolute: string, mode: "r" | "rw" | "wx" = "r"): number {
     return native().open(this.capability, this.key(absolute), mode);
   }
+  /**
+   * Open a directory relative to the pinned root descriptor.
+   * Caller owns the returned FD and must close it.
+   */
+  directory(absolute: string): number {
+    return native().directory(this.capability, this.key(absolute));
+  }
   /** Nonblocking kernel fencing on an independently pinned root descriptor. */
   lock(fd: number): void {
     if (this.closed) throw new Error("Secure upload filesystem closed");
