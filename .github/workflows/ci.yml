@@ -37,6 +37,7 @@ jobs:
         working-directory: backend
       - run: sh native/build.sh
         working-directory: backend
+      - run: node --test scripts/ci/test-recovery-workflow.cjs
       - name: Route all unit suites, including critical smoke
         run: python3 scripts/ci/test-routing.py list unit > backend-unit-suites.txt
       - name: Run unit suites without PostgreSQL or bench suites
@@ -55,6 +56,9 @@ jobs:
       - run: npm run build
         working-directory: backend
       - run: node test/file-type-compiled-runtime.cjs
+        working-directory: backend
+      - name: Linux writer fencing and orphan child regressions
+        run: runuser -u node -- node --test --test-timeout=30000 test/inherited-root-fence.runtime.cjs test/copy-root-fence-supervisor.runtime.cjs test/operator-cli-fence.runtime.cjs
         working-directory: backend
       - name: Patched dependency runtime and multipart boundaries
         run: runuser -u node -- node --test --test-timeout=10000 test/dependency-security-runtime.cjs
@@ -244,6 +248,15 @@ jobs:
       - run: docker compose version && python3 scripts/ci/compose-check.py
       - run: python3 deploy/linux/test_startup_gate.py
       - run: python3 scripts/ci/test-entrypoint.py
+      - name: Recovery contracts and real Linux crash filesystem checks
+        run: |
+          bash scripts/ci/test-recovery-contracts.sh
+          sudo python3 -B scripts/ci/test-restore-storage-linux.py
+      - name: Encrypted backup with real age
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends age
+          bash scripts/tests/test-backup-production.sh
       - run: python3 deploy/linux/test_preflight.py
         env:
           HOMECLOUD_TEST_ROOT: ${{ github.workspace }}
@@ -337,6 +350,17 @@ jobs:
       - name: Load the exact OCI candidate for runtime smoke
         id: runtime
         run: |
+          uname -a
+          test "$(uname -s)/$(uname -m)" = Linux/x86_64
+          docker info --format '{"os":{{json .OSType}},"arch":{{json .Architecture}},"operating_system":{{json .OperatingSystem}},"version":{{json .ServerVersion}}}' > "${{ matrix.component }}.native-host.json"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          host = json.loads(Path('${{ matrix.component }}.native-host.json').read_text())
+          assert host['os'] == 'linux' and host['arch'] in ('x86_64', 'amd64')
+          assert 'desktop' not in host['operating_system'].lower()
+          print('NATIVE_AMD64_HOST:', json.dumps(host, sort_keys=True))
+          PY
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends skopeo
           skopeo copy --override-os linux --override-arch amd64 "oci-archive:$RUNNER_TEMP/${{ matrix.component }}.oci.tar" "docker-daemon:homecloud-ci-${{ matrix.component }}:${{ github.sha }}"
@@ -371,6 +395,26 @@ jobs:
           IMAGE: homecloud-ci-frontend:${{ github.sha }}
         run: |
           docker run --rm --network none --cap-drop ALL --cap-add CHOWN --security-opt no-new-privileges --add-host backend:127.0.0.1 --env INGRESS_PROXY_IP=127.0.0.2 "$IMAGE" nginx -t
+      - name: Real copy recovery and maintenance admission on the production image
+        if: matrix.component == 'backend'
+        env:
+          IMAGE: homecloud-ci-backend:${{ github.sha }}
+        run: |
+          docker run --rm --pull=never --platform linux/amd64 --network none --cap-drop ALL --security-opt no-new-privileges --entrypoint node "$IMAGE" -e "$(cat scripts/ci/native-boundary-preflight.cjs)" -- --strict
+          bash scripts/ci/test-maintenance-supervisor.sh "$IMAGE" linux/amd64
+          bash scripts/ci/test-copy-recovery-e2e.sh "$IMAGE" linux/amd64
+      - name: Real Backup Restore in an isolated nested Docker daemon
+        if: matrix.component == 'backend'
+        run: |
+          pg_image=$(python3 -c 'import json; print(json.load(open("scripts/ci/production-images.lock.json"))["postgres"])')
+          stub_image=$(python3 -c 'import json; print(json.load(open("scripts/ci/images.lock.json"))["node"])')
+          docker pull --platform linux/amd64 "$pg_image"
+          docker tag "$pg_image" postgres:16-alpine
+          docker pull --platform linux/amd64 "$stub_image"
+          HOMECLOUD_E2E_BACKEND_IMAGE="homecloud-ci-backend:${{ github.sha }}" HOMECLOUD_E2E_STUB_IMAGE="$stub_image" bash scripts/ci/run-restore-e2e-local.sh linux/amd64
+          HOMECLOUD_E2E_BACKEND_IMAGE="homecloud-ci-backend:${{ github.sha }}" HOMECLOUD_E2E_STUB_IMAGE="$stub_image" bash scripts/ci/run-restore-e2e-local.sh linux/amd64 --encrypted-only
+          HOMECLOUD_E2E_BACKEND_IMAGE="homecloud-ci-backend:${{ github.sha }}" HOMECLOUD_E2E_STUB_IMAGE="$stub_image" bash scripts/ci/run-restore-e2e-local.sh linux/amd64 --historical-schema-only
+          HOMECLOUD_E2E_BACKEND_IMAGE="homecloud-ci-backend:${{ github.sha }}" HOMECLOUD_E2E_STUB_IMAGE="$stub_image" bash scripts/ci/run-restore-fault-e2e-local.sh linux/amd64
       - name: Verify runtime image architecture
         env:
           IMAGE: homecloud-ci-${{ matrix.component }}:${{ github.sha }}
@@ -400,6 +444,7 @@ jobs:
           path: |
             ${{ matrix.component }}.binding.json
             ${{ matrix.component }}.loaded.binding.json
+            ${{ matrix.component }}.native-host.json
             ${{ matrix.component }}.loaded.inspect.json
           if-no-files-found: error
           retention-days: 14
