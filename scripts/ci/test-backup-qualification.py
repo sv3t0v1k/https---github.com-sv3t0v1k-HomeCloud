@@ -101,7 +101,7 @@ class BackupQualification(unittest.TestCase):
         with patch.object(installer, 'backup_configuration', side_effect=installer.Stop('unsafe backup root')), \
              patch.object(installer, 'run') as run:
             with self.assertRaises(installer.Stop):
-                installer.backup({})
+                installer.backup({}, 37, [1, 2])
             run.assert_not_called()
 
     def test_backup_configuration_binds_all_runtime_values(self):
