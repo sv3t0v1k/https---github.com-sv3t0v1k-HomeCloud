@@ -5,6 +5,8 @@ import * as path from "node:path";
 
 import { StorageService } from "./storage.service";
 
+const mutableFs = jest.requireActual<typeof import("node:fs")>("node:fs");
+
 const describeLinux = process.platform === "linux" ? describe : describe.skip;
 
 describeLinux("StorageService secure descriptor-based copy", () => {
@@ -79,6 +81,40 @@ describeLinux("StorageService secure descriptor-based copy", () => {
       expect(fs.existsSync(destination)).toBe(false);
       expect(fs.readFileSync(source)).toEqual(content);
     } finally {
+      fs.closeSync(fd);
+    }
+  });
+
+  it("fsyncs the parent after cancelling an incomplete copy", async () => {
+    const controller = new AbortController();
+    const fd = storage.openReadOnlyFileSecure(source);
+
+    const originalSync = mutableFs.fsyncSync.bind(mutableFs);
+    const sync = jest
+      .spyOn(mutableFs, "fsyncSync")
+      .mockImplementation((directoryFd) => {
+        expect(fs.existsSync(destination)).toBe(false);
+        return originalSync(directoryFd);
+      });
+
+    try {
+      const pending = storage.copyOpenedFileSecure(
+        fd,
+        content.length,
+        destination,
+        controller.signal,
+      );
+
+      expect(fs.existsSync(destination)).toBe(true);
+      controller.abort();
+
+      await expect(pending).rejects.toThrow("Secure copy cancelled");
+
+      expect(sync).toHaveBeenCalledTimes(1);
+      expect(fs.existsSync(destination)).toBe(false);
+      expect(fs.readFileSync(source)).toEqual(content);
+    } finally {
+      sync.mockRestore();
       fs.closeSync(fd);
     }
   });
@@ -180,6 +216,132 @@ describeLinux("StorageService secure descriptor-based copy", () => {
     } finally {
       fs.closeSync(fd);
     }
+  });
+
+  it("fsyncs the parent after owned cleanup", async () => {
+    const fd = storage.openReadOnlyFileSecure(source);
+
+    try {
+      const lease = await storage.copyOpenedFileSecure(
+        fd,
+        content.length,
+        destination,
+      );
+      const originalSync = mutableFs.fsyncSync.bind(mutableFs);
+      const sync = jest
+        .spyOn(mutableFs, "fsyncSync")
+        .mockImplementation((directoryFd) => {
+          expect(fs.existsSync(destination)).toBe(false);
+          return originalSync(directoryFd);
+        });
+
+      try {
+        lease.cleanup();
+        expect(sync).toHaveBeenCalledTimes(1);
+      } finally {
+        sync.mockRestore();
+        lease.release();
+      }
+    } finally {
+      fs.closeSync(fd);
+    }
+  });
+
+  it("retries directory fsync without unlinking again", async () => {
+    const fd = storage.openReadOnlyFileSecure(source);
+
+    try {
+      const lease = await storage.copyOpenedFileSecure(
+        fd,
+        content.length,
+        destination,
+      );
+      const originalSync = mutableFs.fsyncSync.bind(mutableFs);
+      const sync = jest
+        .spyOn(mutableFs, "fsyncSync")
+        .mockImplementationOnce(() => {
+          throw new Error("injected directory fsync failure");
+        })
+        .mockImplementation((directoryFd) => originalSync(directoryFd));
+
+      try {
+        expect(() => lease.cleanup()).toThrow(
+          "injected directory fsync failure",
+        );
+        expect(fs.existsSync(destination)).toBe(false);
+
+        expect(() => lease.cleanup()).not.toThrow();
+        expect(sync).toHaveBeenCalledTimes(2);
+      } finally {
+        sync.mockRestore();
+        lease.release();
+      }
+    } finally {
+      fs.closeSync(fd);
+    }
+  });
+
+  it("refuses to unlink a substituted destination inode", async () => {
+    const fd = storage.openReadOnlyFileSecure(source);
+
+    try {
+      const lease = await storage.copyOpenedFileSecure(
+        fd,
+        content.length,
+        destination,
+      );
+
+      try {
+        const moved = path.join(root, "owned-moved.bin");
+        fs.renameSync(destination, moved);
+        fs.writeFileSync(destination, "unrelated replacement");
+
+        expect(() => lease.cleanup()).toThrow();
+        expect(fs.readFileSync(destination, "utf8")).toBe(
+          "unrelated replacement",
+        );
+        expect(fs.readFileSync(moved)).toEqual(content);
+      } finally {
+        lease.release();
+      }
+    } finally {
+      fs.closeSync(fd);
+    }
+  });
+
+  it("confirms an absent destination using the pinned root", () => {
+    expect(() =>
+      storage.confirmCopyDestinationAbsent(destination),
+    ).not.toThrow();
+    expect(fs.existsSync(destination)).toBe(false);
+  });
+
+  it("rejects a destination that already contains an inode", () => {
+    fs.writeFileSync(destination, "unrelated");
+
+    expect(() => storage.confirmCopyDestinationAbsent(destination)).toThrow(
+      "Copy destination exists; recovery required",
+    );
+
+    expect(fs.readFileSync(destination, "utf8")).toBe("unrelated");
+  });
+
+  it("fails closed if the absence-proof directory fsync fails", () => {
+    const sync = jest
+      .spyOn(mutableFs, "fsyncSync")
+      .mockImplementationOnce(() => {
+        throw new Error("injected absence fsync failure");
+      });
+
+    try {
+      expect(() => storage.confirmCopyDestinationAbsent(destination)).toThrow(
+        "injected absence fsync failure",
+      );
+    } finally {
+      sync.mockRestore();
+    }
+
+    expect(fs.existsSync(destination)).toBe(false);
   });
 
   it("refuses existing destinations and never overwrites them", async () => {

@@ -10,6 +10,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { randomUUID } from "node:crypto";
+import { FileCopyAdmission1792831300000 } from "../migrations/1792831300000-FileCopyAdmission";
 import { DataSource } from "typeorm";
 import { JwtGuard } from "../auth/guards/jwt.guard";
 import { JwtStrategy } from "../auth/jwt.strategy";
@@ -76,6 +77,18 @@ postgres(
       await database.initialize();
     await database.getRepository(StorageLocationEntity).save(LEGACY_STORAGE_LOCATION);
     await database.getRepository(UploadWorkspaceEntity).save(LEGACY_UPLOAD_WORKSPACE);
+    const migrationRunner = database.createQueryRunner();
+    await migrationRunner.connect();
+    try {
+      await migrationRunner.startTransaction();
+      await new FileCopyAdmission1792831300000().up(migrationRunner);
+      await migrationRunner.commitTransaction();
+    } finally {
+      if (migrationRunner.isTransactionActive) {
+        await migrationRunner.rollbackTransaction();
+      }
+      await migrationRunner.release();
+    }
       const config = new ConfigService({
         NODE_ENV: "test",
         JWT_SECRET: "upload-rate-postgres-test-no-production-credentials",

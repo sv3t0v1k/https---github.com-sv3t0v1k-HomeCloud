@@ -140,11 +140,24 @@ describe("copy-file benchmark harness", () => {
           updateStorageUsed: jest.fn(),
         };
 
+        const admission = {
+          reserve: jest.fn().mockResolvedValue(
+            "00000000-0000-4000-8000-000000000001",
+          ),
+          markCommitted: jest.fn(),
+          releaseAfterOwnedCleanup: jest.fn(
+            async (_id: string, _userId: number, cleanup: () => void) => {
+              cleanup();
+            },
+          ),
+        };
+
         const service = new FilesService(
           repository as never,
           {} as never,
           storage,
           users as never,
+          admission as never,
         );
 
         const result = await service.copyFile(1, 7);
@@ -155,6 +168,19 @@ describe("copy-file benchmark harness", () => {
           "real-production-path",
         );
 
+        expect(admission.reserve).toHaveBeenCalledWith(
+          expect.objectContaining({
+            userId: 1,
+            sourceFileId: 7,
+            bytes: 20,
+          }),
+        );
+        expect(admission.markCommitted).toHaveBeenCalledWith(
+          runner.manager,
+          "00000000-0000-4000-8000-000000000001",
+          1,
+          8,
+        );
         expect(repository.manager.transaction).toHaveBeenCalledTimes(1);
         expect(runner.manager.save).toHaveBeenCalledTimes(1);
         expect(runner.commitTransaction).toHaveBeenCalledTimes(1);

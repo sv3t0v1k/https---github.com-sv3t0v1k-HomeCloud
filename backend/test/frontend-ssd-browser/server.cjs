@@ -87,6 +87,6 @@ async function boot(){
  assert.notEqual(fs.statSync('/storage').dev,fs.statSync('/ssd').dev);
  admin=new DataSource({type:'postgres',url:originalUrl.toString()});await admin.initialize();await admin.query(`CREATE SCHEMA "${schema}"`);
  const fixtureUrl=new URL(originalUrl);fixtureUrl.searchParams.set('options',`-c search_path=${schema}`);process.env.DATABASE_URL=fixtureUrl.toString();
- const migrations=require('/app/dist/data-source').default;migrations.setOptions({schema,extra:{options:`-c search_path=${schema}`}});await migrations.initialize();await migrations.runMigrations();await migrations.destroy();
+ const migrations=new DataSource(require('/app/dist/data-source').default.options);migrations.setOptions({schema,extra:{options:`-c search_path=${schema}`}});await migrations.initialize();await migrations.runMigrations();await migrations.destroy();
  await boot();
 })().catch(error=>{console.error('Fixture failure:',error.message);process.exitCode=1;});

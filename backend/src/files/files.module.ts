@@ -7,6 +7,7 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 import { FileEntity } from "../entities/file.entity";
 import { FolderEntity } from "../entities/folder.entity";
 import { FilesService } from "./files.service";
+import { FileCopyAdmissionService } from "./file-copy-admission.service";
 import { FilesController } from "./files.controller";
 import { StorageModule } from "../storage/storage.module";
 import { UsersModule } from "../users/users.module";
@@ -19,7 +20,7 @@ import { AuthModule } from "../auth/auth.module";
     UsersModule,
     AuthModule,
   ],
-  providers: [FilesService, DownloadCapabilityService, ArchiveDownloadsService],
+  providers: [FilesService, FileCopyAdmissionService, DownloadCapabilityService, ArchiveDownloadsService],
   controllers: [FilesController, NativeDownloadsController, ArchivePrepareController, NativeArchiveController],
   exports: [FilesService],
 })

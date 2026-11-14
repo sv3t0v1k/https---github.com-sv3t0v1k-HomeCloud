@@ -1,6 +1,7 @@
 import { parseDatabaseSize } from "../common/database-size";
 import {
   Injectable,
+  Optional,
   NotFoundException,
   ForbiddenException,
   BadRequestException,
@@ -17,6 +18,7 @@ import { UsersService } from "../users/users.service";
 import { allocateNamespaceName } from "./namespace-name";
 import { searchQuery } from "./search-input";
 import { assertVisibleAncestors } from "./file-visibility";
+import { FileCopyAdmissionService } from "./file-copy-admission.service";
 
 @Injectable()
 export class FilesService {
@@ -29,6 +31,8 @@ export class FilesService {
     private folderRepository: Repository<FolderEntity>,
     private storageService: StorageService,
     private usersService: UsersService,
+    @Optional()
+    private readonly fileCopyAdmission?: FileCopyAdmissionService,
   ) {}
 
   private validateDisplayName(name: string): string {
@@ -1066,10 +1070,19 @@ export class FilesService {
       throw new NotFoundException("File not found");
     }
 
+    const admission = this.fileCopyAdmission;
+    if (!admission) {
+      throw new ServiceUnavailableException(
+        "File copy admission unavailable",
+      );
+    }
+
     assertNotAborted();
     const user = await this.usersService.findById(userId);
     if (!user) throw new ForbiddenException("User not found");
 
+    let operationId: string | undefined;
+    let targetPath: string | undefined;
     let sourceFd: number | undefined;
     let lease: { cleanup(): void; release(): void } | undefined;
     let runner: QueryRunner | undefined;
@@ -1102,10 +1115,23 @@ export class FilesService {
 
       const displayName = this.validateDisplayName(source.name);
       const safeName = this.storageService.generateSafeFilename(displayName);
-      const targetPath = this.storageService.generatePath(userId, safeName);
+      targetPath = this.storageService.generatePath(userId, safeName);
+      const placement = this.storageService.placementForPath(targetPath);
+
+      // Reserve quota and a global slot before creating destination bytes.
+      // No database row locks remain held during physical I/O.
+      assertNotAborted();
+      operationId = await admission.reserve({
+        userId,
+        sourceFileId: id,
+        storageLocationId: placement.storageLocationId,
+        relativeObjectKey: placement.relativeObjectKey,
+        bytes: size,
+        signal,
+      });
+      assertNotAborted();
 
       // No pathname-based copy. No long-lived database lock during I/O.
-      assertNotAborted();
       lease = await this.storageService.copyOpenedFileSecure(
         sourceFd!,
         size,
@@ -1167,7 +1193,7 @@ export class FilesService {
       assertNotAborted();
       copy = runner.manager.create(FileEntity, {
         name: displayName,
-        ...this.storageService.placementForPath(targetPath),
+        ...placement,
         size,
         mimeType: source.mimeType,
         isFolder: false,
@@ -1186,6 +1212,9 @@ export class FilesService {
       );
 
       await runner.manager.save(copy);
+      await admission.markCommitted(
+        runner.manager, operationId, userId, copy.id,
+      );
       assertNotAborted();
       commitAttempted = true;
       await runner.commitTransaction();
@@ -1207,36 +1236,44 @@ export class FilesService {
         }
       }
 
-      // After an ambiguous COMMIT we must establish absence before cleanup.
-      // Otherwise leave the inode: deleting committed data is worse.
-      let shouldCleanup = lease !== undefined && !commitAttempted;
-
-      if (lease && commitAttempted && !rollbackUncertain) {
+      // The durable journal fences cleanup against a concurrent COMMIT.
+      // If publication committed, cleanup is denied. If it rolled back,
+      // the owned inode may be safely removed and the slot released.
+      if (
+        operationId &&
+        targetPath &&
+        !rollbackUncertain
+      ) {
+        const destination = targetPath;
         try {
-          if (!copy?.id) {
-            throw new Error("Copy record identity unavailable");
-          }
-          const persisted = await this.fileRepository.findOne({
-            where: {
-              id: copy.id,
-              userId,
-              storageLocationId: copy.storageLocationId!,
-              relativeObjectKey: copy.relativeObjectKey!,
+          await admission.releaseAfterOwnedCleanup(
+            operationId,
+            userId,
+            () => {
+              if (lease) {
+                lease.cleanup();
+              } else {
+                // The physical copy attempt has already settled.
+                // Prove absence under the immutable native root.
+                this.storageService.confirmCopyDestinationAbsent(
+                  destination,
+                );
+              }
             },
-          });
-          shouldCleanup = !persisted;
+          );
         } catch {
-          this.logger.error("Cannot reconcile ambiguous copy commit");
-          shouldCleanup = false;
+          // Preserve cleanup_required/reserved. Recovery must inspect
+          // the exact journal placement before releasing quota.
+          this.logger.error(
+            "Copy cleanup uncertain; reservation retained",
+          );
         }
       }
 
-      if (shouldCleanup && lease) {
-        try {
-          lease.cleanup();
-        } catch {
-          this.logger.error("Failed to clean owned copy destination");
-        }
+      if (commitAttempted) {
+        this.logger.warn(
+          "Copy COMMIT failed; durable journal reconciliation attempted",
+        );
       }
 
       throw error;

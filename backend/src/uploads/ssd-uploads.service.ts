@@ -150,7 +150,20 @@ export class SsdUploadsService {
         if (!user) throw new ForbiddenException("User not found");
         const [reservation] = await manager.query(`SELECT COALESCE(SUM("totalSize"),0)::text bytes FROM upload_sessions WHERE "userId"=$1 AND status IN ('pending','uploading')`, [userId]);
         const active = BigInt(reservation.bytes);
-        if (BigInt(user.storageUsed) + active + BigInt(totalSize) > BigInt(user.storageQuota)) throw new BadRequestException("Storage quota exceeded");
+        // User row lock serializes SSD admission with copy reservations.
+        const [copyReservation] = await manager.query(
+          `SELECT COALESCE(SUM("bytes"),0)::text AS bytes
+           FROM "file_copy_operations"
+           WHERE "userId"=$1
+             AND state IN ('reserved','cleanup_required')`,
+          [userId],
+        );
+        const copyBytes = copyReservation?.bytes;
+        if (
+          typeof copyBytes !== "string" ||
+          !/^[0-9]+$/.test(copyBytes)
+        ) throw new ServiceUnavailableException("Copy reservation accounting unavailable");
+        if (BigInt(user.storageUsed) + active + BigInt(copyBytes) + BigInt(totalSize) > BigInt(user.storageQuota)) throw new BadRequestException("Storage quota exceeded");
         if (this.maxTotalSize && active + BigInt(totalSize) > BigInt(this.maxTotalSize)) throw new BadRequestException("Active upload limit exceeded");
         if (parentId && !(await manager.findOne(FolderEntity, { where: { id: parentId, userId, isDeleted: false } }))) throw new ForbiddenException("Target folder unavailable");
         return manager.save(manager.create(UploadSessionEntity, { userId, uploadId, filename, totalSize, chunkSize, totalChunks: Math.ceil(totalSize / chunkSize), uploadedSize: 0, uploadedCount: 0, accountingInitialized: true, workspaceId: SSD_UPLOAD_WORKSPACE.id, tempPath: path.join(capability.root, uploadId), expectedSha256, parentId: parentId ?? null, status: "pending", expiresAt: new Date(Date.now() + this.ttlMs) }));

@@ -17,6 +17,7 @@ describe("FilesService - Authorization Boundary", () => {
   let mockFolderRepository: any;
   let mockStorageService: any;
   let mockUsersService: any;
+  let mockCopyAdmission: any;
   let copyLease: { cleanup: jest.Mock; release: jest.Mock };
 
   const createMockQueryRunner = () => ({
@@ -95,6 +96,7 @@ describe("FilesService - Authorization Boundary", () => {
       openReadOnlyFileSecure: jest.fn(() => fs.openSync("/dev/null", "r")),
       copyOpenedFileSecure: jest.fn(),
       deleteFile: jest.fn(),
+      confirmCopyDestinationAbsent: jest.fn(),
       getStoragePath: jest.fn(() => "/storage"),
     };
     copyLease = { cleanup: jest.fn(), release: jest.fn() };
@@ -105,11 +107,24 @@ describe("FilesService - Authorization Boundary", () => {
       decrementStorageUsed: jest.fn(),
     };
 
+    mockCopyAdmission = {
+      reserve: jest.fn().mockResolvedValue(
+        "00000000-0000-4000-8000-000000000001",
+      ),
+      markCommitted: jest.fn(),
+      releaseAfterOwnedCleanup: jest.fn(
+        async (_id: string, _userId: number, cleanup: () => void) => {
+          cleanup();
+        },
+      ),
+    };
+
     service = new FilesService(
       mockFileRepository,
       mockFolderRepository,
       mockStorageService,
       mockUsersService,
+      mockCopyAdmission,
     );
   });
 
@@ -884,6 +899,31 @@ describe("FilesService - Authorization Boundary", () => {
       });
     });
 
+    it("reserves quota before physical I/O and publishes atomically", async () => {
+      const qr = mockFileRepository.manager.connection.createQueryRunner();
+
+      await service.copyFile(1, 1);
+
+      expect(mockCopyAdmission.reserve).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 1,
+          sourceFileId: 1,
+          bytes: 100,
+        }),
+      );
+      expect(
+        mockCopyAdmission.reserve.mock.invocationCallOrder[0],
+      ).toBeLessThan(
+        mockStorageService.copyOpenedFileSecure.mock.invocationCallOrder[0],
+      );
+      expect(mockCopyAdmission.markCommitted).toHaveBeenCalledWith(
+        qr.manager,
+        "00000000-0000-4000-8000-000000000001",
+        1,
+        2,
+      );
+    });
+
     it("awaits physical copy before creating metadata", async () => {
       let allowCopy!: () => void;
       const pendingCopy = new Promise<unknown>((resolve) => {
@@ -1040,30 +1080,36 @@ describe("FilesService - Authorization Boundary", () => {
         .mockResolvedValueOnce(source)
         .mockResolvedValueOnce({ id: 2, storagePath: "/storage/1/test.txt" });
 
+      mockCopyAdmission.releaseAfterOwnedCleanup
+        .mockRejectedValueOnce(
+          new Error("Copy journal does not authorize cleanup"),
+        );
+
       await expect(service.copyFile(1, 1)).rejects.toBe(commitError);
 
-      expect(mockFileRepository.findOne).toHaveBeenLastCalledWith({
-        where: {
-          id: 2,
-          userId: 1,
-          storageLocationId: "f2f5c4b0-8d57-4c49-9f8c-0d095b344601",
-          relativeObjectKey: "1/test.txt",
-        },
-      });
       expect(copyLease.cleanup).not.toHaveBeenCalled();
+      expect(mockCopyAdmission.releaseAfterOwnedCleanup)
+        .toHaveBeenCalledTimes(1);
       expect(qr.rollbackTransaction).not.toHaveBeenCalled();
     });
 
-    it("removes destination when an ambiguous commit is proven absent", async () => {
+    it("preserves destination after ambiguous COMMIT even if metadata lookup is absent", async () => {
       const qr = mockFileRepository.manager.connection.createQueryRunner();
       qr.commitTransaction.mockRejectedValueOnce(new Error("commit failed"));
       mockFileRepository.findOne
         .mockResolvedValueOnce(source)
         .mockResolvedValueOnce(null);
 
+      mockCopyAdmission.releaseAfterOwnedCleanup
+        .mockRejectedValueOnce(
+          new Error("Copy journal does not authorize cleanup"),
+        );
+
       await expect(service.copyFile(1, 1)).rejects.toThrow("commit failed");
 
-      expect(copyLease.cleanup).toHaveBeenCalledTimes(1);
+      expect(copyLease.cleanup).not.toHaveBeenCalled();
+      expect(mockCopyAdmission.releaseAfterOwnedCleanup)
+        .toHaveBeenCalledTimes(1);
     });
 
     it("keeps destination when ambiguous commit reconciliation is unavailable", async () => {
@@ -1073,9 +1119,16 @@ describe("FilesService - Authorization Boundary", () => {
         .mockResolvedValueOnce(source)
         .mockRejectedValueOnce(new Error("database unavailable"));
 
+      mockCopyAdmission.releaseAfterOwnedCleanup
+        .mockRejectedValueOnce(
+          new Error("Copy journal does not authorize cleanup"),
+        );
+
       await expect(service.copyFile(1, 1)).rejects.toThrow("commit failed");
 
       expect(copyLease.cleanup).not.toHaveBeenCalled();
+      expect(mockCopyAdmission.releaseAfterOwnedCleanup)
+        .toHaveBeenCalledTimes(1);
     });
 
     it("cleans destination when query runner creation fails", async () => {

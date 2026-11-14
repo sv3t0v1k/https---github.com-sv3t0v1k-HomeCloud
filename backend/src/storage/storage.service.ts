@@ -297,6 +297,79 @@ export class StorageService implements OnModuleDestroy {
    * lease. Keep the destination lease open until metadata commit is resolved:
    * cleanup() removes only the inode created by this operation.
    */
+  /**
+   * For a copy attempt that has fully stopped without returning a lease.
+   * Never call while an I/O worker may still be writing the destination.
+   * Does not unlink any inode.
+   */
+
+  /**
+   * Exclusive filesystem fence for offline recovery.
+   * External host fencing is still mandatory: unrelated writers
+   * and processes bypassing this flock remain out of scope.
+   */
+  async withCopyRecoveryRootLock<T>(operation: () => Promise<T>): Promise<T> {
+    const boundary = this.secureReadBoundary;
+
+    if (!boundary || typeof operation !== "function") {
+      throw new ServiceUnavailableException(
+        "Secure copy recovery root lock unavailable",
+      );
+    }
+
+    this.registry.mounts.assertAccess(LEGACY_STORAGE_ID, true);
+
+    const fd = boundary.directory(this.storagePath);
+
+    try {
+      // Native LOCK_EX | LOCK_NB on the pinned root inode.
+      // The independent FD stays open throughout the transaction.
+      boundary.lock(fd);
+      this.registry.mounts.assertAccess(LEGACY_STORAGE_ID, true);
+      return await operation();
+    } finally {
+      fs.closeSync(fd);
+    }
+  }
+
+  confirmCopyDestinationAbsent(destinationPath: string): void {
+    const boundary = this.secureReadBoundary;
+    if (!boundary) {
+      throw new ServiceUnavailableException(
+        "Secure copy absence proof requires Linux",
+      );
+    }
+
+    this.registry.mounts.assertAccess(LEGACY_STORAGE_ID, true);
+    const destination = this.ensureWithinStorageRoot(destinationPath);
+    const parentFd = boundary.directory(path.dirname(destination));
+
+    try {
+      let destinationFd: number | undefined;
+
+      try {
+        destinationFd = boundary.open(destination, "r");
+      } catch (error) {
+        if ((error as { code?: string }).code !== "ENOENT") {
+          throw error;
+        }
+      }
+
+      if (destinationFd !== undefined) {
+        fs.closeSync(destinationFd);
+        throw new ServiceUnavailableException(
+          "Copy destination exists; recovery required",
+        );
+      }
+
+      // Confirm the absent directory entry on the approved filesystem.
+      fs.fsyncSync(parentFd);
+      this.registry.mounts.assertAccess(LEGACY_STORAGE_ID, true);
+    } finally {
+      fs.closeSync(parentFd);
+    }
+  }
+
   async copyOpenedFileSecure(
     sourceFd: number,
     expectedSize: number,
@@ -442,14 +515,29 @@ export class StorageService implements OnModuleDestroy {
         assertCopyActive();
         complete = true;
         let released = false;
+        let unlinked = false;
         let removed = false;
 
         return {
           cleanup() {
             if (released) throw new Error("Secure copy lease already released");
             if (removed) return;
-            boundary.removeOwned(destination, destinationFd);
-            removed = true;
+
+            // Verify the exact owned inode before unlinking.
+            if (!unlinked) {
+              boundary.removeOwned(destination, destinationFd);
+              unlinked = true;
+            }
+
+            // An unlink is not durably confirmed until its parent
+            // directory is synced. Retry only this step if fsync fails.
+            const parentFd = boundary.directory(path.dirname(destination));
+            try {
+              fs.fsyncSync(parentFd);
+              removed = true;
+            } finally {
+              fs.closeSync(parentFd);
+            }
           },
           release() {
             if (released) return;
@@ -460,8 +548,19 @@ export class StorageService implements OnModuleDestroy {
       } finally {
         if (!complete) {
           try {
+            // Unlink only the inode owned by this open descriptor.
             boundary.removeOwned(destination, destinationFd);
+
+            // A successful unlink must also be durable.
+            const parentFd = boundary.directory(path.dirname(destination));
+            try {
+              fs.fsyncSync(parentFd);
+            } finally {
+              fs.closeSync(parentFd);
+            }
           } catch {
+            // The caller must independently prove absence before
+            // releasing the durable copy reservation.
             this.logger.error("Failed to clean incomplete secure copy");
           } finally {
             fs.closeSync(destinationFd);

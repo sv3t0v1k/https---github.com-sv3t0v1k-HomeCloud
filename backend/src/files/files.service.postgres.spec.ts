@@ -16,6 +16,8 @@ import { UserEntity } from "../entities/user.entity";
 import { StorageService } from "../storage/storage.service";
 import { UsersService } from "../users/users.service";
 import { FilesService } from "./files.service";
+import { FileCopyAdmissionService } from "./file-copy-admission.service";
+import { FileCopyAdmission1792831300000 } from "../migrations/1792831300000-FileCopyAdmission";
 
 const testDatabaseUrl = process.env.HOMECLOUD_TEST_DATABASE_URL;
 const describePostgres = testDatabaseUrl ? describe : describe.skip;
@@ -61,11 +63,26 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
     await dataSource.initialize();
     await dataSource.getRepository(StorageLocationEntity).save(LEGACY_STORAGE_LOCATION);
     await dataSource.getRepository(UploadWorkspaceEntity).save(LEGACY_UPLOAD_WORKSPACE);
+    const migrationRunner = dataSource.createQueryRunner();
+    try {
+      await migrationRunner.connect();
+      await migrationRunner.startTransaction();
+      await new FileCopyAdmission1792831300000().up(migrationRunner);
+      await migrationRunner.commitTransaction();
+    } catch (error) {
+      if (migrationRunner.isTransactionActive) {
+        await migrationRunner.rollbackTransaction();
+      }
+      throw error;
+    } finally {
+      await migrationRunner.release();
+    }
     service = new FilesService(
       dataSource.getRepository(FileEntity),
       dataSource.getRepository(FolderEntity),
       storage as any,
       users as any,
+      new FileCopyAdmissionService(dataSource),
     );
     copyRoot = fs.mkdtempSync(path.join(os.tmpdir(), "homecloud-copy-pg-"));
     copyStorage = new StorageService(
@@ -76,6 +93,7 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
       dataSource.getRepository(FolderEntity),
       copyStorage,
       new UsersService(dataSource.getRepository(UserEntity)),
+      new FileCopyAdmissionService(dataSource),
     );
   }, 30000);
 
@@ -89,6 +107,7 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
   });
 
   beforeEach(async () => {
+    await dataSource.query("DELETE FROM file_copy_operations");
     await dataSource.getRepository(FileEntity).createQueryBuilder().delete().execute();
     await dataSource.getRepository(FolderEntity).createQueryBuilder().delete().execute();
     await dataSource.getRepository(UserEntity).createQueryBuilder().delete().execute();
@@ -583,6 +602,41 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
 
 
 
+  it("B01: quota exhausted before physical copy", async () => {
+    const { user, source, sourcePath, files } =
+      await createCopyRegressionSource();
+
+    await dataSource.getRepository(UserEntity).update(user.id, {
+      storageQuota: 100,
+      storageUsed: 100,
+    });
+
+    const physicalCopy = jest.spyOn(copyStorage, "copyOpenedFileSecure");
+
+    try {
+      await expect(copyService.copyFile(user.id, source.id)).rejects.toThrow(
+        "Storage quota exceeded",
+      );
+
+      // The physical copy must never begin without quota.
+      expect(physicalCopy).not.toHaveBeenCalled();
+
+      expect(await files.countBy({ userId: user.id })).toBe(1);
+
+      expect(fs.readdirSync(path.dirname(sourcePath))).toEqual([
+        path.basename(sourcePath),
+      ]);
+
+      const owner = await dataSource
+        .getRepository(UserEntity)
+        .findOneByOrFail({ id: user.id });
+
+      expect(Number(owner.storageUsed)).toBe(100);
+    } finally {
+      physicalCopy.mockRestore();
+    }
+  });
+
   // SECURE_COPY_CANCEL_POSTGRES_V1
   it("cancels after physical copying without changing PostgreSQL quota", async () => {
     const { user, source, sourcePath, files } =
@@ -847,6 +901,17 @@ describePostgres("FilesService Stage B2 — реальный PostgreSQL", () => 
 
       expect(Number(actualOwner.storageUsed))
         .toBe(expectedCopies * 100);
+      const operations = await dataSource.query(
+        `SELECT state FROM file_copy_operations
+         WHERE "userId" = $1`,
+        [user.id],
+      );
+
+      expect(operations).toHaveLength(1);
+      expect(operations[0].state).toBe(
+        phase === "after" ? "committed" : "released",
+      );
+
 
       expect(fs.readdirSync(path.dirname(sourcePath)))
         .toHaveLength(1 + expectedCopies);
