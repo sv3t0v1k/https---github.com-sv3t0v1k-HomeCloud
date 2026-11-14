@@ -36,8 +36,7 @@ case "$action" in
   preflight) preflight;;
   config) compose config --quiet;;
   start)
-    preflight
-    compose up -d --no-build --pull never --wait db backend frontend ingress
+    env -i HOME=/root PATH="$clean_path" DOCKER_CONFIG=/etc/homecloud-test/docker /usr/bin/python3 -I -S "$project_root/deploy/linux/test-channel.py" start
     ;;
   status) compose ps --all;;
   stop) compose stop db backend frontend ingress;;

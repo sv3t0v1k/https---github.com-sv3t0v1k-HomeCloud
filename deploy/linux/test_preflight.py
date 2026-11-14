@@ -18,7 +18,37 @@ ROOT = Path(os.environ.get('HOMECLOUD_TEST_ROOT', '/opt/homecloud'))
 PROD = Path(os.environ.get('HOMECLOUD_TEST_PROD', str(ROOT / 'docker-compose.production.yml')))
 
 
+class MaintenanceDirectoryTests(unittest.TestCase):
+    def check(self, *, uid=0, gid=0, mode=0o40711,
+              parent_uid=0, parent_mode=0o40755, attributes=None):
+        from unittest.mock import Mock
+        parent = Mock()
+        parent.lstat.return_value = SimpleNamespace(st_mode=parent_mode, st_uid=parent_uid)
+        directory = Mock(parents=[parent])
+        directory.stat.return_value = SimpleNamespace(st_mode=mode, st_uid=uid, st_gid=gid)
+        with patch.object(p, 'ordinary_directory', return_value=directory):
+            with patch.object(p.os, 'listxattr', return_value=attributes or [], create=True):
+                p.check_maintenance_directory('/fixture/maintenance')
+
+    def test_safe_root_owned_state(self):
+        self.check()
+
+    def test_untrusted_parent_or_state_refused(self):
+        for changes in ({'uid': 1001}, {'gid': 1001}, {'mode': 0o40700},
+                        {'parent_uid': 1001}, {'parent_mode': 0o40777},
+                        {'attributes': ['system.posix_acl_access']}):
+            with self.subTest(changes=changes):
+                with self.assertRaises(p.Refusal):
+                    self.check(**changes)
+
+
 class ConfigTests(unittest.TestCase):
+    def setUp(self):
+        # Config fixtures do not provision real root-owned host paths.
+        guard = patch.object(p, 'check_maintenance_directory')
+        guard.start()
+        self.addCleanup(guard.stop)
+
     @classmethod
     def setUpClass(cls):
         # Отдельный synthetic env: реальный checkout .env не читается и не выводится.
@@ -111,6 +141,7 @@ class ConfigTests(unittest.TestCase):
         for role in ('db','backend'):
             mount=next(m for m in config['services'][role]['volumes'] if m['target']=='/run/homecloud/startup.gate')
             mount['source']='/home/hs/homecloud-test/.runtime/startup-'+role+'.gate'
+        self.mount(config, 'backend', '/run/homecloud/maintenance')['source'] = '/home/hs/homecloud-test/.runtime/maintenance'
         with patch.object(p,'check_inventory_layout',return_value='/home/hs/homecloud-test/.runtime'):
             p.check_config(config,self.inventory)
     def test_project_gate_cannot_use_legacy_config_source(self):

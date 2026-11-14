@@ -32,7 +32,10 @@ def service_mounts(role, data):
             mount('/run/homecloud/startup.gate', '/etc/homecloud-test/startup-' + role + '.gate', True),
             mount('/run/homecloud/host-mountinfo', '/proc/1/mountinfo', True),
             mount('/run/homecloud/dev', '/dev', True),
-            mount('/run/homecloud/volume-marker', marker, True)]
+            mount('/run/homecloud/volume-marker', marker, True)] + (
+                [mount('/run/homecloud/maintenance',
+                       '/etc/homecloud-test/maintenance', True)]
+                if role == 'backend' else [])
 
 
 def config(test=True):
@@ -70,6 +73,8 @@ class UpdateMountContract(unittest.TestCase):
         def directory(source):
             return Path(source)
         def stat(path, *args, **kwargs):
+            if str(path).endswith('/maintenance'):
+                return SimpleNamespace(st_uid=0, st_gid=0, st_mode=0o711)
             mode = 0o770 if str(path).endswith('/inbox') else 0o750
             return SimpleNamespace(st_uid=0, st_gid=65533, st_mode=mode)
         def lstat(path, *args, **kwargs):
@@ -80,7 +85,7 @@ class UpdateMountContract(unittest.TestCase):
              patch.object(preflight.os, 'listxattr', return_value=[], create=True):
             preflight.check_config(candidate, self.inventory)
 
-    def test_exact_eight_mount_test_and_existing_six_mount_profile(self):
+    def test_exact_nine_mount_test_and_existing_seven_mount_profile(self):
         self.check(config())
         self.check(config(test=False))
         disabled = config(test=False)
@@ -96,6 +101,24 @@ class UpdateMountContract(unittest.TestCase):
                 if change == 'extra': volumes.append(mount('/tmp/extra', '/tmp/extra'))
                 if change == 'retarget': volumes[-1]['source'] = '/tmp/status'
                 if change == 'writable_status': volumes[-1]['read_only'] = False
+                with self.assertRaises(preflight.Refusal):
+                    self.check(candidate)
+
+    def test_maintenance_mount_cannot_be_removed_or_modified(self):
+        for change in ('removed', 'retarget', 'writable'):
+            with self.subTest(change=change):
+                candidate = copy.deepcopy(config())
+                volumes = candidate['services']['backend']['volumes']
+                index = next(
+                    i for i, m in enumerate(volumes)
+                    if m['target'] == '/run/homecloud/maintenance'
+                )
+                if change == 'removed':
+                    volumes.pop(index)
+                elif change == 'retarget':
+                    volumes[index]['source'] = '/tmp/untrusted-maintenance'
+                else:
+                    volumes[index]['read_only'] = False
                 with self.assertRaises(preflight.Refusal):
                     self.check(candidate)
 
@@ -134,7 +157,7 @@ class UpdateMountContract(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             env_file = Path(temp) / 'runtime.env'
             env_file.write_text(''.join(k + '=' + v + '\n' for k, v in fixture.items()))
-            for enabled, expected_mounts in ((False, 6), (True, 8)):
+            for enabled, expected_mounts in ((False, 7), (True, 9)):
                 files = selector.BASE + ((selector.OVERLAY,) if enabled else ())
                 command = ['docker', 'compose', '--env-file', str(env_file)]
                 for name in files:

@@ -16,6 +16,9 @@ class GateTests(unittest.TestCase):
         self.root = Path(self.tmp.name).resolve()
         self.runroot = self.root / 'run'
         self.runroot.mkdir()
+        self.maintenance = self.runroot / 'maintenance'
+        self.maintenance.mkdir(mode=0o711)
+        self.maintenance.chmod(0o711)
         self.data = self.root / 'data'
         self.data.mkdir()
         (self.data / '.tmp').mkdir()
@@ -33,9 +36,11 @@ class GateTests(unittest.TestCase):
         self.host.write_text('1 0 8:1 / /srv/hdd rw shared:1 - ext4 /dev/sda1 rw\n')
         self.mounts = self.root / 'mountinfo'
         self.mounts.write_text(f'2 0 8:1 /storage {self.data} rw - ext4 /dev/sda1 rw\n'
-                              f'3 0 8:1 /.homecloud-backend {self.marker} ro - ext4 /dev/sda1 rw\n')
+                              f'3 0 8:1 /.homecloud-backend {self.marker} ro - ext4 /dev/sda1 rw\n'
+                              f'4 0 8:1 /maintenance {self.maintenance} ro - ext4 /dev/sda1 rw\n')
         self.metadata = {str(self.config): '0:0:644', str(self.marker): '1001:65533:400',
-                         str(self.data): '1001:65533:700', str(self.data / '.tmp'): '1001:65533:700'}
+                         str(self.data): '1001:65533:700', str(self.data / '.tmp'): '1001:65533:700',
+                         str(self.maintenance): '0:0:711'}
         # stat rdev/owner подменены; -b заменён на -e только в fixture-копии.
         stat = self.bin / 'stat'
         stat.write_text('#!/usr/bin/env python3\nimport json,os,sys\n'
@@ -131,6 +136,37 @@ class GateTests(unittest.TestCase):
         self.proof.unlink()
         self.host.write_text('')
         self.run_gate()
+    def test_maintenance_marker_blocks_backend(self):
+        (self.maintenance / 'maintenance.inhibit').write_text('active')
+        self.run_gate()
+
+    def test_dangling_maintenance_marker_blocks_backend(self):
+        (self.maintenance / 'maintenance.inhibit').symlink_to(
+            self.maintenance / 'missing'
+        )
+        self.run_gate()
+
+    def test_missing_maintenance_mount_blocks_backend(self):
+        lines = self.mounts.read_text().splitlines(keepends=True)
+        self.mounts.write_text(''.join(
+            line for line in lines
+            if str(self.maintenance) not in line
+        ))
+        self.run_gate()
+
+    def test_writable_maintenance_mount_blocks_backend(self):
+        self.mounts.write_text(
+            self.mounts.read_text().replace(
+                f'{self.maintenance} ro -',
+                f'{self.maintenance} rw -'
+            )
+        )
+        self.run_gate()
+
+    def test_wrong_maintenance_permissions_block_backend(self):
+        self.metadata[str(self.maintenance)] = '0:0:777'
+        self.run_gate()
+
     def test_backend_cannot_enable_root_mode(self):
         self.config.write_text('backend real-uuid / /project/storage 1001 65533 system-root-lvm\n')
         self.run_gate()
