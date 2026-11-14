@@ -58,9 +58,59 @@ export class DownloadCapabilityService {
     // Revalidate the actual owner, active account and undeleted resource at use.
     // DELETE...RETURNING makes concurrent replay admission atomic.
     const scope = `c."tokenHash" = $1 AND c."fileId" = $2 AND c."expiresAt" > NOW()
-      AND EXISTS (SELECT 1 FROM "users" u JOIN "files" f ON f."userId" = u.id
-        WHERE u.id = c."userId" AND u."isActive" = TRUE AND f.id = c."fileId"
-          AND f."isDeleted" = FALSE AND f."isFolder" = FALSE)`;
+      AND EXISTS (
+        SELECT 1 FROM "users" u
+        JOIN "files" f ON f."userId" = u.id
+        WHERE u.id = c."userId"
+          AND u."isActive" = TRUE
+          AND f.id = c."fileId"
+          AND f."isDeleted" = FALSE
+          AND f."isFolder" = FALSE
+          AND (
+            f."parentId" IS NULL
+            OR (
+              WITH RECURSIVE ancestor_chain AS (
+                SELECT folder.id, folder."parentId", folder."isDeleted",
+                       ARRAY[folder.id]::integer[] AS visited,
+                       FALSE AS cycle
+                FROM folders folder
+                WHERE folder.id = f."parentId"
+                  AND folder."userId" = c."userId"
+
+                UNION ALL
+
+                SELECT parent.id, parent."parentId", parent."isDeleted",
+                       chain.visited || parent.id,
+                       parent.id = ANY(chain.visited)
+                FROM folders parent
+                JOIN ancestor_chain chain
+                  ON parent.id = chain."parentId"
+                WHERE parent."userId" = c."userId"
+                  AND NOT chain.cycle
+                  AND cardinality(chain.visited) < 256
+              )
+              SELECT
+                COALESCE(bool_and(
+                  NOT chain."isDeleted"
+                  AND NOT chain.cycle
+                  AND EXISTS (
+                    SELECT 1 FROM files mirror
+                    WHERE mirror."folderId" = chain.id
+                      AND mirror."userId" = c."userId"
+                      AND mirror."isFolder"
+                      AND NOT mirror."isDeleted"
+                      AND mirror."parentId"
+                          IS NOT DISTINCT FROM chain."parentId"
+                  )
+                ), FALSE)
+                AND COALESCE(
+                  bool_or(chain."parentId" IS NULL),
+                  FALSE
+                )
+              FROM ancestor_chain chain
+            )
+          )
+      )`;
     const rows = await this.dataSource.query(
       consume
         ? `DELETE FROM "download_capabilities" c WHERE ${scope} RETURNING c."userId"`

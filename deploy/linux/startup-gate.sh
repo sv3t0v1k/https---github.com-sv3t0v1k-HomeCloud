@@ -111,6 +111,97 @@ else
 fi
 }
 check
+
+# Durable host maintenance inhibitor. DB has a separate startup role.
+# The check uses Node already present in both old and new backend images.
+if [ "$role" = backend ]; then
+  maintenance=/run/homecloud/maintenance
+
+  [ -d "$maintenance" ] && [ ! -L "$maintenance" ] || stop
+  [ "$(stat -c '%u:%g:%a' "$maintenance")" = '0:0:711' ] || stop
+  [ "$(readlink -f "$maintenance")" = "$maintenance" ] || stop
+
+  # Require the exact readonly bind mount, not a directory in the image.
+  awk -v target="$maintenance" '
+    $5 == target {
+      count++
+      if ($6 !~ /^ro(,|$)/) bad=1
+    }
+    END { exit (count != 1 || bad) }
+  ' /proc/self/mountinfo || stop
+
+  # Distinguish ENOENT from EACCES and other inspection errors.
+  # Existing files, symlinks (including dangling ones), and errors deny.
+  maintenance_mode=normal
+  restore_token=""
+
+  if [ "$#" = 3 ] && [ "$1" = node ] &&
+     [ "$2" = dist/files/file-copy-recovery-cli.js ]; then
+    maintenance_mode=offline-copy-recovery
+  fi
+
+  if [ "$#" = 4 ] && [ "$1" = node ] &&
+     [ "$2" = docker/copy-root-fence-supervisor.cjs ] &&
+     [ "$3" = --restore-migration ]; then
+    maintenance_mode=restore-migration
+    restore_token="$4"
+  fi
+
+  node -e '
+    const fs = require("node:fs");
+    const filename = process.argv[1];
+    const mode = process.argv[2];
+    const token = process.argv[3];
+
+    const privateMarker = (entry) =>
+      entry.isFile() &&
+      !entry.isSymbolicLink() &&
+      entry.uid === 0n &&
+      entry.gid === 0n &&
+      (entry.mode & 0o7777n) === 0o600n &&
+      entry.nlink === 1n;
+
+    try {
+      if (mode === "restore-migration") {
+        if (!/^[a-f0-9]{32}$/.test(token)) {
+          throw new Error("invalid restore token");
+        }
+        const marker = fs.lstatSync(filename, { bigint: true });
+        const permit = fs.lstatSync(
+          require("node:path").join(
+            require("node:path").dirname(filename),
+            "restore-migration." + token + "." + marker.dev + "." + marker.ino
+          ), { bigint: true }
+        );
+        if (!privateMarker(marker) || !privateMarker(permit)) {
+          throw new Error("invalid restore authorization");
+        }
+        process.exit(0);
+      }
+
+      const marker = fs.lstatSync(filename);
+
+      if (mode !== "offline-copy-recovery" ||
+          !marker.isFile() ||
+          marker.isSymbolicLink() ||
+          marker.uid !== 0 ||
+          marker.gid !== 0 ||
+          (marker.mode & 0o7777) !== 0o600 ||
+          marker.nlink !== 1) {
+        process.exitCode = 1;
+      }
+    } catch (error) {
+      if (error.code !== "ENOENT" ||
+          mode !== "normal") {
+        process.exitCode = 1;
+      }
+    }
+  ' "$maintenance/maintenance.inhibit" "$maintenance_mode" "$restore_token" || stop
+
+  # Mandatory second admission inside the fenced supervisor.
+  export HOMECLOUD_MAINTENANCE_REQUIRED=1
+fi
+
 echo 'PASS: HomeCloud startup disk gate'
 # Исходный argv сохраняется вне функции: штатные D1 helpers тоже проходят gate.
 case "$role" in

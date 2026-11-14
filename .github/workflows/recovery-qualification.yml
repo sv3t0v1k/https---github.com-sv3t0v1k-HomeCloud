@@ -1,0 +1,21 @@
+name: HomeCloud PR Recovery Qualification
+
+on:
+  workflow_call:
+    inputs:
+      source_sha:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    uses: ./.github/workflows/ci.yml
+    with:
+      source_sha: ${{ inputs.source_sha }}
+      candidate_version: dry-run
+      qualification_profile: pull-request
+    permissions:
+      contents: read

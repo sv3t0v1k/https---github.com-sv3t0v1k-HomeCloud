@@ -11,6 +11,16 @@ with tempfile.TemporaryDirectory(prefix='homecloud-production-test-',dir=str(pat
     root=pathlib.Path(temp); scripts=root/'project'/'scripts'; scripts.mkdir(parents=True)
     for name in ('backup-production.sh','restore-offsite.sh','backup-production.py','recovery_config.py'):
         shutil.copy2(source/name,scripts/name)
+    (scripts/'recovery_storage.py').write_text(
+        'from contextlib import contextmanager\n'
+        'import tempfile, fcntl\n'
+        '@contextmanager\n'
+        'def release_backup_window():\n'
+        '    with tempfile.TemporaryFile() as lock:\n'
+        '        fcntl.flock(lock, fcntl.LOCK_EX)\n'
+        '        yield {"operation_fd": lock.fileno(), "marker_identity": [1, 2]}\n'
+    )
+
     fixtures=root/'fixtures'
     subprocess.run([sys.executable,str(source/'tests/create_fixtures.py'),str(fixtures)],check=True,stdout=subprocess.DEVNULL)
     valid=fixtures/'valid'

@@ -65,6 +65,11 @@ def suspended_install_process(channel, ready_pipe, state, applied, manifest):
         patches.enter_context(patch.object(installer, 'ROOT', Path('/home/hs/homecloud-test')))
         patches.enter_context(patch.object(installer, 'CHANNEL', Path(channel)))
         patches.enter_context(patch.object(installer, 'private_dir'))
+        patches.enter_context(patch.object(installer, 'guard_no_maintenance'))
+        patches.enter_context(patch.object(
+            installer, 'begin_backup_maintenance',
+            return_value=[1, 2],
+        ))
         patches.enter_context(patch.object(installer.os, 'geteuid', return_value=0))
         patches.enter_context(patch.object(installer, 'acquire_lock', side_effect=acquire_test_lock))
         patches.enter_context(patch.object(installer, 'load_state', return_value=state))
@@ -85,6 +90,10 @@ def suspended_install_process(channel, ready_pipe, state, applied, manifest):
 
 class TestChannelTests(unittest.TestCase):
     def setUp(self):
+        admission = patch.object(installer, 'guard_no_maintenance')
+        admission.start()
+        self.addCleanup(admission.stop)
+
         self.proofs = {role: proof(role) for role in ('backend', 'frontend')}
         self.digests = {role: self.proofs[role]['index_digest'] for role in self.proofs}
         self.manifest = contract.build(SHA, REPO, '123', '1', self.digests, self.proofs)
@@ -367,9 +376,11 @@ class TestChannelTests(unittest.TestCase):
         crashes = (
             ('checkout', 'CHECKOUT'),
             ('pull', 'VERIFY_IMAGES'),
-            ('stop', 'STOP_SERVICES'),
             ('prebackup', 'PREBACKUP'),
+            ('inhibit', 'STOP_SERVICES'),
+            ('stop', 'STOP_SERVICES'),
             ('backup', 'BACKUP'),
+            ('finish', 'BACKUP'),
             ('rewrite', 'WRITE_REFS'),
             ('start', 'START_SERVICES'),
             ('verify-started', 'START_SERVICES'),
@@ -403,15 +414,43 @@ class TestChannelTests(unittest.TestCase):
                             failure('stop')
                         if args and args[0] == 'up':
                             failure('start')
+                        if args and args[0] == 'start':
+                            operations.append('rollback-start')
                         return ''
 
-                    backup_calls = []
+                    marker_active = [False]
 
-                    def fake_backup(_active):
-                        operation = 'prebackup' if not backup_calls else 'backup'
-                        backup_calls.append(operation)
-                        failure(operation)
+                    def fake_preparation(_state):
+                        failure('prebackup')
+
+                    def fake_begin():
+                        marker_active[0] = True
+                        failure('inhibit')
+                        return [1, 2]
+
+                    def fake_guard():
+                        if marker_active[0]:
+                            raise installer.Stop('maintenance active')
+
+                    def fake_backup(_active, _fd, _marker):
+                        self.assertTrue(marker_active[0])
+                        self.assertIn('stop', operations)
+                        failure('backup')
                         return '20261031_120000_aabbccdd'
+
+                    def fake_finish(_active, backup_id, _fd):
+                        self.assertTrue(marker_active[0])
+                        checkpoint = json.loads(
+                            (channel / 'pending.json').read_text()
+                        )
+                        self.assertEqual(
+                            checkpoint['backup_id'], backup_id
+                        )
+                        self.assertEqual(
+                            checkpoint['backup_maintenance'], [1, 2]
+                        )
+                        failure('finish')
+                        marker_active[0] = False
 
                     real_atomic = installer.atomic_json
 
@@ -455,8 +494,22 @@ class TestChannelTests(unittest.TestCase):
                         patches.enter_context(patch.object(installer, 'safe_checkout', side_effect=fake_checkout))
                         patches.enter_context(patch.object(installer, 'verify_pulled', side_effect=fake_pull))
                         patches.enter_context(patch.object(installer, 'compose', side_effect=fake_compose))
+                        patches.enter_context(patch.object(
+                            installer, 'restart_existing_services',
+                            side_effect=lambda: operations.append('rollback-start')))
                         patches.enter_context(patch.object(installer, 'backup', side_effect=fake_backup))
-                        patches.enter_context(patch.object(installer, 'ensure_recovery_pins'))
+                        patches.enter_context(patch.object(
+                            installer, 'ensure_recovery_pins',
+                            side_effect=fake_preparation))
+                        patches.enter_context(patch.object(
+                            installer, 'begin_backup_maintenance',
+                            side_effect=fake_begin))
+                        patches.enter_context(patch.object(
+                            installer, 'guard_no_maintenance',
+                            side_effect=fake_guard))
+                        patches.enter_context(patch.object(
+                            installer, 'complete_backup_maintenance',
+                            side_effect=fake_finish))
                         patches.enter_context(patch.object(installer, 'sync_recovery_pins', side_effect=fake_sync))
                         patches.enter_context(patch.object(installer, 'rewrite_refs', side_effect=fake_rewrite))
                         patches.enter_context(patch.object(installer, 'smoke', side_effect=fake_smoke))
@@ -475,7 +528,16 @@ class TestChannelTests(unittest.TestCase):
                         self.assertEqual(pending_file.stat().st_mode & 0o777, 0o600)
                         self.assertFalse((channel / 'state.json').exists())
                         self.assertEqual(json.loads((channel / 'last-status.json').read_text())['status'],
-                            'ROLLED_BACK' if expected_phase in ('CHECKOUT', 'VERIFY_IMAGES', 'PREBACKUP', 'STOP_SERVICES', 'BACKUP', 'WRITE_REFS') else 'MANUAL_RECOVERY_REQUIRED')
+                            'ROLLED_BACK' if expected_phase in ('CHECKOUT', 'VERIFY_IMAGES', 'PREBACKUP', 'WRITE_REFS') else 'MANUAL_RECOVERY_REQUIRED')
+
+                        if stage in ('inhibit', 'stop', 'backup', 'finish'):
+                            self.assertTrue(marker_active[0])
+                            self.assertNotIn('rollback-start', operations)
+                            self.assertNotIn('start', operations)
+
+                        self.assertLessEqual(
+                            operations.count('backup'), 1
+                        )
                         # The exact same request must refuse before any Git or Docker work.
                         prior_operations = list(operations)
                         with self.assertRaisesRegex(installer.Stop, 'incomplete TEST transaction'):
@@ -484,11 +546,13 @@ class TestChannelTests(unittest.TestCase):
                         snapshot = json.loads(pending_file.read_text())
                         self.assertEqual(snapshot['before']['git_sha'], previous)
                         self.assertEqual(snapshot['target']['commit'], SHA)
-                        if expected_phase in ('WRITE_REFS', 'START_SERVICES', 'SMOKE', 'COMMIT_STATE'):
+                        if stage == 'finish' or expected_phase in ('WRITE_REFS', 'START_SERVICES', 'SMOKE', 'COMMIT_STATE'):
                             self.assertEqual(snapshot['backup_id'], '20261031_120000_aabbccdd')
                         else:
                             self.assertNotIn('backup_id', snapshot)
                         if stage == 'prebackup':
+                            self.assertNotIn('backup', operations)
+                            self.assertNotIn('inhibit', operations)
                             self.assertNotIn('stop', operations)
                             self.assertNotIn('rewrite', operations)
                         if stage in ('start', 'verify-started', 'smoke', 'state-write'):
@@ -586,7 +650,7 @@ class TestChannelTests(unittest.TestCase):
                     RuntimeError('checkout failed') if failure == 'checkout' else None)))
                 refs = patches.enter_context(patch.object(installer, 'rewrite_checkpoint_refs', side_effect=(
                     RuntimeError('refs failed') if failure == 'refs' else None)))
-                compose = patches.enter_context(patch.object(installer, 'compose', side_effect=(
+                compose = patches.enter_context(patch.object(installer, 'restart_existing_services', side_effect=(
                     RuntimeError('start failed') if failure == 'start' else None)))
                 health = patches.enter_context(patch.object(installer, 'smoke', side_effect=(
                     RuntimeError('health failed') if failure == 'health' else None)))
@@ -594,11 +658,11 @@ class TestChannelTests(unittest.TestCase):
                 self.assertEqual(installer.recover_before_start(tx, self.state, self.applied), expected)
                 self.assertEqual(json.loads((Path(tmp) / 'pending.json').read_text())['recovery_status'], expected)
                 self.assertFalse((Path(tmp) / 'state.json').exists())
-                self.assertTrue(all(call.args[0] == 'start' for call in compose.call_args_list))
+                self.assertTrue(all(call.args == () for call in compose.call_args_list))
                 if failure is None:
                     checkout.assert_any_call('git', 'checkout', '--detach', 'd' * 40)
                     refs.assert_called_once_with(self.state['active']['images'])
-                    compose.assert_called_once_with('start', '--wait', 'backend', 'frontend', 'ingress', timeout=900)
+                    compose.assert_called_once_with()
                     health.assert_called_once()
                 with self.assertRaises(installer.Stop): installer.guard_no_pending()
 
@@ -688,13 +752,16 @@ class TestChannelTests(unittest.TestCase):
         def run_backup(*args, **kwargs):
             self.assertEqual(args[0], 'bash')
             self.assertEqual(kwargs['env']['UPDATE_ADMIN_USER_ID'], '1')
+            self.assertEqual(kwargs['pass_fds'], (37,))
+            self.assertEqual(kwargs['env']['HOMECLOUD_BACKUP_OPERATION_FD'], '37')
+            self.assertEqual(json.loads(kwargs['env']['HOMECLOUD_BACKUP_MARKER_IDENTITY']), [1, 2])
             return json.dumps({'event': 'backup_completed', 'backup_id': backup_id})
 
         with patch.object(installer, 'backup_configuration', return_value={}), \
              patch.object(installer, 'env_values', return_value=current), \
              patch.object(installer, 'run', side_effect=run_backup), \
              patch.object(installer, 'verify_backup') as verified:
-            self.assertEqual(installer.backup(active), backup_id)
+            self.assertEqual(installer.backup(active, 37, [1, 2]), backup_id)
             verified.assert_called_once_with(backup_id, active)
 
         current['UPDATE_ADMIN_USER_ID'] = '1\nCOMPOSE_FILE=untrusted'
@@ -702,7 +769,7 @@ class TestChannelTests(unittest.TestCase):
              patch.object(installer, 'env_values', return_value=current), \
              patch.object(installer, 'run') as run:
             with self.assertRaisesRegex(installer.Stop, 'invalid TEST update admin ID'):
-                installer.backup(active)
+                installer.backup(active, 37, [1, 2])
             run.assert_not_called()
 
     def test_post_start_verification_rejects_wrong_image_id_or_ref(self):
@@ -835,6 +902,7 @@ class TestChannelTests(unittest.TestCase):
                     proc.join(10)
                 pending = json.loads((channel / 'pending.json').read_text())
                 self.assertEqual(pending['phase'], 'STOP_SERVICES')
+                self.assertEqual(pending['backup_maintenance'], [1, 2])
                 self.assertEqual(pending['before']['git_sha'], previous)
                 self.assertFalse((channel / 'state.json').exists())
                 with patch.object(installer, 'CHANNEL', channel):
@@ -977,7 +1045,6 @@ class RealGitPolicyTests(unittest.TestCase):
 
         overlay = tempfile.TemporaryDirectory(
             prefix="d52-git-objects-",
-            dir=ROOT / ".git"
         )
         self.addCleanup(overlay.cleanup)
         self.git_env = {
@@ -997,11 +1064,202 @@ class RealGitPolicyTests(unittest.TestCase):
         source_env.update(self.git_env)
         source = host.GitSource(ROOT, source_env)
 
-        base = self.git("rev-parse", "HEAD").decode().strip()
+        # Construct an isolated Git-object baseline matching
+        # the currently installed operational contract.
+        #
+        # No checkout, index, branch, worktree or real HEAD
+        # changes. Objects are written only to the existing
+        # temporary object overlay owned by this test.
+        real_head = self.git("rev-parse", "HEAD").decode().strip()
         base_tree = self.git(
             "rev-parse", "HEAD^{tree}"
         ).decode().strip()
+
+        protected_paths = set(installer.LOCKED_FILES)
+        protected_paths.update(contract.FILES)
+
+        # Include the actual local migration inventory too.
+        migration_dir = ROOT / "backend/src/migrations"
+
+        local_migrations = {
+            path.relative_to(ROOT).as_posix()
+            for path in migration_dir.glob("*.ts")
+        }
+
+        self.assertTrue(local_migrations)
+
+        migration_prefix = "backend/src/migrations/"
+
+        raw_inventory = self.git(
+            "ls-tree", "-r", "--name-only", "-z",
+            real_head, "--", migration_prefix,
+        )
+
+        # Git -z uses actual NUL bytes, not escaped text.
+        committed_migrations = {
+            item.decode("utf-8")
+            for item in raw_inventory.split(bytes([0]))
+            if item
+        }
+
+        self.assertTrue(committed_migrations)
+
+        for name in committed_migrations:
+            self.assertTrue(
+                name.startswith(migration_prefix),
+                f"Unexpected migration path: {name!r}",
+            )
+            self.assertEqual(
+                len(name.split("/")), 4,
+                f"Invalid migration path: {name!r}",
+            )
+            self.assertIsNotNone(
+                contract.MIGRATION.fullmatch(
+                    name[len(migration_prefix):]
+                ),
+                f"Invalid migration filename: {name!r}",
+            )
+
+        print(
+            f"PASS: Git inventory parsed: "
+            f"{len(committed_migrations)} committed migrations",
+            flush=True,
+        )
+
+        # Remove obsolete migration paths from the synthetic
+        # tree only. Never remove anything from the workspace.
+        for name in sorted(
+            committed_migrations - local_migrations
+        ):
+            base_tree = self.replace_in_tree(
+                base_tree,
+                name.split("/"),
+                None,
+                "blob",
+                "",
+            )
+
+        protected_paths.update(local_migrations)
+
+        for name in sorted(protected_paths):
+            path = ROOT / name
+
+            self.assertTrue(
+                path.is_file() and not path.is_symlink(),
+                f"Missing or unsafe protected fixture: {name}",
+            )
+
+            raw = path.read_bytes()
+
+            oid = self.git(
+                "hash-object", "-w", "--stdin",
+                data=raw,
+            ).decode().strip()
+
+            mode = (
+                "100755"
+                if path.stat().st_mode & 0o111
+                else "100644"
+            )
+
+            base_tree = self.replace_in_tree(
+                base_tree,
+                name.split("/"),
+                mode,
+                "blob",
+                oid,
+            )
+
+        base = self.git(
+            "commit-tree", base_tree,
+            "-p", real_head,
+            "-m", "Тестовый baseline защищённого контракта",
+        ).decode().strip()
+
+        # The verifier's current revision is the synthetic
+        # fixture baseline, not the developer's real HEAD.
+        # All Git tree/blob reads and hash checks remain real.
+        fixture_head = patch.object(
+            source, "head",
+            return_value=base.encode("ascii"),
+        )
+        fixture_head.start()
+        self.addCleanup(fixture_head.stop)
+
         read, _ = source.reader(base)
+
+        for name in installer.LOCKED_FILES:
+            self.assertEqual(
+                read(name),
+                (ROOT / name).read_bytes(),
+                f"Fixture/live contract mismatch: {name}",
+            )
+
+        print(
+            "\nPASS: synthetic Git baseline matches "
+            f"{len(installer.LOCKED_FILES)} protected files",
+            flush=True,
+        )
+
+        # Build the entire fixture manifest from the same immutable
+        # Git tree. The working directory may contain uncommitted
+        # migrations that do not belong to the fixture's base commit.
+        import re
+
+        migration_prefix = "backend/src/migrations/"
+        migration_paths = sorted(
+            item.decode("utf-8")
+            for item in self.git(
+                "ls-tree", "-r", "--name-only", "-z",
+                base, "--", migration_prefix,
+            ).split(bytes([0]))
+            if item
+        )
+
+        self.assertEqual(
+            set(migration_paths),
+            local_migrations,
+            "Synthetic Git migration inventory differs from fixture",
+        )
+
+        base_migrations = []
+
+        for path in migration_paths:
+            filename = path[len(migration_prefix):]
+
+            self.assertIsNotNone(
+                contract.MIGRATION.fullmatch(filename),
+                f"Invalid fixture migration: {filename}",
+            )
+
+            raw = read(path)
+
+            classes = re.findall(
+                r"export class ([A-Za-z0-9]+)",
+                raw.decode("utf-8"),
+            )
+
+            self.assertEqual(len(classes), 1)
+
+            base_migrations.append({
+                "name": classes[0],
+                "file": filename,
+                "sha256": hashlib.sha256(raw).hexdigest(),
+            })
+
+        self.assertTrue(base_migrations)
+
+        self.assertEqual(
+            len({item["name"] for item in base_migrations}),
+            len(base_migrations),
+        )
+
+        print(
+            "\nGit fixture migrations: "
+            f"base={len(base_migrations)}, "
+            f"working_tree={len(contract.schema(ROOT))}",
+            flush=True,
+        )
 
         original = {
             "commit": base,
@@ -1010,7 +1268,7 @@ class RealGitPolicyTests(unittest.TestCase):
                 name: hashlib.sha256(read(name)).hexdigest()
                 for name in contract.FILES
             },
-            "schema_migrations": contract.schema(ROOT),
+            "schema_migrations": base_migrations,
         }
 
         self.assertEqual(
@@ -1033,6 +1291,10 @@ class RealGitPolicyTests(unittest.TestCase):
             ("scripts/ci/stage-cache-proof.py", None, "blob", False),
             ("deploy/linux/update-host-verify.py", "100644", "blob", False),
             ("deploy/linux/test-channel.py", "100644", "blob", False),
+            ("deploy/linux/maintenance-inhibit.py", "100644", "blob", False),
+            ("deploy/linux/maintenance-window.py", "100644", "blob", False),
+            ("deploy/linux/storage-writer-fence.py", "100644", "blob", False),
+            ("deploy/linux/recover-copy.py", "100644", "blob", False),
             ("docker-compose.project-test-updates.yml", "100644", "blob", False),
             ("docker-compose.project-test-updates.yml", "100755", "mode-only", False),
             ("docker-compose.project-test-updates.yml", "120000", "blob", False),
@@ -1110,6 +1372,8 @@ class RealGitPolicyTests(unittest.TestCase):
                     return "https://github.com/" + manifest["repository"]
                 if args[:2] == ("git", "fetch"):
                     return ""
+                if args[:3] == ("git", "rev-parse", "HEAD"):
+                    return base
                 if args[:3] == ("git", "rev-parse", "FETCH_HEAD"):
                     return target
                 return real_run(*args, **kwargs)
@@ -1143,6 +1407,331 @@ class RealGitPolicyTests(unittest.TestCase):
                             installer.precheck_source(
                                 manifest, False
                             )
+
+        # Negative control: both Git revisions agree, but the
+        # installed operational file differs. The real SHA256
+        # comparison MUST reject this scenario.
+        stale_name = "scripts/backup.sh"
+
+        stale_raw = (
+            (ROOT / stale_name).read_bytes()
+            + b"\\n# stale operational fixture\\n"
+        )
+
+        stale_oid = self.git(
+            "hash-object", "-w", "--stdin",
+            data=stale_raw,
+        ).decode().strip()
+
+        stale_tree = self.replace_in_tree(
+            base_tree,
+            stale_name.split("/"),
+            "100644",
+            "blob",
+            stale_oid,
+        )
+
+        stale = self.git(
+            "commit-tree", stale_tree,
+            "-p", base,
+            "-m", "Тест несовпадения защищённого файла",
+        ).decode().strip()
+
+        stale_manifest = dict(original, commit=stale)
+        stale_manifest["source_files"] = dict(
+            original["source_files"]
+        )
+        stale_manifest["source_files"][stale_name] = (
+            hashlib.sha256(stale_raw).hexdigest()
+        )
+
+        def stale_run(*args, **kwargs):
+            if args[:3] == ("git", "status", "--porcelain"):
+                return ""
+
+            if args[:3] == ("git", "remote", "get-url"):
+                return (
+                    "https://github.com/"
+                    + stale_manifest["repository"]
+                )
+
+            if args[:2] == ("git", "fetch"):
+                return ""
+
+            if args[:3] in (
+                ("git", "rev-parse", "HEAD"),
+                ("git", "rev-parse", "FETCH_HEAD"),
+            ):
+                return stale
+
+            return real_run(*args, **kwargs)
+
+        with patch.object(
+            installer, "run", side_effect=stale_run
+        ), patch.object(
+            installer, "require_current_test_head"
+        ), patch.object(
+            installer.boundary, "clean_environment",
+            return_value=source_env
+        ):
+            with self.assertRaisesRegex(
+                installer.Stop,
+                "operational/Compose contract changed",
+            ):
+                installer.precheck_source(
+                    stale_manifest, False
+                )
+
+        print(
+            "PASS: real live-file SHA256 mismatch rejected",
+            flush=True,
+        )
+
+        self.assertEqual(
+            self.git("rev-parse", "HEAD").decode().strip(),
+            real_head,
+        )
+
+
+class MaintenanceAdmissionTests(unittest.TestCase):
+
+    def test_maintenance_inhibitor_is_not_bypassed(self):
+        from types import SimpleNamespace
+
+        info = SimpleNamespace(
+            st_uid=0,
+            st_gid=0,
+            st_mode=0o40711,
+        )
+
+        with patch.object(
+            installer.boundary, 'trusted_path'
+        ), patch.object(
+            Path, 'lstat', return_value=info
+        ), patch.object(
+            installer.maintenance,
+            'assert_operation_allowed',
+            side_effect=installer.maintenance.MaintenanceInhibited(
+                'fixture inhibitor'
+            ),
+        ) as check:
+            with self.assertRaisesRegex(
+                installer.Stop, 'maintenance admission refused'
+            ):
+                installer.guard_no_maintenance()
+
+            check.assert_called_once_with(
+                str(installer.RUNTIME / 'maintenance')
+            )
+
+    def test_missing_maintenance_directory_is_refused(self):
+        with patch.object(
+            installer.boundary,
+            'trusted_path',
+            side_effect=FileNotFoundError('missing fixture'),
+        ), patch.object(
+            installer.maintenance, 'assert_operation_allowed'
+        ) as check:
+            with self.assertRaisesRegex(
+                installer.Stop, 'maintenance admission refused'
+            ):
+                installer.guard_no_maintenance()
+
+            check.assert_not_called()
+
+    def test_unsafe_maintenance_mode_is_refused(self):
+        from types import SimpleNamespace
+
+        for uid, gid, mode in (
+            (1001, 0, 0o40711),
+            (0, 1001, 0o40711),
+            (0, 0, 0o40777),
+            (0, 0, 0o120711),
+        ):
+            with self.subTest(uid=uid, gid=gid, mode=mode):
+                info = SimpleNamespace(
+                    st_uid=uid, st_gid=gid, st_mode=mode,
+                )
+
+                with patch.object(
+                    installer.boundary, 'trusted_path'
+                ), patch.object(
+                    Path, 'lstat', return_value=info
+                ), patch.object(
+                    installer.maintenance, 'assert_operation_allowed'
+                ) as check:
+                    with self.assertRaises(installer.Stop):
+                        installer.guard_no_maintenance()
+
+                    check.assert_not_called()
+
+    def test_clean_maintenance_admission(self):
+        from types import SimpleNamespace
+
+        info = SimpleNamespace(
+            st_uid=0, st_gid=0, st_mode=0o40711
+        )
+
+        with patch.object(
+            installer.boundary, 'trusted_path'
+        ), patch.object(
+            Path, 'lstat', return_value=info
+        ), patch.object(
+            installer.maintenance, 'assert_operation_allowed'
+        ) as check:
+            installer.guard_no_maintenance()
+            check.assert_called_once()
+
+    def test_start_refused_before_compose_and_lock_released(self):
+        with tempfile.TemporaryDirectory() as parent:
+            root = Path(parent).resolve()
+            fd = os.open(
+                str(root / 'install.lock'),
+                os.O_CREAT | os.O_RDWR,
+                0o600,
+            )
+
+            with patch.object(
+                installer, 'ROOT', Path('/home/hs/homecloud-test')
+            ), patch.object(
+                installer, 'CHANNEL', root
+            ), patch.object(
+                installer.os, 'geteuid', return_value=0
+            ), patch.object(
+                installer, 'private_dir'
+            ), patch.object(
+                installer, 'acquire_lock', return_value=fd
+            ) as acquire, patch.object(
+                installer, 'guard_no_pending'
+            ), patch.object(
+                installer, 'guard_no_maintenance',
+                side_effect=installer.Stop('maintenance active'),
+            ), patch.object(
+                installer, 'run'
+            ) as run, patch.object(
+                installer, 'compose'
+            ) as compose:
+                with self.assertRaisesRegex(
+                    installer.Stop, 'maintenance active'
+                ):
+                    installer.start_services()
+
+                acquire.assert_called_once_with(
+                    root / 'install.lock'
+                )
+                run.assert_not_called()
+                compose.assert_not_called()
+
+            with self.assertRaises(OSError):
+                os.fstat(fd)
+
+    def test_start_rechecks_after_preflight(self):
+        with tempfile.TemporaryDirectory() as parent:
+            root = Path(parent).resolve()
+            fd = os.open(
+                str(root / 'install.lock'),
+                os.O_CREAT | os.O_RDWR,
+                0o600,
+            )
+
+            with patch.object(
+                installer, 'ROOT', Path('/home/hs/homecloud-test')
+            ), patch.object(
+                installer, 'CHANNEL', root
+            ), patch.object(
+                installer.os, 'geteuid', return_value=0
+            ), patch.object(
+                installer, 'private_dir'
+            ), patch.object(
+                installer, 'acquire_lock', return_value=fd
+            ), patch.object(
+                installer, 'guard_no_pending'
+            ), patch.object(
+                installer, 'guard_no_maintenance',
+                side_effect=[
+                    None,
+                    installer.Stop('inhibit appeared'),
+                ],
+            ) as admission, patch.object(
+                installer, 'run', return_value=''
+            ) as preflight, patch.object(
+                installer, 'compose'
+            ) as compose:
+                with self.assertRaisesRegex(
+                    installer.Stop, 'inhibit appeared'
+                ):
+                    installer.start_services()
+
+                self.assertEqual(admission.call_count, 2)
+                preflight.assert_called_once()
+                compose.assert_not_called()
+
+            with self.assertRaises(OSError):
+                os.fstat(fd)
+
+    def test_install_refuses_maintenance_before_mutation(self):
+        with tempfile.TemporaryDirectory() as parent:
+            root = Path(parent).resolve()
+
+            for dry_run, rollback in (
+                (False, False),
+                (False, True),
+                (True, False),
+            ):
+                with self.subTest(
+                    dry_run=dry_run, rollback=rollback
+                ):
+                    fd = os.open(
+                        str(root / 'install.lock'),
+                        os.O_CREAT | os.O_RDWR,
+                        0o600,
+                    )
+
+                    with patch.object(
+                        installer, 'ROOT',
+                        Path('/home/hs/homecloud-test')
+                    ), patch.object(
+                        installer, 'CHANNEL', root
+                    ), patch.object(
+                        installer.os, 'geteuid', return_value=0
+                    ), patch.object(
+                        installer, 'private_dir'
+                    ), patch.object(
+                        installer, 'acquire_lock', return_value=fd
+                    ), patch.object(
+                        installer, 'acquire_readonly_lock',
+                        return_value=fd
+                    ), patch.object(
+                        installer, 'guard_no_pending'
+                    ), patch.object(
+                        installer, 'guard_no_maintenance',
+                        side_effect=installer.Stop('maintenance active'),
+                    ), patch.object(
+                        installer, 'load_state'
+                    ) as load_state, patch.object(
+                        installer, 'compose'
+                    ) as compose, patch.object(
+                        installer, 'run'
+                    ) as run:
+                        with self.assertRaisesRegex(
+                            installer.Stop, 'maintenance active'
+                        ):
+                            installer.deploy(
+                                {},
+                                rollback=rollback,
+                                dry_run=dry_run,
+                            )
+
+                        load_state.assert_not_called()
+                        compose.assert_not_called()
+                        run.assert_not_called()
+
+                    self.assertFalse(
+                        (root / 'pending.json').exists()
+                    )
+
+                    with self.assertRaises(OSError):
+                        os.fstat(fd)
 
 
 if __name__ == '__main__':

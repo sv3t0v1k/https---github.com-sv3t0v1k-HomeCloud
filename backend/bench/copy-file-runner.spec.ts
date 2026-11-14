@@ -1,6 +1,9 @@
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
+import { ConfigService } from "@nestjs/config";
+import { FileEntity } from "../src/entities/file.entity";
+import { StorageService } from "../src/storage/storage.service";
 import { FilesService } from "../src/files/files.service";
 import { createCopyFileInstrument } from "./copy-file-instrument";
 import {
@@ -53,74 +56,148 @@ describe("copy-file benchmark harness", () => {
     expect(fs.readFileSync(destination, "utf8")).toBe("correctness-marker");
   });
 
-  it("invokes the real production copyFile method", async () => {
-    const source = path.join(tmp, "source.bin");
-    const destination = path.join(tmp, "destination.bin");
-    fs.writeFileSync(source, "real-production-path");
-    const file = {
-      id: 7,
-      name: "source.bin",
-      storagePath: source,
-      size: 20,
-      mimeType: "text/plain",
-    };
-    const fileRepository = {
-      findOne: jest.fn().mockResolvedValue(file),
-      create: jest.fn((value) => value),
-      save: jest.fn(async (value) => ({ ...value, id: 8 })),
-      manager: {
-        connection: {
-          createQueryRunner: jest.fn(() => ({
-            connect: jest.fn(),
-            startTransaction: jest.fn(),
-            commitTransaction: jest.fn(),
-            rollbackTransaction: jest.fn(),
-            release: jest.fn(),
-            manager: {
-              query: jest.fn().mockResolvedValue([]),
-              create: jest.fn((_entity, value) => value),
-              save: jest.fn(async (value) => {
-                value.id = 8;
-                return value;
-              }),
+  (process.platform === "linux" ? it : it.skip)(
+    "invokes production FilesService with secure Linux storage",
+    async () => {
+      const source = path.join(tmp, "source.bin");
+      fs.writeFileSync(source, "real-production-path");
+
+      const storage = new StorageService(
+        new ConfigService({
+          STORAGE_PATH: tmp,
+          NODE_ENV: "test",
+        }),
+      );
+
+      try {
+        const file = {
+          id: 7,
+          userId: 1,
+          name: "source.bin",
+          ...storage.placementForPath(source),
+          size: 20,
+          mimeType: "text/plain",
+          isFolder: false,
+          isDeleted: false,
+          parentId: null,
+        };
+
+        const query = jest.fn(async (sql: string) => {
+          if (sql.includes("SELECT id FROM users")) {
+            return [{ id: 1 }];
+          }
+          return [];
+        });
+
+        const findOne = jest.fn(async (entity: unknown) => {
+          return entity === FileEntity ? file : null;
+        });
+
+        const transactionManager = {
+          query,
+          findOne,
+        };
+
+        const runner = {
+          isTransactionActive: false,
+          connect: jest.fn(),
+          startTransaction: jest.fn(),
+          commitTransaction: jest.fn(),
+          rollbackTransaction: jest.fn(),
+          release: jest.fn(),
+          manager: {
+            query,
+            findOne,
+            create: jest.fn((_entity: unknown, value: any) => value),
+            save: jest.fn(async (value: any) => {
+              value.id = 8;
+              return value;
+            }),
+          },
+        };
+
+        const repository = {
+          findOne: jest.fn().mockResolvedValue(file),
+          manager: {
+            transaction: jest.fn(
+              async (
+                callback: (
+                  manager: typeof transactionManager,
+                ) => Promise<unknown>,
+              ) => callback(transactionManager),
+            ),
+            connection: {
+              createQueryRunner: jest.fn(() => runner),
             },
-          })),
-        },
-      },
-    };
-    const folderRepository = { findOne: jest.fn() };
-    const storageService = {
-      resolveFilePath: (file: any) => file.storagePath,
-      placementForPath: (storagePath: string) => ({storagePath, storageLocationId: "f2f5c4b0-8d57-4c49-9f8c-0d095b344601", relativeObjectKey: path.basename(storagePath)}),
-      generateSafeFilename: jest.fn(() => "copy.bin"),
-      generatePath: jest.fn(() => destination),
-      copyFile: jest.fn((from, to) =>
-        fs.promises.copyFile(from, to, fs.constants.COPYFILE_EXCL),
-      ),
-      deleteFile: jest.fn((target) => fs.promises.unlink(target)),
-    };
-    const usersService = {
-      findById: jest.fn().mockResolvedValue({ id: 1 }),
-      updateStorageUsed: jest.fn().mockResolvedValue(undefined),
-    };
-    const service = new FilesService(
-      fileRepository as never,
-      folderRepository as never,
-      storageService as never,
-      usersService as never,
-    );
-    const result = await service.copyFile(1, 7);
-    expect(result.storagePath).toBe(destination);
-    expect(fs.readFileSync(destination, "utf8")).toBe("real-production-path");
-    const qr = fileRepository.manager.connection.createQueryRunner.mock.results[0]
-      .value;
-    expect(qr.manager.save).toHaveBeenCalledTimes(1);
-    expect(usersService.updateStorageUsed).toHaveBeenCalledWith(
-      1,
-      20,
-      qr.manager,
-    );
-  });
+          },
+        };
+
+        const users = {
+          findById: jest.fn().mockResolvedValue({
+            id: 1,
+            isActive: true,
+          }),
+          updateStorageUsed: jest.fn(),
+        };
+
+        const admission = {
+          reserve: jest.fn().mockResolvedValue(
+            "00000000-0000-4000-8000-000000000001",
+          ),
+          markCommitted: jest.fn(),
+          releaseAfterOwnedCleanup: jest.fn(
+            async (_id: string, _userId: number, cleanup: () => void) => {
+              cleanup();
+            },
+          ),
+        };
+
+        const service = new FilesService(
+          repository as never,
+          {} as never,
+          storage,
+          users as never,
+          admission as never,
+        );
+
+        const result = await service.copyFile(1, 7);
+
+        expect(result.storagePath).not.toBe(source);
+        expect(result.storagePath.startsWith(tmp + path.sep)).toBe(true);
+        expect(fs.readFileSync(result.storagePath, "utf8")).toBe(
+          "real-production-path",
+        );
+
+        expect(admission.reserve).toHaveBeenCalledWith(
+          expect.objectContaining({
+            userId: 1,
+            sourceFileId: 7,
+            bytes: 20,
+          }),
+        );
+        expect(admission.markCommitted).toHaveBeenCalledWith(
+          runner.manager,
+          "00000000-0000-4000-8000-000000000001",
+          1,
+          8,
+        );
+        expect(repository.manager.transaction).toHaveBeenCalledTimes(1);
+        expect(runner.manager.save).toHaveBeenCalledTimes(1);
+        expect(runner.commitTransaction).toHaveBeenCalledTimes(1);
+        expect(runner.rollbackTransaction).not.toHaveBeenCalled();
+
+        expect(users.updateStorageUsed).toHaveBeenCalledWith(
+          1,
+          20,
+          runner.manager,
+        );
+
+        expect(fs.readFileSync(source, "utf8")).toBe("real-production-path");
+      } finally {
+        storage.onModuleDestroy();
+      }
+    },
+  );
 
   it("fails closed for normal or mismatched storage roots", () => {
     const service = { getStoragePath: () => tmp };

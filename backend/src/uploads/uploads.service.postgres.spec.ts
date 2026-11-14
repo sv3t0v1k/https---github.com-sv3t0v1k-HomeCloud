@@ -17,6 +17,8 @@ import { UserEntity } from "../entities/user.entity";
 import { StorageService } from "../storage/storage.service";
 import { UsersService } from "../users/users.service";
 import { UploadsService } from "./uploads.service";
+import { FileCopyAdmissionService } from "../files/file-copy-admission.service";
+import { FileCopyAdmission1792831300000 } from "../migrations/1792831300000-FileCopyAdmission";
 
 jest.mock("./file-type.loader", () => ({
   fileTypeFromBuffer: jest.fn().mockResolvedValue(undefined),
@@ -59,6 +61,20 @@ describePostgres("UploadsService — реальный PostgreSQL", () => {
     await dataSource.initialize();
     await dataSource.getRepository(StorageLocationEntity).save(LEGACY_STORAGE_LOCATION);
     await dataSource.getRepository(UploadWorkspaceEntity).save(LEGACY_UPLOAD_WORKSPACE);
+    const admissionRunner = dataSource.createQueryRunner();
+    try {
+      await admissionRunner.connect();
+      await admissionRunner.startTransaction();
+      await new FileCopyAdmission1792831300000().up(admissionRunner);
+      await admissionRunner.commitTransaction();
+    } catch (error) {
+      if (admissionRunner.isTransactionActive) {
+        await admissionRunner.rollbackTransaction();
+      }
+      throw error;
+    } finally {
+      await admissionRunner.release();
+    }
     const config = new ConfigService({
       STORAGE_PATH: storageRoot,
       MAX_FILE_SIZE: 1024 * 1024,
@@ -134,6 +150,34 @@ describePostgres("UploadsService — реальный PostgreSQL", () => {
       storageUsed: 0,
     });
   }
+
+  it("B01: upload cannot consume reserved copy quota", async () => {
+    const user = await makeUser(100);
+    const admission = new FileCopyAdmissionService(dataSource);
+
+    await admission.reserve({
+      userId: user.id,
+      sourceFileId: 42,
+      storageLocationId: LEGACY_STORAGE_LOCATION.id,
+      relativeObjectKey: `${user.id}/${randomUUID()}.bin`,
+      bytes: 75,
+    });
+
+    await expect(
+      service.createUploadSession(
+        user.id,
+        "quota-race.bin",
+        50,
+        50,
+      ),
+    ).rejects.toThrow("Storage quota exceeded");
+
+    expect(
+      await dataSource.getRepository(UploadSessionEntity)
+        .countBy({ userId: user.id }),
+    ).toBe(0);
+  });
+
   function configured(overrides: Record<string, number>) {
     const config = new ConfigService({
       STORAGE_PATH: storageRoot,

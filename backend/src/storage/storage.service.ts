@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleDestroy } from "@nestjs/common";
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  ServiceUnavailableException,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import * as fs from "fs";
 import * as path from "path";
@@ -9,6 +14,7 @@ import { SSD_UPLOAD_WORKSPACE } from "../entities/upload-workspace.entity";
 import { ApprovedRoot, legacyBinding } from "./storage-mount-registry";
 import { LEGACY_STORAGE_ID } from "./storage-mount-registry";
 import { FilePlacement, StorageRegistry } from "./storage-placement";
+import { SecureFilesystem } from "../uploads/secure-filesystem";
 
 @Injectable()
 export class StorageService implements OnModuleDestroy {
@@ -17,6 +23,8 @@ export class StorageService implements OnModuleDestroy {
   private readonly tempPath: string;
   private readonly registry: StorageRegistry;
   private readonly ssdBinding: ApprovedRoot | undefined;
+  private readonly secureReadBoundary?: SecureFilesystem;
+  private activeSecureCopies = 0;
 
   constructor(private configService: ConfigService) {
     this.storagePath = configService.get("STORAGE_PATH") || "/storage";
@@ -29,14 +37,41 @@ export class StorageService implements OnModuleDestroy {
     ]);
     try {
       this.ensureDirectories();
+
+      if (process.platform === "linux") {
+        // Acquire the root capability once, before accepting read requests.
+        const root = this.registry.mounts.assertAccess(LEGACY_STORAGE_ID).root;
+        const expected = fs.lstatSync(root);
+
+        const boundary = new SecureFilesystem(root, expected);
+
+        try {
+          // Revalidate the registry's original mount pin after acquiring
+          // the native descriptor. A swap during acquisition fails closed.
+          this.registry.mounts.assertAccess(LEGACY_STORAGE_ID);
+        } catch (error) {
+          boundary.close();
+          throw error;
+        }
+
+        this.secureReadBoundary = boundary;
+      }
     } catch (error) {
-      this.registry.close();
+      try {
+        this.secureReadBoundary?.close();
+      } finally {
+        this.registry.close();
+      }
       throw error;
     }
   }
 
   onModuleDestroy(): void {
-    this.registry.close();
+    try {
+      this.secureReadBoundary?.close();
+    } finally {
+      this.registry.close();
+    }
   }
 
   private ensureDirectories() {
@@ -70,6 +105,36 @@ export class StorageService implements OnModuleDestroy {
 
   resolveFilePath(file: FilePlacement, allowMissing = false): string {
     return this.registry.resolve(file, allowMissing);
+  }
+
+  /**
+   * Return a read-only FD opened below a pinned and verified storage root.
+   * No pathname-based fallback: native openat2 is mandatory on Linux.
+   * The caller owns the returned FD and must close it.
+   */
+  openReadOnlyFileSecure(absolutePath: string): number {
+    const boundary = this.secureReadBoundary;
+    if (!boundary) {
+      throw new Error("Secure storage reads require Linux");
+    }
+
+    // Validate the logical placement against the current registry.
+    this.registry.keyFromAbsolute(absolutePath);
+    this.registry.mounts.assertAccess(LEGACY_STORAGE_ID);
+
+    // Always open relative to the original, long-lived native root FD.
+    // No fresh lstat(root) is trusted as a new security identity.
+    const fd = boundary.open(absolutePath, "r");
+
+    try {
+      // Detect replacement that occurred during path validation.
+      // The native FD already prevents reading from the replacement.
+      this.registry.mounts.assertAccess(LEGACY_STORAGE_ID);
+      return fd;
+    } catch (error) {
+      fs.closeSync(fd);
+      throw error;
+    }
   }
 
   getStoragePath(): string {
@@ -224,6 +289,287 @@ export class StorageService implements OnModuleDestroy {
     this.assertTrustedPath(filePath, false);
     this.registry.keyFromAbsolute(filePath);
     return fs.createReadStream(filePath);
+  }
+
+  /**
+   * Copy from an already authorized, secure source FD.
+   * The caller retains ownership of sourceFd and of the returned destination
+   * lease. Keep the destination lease open until metadata commit is resolved:
+   * cleanup() removes only the inode created by this operation.
+   */
+  /**
+   * For a copy attempt that has fully stopped without returning a lease.
+   * Never call while an I/O worker may still be writing the destination.
+   * Does not unlink any inode.
+   */
+
+  /**
+   * Exclusive filesystem fence for offline recovery.
+   * External host fencing is still mandatory: unrelated writers
+   * and processes bypassing this flock remain out of scope.
+   */
+  async withCopyRecoveryRootLock<T>(operation: () => Promise<T>): Promise<T> {
+    const boundary = this.secureReadBoundary;
+
+    if (!boundary || typeof operation !== "function") {
+      throw new ServiceUnavailableException(
+        "Secure copy recovery root lock unavailable",
+      );
+    }
+
+    this.registry.mounts.assertAccess(LEGACY_STORAGE_ID, true);
+
+    const fd = boundary.directory(this.storagePath);
+
+    try {
+      // Native LOCK_EX | LOCK_NB on the pinned root inode.
+      // The independent FD stays open throughout the transaction.
+      boundary.lock(fd);
+      this.registry.mounts.assertAccess(LEGACY_STORAGE_ID, true);
+      return await operation();
+    } finally {
+      fs.closeSync(fd);
+    }
+  }
+
+  confirmCopyDestinationAbsent(destinationPath: string): void {
+    const boundary = this.secureReadBoundary;
+    if (!boundary) {
+      throw new ServiceUnavailableException(
+        "Secure copy absence proof requires Linux",
+      );
+    }
+
+    this.registry.mounts.assertAccess(LEGACY_STORAGE_ID, true);
+    const destination = this.ensureWithinStorageRoot(destinationPath);
+    const parentFd = boundary.directory(path.dirname(destination));
+
+    try {
+      let destinationFd: number | undefined;
+
+      try {
+        destinationFd = boundary.open(destination, "r");
+      } catch (error) {
+        if ((error as { code?: string }).code !== "ENOENT") {
+          throw error;
+        }
+      }
+
+      if (destinationFd !== undefined) {
+        fs.closeSync(destinationFd);
+        throw new ServiceUnavailableException(
+          "Copy destination exists; recovery required",
+        );
+      }
+
+      // Confirm the absent directory entry on the approved filesystem.
+      fs.fsyncSync(parentFd);
+      this.registry.mounts.assertAccess(LEGACY_STORAGE_ID, true);
+    } finally {
+      fs.closeSync(parentFd);
+    }
+  }
+
+  async copyOpenedFileSecure(
+    sourceFd: number,
+    expectedSize: number,
+    destinationPath: string,
+    signal?: AbortSignal,
+  ): Promise<{ cleanup(): void; release(): void }> {
+    if (
+      !Number.isSafeInteger(sourceFd) ||
+      sourceFd < 0 ||
+      !Number.isSafeInteger(expectedSize) ||
+      expectedSize < 0
+    ) {
+      throw new Error("Invalid secure copy parameters");
+    }
+
+    const boundary = this.secureReadBoundary;
+    if (!boundary) throw new Error("Secure copy requires Linux");
+
+    if (signal?.aborted) {
+      throw new ServiceUnavailableException("Secure copy cancelled");
+    }
+    if (this.activeSecureCopies >= 4) {
+      throw new ServiceUnavailableException(
+        "Secure copy concurrency limit exceeded",
+      );
+    }
+
+    this.activeSecureCopies += 1;
+    try {
+      this.registry.mounts.assertAccess(LEGACY_STORAGE_ID, true);
+      const destination = this.ensureWithinStorageRoot(destinationPath);
+
+      const before = fs.fstatSync(sourceFd);
+      if (
+        !before.isFile() ||
+        before.nlink !== 1 ||
+        before.uid !== process.geteuid?.() ||
+        before.size !== expectedSize
+      ) {
+        throw new Error("Unsafe or changed copy source");
+      }
+
+      // Native openat2 O_EXCL/O_NOFOLLOW with immutable root FD.
+      const destinationFd = boundary.open(destination, "wx");
+      let complete = false;
+
+      try {
+        let lastProgress = performance.now();
+
+        const assertCopyActive = () => {
+          if (signal?.aborted) {
+            throw new ServiceUnavailableException("Secure copy cancelled");
+          }
+          if (performance.now() - lastProgress > 60_000) {
+            throw new ServiceUnavailableException("Secure copy idle timeout");
+          }
+        };
+
+        assertCopyActive();
+        const buffer = Buffer.allocUnsafe(256 * 1024);
+        let position = 0;
+
+        while (position < expectedSize) {
+          assertCopyActive();
+          const length = Math.min(buffer.length, expectedSize - position);
+
+          const read = await new Promise<number>((resolve, reject) => {
+            fs.read(
+              sourceFd,
+              buffer,
+              0,
+              length,
+              position,
+              (error, bytesRead) => {
+                if (error) reject(error);
+                else resolve(bytesRead);
+              },
+            );
+          });
+
+          assertCopyActive();
+          if (read <= 0) throw new Error("Copy source changed during reading");
+
+          let written = 0;
+          while (written < read) {
+            const count = await new Promise<number>((resolve, reject) => {
+              fs.write(
+                destinationFd,
+                buffer,
+                written,
+                read - written,
+                position + written,
+                (error, bytesWritten) => {
+                  if (error) reject(error);
+                  else resolve(bytesWritten);
+                },
+              );
+            });
+
+            assertCopyActive();
+            if (count <= 0) throw new Error("Copy destination write stalled");
+            written += count;
+            lastProgress = performance.now();
+          }
+
+          position += read;
+        }
+
+        assertCopyActive();
+        const after = fs.fstatSync(sourceFd);
+        const result = fs.fstatSync(destinationFd);
+
+        if (
+          before.dev !== after.dev ||
+          before.ino !== after.ino ||
+          before.size !== after.size ||
+          before.mtimeMs !== after.mtimeMs ||
+          before.ctimeMs !== after.ctimeMs ||
+          !result.isFile() ||
+          result.nlink !== 1 ||
+          result.size !== expectedSize
+        ) {
+          throw new Error("Copy source or destination changed");
+        }
+
+        await new Promise<void>((resolve, reject) => {
+          fs.fsync(destinationFd, (error) => {
+            if (error) reject(error);
+            else resolve();
+          });
+        });
+
+        assertCopyActive();
+        this.registry.mounts.assertAccess(LEGACY_STORAGE_ID, true);
+
+        const parentFd = boundary.directory(path.dirname(destination));
+        try {
+          fs.fsyncSync(parentFd);
+        } finally {
+          fs.closeSync(parentFd);
+        }
+
+        assertCopyActive();
+        complete = true;
+        let released = false;
+        let unlinked = false;
+        let removed = false;
+
+        return {
+          cleanup() {
+            if (released) throw new Error("Secure copy lease already released");
+            if (removed) return;
+
+            // Verify the exact owned inode before unlinking.
+            if (!unlinked) {
+              boundary.removeOwned(destination, destinationFd);
+              unlinked = true;
+            }
+
+            // An unlink is not durably confirmed until its parent
+            // directory is synced. Retry only this step if fsync fails.
+            const parentFd = boundary.directory(path.dirname(destination));
+            try {
+              fs.fsyncSync(parentFd);
+              removed = true;
+            } finally {
+              fs.closeSync(parentFd);
+            }
+          },
+          release() {
+            if (released) return;
+            released = true;
+            fs.closeSync(destinationFd);
+          },
+        };
+      } finally {
+        if (!complete) {
+          try {
+            // Unlink only the inode owned by this open descriptor.
+            boundary.removeOwned(destination, destinationFd);
+
+            // A successful unlink must also be durable.
+            const parentFd = boundary.directory(path.dirname(destination));
+            try {
+              fs.fsyncSync(parentFd);
+            } finally {
+              fs.closeSync(parentFd);
+            }
+          } catch {
+            // The caller must independently prove absence before
+            // releasing the durable copy reservation.
+            this.logger.error("Failed to clean incomplete secure copy");
+          } finally {
+            fs.closeSync(destinationFd);
+          }
+        }
+      }
+    } finally {
+      this.activeSecureCopies -= 1;
+    }
   }
 
   async copyFile(sourcePath: string, destinationPath: string): Promise<void> {

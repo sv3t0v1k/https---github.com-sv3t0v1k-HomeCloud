@@ -40,6 +40,11 @@ services:
         read_only: true
         bind: {create_host_path: false}
       - type: bind
+        source: ./.runtime/maintenance
+        target: /run/homecloud/maintenance
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
         source: /var/lib/homecloud-update/inbox
         target: /run/homecloud-update/inbox
         bind: {create_host_path: false}

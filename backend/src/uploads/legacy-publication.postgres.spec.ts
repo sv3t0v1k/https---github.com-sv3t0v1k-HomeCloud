@@ -3,6 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { ConfigService } from "@nestjs/config";
+import { FileCopyAdmission1792831300000 } from "../migrations/1792831300000-FileCopyAdmission";
 import { DataSource, QueryRunner } from "typeorm";
 import appDataSource from "../data-source";
 import { FileEntity } from "../entities/file.entity";
@@ -63,6 +64,18 @@ describePostgres("Legacy upload publication — real PostgreSQL service races", 
     await source.initialize();
     await source.getRepository(StorageLocationEntity).save(LEGACY_STORAGE_LOCATION);
     await source.getRepository(UploadWorkspaceEntity).save(LEGACY_UPLOAD_WORKSPACE);
+    const migrationRunner = source.createQueryRunner();
+    await migrationRunner.connect();
+    try {
+      await migrationRunner.startTransaction();
+      await new FileCopyAdmission1792831300000().up(migrationRunner);
+      await migrationRunner.commitTransaction();
+    } finally {
+      if (migrationRunner.isTransactionActive) {
+        await migrationRunner.rollbackTransaction();
+      }
+      await migrationRunner.release();
+    }
     const config = new ConfigService({ STORAGE_PATH: storageRoot,
       MAX_FILE_SIZE: 1024 * 1024, MAX_TOTAL_SIZE: 1024 * 1024, MAX_CHUNK_SIZE: 1024 * 1024 });
     storage = new StorageService(config);

@@ -101,7 +101,14 @@ describe("FilesController operation contracts", () => {
     expect(service.updateFile).toHaveBeenCalledWith(42, 11, {
       name: "report.txt",
     });
-    expect(service.copyFile).toHaveBeenCalledWith(42, 11, 3);
+    expect(service.copyFile).toHaveBeenCalledWith(
+      42,
+      11,
+      3,
+      expect.any(AbortSignal),
+    );
+    const copySignal = service.copyFile.mock.calls[0][3] as AbortSignal;
+    expect(copySignal.aborted).toBe(false);
     expect(service.moveFile).toHaveBeenCalledWith(42, 11, 3);
   });
 

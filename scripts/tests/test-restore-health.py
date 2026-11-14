@@ -27,6 +27,7 @@ class HealthGate(unittest.TestCase):
         shim = '''set -euo pipefail
 log() { :; }; err() { printf '%s\\n' "$*" >&2; }
 sleep() { :; }
+restore_ack() { :; }
 docker() { cat >/dev/null; printf '%s' "$TEST_BODY"; return "$TEST_RC"; }
 RECOVERY_STORAGE_TYPE=fixture; RECOVERY_STORAGE_TARGET=/fixture
 STORAGE_VOLUME=fixture; BACKEND_IMAGE=fixture

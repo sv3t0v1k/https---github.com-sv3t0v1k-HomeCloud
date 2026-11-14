@@ -407,9 +407,29 @@ export class UploadsService {
         );
       }
 
+      // The user row is already locked, serializing this check
+      // with copy admission and other upload admissions.
+      const copyReservations: Array<{ bytes: string }> =
+        await manager.query(
+          `SELECT COALESCE(SUM("bytes"), 0)::text AS bytes
+           FROM "file_copy_operations"
+           WHERE "userId" = $1
+             AND state IN ('reserved', 'cleanup_required')`,
+          [userId],
+        );
+
+      if (copyReservations.length !== 1) {
+        throw new ServiceUnavailableException(
+          "Copy reservation accounting unavailable",
+        );
+      }
+
+      const reservedCopies = parseDatabaseSize(copyReservations[0].bytes);
       const quota = parseDatabaseSize(user.storageQuota);
       const used = parseDatabaseSize(user.storageUsed);
-      const reserved = parseDatabaseSize(used + activeTotal);
+      const reserved = parseDatabaseSize(
+        used + activeTotal + reservedCopies,
+      );
       const nextUsed = parseDatabaseSize(reserved + totalSize);
       if (nextUsed > quota) {
         throw new ForbiddenException("Storage quota exceeded");

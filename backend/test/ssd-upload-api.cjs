@@ -350,7 +350,7 @@ async function run() {
   const fixtureUrl = new URL(originalUrl);
   fixtureUrl.searchParams.set("options", `-c search_path=${schema}`);
   process.env.DATABASE_URL = fixtureUrl.toString();
-  const migrations = require("../dist/data-source").default;
+  const migrations = new DataSource(require("../dist/data-source").default.options);
   migrations.setOptions({
     schema,
     extra: { options: `-c search_path=${schema}` },

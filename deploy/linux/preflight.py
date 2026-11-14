@@ -145,6 +145,22 @@ def check_data_directory(value, disk, uid, gid):
             'Owner/mode data directory не совпадают с service UID/GID и 0700')
 
 
+def check_maintenance_directory(value):
+    maintenance = ordinary_directory(value)
+    for parent in reversed(maintenance.parents):
+        parent_info = parent.lstat()
+        require(stat.S_ISDIR(parent_info.st_mode) and
+                parent_info.st_uid == 0 and
+                not parent_info.st_mode & 0o022 and
+                not os.listxattr(parent, follow_symlinks=False),
+                'Небезопасный родитель maintenance directory')
+    info = maintenance.stat()
+    require(info.st_uid == 0 and info.st_gid == 0 and
+            stat.S_IMODE(info.st_mode) == 0o711 and
+            not os.listxattr(maintenance, follow_symlinks=False),
+            'Неверный owner/mode maintenance directory')
+
+
 def check_config(config, inventory):
     config_dir = check_inventory_layout(inventory)
     services = config['services']
@@ -186,7 +202,7 @@ def check_config(config, inventory):
             '/run/homecloud-update/inbox': ('/var/lib/homecloud-update/inbox', False, 0o770),
             '/run/homecloud-update/status': ('/var/lib/homecloud-update/status', True, 0o750),
         } if name == 'backend' and test_updates else {}
-        require(len(mounts) == 6 + len(extra) and len(by_target) == len(mounts) and target in by_target,
+        require(len(mounts) == 6 + (1 if name == 'backend' else 0) + len(extra) and len(by_target) == len(mounts) and target in by_target,
                 'Неверное число уникальных mount targets')
         data_mount = by_target[target]
         require(data_mount['type'] == 'bind' and data_mount['source'] == source and
@@ -204,6 +220,8 @@ def check_config(config, inventory):
             '/run/homecloud/dev': '/dev',
             '/run/homecloud/volume-marker': str(Path(source).parent / ('.homecloud-' + name)),
         }
+        if name == 'backend':
+            expected['/run/homecloud/maintenance'] = config_dir + '/maintenance'
         require(set(by_target) == set(expected) | {target} | set(extra), 'Неверный набор gate mounts')
         for gate_target in expected:
             mount = by_target[gate_target]
@@ -212,6 +230,8 @@ def check_config(config, inventory):
                     mount.get('read_only') is True and
                     mount.get('bind', {}).get('create_host_path') is False,
                     'Gate mount обязан быть exact readonly без создания source')
+        if name == 'backend':
+            check_maintenance_directory(config_dir + '/maintenance')
         for extra_target, (source, read_only, mode) in extra.items():
             mount = by_target[extra_target]
             require(mount['type'] == 'bind' and mount['source'] == source and

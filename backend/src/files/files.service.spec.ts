@@ -1,4 +1,5 @@
 import { FilesService } from "./files.service";
+import * as fs from "node:fs";
 import { FileEntity } from "../entities/file.entity";
 import { FolderEntity } from "../entities/folder.entity";
 import { UserEntity } from "../entities/user.entity";
@@ -16,6 +17,8 @@ describe("FilesService - Authorization Boundary", () => {
   let mockFolderRepository: any;
   let mockStorageService: any;
   let mockUsersService: any;
+  let mockCopyAdmission: any;
+  let copyLease: { cleanup: jest.Mock; release: jest.Mock };
 
   const createMockQueryRunner = () => ({
     connect: jest.fn(),
@@ -28,8 +31,10 @@ describe("FilesService - Authorization Boundary", () => {
       find: jest.fn(),
       delete: jest.fn(),
       query: jest.fn(async (sql: string, params: unknown[]) => {
-        if (sql.includes("SELECT id FROM folders WHERE")) return [{ id: params[0] }];
-        if (sql.includes("SELECT id FROM users WHERE")) return [{ id: params[0] }];
+        if (sql.includes("SELECT id FROM folders WHERE"))
+          return [{ id: params[0] }];
+        if (sql.includes("SELECT id FROM users WHERE"))
+          return [{ id: params[0] }];
         return [];
       }),
       save: jest.fn(),
@@ -77,20 +82,41 @@ describe("FilesService - Authorization Boundary", () => {
     };
     mockStorageService = {
       resolveFilePath: jest.fn((file) => file.storagePath),
-      placementForPath: jest.fn((storagePath: string) => ({ storagePath, storageLocationId: "f2f5c4b0-8d57-4c49-9f8c-0d095b344601", relativeObjectKey: storagePath.replace(/^\/storage\//, "") })),
+      placementForPath: jest.fn((storagePath: string) => ({
+        storagePath,
+        storageLocationId: "f2f5c4b0-8d57-4c49-9f8c-0d095b344601",
+        relativeObjectKey: storagePath.replace(/^\/storage\//, ""),
+      })),
       generateSafeFilename: jest.fn((name) => name),
       generatePath: jest.fn(
         (userId, filename) => `/storage/${userId}/${filename}`,
       ),
       fileExists: jest.fn(() => true),
       copyFile: jest.fn(),
+      openReadOnlyFileSecure: jest.fn(() => fs.openSync("/dev/null", "r")),
+      copyOpenedFileSecure: jest.fn(),
       deleteFile: jest.fn(),
+      confirmCopyDestinationAbsent: jest.fn(),
       getStoragePath: jest.fn(() => "/storage"),
     };
+    copyLease = { cleanup: jest.fn(), release: jest.fn() };
+    mockStorageService.copyOpenedFileSecure.mockResolvedValue(copyLease);
     mockUsersService = {
       findById: jest.fn(),
       updateStorageUsed: jest.fn(),
       decrementStorageUsed: jest.fn(),
+    };
+
+    mockCopyAdmission = {
+      reserve: jest.fn().mockResolvedValue(
+        "00000000-0000-4000-8000-000000000001",
+      ),
+      markCommitted: jest.fn(),
+      releaseAfterOwnedCleanup: jest.fn(
+        async (_id: string, _userId: number, cleanup: () => void) => {
+          cleanup();
+        },
+      ),
     };
 
     service = new FilesService(
@@ -98,6 +124,7 @@ describe("FilesService - Authorization Boundary", () => {
       mockFolderRepository,
       mockStorageService,
       mockUsersService,
+      mockCopyAdmission,
     );
   });
 
@@ -105,10 +132,55 @@ describe("FilesService - Authorization Boundary", () => {
     jest.clearAllMocks();
   });
 
+  const prepareSecureCopyMocks = () => {
+    const qr = mockFileRepository.manager.connection.createQueryRunner();
+    let authorizedSource: any;
+
+    mockFileRepository.manager.transaction = jest.fn(async (callback: any) =>
+      callback({
+        query: qr.manager.query,
+        findOne: async (entity: any, options: any) => {
+          if (entity === FileEntity) {
+            if (options?.where?.folderId !== undefined) {
+              return {
+                id: 99,
+                folderId: options.where.folderId,
+                userId: options.where.userId,
+                isFolder: true,
+                isDeleted: false,
+                parentId: null,
+              };
+            }
+            authorizedSource = await mockFileRepository.findOne(options);
+            return authorizedSource;
+          }
+          if (entity === FolderEntity) {
+            return mockFolderRepository.findOne(options);
+          }
+          return null;
+        },
+      }),
+    );
+
+    qr.manager.findOne.mockImplementation((entity: any, options: any) => {
+      if (entity === FileEntity) return Promise.resolve(authorizedSource);
+      if (entity === FolderEntity) {
+        return mockFolderRepository.findOne(options);
+      }
+      return Promise.resolve(null);
+    });
+  };
+
   describe("display names are independent of storage filenames", () => {
     it("rejects a null display name accepted by optional DTO validation", async () => {
-      mockFileRepository.findOne.mockResolvedValue({ id: 1, userId: 1, isFolder: false });
-      await expect(service.updateFile(1, 1, { name: null as unknown as string })).rejects.toThrow(BadRequestException);
+      mockFileRepository.findOne.mockResolvedValue({
+        id: 1,
+        userId: 1,
+        isFolder: false,
+      });
+      await expect(
+        service.updateFile(1, 1, { name: null as unknown as string }),
+      ).rejects.toThrow(BadRequestException);
       expect(mockFileRepository.save).not.toHaveBeenCalled();
     });
     beforeEach(() => {
@@ -138,7 +210,8 @@ describe("FilesService - Authorization Boundary", () => {
           isFolder: false,
         };
         mockFileRepository.findOne.mockResolvedValue(file);
-        const runner = mockFileRepository.manager.connection.createQueryRunner();
+        const runner =
+          mockFileRepository.manager.connection.createQueryRunner();
         runner.manager.findOne.mockResolvedValue(file);
         runner.manager.save.mockImplementation(async (value: any) => value);
         const result = await service.updateFile(1, 1, { name });
@@ -162,12 +235,15 @@ describe("FilesService - Authorization Boundary", () => {
         /^\/storage\/1\/_+_[a-f0-9]{16}\.png$/,
       );
       mockFileRepository.findOne.mockResolvedValue({ ...created, id: 1 });
+      prepareSecureCopyMocks();
       const copied = await service.copyFile(1, 1);
       expect(copied.name).toBe("проверено.png");
       expect(copied.storagePath).not.toBe(created.storagePath);
-      expect(mockStorageService.copyFile).toHaveBeenCalledWith(
-        created.storagePath,
+      expect(mockStorageService.copyOpenedFileSecure).toHaveBeenCalledWith(
+        expect.any(Number),
+        10,
         copied.storagePath,
+        undefined,
       );
     });
 
@@ -361,7 +437,8 @@ describe("FilesService - Authorization Boundary", () => {
           find: jest.fn(),
           delete: jest.fn(),
           query: jest.fn(async (sql: string, params: unknown[]) => {
-            if (sql.includes("SELECT id FROM folders WHERE")) return [{ id: params[0] }];
+            if (sql.includes("SELECT id FROM folders WHERE"))
+              return [{ id: params[0] }];
             return [];
           }),
           save: jest.fn(),
@@ -641,10 +718,13 @@ describe("FilesService - Authorization Boundary", () => {
       const runner = mockFileRepository.manager.connection.createQueryRunner();
       runner.manager.findOne.mockResolvedValue(file);
       runner.manager.save.mockImplementation(async (value: any) => value);
-      runner.manager.query.mockImplementation(async (sql: string, params: unknown[]) => {
-        if (sql.includes("SELECT id FROM users WHERE")) return [{ id: params[0] }];
-        return [];
-      });
+      runner.manager.query.mockImplementation(
+        async (sql: string, params: unknown[]) => {
+          if (sql.includes("SELECT id FROM users WHERE"))
+            return [{ id: params[0] }];
+          return [];
+        },
+      );
 
       await service.restoreFile(3, 9);
 
@@ -804,6 +884,7 @@ describe("FilesService - Authorization Boundary", () => {
     };
 
     beforeEach(() => {
+      prepareSecureCopyMocks();
       const qr = mockFileRepository.manager.connection.createQueryRunner();
       mockFileRepository.findOne.mockResolvedValue(source);
       mockUsersService.findById.mockResolvedValue({
@@ -818,12 +899,37 @@ describe("FilesService - Authorization Boundary", () => {
       });
     });
 
+    it("reserves quota before physical I/O and publishes atomically", async () => {
+      const qr = mockFileRepository.manager.connection.createQueryRunner();
+
+      await service.copyFile(1, 1);
+
+      expect(mockCopyAdmission.reserve).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 1,
+          sourceFileId: 1,
+          bytes: 100,
+        }),
+      );
+      expect(
+        mockCopyAdmission.reserve.mock.invocationCallOrder[0],
+      ).toBeLessThan(
+        mockStorageService.copyOpenedFileSecure.mock.invocationCallOrder[0],
+      );
+      expect(mockCopyAdmission.markCommitted).toHaveBeenCalledWith(
+        qr.manager,
+        "00000000-0000-4000-8000-000000000001",
+        1,
+        2,
+      );
+    });
+
     it("awaits physical copy before creating metadata", async () => {
       let allowCopy!: () => void;
-      const pendingCopy = new Promise<void>((resolve) => {
-        allowCopy = resolve;
+      const pendingCopy = new Promise<unknown>((resolve) => {
+        allowCopy = () => resolve(copyLease);
       });
-      mockStorageService.copyFile.mockReturnValueOnce(pendingCopy);
+      mockStorageService.copyOpenedFileSecure.mockReturnValueOnce(pendingCopy);
 
       const operation = service.copyFile(1, 1);
       await Promise.resolve();
@@ -839,7 +945,7 @@ describe("FilesService - Authorization Boundary", () => {
 
     it("does not create metadata or charge quota when physical copy fails", async () => {
       const missing = Object.assign(new Error("missing"), { code: "ENOENT" });
-      mockStorageService.copyFile.mockRejectedValueOnce(missing);
+      mockStorageService.copyOpenedFileSecure.mockRejectedValueOnce(missing);
 
       await expect(service.copyFile(1, 1)).rejects.toBe(missing);
 
@@ -847,7 +953,7 @@ describe("FilesService - Authorization Boundary", () => {
       expect(qr.manager.create).not.toHaveBeenCalled();
       expect(qr.manager.save).not.toHaveBeenCalled();
       expect(mockUsersService.updateStorageUsed).not.toHaveBeenCalled();
-      expect(mockStorageService.deleteFile).not.toHaveBeenCalled();
+      expect(copyLease.cleanup).not.toHaveBeenCalled();
     });
 
     it("returns and persists exact normalized metadata on success", async () => {
@@ -858,9 +964,11 @@ describe("FilesService - Authorization Boundary", () => {
 
       const result = await service.copyFile(1, 1);
 
-      expect(mockStorageService.copyFile).toHaveBeenCalledWith(
-        source.storagePath,
+      expect(mockStorageService.copyOpenedFileSecure).toHaveBeenCalledWith(
+        expect.any(Number),
+        100,
         "/storage/1/test.txt",
+        undefined,
       );
       const qr = mockFileRepository.manager.connection.createQueryRunner();
       expect(qr.manager.create).toHaveBeenCalledWith(
@@ -891,7 +999,7 @@ describe("FilesService - Authorization Boundary", () => {
 
     it("does not remove a colliding destination or create side effects", async () => {
       const collision = Object.assign(new Error("exists"), { code: "EEXIST" });
-      mockStorageService.copyFile.mockRejectedValueOnce(collision);
+      mockStorageService.copyOpenedFileSecure.mockRejectedValueOnce(collision);
 
       await expect(service.copyFile(1, 1)).rejects.toBe(collision);
 
@@ -899,7 +1007,7 @@ describe("FilesService - Authorization Boundary", () => {
       expect(qr.manager.create).not.toHaveBeenCalled();
       expect(qr.manager.save).not.toHaveBeenCalled();
       expect(mockUsersService.updateStorageUsed).not.toHaveBeenCalled();
-      expect(mockStorageService.deleteFile).not.toHaveBeenCalled();
+      expect(copyLease.cleanup).not.toHaveBeenCalled();
     });
 
     it("cleans up only the new destination when metadata persistence fails", async () => {
@@ -908,10 +1016,8 @@ describe("FilesService - Authorization Boundary", () => {
 
       await expect(service.copyFile(1, 1)).rejects.toThrow("save failed");
 
-      expect(mockStorageService.deleteFile).toHaveBeenCalledWith(
-        "/storage/1/test.txt",
-      );
-      expect(mockStorageService.deleteFile).not.toHaveBeenCalledWith(
+      expect(copyLease.cleanup).toHaveBeenCalledTimes(1);
+      expect(mockStorageService.openReadOnlyFileSecure).toHaveBeenCalledWith(
         source.storagePath,
       );
       expect(mockUsersService.updateStorageUsed).toHaveBeenCalledWith(
@@ -925,14 +1031,12 @@ describe("FilesService - Authorization Boundary", () => {
     it("cleans up the destination without masking a quota error", async () => {
       const quotaError = new ForbiddenException("Storage quota exceeded");
       mockUsersService.updateStorageUsed.mockRejectedValueOnce(quotaError);
-      mockStorageService.deleteFile.mockRejectedValueOnce(
-        new Error("cleanup failed"),
-      );
+      copyLease.cleanup.mockImplementationOnce(() => {
+        throw new Error("cleanup failed");
+      });
 
       await expect(service.copyFile(1, 1)).rejects.toBe(quotaError);
-      expect(mockStorageService.deleteFile).toHaveBeenCalledWith(
-        "/storage/1/test.txt",
-      );
+      expect(copyLease.cleanup).toHaveBeenCalledTimes(1);
       expect((service as any).logger.error).toBeDefined();
     });
 
@@ -965,9 +1069,7 @@ describe("FilesService - Authorization Boundary", () => {
 
       expect(qr.rollbackTransaction).toHaveBeenCalledTimes(1);
       expect(qr.commitTransaction).not.toHaveBeenCalled();
-      expect(mockStorageService.deleteFile).toHaveBeenCalledWith(
-        "/storage/1/test.txt",
-      );
+      expect(copyLease.cleanup).toHaveBeenCalledTimes(1);
     });
 
     it("keeps destination when an ambiguous commit is proven present", async () => {
@@ -978,32 +1080,36 @@ describe("FilesService - Authorization Boundary", () => {
         .mockResolvedValueOnce(source)
         .mockResolvedValueOnce({ id: 2, storagePath: "/storage/1/test.txt" });
 
+      mockCopyAdmission.releaseAfterOwnedCleanup
+        .mockRejectedValueOnce(
+          new Error("Copy journal does not authorize cleanup"),
+        );
+
       await expect(service.copyFile(1, 1)).rejects.toBe(commitError);
 
-      expect(mockFileRepository.findOne).toHaveBeenLastCalledWith({
-        where: {
-          id: 2,
-          userId: 1,
-          storageLocationId: "f2f5c4b0-8d57-4c49-9f8c-0d095b344601",
-          relativeObjectKey: "1/test.txt",
-        },
-      });
-      expect(mockStorageService.deleteFile).not.toHaveBeenCalled();
+      expect(copyLease.cleanup).not.toHaveBeenCalled();
+      expect(mockCopyAdmission.releaseAfterOwnedCleanup)
+        .toHaveBeenCalledTimes(1);
       expect(qr.rollbackTransaction).not.toHaveBeenCalled();
     });
 
-    it("removes destination when an ambiguous commit is proven absent", async () => {
+    it("preserves destination after ambiguous COMMIT even if metadata lookup is absent", async () => {
       const qr = mockFileRepository.manager.connection.createQueryRunner();
       qr.commitTransaction.mockRejectedValueOnce(new Error("commit failed"));
       mockFileRepository.findOne
         .mockResolvedValueOnce(source)
         .mockResolvedValueOnce(null);
 
+      mockCopyAdmission.releaseAfterOwnedCleanup
+        .mockRejectedValueOnce(
+          new Error("Copy journal does not authorize cleanup"),
+        );
+
       await expect(service.copyFile(1, 1)).rejects.toThrow("commit failed");
 
-      expect(mockStorageService.deleteFile).toHaveBeenCalledWith(
-        "/storage/1/test.txt",
-      );
+      expect(copyLease.cleanup).not.toHaveBeenCalled();
+      expect(mockCopyAdmission.releaseAfterOwnedCleanup)
+        .toHaveBeenCalledTimes(1);
     });
 
     it("keeps destination when ambiguous commit reconciliation is unavailable", async () => {
@@ -1013,9 +1119,16 @@ describe("FilesService - Authorization Boundary", () => {
         .mockResolvedValueOnce(source)
         .mockRejectedValueOnce(new Error("database unavailable"));
 
+      mockCopyAdmission.releaseAfterOwnedCleanup
+        .mockRejectedValueOnce(
+          new Error("Copy journal does not authorize cleanup"),
+        );
+
       await expect(service.copyFile(1, 1)).rejects.toThrow("commit failed");
 
-      expect(mockStorageService.deleteFile).not.toHaveBeenCalled();
+      expect(copyLease.cleanup).not.toHaveBeenCalled();
+      expect(mockCopyAdmission.releaseAfterOwnedCleanup)
+        .toHaveBeenCalledTimes(1);
     });
 
     it("cleans destination when query runner creation fails", async () => {
@@ -1026,10 +1139,8 @@ describe("FilesService - Authorization Boundary", () => {
       );
 
       await expect(service.copyFile(1, 1)).rejects.toThrow("runner failed");
-      expect(mockStorageService.deleteFile).toHaveBeenCalledWith(
-        "/storage/1/test.txt",
-      );
-      expect(mockStorageService.deleteFile).not.toHaveBeenCalledWith(
+      expect(copyLease.cleanup).toHaveBeenCalledTimes(1);
+      expect(mockStorageService.openReadOnlyFileSecure).toHaveBeenCalledWith(
         source.storagePath,
       );
     });
@@ -1041,9 +1152,7 @@ describe("FilesService - Authorization Boundary", () => {
       });
 
       await expect(service.copyFile(1, 1)).rejects.toThrow("entity failed");
-      expect(mockStorageService.deleteFile).toHaveBeenCalledWith(
-        "/storage/1/test.txt",
-      );
+      expect(copyLease.cleanup).toHaveBeenCalledTimes(1);
       expect(qr.release).toHaveBeenCalledTimes(1);
     });
 
@@ -1054,9 +1163,7 @@ describe("FilesService - Authorization Boundary", () => {
       qr.release.mockRejectedValueOnce(new Error("release failed"));
 
       await expect(service.copyFile(1, 1)).rejects.toBe(quotaError);
-      expect(mockStorageService.deleteFile).toHaveBeenCalledWith(
-        "/storage/1/test.txt",
-      );
+      expect(copyLease.cleanup).toHaveBeenCalledTimes(1);
     });
 
     it("does not turn a committed copy into an error when release fails", async () => {
@@ -1067,7 +1174,7 @@ describe("FilesService - Authorization Boundary", () => {
         expect.objectContaining({ id: 2, size: 100 }),
       );
       expect(qr.commitTransaction).toHaveBeenCalledTimes(1);
-      expect(mockStorageService.deleteFile).not.toHaveBeenCalled();
+      expect(copyLease.cleanup).not.toHaveBeenCalled();
     });
 
     it.each([NaN, -1, 1.5, Number.MAX_SAFE_INTEGER + 1])(
@@ -1078,7 +1185,7 @@ describe("FilesService - Authorization Boundary", () => {
         await expect(service.copyFile(1, 1)).rejects.toThrow(
           BadRequestException,
         );
-        expect(mockStorageService.copyFile).not.toHaveBeenCalled();
+        expect(mockStorageService.copyOpenedFileSecure).not.toHaveBeenCalled();
       },
     );
 
@@ -1095,8 +1202,143 @@ describe("FilesService - Authorization Boundary", () => {
         ForbiddenException,
       );
       expect(mockFolderRepository.findOne).toHaveBeenCalledWith({
-        where: { id: 2, userId: 1 },
+        where: { id: 2, userId: 1, isDeleted: false },
       });
+    });
+
+    it("rejects cancellation before authorization", async () => {
+      const cancellation = new AbortController();
+      cancellation.abort();
+
+      await expect(
+        service.copyFile(1, 1, undefined, cancellation.signal),
+      ).rejects.toThrow("File copy cancelled");
+
+      expect(mockUsersService.findById).not.toHaveBeenCalled();
+      expect(mockStorageService.openReadOnlyFileSecure).not.toHaveBeenCalled();
+    });
+
+    it("cleans its lease when cancelled immediately after I/O", async () => {
+      const cancellation = new AbortController();
+
+      mockStorageService.copyOpenedFileSecure.mockImplementationOnce(
+        async () => {
+          cancellation.abort();
+          return copyLease;
+        },
+      );
+
+      await expect(
+        service.copyFile(1, 1, undefined, cancellation.signal),
+      ).rejects.toThrow("File copy cancelled");
+
+      expect(mockStorageService.copyOpenedFileSecure).toHaveBeenCalledWith(
+        expect.any(Number),
+        100,
+        "/storage/1/test.txt",
+        cancellation.signal,
+      );
+      expect(copyLease.cleanup).toHaveBeenCalledTimes(1);
+      expect(copyLease.release).toHaveBeenCalledTimes(1);
+    });
+
+    it("rolls back cancellation after metadata save", async () => {
+      const cancellation = new AbortController();
+      const runner = mockFileRepository.manager.connection.createQueryRunner();
+
+      runner.manager.save.mockImplementationOnce(async (value: any) => {
+        value.id = 2;
+        cancellation.abort();
+        return value;
+      });
+
+      await expect(
+        service.copyFile(1, 1, undefined, cancellation.signal),
+      ).rejects.toThrow("File copy cancelled");
+
+      expect(runner.rollbackTransaction).toHaveBeenCalledTimes(1);
+      expect(runner.commitTransaction).not.toHaveBeenCalled();
+      expect(copyLease.cleanup).toHaveBeenCalledTimes(1);
+    });
+
+    it("never deletes a committed copy after cancellation", async () => {
+      const cancellation = new AbortController();
+      const runner = mockFileRepository.manager.connection.createQueryRunner();
+
+      runner.commitTransaction.mockImplementationOnce(async () => {
+        cancellation.abort();
+      });
+
+      await expect(
+        service.copyFile(1, 1, undefined, cancellation.signal),
+      ).resolves.toEqual(expect.objectContaining({ id: 2 }));
+
+      expect(runner.commitTransaction).toHaveBeenCalledTimes(1);
+      expect(runner.rollbackTransaction).not.toHaveBeenCalled();
+      expect(copyLease.cleanup).not.toHaveBeenCalled();
+      expect(copyLease.release).toHaveBeenCalledTimes(1);
+    });
+
+    it("rejects deleted source before acquiring a descriptor", async () => {
+      mockFileRepository.findOne.mockResolvedValueOnce({
+        ...source,
+        isDeleted: true,
+      });
+
+      await expect(service.copyFile(1, 1)).rejects.toThrow(NotFoundException);
+
+      expect(mockStorageService.openReadOnlyFileSecure).not.toHaveBeenCalled();
+      expect(mockStorageService.copyOpenedFileSecure).not.toHaveBeenCalled();
+    });
+
+    it("rejects deleted source after I/O and cleans only its lease", async () => {
+      const qr = mockFileRepository.manager.connection.createQueryRunner();
+      qr.manager.findOne.mockResolvedValueOnce(null);
+
+      await expect(service.copyFile(1, 1)).rejects.toThrow(NotFoundException);
+
+      expect(copyLease.cleanup).toHaveBeenCalledTimes(1);
+      expect(copyLease.release).toHaveBeenCalledTimes(1);
+      expect(qr.commitTransaction).not.toHaveBeenCalled();
+    });
+
+    it("rejects inactive owner at commit admission", async () => {
+      const qr = mockFileRepository.manager.connection.createQueryRunner();
+      qr.manager.query.mockImplementation(
+        async (sql: string, params: any[]) => {
+          if (sql.includes("FOR UPDATE") && sql.includes("isActive")) return [];
+          if (sql.includes("SELECT id FROM users WHERE")) {
+            return [{ id: params[0] }];
+          }
+          return [];
+        },
+      );
+
+      await expect(service.copyFile(1, 1)).rejects.toThrow(NotFoundException);
+
+      expect(copyLease.cleanup).toHaveBeenCalledTimes(1);
+      expect(qr.commitTransaction).not.toHaveBeenCalled();
+    });
+
+    it("rejects deleted destination folder before physical copying", async () => {
+      mockFolderRepository.findOne.mockResolvedValueOnce(null);
+
+      await expect(service.copyFile(1, 1, 2)).rejects.toThrow(
+        ForbiddenException,
+      );
+
+      expect(mockStorageService.copyOpenedFileSecure).not.toHaveBeenCalled();
+    });
+
+    it("rejects a source inside a hidden ancestor", async () => {
+      mockFileRepository.findOne.mockResolvedValueOnce({
+        ...source,
+        parentId: 42,
+      });
+
+      await expect(service.copyFile(1, 1)).rejects.toThrow(NotFoundException);
+
+      expect(mockStorageService.copyOpenedFileSecure).not.toHaveBeenCalled();
     });
   });
 });

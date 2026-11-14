@@ -19,6 +19,7 @@ import { FilesService } from "./files.service";
 import { StorageService } from "../storage/storage.service";
 import { JwtGuard } from "../auth/guards/jwt.guard";
 import { CreateDownloadCapabilities1746825140000 } from "../migrations/1746825140000-CreateDownloadCapabilities";
+import { assertVisibleAncestors } from "./file-visibility";
 
 const databaseUrl = process.env.HOMECLOUD_TEST_DATABASE_URL;
 const describeDatabase = databaseUrl ? describe : describe.skip;
@@ -47,7 +48,22 @@ describeDatabase(
         `CREATE TABLE users (id INTEGER PRIMARY KEY, "isActive" BOOLEAN NOT NULL)`,
       );
       await db.query(
-        `CREATE TABLE files (id INTEGER PRIMARY KEY, "userId" INTEGER NOT NULL, "isDeleted" BOOLEAN NOT NULL, "isFolder" BOOLEAN NOT NULL)`,
+        `CREATE TABLE files (
+          id INTEGER PRIMARY KEY,
+          "userId" INTEGER NOT NULL,
+          "isDeleted" BOOLEAN NOT NULL,
+          "isFolder" BOOLEAN NOT NULL,
+          "parentId" INTEGER NULL,
+          "folderId" INTEGER NULL
+        )`,
+      );
+      await db.query(
+        `CREATE TABLE folders (
+          id INTEGER PRIMARY KEY,
+          "userId" INTEGER NOT NULL,
+          "parentId" INTEGER NULL,
+          "isDeleted" BOOLEAN NOT NULL
+        )`,
       );
       const runner = db.createQueryRunner();
       await new CreateDownloadCapabilities1746825140000().up(runner);
@@ -67,31 +83,60 @@ describeDatabase(
             provide: StorageService,
             useValue: {
               resolveFilePath: (file: any) => new StorageRegistry(root).resolve(file),
-              ensureWithinStorageRoot: (value: string) => {
+              openReadOnlyFileSecure: (value: string) => {
+                // Test-only FD adapter; production requires Linux openat2.
                 const resolved = path.resolve(value);
                 if (!resolved.startsWith(root + path.sep))
                   throw new Error("Outside storage");
-                return resolved;
+                return fs.openSync(
+                  resolved,
+                  fs.constants.O_RDONLY |
+                    fs.constants.O_NOFOLLOW |
+                    fs.constants.O_NONBLOCK,
+                );
               },
             },
           },
           {
             provide: FilesService,
             useValue: {
-              findOne: async (userId: number, id: number) => {
-                const [row] = await db.query(
-                  `SELECT * FROM files WHERE id = $1 AND "userId" = $2`,
+              withVisibleContentFile: async (
+                userId: number,
+                id: number,
+                access: (file: any) => Promise<unknown> | unknown,
+              ) => db.transaction(async (manager) => {
+                const owner = await manager.query(
+                  'SELECT id FROM users WHERE id=$1 AND "isActive"=TRUE FOR SHARE',
+                  [userId],
+                );
+                if (owner.length !== 1)
+                  throw new NotFoundException("File not found");
+
+                const [row] = await manager.query(
+                  `SELECT * FROM files
+                   WHERE id=$1 AND "userId"=$2
+                     AND NOT "isDeleted" AND NOT "isFolder"`,
                   [id, userId],
                 );
-                if (!row) throw new NotFoundException("File not found");
-                return {
+                if (!row)
+                  throw new NotFoundException("File not found");
+
+                await assertVisibleAncestors(
+                  manager,
+                  userId,
+                  row.parentId ?? null,
+                );
+
+                return access({
                   ...row,
                   name: 'proof\r\n".bin',
-                  storagePath: fixture, storageLocationId: LEGACY_STORAGE_ID, relativeObjectKey: "fixture.bin",
+                  storagePath: fixture,
+                  storageLocationId: LEGACY_STORAGE_ID,
+                  relativeObjectKey: "fixture.bin",
                   size: fs.statSync(fixture).size,
                   mimeType: "application/octet-stream",
-                };
-              },
+                });
+              }),
             },
           },
         ],
@@ -121,12 +166,26 @@ describeDatabase(
       }
     });
     beforeEach(async () => {
-      await db.query(`TRUNCATE download_capabilities, files, users CASCADE`);
+      await db.query(`TRUNCATE download_capabilities, files, folders, users CASCADE`);
       await db.query(`INSERT INTO users VALUES (1, TRUE), (2, TRUE)`);
       await db.query(
-        `INSERT INTO files VALUES (7, 1, FALSE, FALSE), (8, 2, FALSE, FALSE)`,
+        `INSERT INTO files (id, "userId", "isDeleted", "isFolder") VALUES (7, 1, FALSE, FALSE), (8, 2, FALSE, FALSE)`,
       );
     });
+    const createNestedFile = async () => {
+      await db.query(
+        `INSERT INTO folders (id, "userId", "parentId", "isDeleted")
+         VALUES (50, 1, NULL, FALSE), (51, 1, 50, FALSE)`,
+      );
+      await db.query(
+        `INSERT INTO files
+         (id, "userId", "isDeleted", "isFolder", "parentId", "folderId")
+         VALUES (100, 1, FALSE, TRUE, NULL, 50),
+                (101, 1, FALSE, TRUE, 50, 51)`,
+      );
+      await db.query(`UPDATE files SET "parentId"=51 WHERE id=7`);
+    };
+
     const prepare = async () => {
       const res = await request(app.getHttpServer())
         .post("/api/v1/native-downloads/7/prepare")
@@ -196,6 +255,89 @@ describeDatabase(
         .set("Authorization", "Bearer owner")
         .expect(404);
     });
+    it("denies capability preparation below a deleted ancestor", async () => {
+      await createNestedFile();
+      await db.query(`UPDATE folders SET "isDeleted"=TRUE WHERE id=50`);
+
+      await request(app.getHttpServer())
+        .post("/api/v1/native-downloads/7/prepare")
+        .set("Authorization", "Bearer owner")
+        .expect(404);
+
+      expect(await db.query(
+        `SELECT * FROM download_capabilities`,
+      )).toHaveLength(0);
+    });
+
+    it("denies native download after ancestor deletion", async () => {
+      await createNestedFile();
+      const cookie = await prepare();
+
+      await db.query(`UPDATE folders SET "isDeleted"=TRUE WHERE id=50`);
+
+      const denied = await request(app.getHttpServer())
+        .get("/api/v1/native-downloads/7")
+        .set("Cookie", cookie)
+        .expect(404);
+
+      expect(denied.headers["content-disposition"]).toBeUndefined();
+    });
+
+    it("denies capability preparation with a missing mirror", async () => {
+      await createNestedFile();
+      await db.query(`DELETE FROM files WHERE id=100`);
+
+      const denied = await request(app.getHttpServer())
+        .post("/api/v1/native-downloads/7/prepare")
+        .set("Authorization", "Bearer owner")
+        .expect(404);
+
+      expect(denied.headers["set-cookie"]).toBeUndefined();
+    });
+
+    it("rejects an existing capability after ancestor deletion", async () => {
+      await createNestedFile();
+      const token = await service.issue(1, 7);
+
+      await expect(service.authorize(token, 7, false))
+        .resolves.toBe(1);
+
+      await db.query(
+        `UPDATE folders SET "isDeleted"=TRUE WHERE id=50`,
+      );
+
+      await expect(service.authorize(token, 7, false))
+        .rejects.toBeInstanceOf(NotFoundException);
+
+      await expect(service.authorize(token, 7, true))
+        .rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it("rejects an existing capability when a mirror disappears", async () => {
+      await createNestedFile();
+      const token = await service.issue(1, 7);
+
+      await db.query(`DELETE FROM files WHERE id=100`);
+
+      await expect(service.authorize(token, 7, true))
+        .rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it("rejects an existing capability with cyclic ancestry", async () => {
+      await createNestedFile();
+      const token = await service.issue(1, 7);
+
+      await db.query(
+        `UPDATE folders SET "parentId"=51 WHERE id=50`,
+      );
+      await db.query(
+        `UPDATE files SET "parentId"=51 WHERE id=100`,
+      );
+
+      await expect(service.authorize(token, 7, true))
+        .rejects.toBeInstanceOf(NotFoundException);
+    });
+
     it("consumes a valid ticket even for an unsatisfiable Range", async () => {
       const cookie = await prepare();
       const deniedRange = await request(app.getHttpServer())
@@ -290,10 +432,10 @@ describeDatabase(
       );
       expect(await service.authorize(fresh, 7, false)).toBe(1);
       for (let id = 20; id < 27; id++) {
-        await db.query(`INSERT INTO files VALUES ($1, 1, FALSE, FALSE)`, [id]);
+        await db.query(`INSERT INTO files (id, "userId", "isDeleted", "isFolder") VALUES ($1, 1, FALSE, FALSE)`, [id]);
         await service.issue(1, id);
       }
-      await db.query(`INSERT INTO files VALUES (30, 1, FALSE, FALSE)`);
+      await db.query(`INSERT INTO files (id, "userId", "isDeleted", "isFolder") VALUES (30, 1, FALSE, FALSE)`);
       await expect(service.issue(1, 30)).rejects.toMatchObject({ status: 429 });
       await db.query(
         `UPDATE download_capabilities SET "expiresAt" = NOW() - INTERVAL '1 second'`,

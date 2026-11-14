@@ -193,6 +193,43 @@ if [ "$FORCE_YES" = "false" ] && [ -t 0 ]; then
 fi
 
 # ---------------------------------------------------------------------------
+# Real write barrier: durable inhibitor + stopped writers + kernel flock.
+# The shell retains descriptor 9 for its entire remaining lifetime.
+# Never substitute an operator-confirmation environment variable.
+# ---------------------------------------------------------------------------
+
+recovery_storage_resolve || {
+  err "Cannot resolve verified backend storage"
+  exit 1
+}
+
+if [ "$RECOVERY_STORAGE_TYPE" != "bind" ]; then
+  err "Backup fence requires qualified legacy bind storage"
+  exit 1
+fi
+
+# Inherit the caller's shared operation lock, before FD 9 can collide with it.
+case "${HOMECLOUD_BACKUP_OPERATION_FD:-}" in
+  ''|*[!0-9]*) err "Inherited backup operation descriptor required"; exit 1 ;;
+esac
+[ "$HOMECLOUD_BACKUP_OPERATION_FD" -ge 3 ] || exit 1
+exec 8<&"$HOMECLOUD_BACKUP_OPERATION_FD" || {
+  err "Cannot inherit backup operation lock"; exit 1
+}
+
+exec 9<"$RECOVERY_STORAGE_SOURCE" || {
+  err "Cannot open verified storage root"
+  exit 1
+}
+
+python3 "$SCRIPT_DIR/recovery_storage.py" backup-fence-acquire || {
+  err "Backup maintenance fence refused"
+  exit 1
+}
+
+log "  Exclusive backup storage fence: acquired"
+
+# ---------------------------------------------------------------------------
 # Cryptographically secure random hex (fail closed if no entropy source)
 # ---------------------------------------------------------------------------
 random_hex() {
@@ -405,14 +442,15 @@ DB_SIZE_BYTES=$(docker compose exec -T db psql -U "$DB_USER" -d "$DB_NAME" -tAc 
 [ "$DB_SIZE_BYTES" -gt 0 ] 2>/dev/null || DB_SIZE_BYTES=0
 log "  Database size estimate: ${DB_SIZE_BYTES} bytes"
 
-# Pin the actual existing backend mount; never derive or create a volume name.
-recovery_storage_resolve || { err "Cannot resolve verified backend storage"; exit 1; }
+# The verified snapshot and exclusive root fence were acquired
+# before any staging or archive creation.
+recovery_storage_check || { err "Storage identity changed"; exit 1; }
 log "  Storage: $RECOVERY_STORAGE_TYPE at $RECOVERY_STORAGE_TARGET"
 recovery_storage_assert_clean || { err "Retained restore artifacts; backup refused"; exit 1; }
 # Pending SSD bytes are outside this archive's recovery contract.
 docker compose exec -T db psql -X -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" \
   < "$SCRIPT_DIR/recovery-pending.sql" >/dev/null \
-  || { err "Pending SSD state or unavailable recovery guard; backup refused"; exit 1; }
+  || { err "Pending SSD/copy state or unavailable recovery guard; backup refused"; exit 1; }
 STORAGE_SIZE_BYTES=$(recovery_storage_run ro -- "$BACKEND_IMAGE" du -sb "$RECOVERY_STORAGE_TARGET" | awk '{print $1}') \
   || { err "Cannot estimate verified storage size"; exit 1; }
 [[ "$STORAGE_SIZE_BYTES" =~ ^[0-9]+$ ]] || { err "Invalid storage size estimate"; exit 1; }
@@ -514,7 +552,7 @@ fi
 echo "[2/6] Archiving storage files to staging..."
 
 if ! recovery_storage_run ro -- "$BACKEND_IMAGE" \
-    tar -czf - --exclude='.tmp' --exclude='*.tmp' -C "$RECOVERY_STORAGE_TARGET" . > "$STAGING_STOR"; then
+    tar -czf - --exclude='./.tmp' --exclude='./.homecloud-storage-identity' -C "$RECOVERY_STORAGE_TARGET" . > "$STAGING_STOR"; then
   err "Verified read-only storage archive creation failed"
   log_json "backup_failed" ',"error":"storage_tar_failed","exit_code":1'
   printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "storage_tar_failed" > "$LAST_FAILURE_FILE"
@@ -612,12 +650,16 @@ if [ "$ARCHIVE_FC" != "$STORAGE_FILE_COUNT" ]; then
 fi
 
 # Fail closed if unsupported state appeared while taking the sequential backup.
-# A maintenance write barrier remains required; these checks are not a snapshot.
+# The exclusive root fence and durable maintenance inhibitor remain active.
+python3 "$SCRIPT_DIR/recovery_storage.py" backup-fence-check || {
+  err "Backup maintenance fence lost; publication refused"
+  exit 1
+}
 recovery_storage_check || { err "Storage identity changed before publication"; exit 1; }
 recovery_storage_assert_clean || { err "Retained restore artifacts; publication refused"; exit 1; }
 docker compose exec -T db psql -X -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" \
   < "$SCRIPT_DIR/recovery-pending.sql" >/dev/null \
-  || { err "Pending SSD state or unavailable recovery guard; publication refused"; exit 1; }
+  || { err "Pending SSD/copy state or unavailable recovery guard; publication refused"; exit 1; }
 log "  All staging artifacts verified: OK"
 
 # ---------------------------------------------------------------------------
@@ -659,7 +701,7 @@ meta = {
     "app_version": app_version,
     "migration_count": int(migration_count) if migration_count.isdigit() else 0,
     "postgresql_version": pg_version,
-    "recovery_scope": "legacy-storage-only; pending SSD uploads/finalization unsupported",
+    "recovery_scope": "legacy-storage-only; pending SSD uploads/finalization and file copies unsupported",
 }
 
 try:

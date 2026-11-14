@@ -12,6 +12,7 @@ import { ShareLinkEntity } from "../entities/share-link.entity";
 import { UploadSessionEntity } from "../entities/upload-session.entity";
 import { UploadChunkEntity } from "../entities/upload-chunk.entity";
 import { FilesService } from "./files.service";
+import { FileCopyAdmissionService } from "./file-copy-admission.service";
 import { SharingService } from "../sharing/sharing.service";
 import { PreviewsService } from "../previews/previews.service";
 import { UsersService } from "../users/users.service";
@@ -72,6 +73,7 @@ describeDatabase(
         database.getRepository(FolderEntity),
         storage as unknown as StorageService,
         users,
+        new FileCopyAdmissionService(database),
       );
       shares = new SharingService(
         database.getRepository(ShareLinkEntity),

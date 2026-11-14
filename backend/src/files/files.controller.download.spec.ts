@@ -21,16 +21,34 @@ describe("FilesController authenticated original download", () => {
   let fixturePath: string;
 
   const findOne = jest.fn();
+  const withVisibleContentFile = jest.fn(async (
+    userId: number,
+    id: number,
+    access: (file: any) => unknown,
+  ) => {
+    const file = await findOne(userId, id);
+    if (!file || file.isDeleted || file.isFolder || !file.storagePath) {
+      throw new NotFoundException("File not found");
+    }
+    return access(file);
+  });
+
   const storage = {
     resolveFilePath: (file: any) => new StorageRegistry(storageRoot).resolve(file),
-    ensureWithinStorageRoot(target: string) {
+    openReadOnlyFileSecure: jest.fn((target: string) => {
+      // A test-only FD adapter. Production uses Linux openat2.
       const resolved = path.resolve(target);
       const root = path.resolve(storageRoot);
-      if (resolved !== root && !resolved.startsWith(root + path.sep)) {
-        throw new Error("Path traversal detected");
+      if (!resolved.startsWith(root + path.sep)) {
+        throw new Error("Outside approved storage root");
       }
-      return resolved;
-    },
+      return fs.openSync(
+        resolved,
+        fs.constants.O_RDONLY |
+          fs.constants.O_NOFOLLOW |
+          fs.constants.O_NONBLOCK,
+      );
+    }),
   };
 
   beforeAll(async () => {
@@ -43,7 +61,7 @@ describe("FilesController authenticated original download", () => {
     const moduleRef = await Test.createTestingModule({
       controllers: [FilesController],
       providers: [
-        { provide: FilesService, useValue: { findOne } },
+        { provide: FilesService, useValue: { findOne, withVisibleContentFile } },
         { provide: StorageService, useValue: storage },
       ],
     })
@@ -71,6 +89,8 @@ describe("FilesController authenticated original download", () => {
 
   beforeEach(() => {
     findOne.mockReset();
+    withVisibleContentFile.mockClear();
+    storage.openReadOnlyFileSecure.mockClear();
     findOne.mockImplementation(async (userId: number, id: number) => {
       if (userId !== 42 || id !== 7)
         throw new NotFoundException("File not found");
@@ -117,13 +137,36 @@ describe("FilesController authenticated original download", () => {
     expect((await get().expect(404)).status).toBe(404);
 
     findOne.mockResolvedValueOnce({ id: 7, isFolder: true });
-    expect((await get().expect(400)).status).toBe(400);
+    expect((await get().expect(404)).status).toBe(404);
+  });
+
+  it("denies an invisible ancestor before opening storage", async () => {
+    withVisibleContentFile.mockImplementationOnce(async () => {
+      throw new NotFoundException("File not found");
+    });
+
+    await get().expect(404);
+
+    expect(storage.openReadOnlyFileSecure).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when secure opening is unavailable", async () => {
+    storage.openReadOnlyFileSecure.mockImplementationOnce(() => {
+      throw new Error("Secure opening unavailable");
+    });
+
+    await get().expect(404);
+    expect(storage.openReadOnlyFileSecure).toHaveBeenCalledTimes(1);
   });
 
   it("streams the complete original with exact safe headers", async () => {
     const result = await get().expect(200);
 
     expect(result.body).toEqual(Buffer.from("0123456789ABCDEF"));
+    expect(withVisibleContentFile).toHaveBeenCalledWith(
+      42, 7, expect.any(Function),
+    );
+    expect(storage.openReadOnlyFileSecure).toHaveBeenCalledWith(fixturePath);
     expect(result.headers["content-length"]).toBe("16");
     expect(result.headers["accept-ranges"]).toBe("bytes");
     expect(result.headers["content-type"]).toContain(

@@ -31,6 +31,10 @@ LOCKED_FILES = ('docker-compose.yml', 'docker-compose.production.yml',
                 'docker-compose.project-test.yml', 'docker-compose.project-test-updates.yml',
                 'deploy/linux/project-test.sh', 'deploy/linux/test-compose-profile.py', 'deploy/linux/test-job.py',
                 'deploy/linux/preflight.py', 'deploy/linux/test-channel.py',
+                'deploy/linux/maintenance-inhibit.py',
+                'deploy/linux/maintenance-window.py',
+                'deploy/linux/storage-writer-fence.py',
+                'deploy/linux/recover-copy.py',
                 'scripts/ci/test-channel.py', 'scripts/backup.sh',
                 'scripts/recovery_config.py', 'scripts/recovery_storage.py',
                 'scripts/recovery-config.sh', 'scripts/recovery-storage.sh',
@@ -68,6 +72,14 @@ profile_spec = importlib.util.spec_from_file_location('test_compose_profile_inst
 profile = importlib.util.module_from_spec(profile_spec)
 profile_spec.loader.exec_module(profile)
 
+maintenance_spec = importlib.util.spec_from_file_location(
+    'maintenance_inhibit_installer',
+    ROOT / 'deploy/linux/maintenance-inhibit.py',
+)
+maintenance = importlib.util.module_from_spec(maintenance_spec)
+maintenance_spec.loader.exec_module(maintenance)
+
+
 
 class Stop(Exception):
     pass
@@ -78,12 +90,12 @@ def require(ok, reason):
         raise Stop(reason)
 
 
-def run(*args, env=None, timeout=300, capture=True):
+def run(*args, env=None, timeout=300, capture=True, pass_fds=()):
     if args[0] == 'git':
         args = ('git', '-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false',
                 '-c', 'protocol.file.allow=never', '-c', 'protocol.ext.allow=never', *args[1:])
     result = subprocess.run(args, cwd=ROOT, env=env if env is not None else boundary.clean_environment(), stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
-                            stderr=subprocess.PIPE, text=True, timeout=timeout)
+                            stderr=subprocess.PIPE, text=True, timeout=timeout, pass_fds=pass_fds)
     require(result.returncode == 0, 'failed operation: ' + Path(args[0]).name)
     return result.stdout.strip() if capture else ''
 
@@ -160,6 +172,64 @@ def guard_no_pending():
     path = CHANNEL / 'pending.json'
     require(not path.is_symlink() and not path.exists(),
             'incomplete TEST transaction; use read-only recovery-inspect and operator reconciliation')
+
+
+def guard_no_maintenance():
+    """Called while install.lock is held; inspection only."""
+    state_root = RUNTIME / 'maintenance'
+
+    try:
+        boundary.trusted_path(state_root, directory=True)
+
+        info = state_root.lstat()
+
+        require(
+            info.st_uid == 0 and info.st_gid == 0
+            and stat.S_ISDIR(info.st_mode)
+            and stat.S_IMODE(info.st_mode) == 0o711,
+            'unsafe maintenance state directory',
+        )
+
+        maintenance.assert_operation_allowed(str(state_root))
+    except Exception as error:
+        raise Stop(
+            'maintenance admission refused; '
+            'operator reconciliation required'
+        ) from error
+
+
+def start_services():
+    """Serialize ordinary TEST startup with install and recovery."""
+    require(
+        os.geteuid() == 0
+        and str(ROOT) == '/home/hs/homecloud-test',
+        'wrong host/project/privilege',
+    )
+
+    private_dir(RUNTIME)
+    private_dir(CHANNEL)
+
+    fd = acquire_lock(CHANNEL / 'install.lock')
+
+    try:
+        guard_no_pending()
+        guard_no_maintenance()
+
+        run(
+            str(ROOT / 'deploy/linux/project-test.sh'),
+            'preflight',
+        )
+
+        # Recheck after preflight and before Compose mutation.
+        guard_no_maintenance()
+
+        compose(
+            'up', '-d', '--no-build', '--pull', 'never',
+            '--wait', 'db', 'backend', 'frontend', 'ingress',
+            timeout=900,
+        )
+    finally:
+        os.close(fd)
 
 
 def record_phase(transaction, phase):
@@ -650,7 +720,7 @@ def ensure_recovery_pins(state):
         sync_recovery_pins(state['history'][-1], active)
 
 
-def backup(active):
+def backup_environment(active):
     values = backup_configuration()
     current = env_values()
     environment = {'HOME': '/root', 'PATH': '/usr/sbin:/usr/bin:/sbin:/bin',
@@ -671,7 +741,15 @@ def backup(active):
                 re.fullmatch(r'(?:[1-9][0-9]{0,18})?', admin_id) is not None,
                 'invalid TEST update admin ID')
         environment['UPDATE_ADMIN_USER_ID'] = admin_id
-    output = run('bash', str(ROOT / 'scripts/backup.sh'), '--yes', env=environment, timeout=3600)
+    return environment
+
+
+def backup(active, install_fd, marker_identity):
+    environment = backup_environment(active)
+    environment['HOMECLOUD_BACKUP_OPERATION_FD'] = str(install_fd)
+    environment['HOMECLOUD_BACKUP_MARKER_IDENTITY'] = json.dumps(marker_identity)
+    output = run('bash', str(ROOT / 'scripts/backup.sh'), '--yes', env=environment,
+                 timeout=3600, pass_fds=(install_fd,))
     completed = []
     for line in output.splitlines():
         if line.startswith('{'):
@@ -682,6 +760,56 @@ def backup(active):
             'verified backup completion missing')
     verify_backup(completed[0], active)
     return completed[0]
+
+
+
+
+def begin_backup_maintenance():
+    """Caller owns install.lock and has recorded STOP_SERVICES."""
+    guard_no_maintenance()
+
+    root = RUNTIME / 'maintenance'
+    maintenance.create_inhibit(str(root))
+
+    info = (root / maintenance.MARKER).lstat()
+
+    require(
+        stat.S_ISREG(info.st_mode)
+        and info.st_uid == 0 and info.st_gid == 0
+        and info.st_nlink == 1
+        and stat.S_IMODE(info.st_mode) == 0o600,
+        'invalid newly created maintenance marker',
+    )
+
+    return [info.st_dev, info.st_ino]
+
+
+def complete_backup_maintenance(active, backup_id, install_fd):
+    """Completion is possible only with the live inherited install lock."""
+    environment = backup_environment(active)
+
+    result = subprocess.run(
+        [
+            '/usr/bin/python3', '-B',
+            str(ROOT / 'scripts/recovery_storage.py'),
+            'complete-test-backup',
+            str(install_fd), backup_id,
+        ],
+        cwd=ROOT,
+        env=environment,
+        pass_fds=(install_fd,),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=300,
+    )
+
+    require(
+        result.returncode == 0
+        and result.stdout.strip() ==
+        'BACKUP_MAINTENANCE_COMPLETE',
+        'backup maintenance completion refused',
+    )
 
 
 def verify_backup(backup_id, active):
@@ -819,6 +947,61 @@ def require_checkpoint_refs(state):
                 'runtime image refs differ from checkpoint')
 
 
+def restart_inventory():
+    """Inspect all original services without assuming they are running."""
+    result = {}
+    for role in ('db', 'backend', 'frontend', 'ingress'):
+        cid = compose('ps', '--all', '-q', role)
+        require(bool(re.fullmatch(r'[a-f0-9]{12,64}', cid)),
+                'missing restart container')
+        items = json.loads(run('docker', '--host', 'unix:///var/run/docker.sock',
+                               'inspect', cid))
+        require(isinstance(items, list) and len(items) == 1,
+                'invalid restart inspection')
+        item = items[0]
+        labels = (item.get('Config') or {}).get('Labels') or {}
+        require(bool(re.fullmatch(r'[a-f0-9]{64}', item.get('Id', '')))
+                and item['Id'].startswith(cid)
+                and bool(IMAGE_ID.fullmatch(item.get('Image', '')))
+                and labels.get('com.docker.compose.project') == 'homecloud-test'
+                and labels.get('com.docker.compose.service') == role
+                and labels.get('com.docker.compose.oneoff', '').lower() == 'false',
+                'restart container identity mismatch')
+        result[role] = item
+    return result
+
+
+def restart_existing_services(timeout=180):
+    """Plain start supports Compose 2.33; never pull or recreate."""
+    before = restart_inventory()
+    compose('start', 'backend', 'frontend', 'ingress', timeout=900)
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        guard_no_maintenance()
+        after = restart_inventory()
+        for role, original in before.items():
+            current = after[role]
+            require((current['Id'], current['Image'], current.get('Mounts')) ==
+                    (original['Id'], original['Image'], original.get('Mounts')),
+                    'restart containers or mounts changed')
+        ready = all(
+            item.get('State', {}).get('Running') is True
+            and item['State'].get('Restarting') is False
+            and item['State'].get('Paused') is False
+            and item['State'].get('Status') == 'running'
+            and (item['State'].get('Health') is None
+                 or item['State']['Health'].get('Status') == 'healthy')
+            for item in after.values()
+        )
+        if ready:
+            require(time.monotonic() < deadline, 'restart readiness timeout')
+            return
+        remaining = deadline - time.monotonic()
+        if remaining > 0:
+            time.sleep(min(2, remaining))
+    raise Stop('restart readiness timeout')
+
+
 def recover_before_start(transaction, state, applied):
     """Only reverse preparation; target code may never have been started.
 
@@ -829,6 +1012,7 @@ def recover_before_start(transaction, state, applied):
     status = 'MANUAL_RECOVERY_REQUIRED'
     try:
         require(transaction.get('phase') in safe_phases, 'target may have started')
+        guard_no_maintenance()
         require(load_state() == state, 'installed checkpoint changed')
         require(sorted(applied_migrations()) == sorted(applied), 'schema drift before recovery')
         # Existing stopped containers still carry the pre-install IDs and refs.
@@ -839,7 +1023,8 @@ def recover_before_start(transaction, state, applied):
         boundary.validate_checkout(ROOT)
         rewrite_checkpoint_refs(state['active']['images'])
         run(str(ROOT / 'deploy/linux/project-test.sh'), 'preflight')
-        compose('start', '--wait', 'backend', 'frontend', 'ingress', timeout=900)
+        guard_no_maintenance()
+        restart_existing_services()
         require(active_images(state) == state['active']['images'], 'restored container identity mismatch')
         require(sorted(applied_migrations()) == sorted(applied), 'schema drift after recovery')
         smoke()
@@ -882,6 +1067,7 @@ def deploy(manifest, rollback=False, dry_run=False):
     transaction_started = False
     try:
         guard_no_pending()
+        guard_no_maintenance()
         state = load_state()
         require_checkpoint_refs(state)
         run(str(ROOT / 'deploy/linux/project-test.sh'), 'preflight')
@@ -916,20 +1102,33 @@ def deploy(manifest, rollback=False, dry_run=False):
         run(str(ROOT / 'deploy/linux/project-test.sh'), 'preflight')
         require(applied_migrations() == applied, 'migrations changed during preparation')
         record_phase(transaction, 'PREBACKUP')
+        # Preparation only. An online backup is not a
+        # consistent PostgreSQL/storage recovery checkpoint.
         ensure_recovery_pins(state)
-        transaction['prebackup_id'] = backup(state['active'])
-        record_phase(transaction, 'PREBACKUP')
+
         record_phase(transaction, 'STOP_SERVICES')
+        transaction['backup_maintenance'] = begin_backup_maintenance()
+        record_phase(transaction, 'STOP_SERVICES')
+
         compose('stop', 'ingress', 'frontend', 'backend')
+
         record_phase(transaction, 'BACKUP')
-        backup_id = backup(state['active'])
+        backup_id = backup(state['active'], fd, transaction['backup_maintenance'])
         # Retain the verified backup identity before mutating runtime references.
         # If power is lost later, recovery-inspect can direct the operator to it.
         transaction['backup_id'] = backup_id
         record_phase(transaction, 'BACKUP')  # Durable backup identity before WRITE_REFS.
+
+        complete_backup_maintenance(
+            state['active'], backup_id, fd
+        )
+
+        guard_no_maintenance()
+
         record_phase(transaction, 'WRITE_REFS')
         rewrite_refs(manifest)
         run(str(ROOT / 'deploy/linux/project-test.sh'), 'preflight')
+        guard_no_maintenance()
         record_phase(transaction, 'START_SERVICES')
         compose('up', '-d', '--no-build', '--pull', 'never', '--wait', 'db', 'backend', 'frontend', 'ingress', timeout=900)
         require(sorted(applied_migrations()) == sorted(applied), 'unexpected migration after start')
@@ -968,8 +1167,11 @@ def deploy(manifest, rollback=False, dry_run=False):
 
 def main():
     mode = sys.argv[1] if len(sys.argv) == 2 else ''
-    require(mode in ('baseline-inspect', 'recovery-inspect', 'dry-run', 'apply', 'rollback'),
+    require(mode in ('baseline-inspect', 'recovery-inspect', 'dry-run', 'apply', 'rollback', 'start'),
             'invalid TEST install action')
+    if mode == 'start':
+        start_services()
+        return
     if mode == 'baseline-inspect':
         print(json.dumps(inspect_baseline(), sort_keys=True, ensure_ascii=False))
         return

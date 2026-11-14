@@ -38,6 +38,7 @@ describe("SSD upload service portable API orchestration", () => {
   let reserved: boolean;
   let free: bigint;
   let quota: number;
+  let copyReservedBytes: bigint;
   const bytes = Buffer.from("whole-file durable content");
   const expectedSha256 = createHash("sha256").update(bytes).digest("hex");
   const configuration = (values: Record<string, unknown> = {}) => ({ get: (key: string) => ({ UPLOAD_SSD_ENABLED: "true", MAX_CHUNK_SIZE: "128", ...values })[key] });
@@ -45,7 +46,7 @@ describe("SSD upload service portable API orchestration", () => {
   beforeEach(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), "hc-ssd-service-"));
     hdd = fs.mkdtempSync(path.join(os.tmpdir(), "hc-hdd-service-"));
-    sessions = []; chunks = []; inTransaction = false; reserved = false; free = 1000000n; quota = 1000000;
+    sessions = []; chunks = []; inTransaction = false; reserved = false; free = 1000000n; quota = 1000000; copyReservedBytes = 0n;
     const sessionRepository = {
       create: jest.fn((data: any) => ({ origin: "owner", ...data, id: sessions.length + 1, createdAt: new Date() })),
       save: jest.fn(async (session: UploadSessionEntity) => { if (!sessions.includes(session)) sessions.push(session); return session; }),
@@ -65,6 +66,8 @@ describe("SSD upload service portable API orchestration", () => {
       if (sql.includes("current_setting")) return [{ fsync: "on", pages: "on" }];
       if (sql.includes("SET LOCAL")) return [];
       if (sql.includes("remaining")) return [{ remaining: sessions.filter((session) => session.status !== "aborted").reduce((sum, session) => sum + session.totalSize - session.uploadedSize, 0), hdd: sessions.filter((session) => session.status !== "aborted").reduce((sum, session) => sum + session.totalSize, 0) }];
+      if (sql.includes('FROM "file_copy_operations"'))
+        return [{ bytes: String(copyReservedBytes) }];
       if (sql.includes("::text bytes")) return [{ bytes: sessions.filter((session) => ["pending", "uploading"].includes(session.status)).reduce((sum, session) => sum + session.totalSize, 0) }];
       if (sql.includes("ssd_finalization_operations")) return reserved ? [{ id: "existing-reservation" }] : [];
       return [];
@@ -132,6 +135,70 @@ describe("SSD upload service portable API orchestration", () => {
     session.workspaceId = LEGACY_UPLOAD_WORKSPACE_ID;
     await expect(service.getUploadSession(7, session.uploadId)).rejects.toThrow("not found");
   });
+
+  it("blocks SSD admission when a copy reservation exhausts quota", async () => {
+    quota = bytes.length + 2;
+    copyReservedBytes = 3n;
+
+    await expect(
+      service.createUploadSession(
+        7,
+        "blocked.bin",
+        bytes.length,
+        bytes.length,
+        undefined,
+        expectedSha256,
+      ),
+    ).rejects.toThrow("Storage quota exceeded");
+
+    expect(sessions).toHaveLength(0);
+    expect(manager.query).toHaveBeenCalledWith(
+      expect.stringContaining('FROM "file_copy_operations"'),
+      [7],
+    );
+  });
+
+  it("accepts exact SSD quota including copy reservations", async () => {
+    quota = bytes.length + 2;
+    copyReservedBytes = 2n;
+
+    const session = await service.createUploadSession(
+      7,
+      "exact.bin",
+      bytes.length,
+      bytes.length,
+      undefined,
+      expectedSha256,
+    );
+
+    expect(session.status).toBe("pending");
+    expect(sessions).toHaveLength(1);
+  });
+
+  it("fails closed when SSD copy reservation accounting is unavailable", async () => {
+    const original = manager.query.getMockImplementation();
+
+    manager.query.mockImplementation((sql: string, ...args: unknown[]) => {
+      if (sql.includes('FROM "file_copy_operations"')) {
+        throw new Error("Copy reservation database unavailable");
+      }
+      return original(sql, ...args);
+    });
+
+    await expect(
+      service.createUploadSession(
+        7,
+        "unavailable.bin",
+        bytes.length,
+        bytes.length,
+        undefined,
+        expectedSha256,
+      ),
+    ).rejects.toThrow("Copy reservation database unavailable");
+
+    expect(sessions).toHaveLength(0);
+  });
+
   it("reserves owner quota across active sessions", async () => {
     quota = bytes.length;
     await service.createUploadSession(7, "first.txt", bytes.length, bytes.length, undefined, expectedSha256);

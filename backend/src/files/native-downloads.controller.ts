@@ -41,11 +41,18 @@ export class NativeDownloadsController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const fileId = this.parseId(id);
-    const file = await this.files.findOne(req.user.userId, fileId);
-    if (file.isFolder || file.isDeleted || !file.storagePath)
-      throw new NotFoundException("File not found");
-    try { this.storage.resolveFilePath(file); }
-    catch { throw new NotFoundException("File not found on storage"); }
+    // Do not issue capabilities for files hidden by deleted ancestors.
+    await this.files.withVisibleContentFile(
+      req.user.userId,
+      fileId,
+      (file) => {
+        try {
+          this.storage.resolveFilePath(file);
+        } catch {
+          throw new NotFoundException("File not found on storage");
+        }
+      },
+    );
     const token = await this.capabilities.issue(req.user.userId, fileId);
     res.set("Cache-Control", "no-store");
     res.cookie(DOWNLOAD_CAPABILITY_COOKIE, token, {

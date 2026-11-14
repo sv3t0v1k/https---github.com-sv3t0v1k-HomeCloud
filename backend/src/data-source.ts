@@ -10,8 +10,21 @@ import { UploadChunkEntity } from "./entities/upload-chunk.entity";
 import { DownloadCapabilityEntity } from "./entities/download-capability.entity";
 import { RefreshTokenEntity } from "./entities/refresh-token.entity";
 import { PublicShareOperationEntity } from "./entities/public-share-operation.entity";
+import { assertInheritedRootFence } from "./uploads/inherited-root-fence";
 
-export default new DataSource({
+class FencedDataSource extends DataSource {
+  async initialize(): Promise<this> {
+    // The datasource is also loaded by CLI aliases and absolute CLI paths
+    // that do not match entrypoint's supported command forms. Require the
+    // kernel fence before any production connection can mutate the schema.
+    if (process.platform === "linux") {
+      assertInheritedRootFence();
+    }
+    return super.initialize();
+  }
+}
+
+export default new FencedDataSource({
   type: "postgres",
   url: process.env.DATABASE_URL,
   synchronize: false,

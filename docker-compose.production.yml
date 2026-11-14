@@ -90,6 +90,11 @@ services:
         target: /run/homecloud/volume-marker
         read_only: true
         bind: {create_host_path: false}
+      - type: bind
+        source: /etc/homecloud/maintenance
+        target: /run/homecloud/maintenance
+        read_only: true
+        bind: {create_host_path: false}
     networks: !override
       app_network:
       backend_proxy:

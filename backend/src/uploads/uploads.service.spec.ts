@@ -110,6 +110,8 @@ describe("UploadsService - Post-Review Fixes", () => {
         createQueryBuilder: jest.fn(() => mockQueryBuilder),
         delete: jest.fn(),
         query: jest.fn(async (sql: string, params: unknown[]) => {
+          if (sql.includes('FROM "file_copy_operations"'))
+            return [{ bytes: "0" }];
           if (sql.includes("pg_try_advisory")) return [{ locked: true }];
           if (sql.includes("SELECT id FROM users WHERE")) return [{ id: params[0] }];
           if (sql.includes("SELECT id FROM folders WHERE")) return [{ id: params[0] }];

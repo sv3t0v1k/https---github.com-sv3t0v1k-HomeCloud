@@ -407,3 +407,25 @@ h1, h2, h3, h4, p { margin-top: 0; }
   .ux-v2 .account-area { flex-wrap: nowrap; }
   .ux-v2 .account-area .button span { display: none; }
 }
+
+.file-thumbnail { overflow: hidden; flex-shrink: 0; }
+.file-thumbnail-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: thumbnail-appear 180ms ease-out both;
+}
+.directory-grid .file-name-cell .file-thumbnail {
+  width: 100%;
+  height: 146px;
+  margin-right: 0;
+  border-radius: var(--radius-md);
+}
+@keyframes thumbnail-appear {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .file-thumbnail-image { animation: none; }
+}

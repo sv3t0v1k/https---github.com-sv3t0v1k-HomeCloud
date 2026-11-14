@@ -80,6 +80,11 @@ services:
         target: /run/homecloud/volume-marker
         read_only: true
         bind: {create_host_path: false}
+      - type: bind
+        source: ./.runtime/maintenance
+        target: /run/homecloud/maintenance
+        read_only: true
+        bind: {create_host_path: false}
   frontend:
     mem_limit: 128m
   ingress:

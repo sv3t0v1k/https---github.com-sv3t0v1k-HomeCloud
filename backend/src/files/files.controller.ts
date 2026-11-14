@@ -128,9 +128,18 @@ export class FilesController {
     const userId = req.user.userId;
     if (search !== undefined) {
       const query = searchQuery(search, 1);
-      const parent = parentId === undefined ? undefined : searchPageNumber(parentId, 0, 2147483647, 1);
-      return this.filesService.findAll(userId, parent, query, false,
-        searchPageNumber(limitRaw, 20, 50, 1), searchPageNumber(offsetRaw, 0, 10000));
+      const parent =
+        parentId === undefined
+          ? undefined
+          : searchPageNumber(parentId, 0, 2147483647, 1);
+      return this.filesService.findAll(
+        userId,
+        parent,
+        query,
+        false,
+        searchPageNumber(limitRaw, 20, 50, 1),
+        searchPageNumber(offsetRaw, 0, 10000),
+      );
     }
     const parentIdNum = parentId ? parseInt(parentId, 10) : undefined;
     return this.filesService.findAll(userId, parentIdNum, search);
@@ -322,13 +331,38 @@ export class FilesController {
     @NestRequest() req: ExpressRequest & { user: { userId: number } },
     @Param("id") id: string,
     @Body() dto: CopyFileDto,
+    @Res({ passthrough: true }) res: Response,
   ) {
-    const userId = req.user.userId;
-    return this.filesService.copyFile(
-      userId,
-      parseInt(id, 10),
-      dto.targetParentId,
-    );
+    if (
+      !/^[1-9]\d*$/.test(id) ||
+      !Number.isSafeInteger(Number(id)) ||
+      Number(id) > 2147483647
+    ) {
+      throw new BadRequestException("Invalid file id");
+    }
+
+    const cancellation = new AbortController();
+    const abort = () => cancellation.abort();
+    const onClose = () => {
+      if (!res.writableEnded) abort();
+    };
+
+    req.once("aborted", abort);
+    res.once("close", onClose);
+
+    try {
+      if (req.aborted || res.destroyed) abort();
+
+      return await this.filesService.copyFile(
+        req.user.userId,
+        Number(id),
+        dto.targetParentId,
+        cancellation.signal,
+      );
+    } finally {
+      req.off("aborted", abort);
+      res.off("close", onClose);
+    }
   }
 
   @Post(":id/move")
@@ -360,33 +394,56 @@ export async function streamOriginalDownload(
     Number(id) > 2147483647
   )
     throw new BadRequestException("Invalid file id");
-  const file = await filesService.findOne(req.user.userId, parseInt(id, 10));
-  if (file.isFolder) {
-    throw new BadRequestException("Folders cannot be downloaded as files");
-  }
-  if (file.isDeleted || !file.storagePath) {
-    throw new NotFoundException("File not found");
-  }
+  let disconnected = res.destroyed || res.writableEnded;
+  const onDisconnect = () => {
+    disconnected = true;
+  };
+  res.once("close", onDisconnect);
 
-  let safePath: string;
-  try {
-    safePath = storageService.resolveFilePath(file);
-    safePath = storageService.ensureWithinStorageRoot(
-      fs.realpathSync(safePath),
-    );
-  } catch {
-    throw new NotFoundException("File not found on storage");
-  }
-
-  let fd: number;
-  try {
-    fd = fs.openSync(safePath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
-  } catch {
-    throw new NotFoundException("File not found on storage");
-  }
-
+  // The controller retains ownership before and during COMMIT.
+  // Ownership passes to ReadStream only after stream construction.
+  let openedFd: number | undefined;
   let streamOwnsDescriptor = false;
+
+  const assertConnected = () => {
+    if (disconnected || res.destroyed || res.writableEnded) {
+      throw new Error("Download client disconnected");
+    }
+  };
+
   try {
+    assertConnected();
+
+    // Authorization and opening share one PostgreSQL transaction.
+    const { file, safePath, fd } = await filesService.withVisibleContentFile(
+      req.user.userId,
+      Number(id),
+      (authorized) => {
+        assertConnected();
+
+        let resolved: string;
+        try {
+          resolved = storageService.resolveFilePath(authorized);
+        } catch {
+          throw new NotFoundException("File not found on storage");
+        }
+
+        assertConnected();
+
+        let descriptor: number;
+        try {
+          descriptor = storageService.openReadOnlyFileSecure(resolved);
+        } catch {
+          throw new NotFoundException("File not found on storage");
+        }
+
+        // Register ownership BEFORE callback returns: COMMIT can fail.
+        openedFd = descriptor;
+        return { file: authorized, safePath: resolved, fd: descriptor };
+      },
+    );
+
+    assertConnected();
     const stat = fs.fstatSync(fd);
     if (!stat.isFile() || !Number.isSafeInteger(stat.size)) {
       throw new NotFoundException("File not found on storage");
@@ -439,8 +496,14 @@ export async function streamOriginalDownload(
         res.end();
         return;
       }
-      streamFile(safePath, res, fd);
+      const stream = streamFile(safePath, res, fd);
       streamOwnsDescriptor = true;
+      try {
+        stream.pipe(res);
+      } catch (error) {
+        stream.destroy();
+        throw error;
+      }
       return;
     }
 
@@ -454,10 +517,24 @@ export async function streamOriginalDownload(
       res.end();
       return;
     }
-    streamFile(safePath, res, fd, start, end);
+    const stream = streamFile(safePath, res, fd, start, end);
     streamOwnsDescriptor = true;
+    try {
+      stream.pipe(res);
+    } catch (error) {
+      stream.destroy();
+      throw error;
+    }
+  } catch (error) {
+    // A dead HTTP connection has no recipient for an error response.
+    if (!disconnected && !res.destroyed && !res.writableEnded) {
+      throw error;
+    }
   } finally {
-    if (!streamOwnsDescriptor) fs.closeSync(fd);
+    res.off("close", onDisconnect);
+    if (!streamOwnsDescriptor && openedFd !== undefined) {
+      fs.closeSync(openedFd);
+    }
   }
 }
 
@@ -467,7 +544,7 @@ function streamFile(
   fd: number,
   start?: number,
   end?: number,
-): void {
+): fs.ReadStream {
   const stream = fs.createReadStream(
     filePath,
     start === undefined
@@ -482,6 +559,8 @@ function streamFile(
       res.destroy(error);
     }
   });
-  res.on("close", () => stream.destroy());
-  stream.pipe(res);
+  const onClose = () => stream.destroy();
+  res.once("close", onClose);
+  stream.once("close", () => res.off("close", onClose));
+  return stream;
 }

@@ -3,12 +3,15 @@ import {
   NotFoundException,
   BadRequestException,
   Logger,
+  ServiceUnavailableException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import sharp from "sharp";
+import { randomUUID } from "node:crypto";
 import * as fs from "fs";
 import { FileEntity } from "../entities/file.entity";
+import { assertVisibleAncestors } from "../files/file-visibility";
 import { StorageService } from "../storage/storage.service";
 
 @Injectable()
@@ -17,104 +20,561 @@ export class PreviewsService {
   private readonly thumbnailSize = 300;
   private readonly maxPreviewBytes = 5 * 1024 * 1024;
 
+  private readonly maxThumbnailBytes = 32 * 1024 * 1024;
+  private readonly maxThumbnailPixels = 24_000_000;
+  private activeThumbnails = 0;
+  private readonly thumbnailWaiters: Array<() => void> = [];
+
+  private assertThumbnailActive(signal?: AbortSignal): void {
+    if (signal?.aborted) {
+      throw new ServiceUnavailableException("Thumbnail request cancelled");
+    }
+  }
+
+  private async withThumbnailSlot<T>(
+    run: () => Promise<T>,
+    signal?: AbortSignal,
+  ): Promise<T> {
+    this.assertThumbnailActive(signal);
+
+    if (this.activeThumbnails >= 2) {
+      if (this.thumbnailWaiters.length >= 16) {
+        throw new ServiceUnavailableException("Thumbnail service is busy");
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        let settled = false;
+        let timer: ReturnType<typeof setTimeout>;
+
+        const cleanup = () => {
+          clearTimeout(timer);
+          signal?.removeEventListener("abort", cancel);
+        };
+
+        const remove = () => {
+          const index = this.thumbnailWaiters.indexOf(wake);
+          if (index >= 0) this.thumbnailWaiters.splice(index, 1);
+        };
+
+        const wake = () => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          resolve();
+        };
+
+        const cancel = () => {
+          if (settled) return;
+          settled = true;
+          remove();
+          cleanup();
+          reject(
+            new ServiceUnavailableException("Thumbnail request cancelled"),
+          );
+        };
+
+        const expire = () => {
+          if (settled) return;
+          settled = true;
+          remove();
+          cleanup();
+          reject(
+            new ServiceUnavailableException(
+              "Thumbnail queue wait timed out",
+            ),
+          );
+        };
+
+        timer = setTimeout(expire, 5_000);
+        this.thumbnailWaiters.push(wake);
+        signal?.addEventListener("abort", cancel, { once: true });
+
+        if (signal?.aborted) cancel();
+      });
+    } else {
+      this.activeThumbnails += 1;
+    }
+
+    try {
+      this.assertThumbnailActive(signal);
+      const result = await run();
+      this.assertThumbnailActive(signal);
+      return result;
+    } finally {
+      // An active operation retains its slot until it actually settles.
+      const next = this.thumbnailWaiters.shift();
+      if (next) next();
+      else this.activeThumbnails -= 1;
+    }
+  }
+
+  private matchesImageHeader(data: Buffer, mime: string): boolean {
+    if (mime === "image/jpeg") {
+      return data.length >= 3 &&
+        data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff;
+    }
+    if (mime === "image/png") {
+      return data.length >= 8 &&
+        data.subarray(0, 8).equals(
+          Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+        );
+    }
+    if (mime === "image/webp") {
+      return data.length >= 12 &&
+        data.toString("ascii", 0, 4) === "RIFF" &&
+        data.toString("ascii", 8, 12) === "WEBP";
+    }
+    return false;
+  }
+
+  private async readBoundedImage(
+    filePath: string,
+    signal?: AbortSignal,
+  ): Promise<Buffer> {
+    this.assertThumbnailActive(signal);
+    // Linux openat2: pinned root, no symlinks, no mount escapes.
+    // Never fall back to pathname-based fs.promises.open().
+    const fd = this.storageService.openReadOnlyFileSecure(filePath);
+
+    try {
+      const before = fs.fstatSync(fd);
+
+      if (
+        !before.isFile() ||
+        before.nlink !== 1 ||
+        !Number.isSafeInteger(before.size) ||
+        before.size <= 0 ||
+        before.size > this.maxThumbnailBytes
+      ) {
+        throw new BadRequestException("Image exceeds thumbnail limits");
+      }
+
+      const data = Buffer.allocUnsafe(before.size);
+      let offset = 0;
+
+      while (offset < data.length) {
+        this.assertThumbnailActive(signal);
+        const bytesRead = await new Promise<number>((resolve, reject) => {
+          fs.read(
+            fd,
+            data,
+            offset,
+            data.length - offset,
+            offset,
+            (error, count) => {
+              if (error) reject(error);
+              else resolve(count);
+            },
+          );
+        });
+
+        if (bytesRead <= 0) {
+          throw new BadRequestException("Image changed during reading");
+        }
+        offset += bytesRead;
+        this.assertThumbnailActive(signal);
+      }
+
+      const after = fs.fstatSync(fd);
+      if (
+        after.size !== before.size ||
+        after.dev !== before.dev ||
+        after.ino !== before.ino ||
+        after.mtimeMs !== before.mtimeMs ||
+        after.ctimeMs !== before.ctimeMs
+      ) {
+        throw new BadRequestException("Image changed during reading");
+      }
+
+      return data;
+    } finally {
+      fs.closeSync(fd);
+    }
+  }
+
   constructor(
     @InjectRepository(FileEntity)
     private fileRepository: Repository<FileEntity>,
     private storageService: StorageService,
   ) {}
 
-  async getThumbnail(userId: number, fileId: number): Promise<Buffer> {
-    const file = await this.fileRepository.findOne({
-      where: { id: fileId, userId },
-    });
-    if (!file) {
-      throw new NotFoundException("File not found");
+  private async registerThumbnailSqlCancellation(
+    manager: import("typeorm").EntityManager,
+    signal?: AbortSignal,
+  ): Promise<() => void> {
+    if (!signal) return () => {};
+    this.assertThumbnailActive(signal);
+
+    // SET LOCAL creates a transaction-scoped cancellation identity.
+    // A recycled pool connection cannot match an earlier identity.
+    const marker = `hc-thumbnail:${randomUUID()}`;
+    const rows: Array<{ pid: number; marker: string }> =
+      await manager.query(
+        `SELECT pg_backend_pid() AS pid,
+                set_config('application_name', $1, true) AS marker`,
+        [marker],
+      );
+
+    const pid = Number(rows[0]?.pid);
+    if (
+      rows.length !== 1 ||
+      !Number.isSafeInteger(pid) ||
+      pid <= 0 ||
+      rows[0].marker !== marker
+    ) {
+      throw new ServiceUnavailableException(
+        "Thumbnail database session unavailable",
+      );
     }
 
-    let filePath: string;
-    try { filePath = this.storageService.resolveFilePath(file); }
-    catch { throw new NotFoundException("File not found on storage"); }
+    const onAbort = () => {
+      // Never release the worker slot here. The original SQL and
+      // TypeORM transaction must settle before slot release.
+      void this.fileRepository.manager.query(
+        `SELECT pg_cancel_backend(pid) AS cancelled
+         FROM pg_stat_activity
+         WHERE pid = $1
+           AND application_name = $2
+           AND usename = current_user
+           AND state = 'active'`,
+        [pid, marker],
+      ).catch(() => {
+        // Existing lock_timeout remains the fail-safe.
+        this.logger.warn(
+          "Failed to request thumbnail SQL cancellation",
+        );
+      });
+    };
 
-    const mimeType = file.mimeType || "";
-    if (!mimeType.startsWith("image/")) {
-      throw new BadRequestException("File is not an image");
+    signal.addEventListener("abort", onAbort, { once: true });
+
+    if (signal.aborted) {
+      signal.removeEventListener("abort", onAbort);
+      this.assertThumbnailActive(signal);
+    }
+
+    return () => signal.removeEventListener("abort", onAbort);
+  }
+
+  private async readAuthorizedThumbnail(
+    userId: number,
+    fileId: number,
+    signal?: AbortSignal,
+  ): Promise<Buffer> {
+    this.assertThumbnailActive(signal);
+    return this.fileRepository.manager.transaction(async (manager) => {
+      this.assertThumbnailActive(signal);
+
+      // Bound PostgreSQL work while the thumbnail slot is occupied.
+      // LOCAL settings expire at transaction end and cannot leak to pool users.
+      await manager.query("SET LOCAL lock_timeout = '1500ms'");
+      await manager.query("SET LOCAL statement_timeout = '2500ms'");
+      this.assertThumbnailActive(signal);
+
+      const disableCancellation =
+        await this.registerThumbnailSqlCancellation(manager, signal);
+      try {
+        // Folder deletion/move obtains FOR UPDATE on the same user.
+        // Hold FOR SHARE until the image bytes have been read.
+        const owner: Array<{ id: number }> = await manager.query(
+          'SELECT id FROM users WHERE id=$1 AND "isActive"=TRUE FOR SHARE',
+          [userId],
+        );
+        this.assertThumbnailActive(signal);
+        if (owner.length !== 1) {
+          throw new NotFoundException("File not found");
+        }
+
+        const file = await manager.findOne(FileEntity, {
+          where: { id: fileId, userId, isDeleted: false },
+        });
+        if (!file || file.isFolder) {
+          throw new NotFoundException("File not found");
+        }
+
+        await assertVisibleAncestors(
+          manager,
+          userId,
+          file.parentId ?? null,
+        );
+        this.assertThumbnailActive(signal);
+
+        const mimeType = file.mimeType || "";
+        if (!["image/jpeg", "image/png", "image/webp"].includes(mimeType)) {
+          throw new BadRequestException("Image format not supported");
+        }
+
+        let filePath: string;
+        try {
+          filePath = this.storageService.resolveFilePath(file);
+        } catch {
+          throw new NotFoundException("File not found on storage");
+        }
+
+        this.assertThumbnailActive(signal);
+        const data = await this.readBoundedImage(filePath, signal);
+        this.assertThumbnailActive(signal);
+        if (!this.matchesImageHeader(data, mimeType)) {
+          throw new BadRequestException("Image format mismatch");
+        }
+        return data;
+      } finally {
+        disableCancellation();
+      }
+    });
+  }
+
+  async getThumbnail(
+    userId: number,
+    fileId: number,
+    signal?: AbortSignal,
+  ): Promise<Buffer> {
+    return this.withThumbnailSlot(async () => {
+      try {
+        this.assertThumbnailActive(signal);
+        const data = await this.readAuthorizedThumbnail(
+          userId, fileId, signal,
+        );
+        this.assertThumbnailActive(signal);
+
+        const result = await sharp(data, {
+          limitInputPixels: this.maxThumbnailPixels,
+          failOn: "warning",
+          sequentialRead: true,
+          animated: false,
+          pages: 1,
+          unlimited: false,
+        })
+          .rotate()
+          .resize(this.thumbnailSize, this.thumbnailSize, {
+            fit: "inside",
+            withoutEnlargement: true,
+          })
+          .png()
+          .timeout({ seconds: 10 })
+          .toBuffer();
+
+        // Sharp may not stop native processing immediately.
+        // Keep its active slot until toBuffer() settles.
+        this.assertThumbnailActive(signal);
+        if (!result.length || result.length > 2 * 1024 * 1024) {
+          throw new BadRequestException("Thumbnail output exceeds limit");
+        }
+
+        return result;
+      } catch (error) {
+        this.assertThumbnailActive(signal);
+        if (
+          error instanceof NotFoundException ||
+          error instanceof ServiceUnavailableException
+        ) {
+          throw error;
+        }
+        const databaseError = error as {
+          code?: unknown;
+          driverError?: { code?: unknown };
+        } | null;
+        const code = databaseError?.driverError?.code ??
+          databaseError?.code;
+
+        if (code === "55P03" || code === "57014") {
+          throw new ServiceUnavailableException(
+            "Thumbnail database wait timed out",
+          );
+        }
+
+        this.logger.warn("Failed to generate thumbnail for file");
+        throw new BadRequestException("Failed to generate thumbnail");
+      }
+    }, signal);
+  }
+
+  private async readSecurePreviewBytes(
+    filePath: string,
+    isText: boolean,
+    signal?: AbortSignal,
+  ): Promise<{ data: Buffer; truncated: boolean }> {
+    this.assertThumbnailActive(signal);
+    // Descriptor-based confinement is mandatory. No pathname fallback.
+    let fd: number;
+    try {
+      fd = this.storageService.openReadOnlyFileSecure(filePath);
+    } catch {
+      throw new NotFoundException("File not found on storage");
     }
 
     try {
-      const stats = await fs.promises.stat(filePath);
-      if (stats.size > this.maxPreviewBytes) {
-        throw new BadRequestException("Image exceeds maximum preview size");
-      }
-      const buffer = fs.readFileSync(filePath);
-      const thumbnail = await sharp(buffer)
-        .resize(this.thumbnailSize, this.thumbnailSize, {
-          fit: "inside",
-          withoutEnlargement: true,
-        })
-        .png()
-        .toBuffer();
+      const before = fs.fstatSync(fd);
 
-      return thumbnail;
-    } catch {
-      this.logger.error("Failed to generate thumbnail for file");
-      throw new BadRequestException("Failed to generate thumbnail");
+      if (
+        !before.isFile() ||
+        before.nlink !== 1 ||
+        !Number.isSafeInteger(before.size) ||
+        before.size < 0
+      ) {
+        throw new BadRequestException("Invalid preview file");
+      }
+
+      if (!isText && before.size > this.maxPreviewBytes) {
+        throw new BadRequestException(
+          "Image exceeds maximum preview size",
+        );
+      }
+
+      const length = Math.min(before.size, this.maxPreviewBytes);
+      const data = Buffer.alloc(length);
+      let offset = 0;
+
+      while (offset < length) {
+        this.assertThumbnailActive(signal);
+        const bytesRead = await new Promise<number>((resolve, reject) => {
+          fs.read(
+            fd,
+            data,
+            offset,
+            Math.min(length - offset, 256 * 1024),
+            offset,
+            (error, count) => {
+              if (error) reject(error);
+              else resolve(count);
+            },
+          );
+        });
+
+        this.assertThumbnailActive(signal);
+        if (bytesRead <= 0) {
+          throw new BadRequestException("Preview changed during reading");
+        }
+
+        offset += bytesRead;
+      }
+
+      this.assertThumbnailActive(signal);
+      const after = fs.fstatSync(fd);
+      if (
+        after.size !== before.size ||
+        after.dev !== before.dev ||
+        after.ino !== before.ino ||
+        after.mtimeMs !== before.mtimeMs ||
+        after.ctimeMs !== before.ctimeMs
+      ) {
+        throw new BadRequestException("Preview changed during reading");
+      }
+
+      return {
+        data,
+        truncated: isText && before.size > this.maxPreviewBytes,
+      };
+    } finally {
+      fs.closeSync(fd);
     }
   }
 
   async getPreview(
     userId: number,
     fileId: number,
+    signal?: AbortSignal,
   ): Promise<{ type: string; content: string | Buffer; mimeType: string }> {
-    const file = await this.fileRepository.findOne({
-      where: { id: fileId, userId },
-    });
-    if (!file) {
-      throw new NotFoundException("File not found");
+    const deadline = new AbortController();
+    const onAbort = () => deadline.abort();
+
+    if (signal?.aborted) deadline.abort();
+    else signal?.addEventListener("abort", onAbort, { once: true });
+
+    // Total deadline including queueing, SQL and file I/O.
+    // Active capacity is retained until underlying work settles.
+    const timer = setTimeout(() => deadline.abort(), 10_000);
+
+    try {
+      return await this.withThumbnailSlot(async () => {
+        this.assertThumbnailActive(deadline.signal);
+        return this.fileRepository.manager.transaction(async (manager) => {
+          await manager.query("SET LOCAL lock_timeout = '1500ms'");
+          await manager.query("SET LOCAL statement_timeout = '2500ms'");
+
+          // Serialize visibility checks against folder move/delete/restore.
+          const owner: Array<{ id: number }> = await manager.query(
+            'SELECT id FROM users WHERE id=$1 AND "isActive"=TRUE FOR SHARE',
+            [userId],
+          );
+          if (owner.length !== 1) {
+            throw new NotFoundException("File not found");
+          }
+
+          const file = await manager.findOne(FileEntity, {
+            where: { id: fileId, userId, isDeleted: false },
+          });
+
+          if (!file || file.isDeleted || file.isFolder) {
+            throw new NotFoundException("File not found");
+          }
+
+          await assertVisibleAncestors(
+            manager,
+            userId,
+            file.parentId ?? null,
+          );
+
+          let filePath: string;
+          try {
+            filePath = this.storageService.resolveFilePath(file);
+          } catch {
+            throw new NotFoundException("File not found on storage");
+          }
+
+          const mimeType = file.mimeType || "";
+          const isText =
+            mimeType.startsWith("text/") ||
+            mimeType === "application/json" ||
+            mimeType === "application/javascript" ||
+            mimeType === "application/xml";
+
+          const isImage = mimeType.startsWith("image/");
+
+          if (!isText && !isImage) {
+            return {
+              type: "unsupported",
+              content: "Preview not available for this file type.",
+              mimeType: "text/plain",
+            };
+          }
+
+          const { data, truncated } = await this.readSecurePreviewBytes(
+            filePath,
+            isText,
+            deadline.signal,
+          );
+          this.assertThumbnailActive(deadline.signal);
+
+          if (isText) {
+            const suffix = truncated ? "\n... (truncated)" : "";
+            return {
+              type: "text",
+              content: data.toString("utf8") + suffix,
+              mimeType,
+            };
+          }
+
+          return { type: "image", content: data, mimeType };
+        }).catch((error: unknown) => {
+          const databaseError = error as {
+            code?: unknown;
+            driverError?: { code?: unknown };
+          } | null;
+          const code = databaseError?.driverError?.code ??
+            databaseError?.code;
+
+          if (code === "55P03" || code === "57014") {
+            throw new ServiceUnavailableException("Preview database wait timed out");
+          }
+
+          throw error;
+        });
+      }, deadline.signal);
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
     }
-
-    let filePath: string;
-    try { filePath = this.storageService.resolveFilePath(file); }
-    catch { throw new NotFoundException("File not found on storage"); }
-
-    const mimeType = file.mimeType || "";
-
-    if (
-      mimeType.startsWith("text/") ||
-      mimeType === "application/json" ||
-      mimeType === "application/javascript" ||
-      mimeType === "application/xml"
-    ) {
-      const stream = fs.createReadStream(filePath, {
-        encoding: "utf-8",
-      });
-      let content = "";
-      let total = 0;
-      for await (const chunk of stream) {
-        total += chunk.length;
-        if (total > this.maxPreviewBytes) {
-          content += "\n... (truncated)";
-          break;
-        }
-        content += chunk;
-      }
-      return { type: "text", content, mimeType };
-    }
-
-    if (mimeType.startsWith("image/")) {
-      const stats = await fs.promises.stat(filePath);
-      if (stats.size > this.maxPreviewBytes) {
-        throw new BadRequestException("Image exceeds maximum preview size");
-      }
-      const buffer = fs.readFileSync(filePath);
-      const chunks: Buffer[] = [buffer];
-      return { type: "image", content: Buffer.concat(chunks), mimeType };
-    }
-
-    return {
-      type: "unsupported",
-      content: "Preview not available for this file type.",
-      mimeType: "text/plain",
-    };
   }
 
   async getFileInfo(userId: number, fileId: number): Promise<FileEntity> {

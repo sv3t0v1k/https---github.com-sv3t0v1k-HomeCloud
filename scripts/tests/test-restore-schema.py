@@ -26,11 +26,16 @@ def source_migrations():
         if not match or not match.group(1).endswith(timestamp):
             raise AssertionError('Unexpected migration source: ' + path.name)
         rows.append(timestamp + ':' + match.group(1))
-    if len(rows) != 30:
-        raise AssertionError('Expected 30 source migrations')
+    if len(rows) != 31:
+        raise AssertionError('Expected 31 source migrations')
+    if rows[-1] != '1792831300000:FileCopyAdmission1792831300000':
+        raise AssertionError('Unexpected copy migration')
     return rows
 
 CURRENT_MIGRATIONS = [] if BASELINE else source_migrations()
+HISTORICAL_MIGRATIONS = CURRENT_MIGRATIONS[:-1]
+COPY_EXTRA = {'file_copy_admission', 'file_copy_operations'}
+CURRENT_TABLES = CORE | CURRENT_EXTRA | COPY_EXTRA
 
 class RestoreSchema(unittest.TestCase):
     def gate(self, tables, count=None, query_fail=False, views=(), current=False,
@@ -44,11 +49,16 @@ class RestoreSchema(unittest.TestCase):
             start = source.index('validate_restored_database() {')
             end = source.index('remove_validation_container() {', start)
             block = source[start:end] + ('\nvalidate_restored_database current\n' if current else '\nvalidate_restored_database\n')
+        if migrations is None:
+            migrations = (
+                CURRENT_MIGRATIONS if len(tables) == 17
+                else HISTORICAL_MIGRATIONS
+            )
         env = dict(os.environ, TEST_TABLES=' '.join(tables),
                    TEST_COUNT=str(len(tables) if count is None else count),
                    TEST_QUERY_FAIL='1' if query_fail else '0', TEST_VIEWS=' '.join(views),
                    TEST_SCRIPT_DIR=str(ROOT / 'scripts'),
-                   TEST_MIGRATIONS='\n'.join(CURRENT_MIGRATIONS if migrations is None else migrations),
+                   TEST_MIGRATIONS='\n'.join(migrations),
                    TEST_MISSING_COLUMNS=missing_columns, TEST_PENDING='1' if pending else '0')
         script = '''set -euo pipefail
 DB_USER=fixture
@@ -100,12 +110,45 @@ validation_psql() {
         result = self.gate(CORE | {'upload_chunks', 'download_capabilities', 'storage_locations', 'upload_workspaces', 'ssd_finalization_operations', 'ssd_finalization_chunks'})
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_confirmed_fifteen_table_backup_and_current_schema(self):
+    def test_historical_fifteen_table_backup(self):
+        tables = CORE | CURRENT_EXTRA
+        result = self.gate(tables)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotEqual(self.gate(tables, current=True).returncode, 0)
+
+    def test_current_seventeen_table_schema(self):
         for current in (False, True):
             with self.subTest(current=current):
-                result = self.gate(CORE | CURRENT_EXTRA, current=current)
+                result = self.gate(CURRENT_TABLES, current=current)
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertIn('All expected tables present: OK (15 tables)', result.stdout)
+
+    def test_current_copy_tables_and_columns(self):
+        for table in COPY_EXTRA:
+            with self.subTest(table=table):
+                self.assertNotEqual(
+                    self.gate(CURRENT_TABLES - {table} | {'unexpected'}).returncode, 0
+                )
+                self.assertNotEqual(
+                    self.gate(CURRENT_TABLES, current=True,
+                              missing_columns=table).returncode, 0
+                )
+
+    def test_current_copy_migration_inventory(self):
+        for migrations in (
+            HISTORICAL_MIGRATIONS,
+            CURRENT_MIGRATIONS[:-1] + ['1792831300000:Unexpected1792831300000'],
+            CURRENT_MIGRATIONS[:-1] + [CURRENT_MIGRATIONS[-2]],
+            CURRENT_MIGRATIONS + ['1792831300001:Unexpected1792831300001'],
+        ):
+            with self.subTest(migrations=migrations):
+                self.assertNotEqual(
+                    self.gate(CURRENT_TABLES, migrations=migrations).returncode, 0
+                )
+
+    def test_current_pending_state_rejected(self):
+        self.assertNotEqual(
+            self.gate(CURRENT_TABLES, pending=True).returncode, 0
+        )
 
     def test_fifteen_table_replacements_are_rejected(self):
         for missing in ('public_share_operations', 'archive_download_capabilities', 'users'):
@@ -118,10 +161,10 @@ validation_psql() {
                 self.assertNotEqual(self.gate(CORE | CURRENT_EXTRA, missing_columns=table).returncode, 0)
 
     def test_fifteen_table_schema_requires_exact_migrations(self):
-        variants = [CURRENT_MIGRATIONS[:-1],
-                    CURRENT_MIGRATIONS[:-1] + ['1792831200000:Unexpected1792831200000'],
-                    CURRENT_MIGRATIONS[:-1] + [CURRENT_MIGRATIONS[-2]],
-                    CURRENT_MIGRATIONS[:-1] + ['1792831200001:CreateArchiveDownloadCapabilities1792831200000']]
+        variants = [HISTORICAL_MIGRATIONS[:-1],
+                    HISTORICAL_MIGRATIONS[:-1] + ['1792831200000:Unexpected1792831200000'],
+                    HISTORICAL_MIGRATIONS[:-1] + [HISTORICAL_MIGRATIONS[-2]],
+                    HISTORICAL_MIGRATIONS[:-1] + ['1792831200001:CreateArchiveDownloadCapabilities1792831200000']]
         for migrations in variants:
             with self.subTest(last=migrations[-1]):
                 self.assertNotEqual(self.gate(CORE | CURRENT_EXTRA, migrations=migrations).returncode, 0)
@@ -136,7 +179,7 @@ validation_psql() {
         source = (ROOT / 'scripts/restore.sh').read_text()
         migration = source.index('log "  Migrations: OK"')
         current = source.index('validate_restored_database current', migration)
-        reconciliation = source.index('RECONCILE_SCRIPT=', migration)
+        reconciliation = source.index('echo "[6/6] Reconciling DB and storage..."', migration)
         self.assertLess(migration, current)
         self.assertLess(current, reconciliation)
 
