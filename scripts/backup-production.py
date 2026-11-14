@@ -68,8 +68,8 @@ def keyfile(key, secret=False):
         if p.resolve().is_relative_to(Path(os.environ[variable]).resolve()): raise ValueError('key inside backup root')
     return p
 
-def child(args, env=None):
-    r = subprocess.run(args, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+def child(args, env=None, pass_fds=()):
+    r = subprocess.run(args, env=env, pass_fds=pass_fds, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if r.returncode:
         # Legacy backup already distinguishes these stages. Preserve only fixed codes.
         for code in ('pg_dump_failed', 'storage_tar_failed', 'storage_tar_integrity_failed', 'storage_not_accessible', 'storage_empty', 'dump_empty', 'dump_gzip_invalid', 'dump_no_ddl', 'db_checksum_mismatch', 'storage_checksum_mismatch', 'meta_generation_failed', 'sha256_meta_failed', 'sha256_db_failed', 'sha256_storage_failed', 'sha256_db_recheck_failed', 'sha256_storage_recheck_failed', 'storage_archive_unreadable', 'file_count_mismatch', 'meta_sidecar_verify_failed', 'meta_sidecar_malformed', 'meta_sidecar_hash_mismatch', 'meta_sidecar_name_mismatch', 'missing_staging_artifacts', 'insufficient_disk_space', 'disk_space_unknown'):
@@ -142,9 +142,20 @@ def operation():
         with tempfile.TemporaryDirectory(prefix='.plaintext_',dir=local) as tmp:
             tmp=Path(tmp); plain=tmp/'plain'; plain.mkdir()
             env=os.environ.copy(); env['BACKUP_DIR']=str(plain)
-            stage='legacy_backup'; child(['bash',str(SCRIPT/'backup.sh')],env)
-            members=[x for x in plain.iterdir() if MEMBER.fullmatch(x.name)]
-            if len(members)!=4 or not all(regular(p) for p in members): raise ValueError('legacy artifact set incomplete')
+            # Hold maintenance only for the verified local
+            # database/storage snapshot, not offsite transport.
+            from recovery_storage import release_backup_window
+
+            stage='legacy_backup'
+            with release_backup_window() as capture:
+                fd = capture['operation_fd']
+                env['HOMECLOUD_BACKUP_OPERATION_FD'] = str(fd)
+                env['HOMECLOUD_BACKUP_MARKER_IDENTITY'] = json.dumps(capture['marker_identity'])
+                child(['bash',str(SCRIPT/'backup.sh')],env,pass_fds=(fd,))
+                members=[x for x in plain.iterdir() if MEMBER.fullmatch(x.name)]
+                if len(members)!=4 or not all(regular(p) for p in members):
+                    raise ValueError('legacy artifact set incomplete')
+
             stage='archive'; bundle=tmp/'bundle.tar'
             with tarfile.open(bundle,'w') as archive:
                 for p in sorted(members): archive.add(p,arcname=p.name,recursive=False)

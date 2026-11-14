@@ -65,8 +65,10 @@ def list_storage_files(snapshot, backend_image):
     target = snapshot['target']
     cmd = storage_command(snapshot, 'ro', backend_image, [
         'sh', '-c',
-        'find "$1" -type f -not -path "*/.tmp/*" -not -path "*/.restore-*" '
-        '-exec stat -c "%s %n" {} +', 'reconcile-storage', target,
+        'find "$1" \\( -path "$1/.tmp" -o -path "$1/.restore-swap" '
+        '-o -path "$1/.restore-staging" \\) -prune -o '
+        '-type f -exec stat -c "%s %n" {} +',
+        'reconcile-storage', target,
     ])
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
     if r.returncode:

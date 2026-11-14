@@ -157,6 +157,16 @@ class Tests(unittest.TestCase):
         project=self.root/'project'; scripts=project/'scripts'; scripts.mkdir(parents=True)
         for name in ('backup-production.sh','backup-production.py','recovery_config.py'):
             shutil.copyfile(ROOT/'scripts'/name,scripts/name)
+        (scripts/'recovery_storage.py').write_text(
+            'from contextlib import contextmanager\n'
+            'import tempfile, fcntl\n'
+            '@contextmanager\n'
+            'def release_backup_window():\n'
+            '    with tempfile.TemporaryFile() as lock:\n'
+            '        fcntl.flock(lock, fcntl.LOCK_EX)\n'
+            '        yield {"operation_fd": lock.fileno(), "marker_identity": [1, 2]}\n'
+        )
+
         fixtures=self.root/'fixtures'
         subprocess.run([sys.executable,str(ROOT/'scripts/tests/create_fixtures.py'),str(fixtures)],check=True,capture_output=True)
         valid=fixtures/'valid'

@@ -10,25 +10,49 @@ ROOT = Path(__file__).resolve().parents[2]
 
 class RetainedArtifacts(unittest.TestCase):
     def test_retained_directories_files_and_symlinks_are_preserved(self):
-        source = (ROOT / 'scripts/restore.sh').read_text()
-        start = source.index('set -e\nSTORAGE_ROOT="$1"')
-        end = source.index('# --- 1. Prepare:', start)
-        block = source[start:end]
+        import sys
+        from unittest.mock import patch
+
+        sys.path.insert(0, str(ROOT / "scripts"))
+        import restore_storage as restore
+
         for name in ('.restore-staging', '.restore-swap'):
-            for kind in ('directory','file','symlink'):
-                with self.subTest(name=name,kind=kind), tempfile.TemporaryDirectory(dir='/private/tmp') as tmp:
-                    directory=Path(tmp); retained=directory/name
-                    if kind=='directory':
-                        retained.mkdir(); (retained/'original').write_bytes(b'last good copy')
-                    elif kind=='file': retained.write_bytes(b'last good copy')
-                    else: retained.symlink_to('missing-original')
-                    result=subprocess.run(['sh','-c',block,'fixture',tmp,'0'],capture_output=True,text=True)
-                    self.assertNotEqual(result.returncode,0,result.stderr)
-                    self.assertIn('operator review',result.stderr)
+            for kind in ('directory', 'file', 'symlink'):
+                with self.subTest(name=name, kind=kind), tempfile.TemporaryDirectory() as tmp:
+                    directory = Path(tmp).resolve()
+                    retained = directory / name
+
+                    if kind == 'directory':
+                        retained.mkdir()
+                        (retained / 'original').write_bytes(b'last good copy')
+                    elif kind == 'file':
+                        retained.write_bytes(b'last good copy')
+                    else:
+                        retained.symlink_to('missing-original')
+
+                    fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+                    try:
+                        with patch.object(restore, 'assert_root', return_value=directory):
+                            with self.assertRaisesRegex(
+                                restore.storage.StorageError, 'operator review'
+                            ):
+                                restore.restore_storage(
+                                    {'type': 'bind', 'target': '/storage'},
+                                    fd, directory / 'unused.tar.gz',
+                                    '0' * 64, 0,
+                                )
+                    finally:
+                        os.close(fd)
+
                     self.assertTrue(retained.exists() or retained.is_symlink())
-                    if kind=='directory': self.assertEqual((retained/'original').read_bytes(),b'last good copy')
-                    if kind=='file': self.assertEqual(retained.read_bytes(),b'last good copy')
-                    if kind=='symlink': self.assertEqual(os.readlink(retained),'missing-original')
+                    if kind == 'directory':
+                        self.assertEqual(
+                            (retained / 'original').read_bytes(), b'last good copy'
+                        )
+                    elif kind == 'file':
+                        self.assertEqual(retained.read_bytes(), b'last good copy')
+                    else:
+                        self.assertEqual(os.readlink(retained), 'missing-original')
 
     def test_preflight_and_backup_refuse_retained_artifacts(self):
         helper=ROOT/'scripts/recovery-storage.sh'

@@ -13,7 +13,7 @@ set -euo pipefail
 #   - Old storage data is NEVER deleted before new data is verified in staging.
 #   - Storage switch uses atomic rename (mv) on the same filesystem.
 #   - DB restore is fail-closed: ON_ERROR_STOP=1, schema wipe, post-restore
-#     validation (known 7/8/9/10/11/13/15-table schemas, column and pending-SSD checks).
+#     validation (known 7/8/9/10/11/13/15/17-table schemas, column and pending-SSD checks).
 #   - Checksum/size mismatches, malformed .meta, unsupported format_version
 #     all abort BEFORE any destructive operation.
 #   - Migration failure aborts restore (no WARNING+continue).
@@ -186,14 +186,15 @@ validate_restored_database() {
     11) EXPECTED_TABLE_NAMES="$EXPECTED_TABLE_NAMES upload_chunks download_capabilities storage_locations upload_workspaces" ;;
     13) EXPECTED_TABLE_NAMES="$EXPECTED_TABLE_NAMES upload_chunks download_capabilities storage_locations upload_workspaces ssd_finalization_operations ssd_finalization_chunks" ;;
     15) EXPECTED_TABLE_NAMES="$EXPECTED_TABLE_NAMES upload_chunks download_capabilities storage_locations upload_workspaces ssd_finalization_operations ssd_finalization_chunks public_share_operations archive_download_capabilities" ;;
-    *) die "Database validation failed: expected a known 7/8/9/10/11/13/15-table schema, found $TABLE_COUNT" ;;
+    17) EXPECTED_TABLE_NAMES="$EXPECTED_TABLE_NAMES upload_chunks download_capabilities storage_locations upload_workspaces ssd_finalization_operations ssd_finalization_chunks public_share_operations archive_download_capabilities file_copy_admission file_copy_operations" ;;
+    *) die "Database validation failed: expected a known 7/8/9/10/11/13/15/17-table schema, found $TABLE_COUNT" ;;
   esac
   for t in $EXPECTED_TABLE_NAMES; do
     EXISTS=$(validation_psql -tAc \
       "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='$t' AND table_type='BASE TABLE'" | tr -d '[:space:]')
     [ "$EXISTS" = "1" ] || die "Database validation failed: table '$t' missing after restore"
   done
-  if [ "$TABLE_COUNT" = 15 ]; then
+  if [ "$TABLE_COUNT" = 15 ] || [ "$TABLE_COUNT" = 17 ]; then
     # Confirm both new tables and the exact migration set before running any
     # migration against an isolated or target database.
     validation_psql -tAc 'SELECT id, "shareLinkId", "shareRootFolderId", "userId", kind, "idempotencyKey", "requestSha256", "resultFolderId", "resultUploadSessionId", "createdAt", "expiresAt" FROM public.public_share_operations WHERE false' >/dev/null \
@@ -230,10 +231,16 @@ validate_restored_database() {
 1746825220000:PublicShareOperationReceipts1746825220000
 1746825230000:PublicUploadParentInvalidation1746825230000
 1792831200000:CreateArchiveDownloadCapabilities1792831200000'
+
+    if [ "$TABLE_COUNT" = 17 ]; then
+      EXPECTED_CURRENT_MIGRATIONS="$EXPECTED_CURRENT_MIGRATIONS
+1792831300000:FileCopyAdmission1792831300000"
+    fi
+
     MIGRATIONS=$(validation_psql -tAc "SELECT timestamp::text || ':' || name FROM public.migrations ORDER BY timestamp, name") \
       || die "Current schema migration metadata unavailable"
     [ "$MIGRATIONS" = "$EXPECTED_CURRENT_MIGRATIONS" ] \
-      || die "Current schema migration set differs from confirmed 30 migrations"
+      || die "Schema migration set differs from confirmed inventory"
   fi
   log "  All expected tables present: OK ($TABLE_COUNT tables)"
   # Verify key columns against the existing historical gate.
@@ -242,9 +249,9 @@ validate_restored_database() {
   [ "${FILES_COLS%%,*}" = "id" ] || die "Database validation failed: files table columns unexpected ($FILES_COLS)"
   USERS_COUNT=$(validation_psql -tAc "SELECT count(*) FROM users" | tr -d '[:space:]')
   case "$USERS_COUNT" in ''|*[!0-9]*) die "Database validation failed: invalid users row count" ;; esac
-  validation_psql < "$SCRIPT_DIR/recovery-pending.sql" >/dev/null || die "Unsupported pending SSD state or failed recovery check; refusing restore"
+  validation_psql < "$SCRIPT_DIR/recovery-pending.sql" >/dev/null || die "Unsupported pending SSD/copy state or failed recovery check; refusing restore"
   if [ "${1:-historical}" = current ]; then
-    [ "$TABLE_COUNT" = 15 ] || die "Migration compatibility failed: expected current 15-table schema"
+    [ "$TABLE_COUNT" = 17 ] || die "Migration compatibility failed: expected current 17-table schema"
     # These are the fields consumed by reconciliation and the current recovery
     # gate. This deliberately does not claim complete constraint/type parity.
     validation_psql -tAc 'SELECT id, "storagePath", "storageLocationId", "relativeObjectKey", size, "userId", "isFolder", "isDeleted" FROM public.files WHERE false' >/dev/null \
@@ -259,10 +266,14 @@ validate_restored_database() {
       || die "Current schema required upload columns are missing"
     validation_psql -tAc 'SELECT id, state, "cleanupState", "mimeType", "mimeTypeCheckpointed", "targetArtifactDevice", "targetArtifactInode" FROM public.ssd_finalization_operations WHERE false' >/dev/null \
       || die "Current schema required journal columns are missing"
+    validation_psql -tAc 'SELECT id FROM public.file_copy_admission WHERE false' >/dev/null \
+      || die "Current schema copy admission columns are missing"
+    validation_psql -tAc 'SELECT id, "userId", "sourceFileId", "storageLocationId", "relativeObjectKey", bytes, state, "resultFileId", "cleanupClaimId", "createdAt", "updatedAt" FROM public.file_copy_operations WHERE false' >/dev/null \
+      || die "Current schema copy journal columns are missing"
     validation_psql -tAc 'SELECT id, timestamp, name FROM public.migrations WHERE false' >/dev/null \
       || die "Current schema migration metadata columns are missing"
   fi
-  log "  Database validation: OK (users=$USERS_COUNT; no unsupported pending SSD state)"
+  log "  Database validation: OK (users=$USERS_COUNT; no unsupported pending SSD/copy state)"
 }
 
 remove_restore_migration_container() {
@@ -298,7 +309,11 @@ restore_cleanup() {
   # Any failed destructive attempt (including partial start/health failure)
   # leaves application writers stopped. A DB/storage rollback is NOT promised.
   if [ "$rc" -ne 0 ] && [ "${RESTORE_DESTRUCTIVE:-0}" = 1 ]; then
-    if docker compose stop backend frontend >/dev/null 2>&1; then
+    if [ "${RESTORE_ADMITTED:-0}" = 1 ]; then
+      python3 -B "$SCRIPT_DIR/restore_maintenance.py" retain "$RESTORE_TOKEN" \
+        || err "CRITICAL: verify restore maintenance inhibitor manually"
+    fi
+    if docker compose stop ingress frontend backend >/dev/null 2>&1; then
       err "Restore failed; application writers remain fenced. Review DB/storage before restarting."
     else
       err "CRITICAL: could not fence application services; operator must stop writers and review DB/storage"
@@ -374,7 +389,7 @@ PYURL
   # Sparse files in private tmpfs reproduce that metadata, without copying the
   # payload or allocating memory proportional to its total size. This proves
   # migration path/size compatibility, not per-object payload integrity.
-  if ! python3 - "$STORAGE_ARCHIVE" <<'PYMETADATA' | docker run --rm --pull=never --name "$VALIDATION_CONTAINER-migrations" \
+  if ! python3 -B "$SCRIPT_DIR/restore_storage.py" sparse-metadata "$STORAGE_ARCHIVE" | docker run --rm --pull=never --name "$VALIDATION_CONTAINER-migrations" \
     --label "homecloud.restore.validation=$VALIDATION_TOKEN" \
     --network "container:$VALIDATION_CONTAINER" --read-only --security-opt no-new-privileges \
     --memory 512m --cpus 1 --pids-limit 128 --user root -i --entrypoint node \
@@ -387,7 +402,7 @@ const fs=require("fs"), path=require("path"), readline=require("readline"), cp=r
 const root=process.env.STORAGE_PATH;
 // Docker tmpfs defaults to mode 1777; the registry requires service-owned roots.
 fs.chmodSync(root,0o700);
-fs.mkdirSync(path.join(root,".tmp"),{recursive:true});
+fs.mkdirSync(path.join(root,".tmp"),{recursive:true,mode:0o700});
 const lines=readline.createInterface({input:process.stdin});
 lines.on("line",line=>{
   const entry=JSON.parse(line);
@@ -403,15 +418,21 @@ lines.on("line",line=>{
   try { fs.ftruncateSync(fd,entry.size); } finally { fs.closeSync(fd); }
 });
 lines.on("close",()=>{
-  const result=cp.spawnSync(process.execPath,["./node_modules/typeorm/cli.js","migration:run","-d","dist/data-source.js","--transaction","all"],{stdio:"inherit"});
+  // Provision only this container-private tmpfs, then drop privilege and
+  // use the same native supervisor/FD contract as production migrations.
+  const own=entry=>{
+    const info=fs.lstatSync(entry);
+    if(!info.isFile() && !info.isDirectory()) throw Error("Unsafe sparse fixture entry");
+    fs.chownSync(entry,1001,65533);
+    if(info.isDirectory()) for(const child of fs.readdirSync(entry)) own(path.join(entry,child));
+  };
+  own(root);
+  process.setgroups([]);
+  process.setgid(65533);
+  process.setuid(1001);
+  const result=cp.spawnSync(process.execPath,["docker/copy-root-fence-supervisor.cjs","--operator-cli","node","./node_modules/typeorm/cli.js","migration:run","-d","dist/data-source.js","--transaction","all"],{stdio:"inherit"});
   process.exit(result.status===null ? 1 : result.status);
 });' >/dev/null; then
-import json,sys,tarfile
-with tarfile.open(sys.argv[1], "r:gz") as archive:
-    for entry in archive:
-        if entry.isfile():
-            print(json.dumps({"name":entry.name,"size":entry.size}))
-PYMETADATA
     die "Isolated backend migration replay failed; no target changes performed"
   fi
   validate_restored_database current
@@ -426,56 +447,9 @@ PYMETADATA
 # ---------------------------------------------------------------------------
 scan_storage_archive_security() {
   local archive="$1"
-
-  if command -v python3 >/dev/null 2>&1; then
-    set +e
-    python3 - "$archive" <<'PY'
-import sys, tarfile
-
-archive = sys.argv[1]
-errors = []
-
-def has_traversal(s):
-    # True if any path component equals ".."
-    return bool(s) and any(p == ".." for p in s.split("/"))
-
-try:
-    with tarfile.open(archive, "r:gz") as tf:
-        for m in tf.getmembers():
-            name = m.name
-            link = getattr(m, "linkname", "") or ""
-            if name.startswith("/"):
-                errors.append("absolute path: %s" % name)
-            if has_traversal(name):
-                errors.append("path traversal in name: %s" % name)
-            if m.issym() or m.islnk():
-                if link.startswith("/"):
-                    errors.append("absolute link target: %s -> %s" % (name, link))
-                if has_traversal(link):
-                    errors.append("traversal link target: %s -> %s" % (name, link))
-            # device files (char/block) and FIFOs — reject all
-            if m.isdev() or m.isfifo():
-                ftype = "char/block device" if (m.ischr() or m.isblk()) else "fifo"
-                errors.append("dangerous file type (%s): %s" % (ftype, name))
-except Exception as e:
-    print("ERROR: cannot read archive for security scan: %s" % e, file=sys.stderr)
-    sys.exit(2)
-
-if errors:
-    print("ERROR: storage archive failed security scan", file=sys.stderr)
-    for e in errors:
-        print("  - %s" % e, file=sys.stderr)
-    sys.exit(1)
-print("  storage archive security scan: OK")
-PY
-    rc=$?
-    set -e
-    [ $rc -eq 0 ] || die "Storage archive failed security scan (rc=$rc)"
-    return 0
-  fi
-
-  log "  ERROR: python3 is required for security scan (not found in PATH)"
-  die "python3 is required for restore; install it and retry"
+  # Use the same parser for read-only validation and fenced extraction.
+  python3 -B "$SCRIPT_DIR/restore_storage.py" scan-archive "$archive" \
+    || die "Storage archive failed security scan"
 }
 
 # ---------------------------------------------------------------------------
@@ -908,17 +882,39 @@ echo ""
 echo "[1/6] Stopping application services..."
 # First check is read-only; repeat after writers stop to close admission races.
 validation_psql < "$SCRIPT_DIR/recovery-pending.sql" >/dev/null \
-  || die "Target pending SSD check failed; refusing destructive restore"
+  || die "Target pending SSD/copy check failed; refusing destructive restore"
 [ "$(sha256_hex "$LATEST_META")" = "$EXPECTED_META_SHA256" ] || die "Metadata changed after preflight"
 [ "$(sha256_hex "$PG_DUMP_FILE")" = "$PG_DUMP_SHA256" ] || die "Dump changed after preflight"
 [ "$(sha256_hex "$STORAGE_ARCHIVE")" = "$STORAGE_SHA256" ] || die "Storage archive changed after preflight"
-RESTORE_DESTRUCTIVE=1
-# Revalidate the pinned mount before any target mutation.
+# The Bash process owns both inherited kernel descriptors.
 recovery_storage_check || die "Storage identity changed before restore"
-docker compose stop
+
+RESTORE_MAINTENANCE="$SCRIPT_DIR/restore_maintenance.py"
+
+RESTORE_OPERATION_LOCK=$(python3 -B "$RESTORE_MAINTENANCE" prepare) \
+  || die "Restore maintenance preparation refused"
+
+exec 8<"$RESTORE_OPERATION_LOCK" \
+  || die "Cannot open restore operation lock"
+
+python3 -B "$RESTORE_MAINTENANCE" lock \
+  || die "Restore operation lock unavailable"
+
+# Cleanup must also fence a partially failed admission/shutdown.
+RESTORE_ADMITTED=1
+RESTORE_DESTRUCTIVE=1
+
+python3 -B "$RESTORE_MAINTENANCE" begin "$RESTORE_TOKEN" \
+  || die "Restore writer shutdown refused"
+
+exec 9<"$RECOVERY_STORAGE_SOURCE" \
+  || die "Cannot open restore storage root"
+
+python3 -B "$RESTORE_MAINTENANCE" acquire-root "$RESTORE_TOKEN" \
+  || die "Restore storage fence refused"
 # --- DB restore with fail-closed semantics ---
 echo "[2/6] Restoring PostgreSQL..."
-docker compose up -d db
+# Existing PostgreSQL remains running; never recreate its container.
 # wait for db to accept connections
 DB_READY=0
 for i in $(seq 1 15); do
@@ -933,19 +929,31 @@ done
 # Refuse to overwrite target-side pending SSD state: the archive cannot recover it.
 docker compose exec -T db psql -X -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" \
   < "$SCRIPT_DIR/recovery-pending.sql" >/dev/null \
-  || die "Target pending SSD state or unavailable recovery guard; restore refused"
+  || die "Target pending SSD/copy state or unavailable recovery guard; restore refused"
 
 recovery_storage_assert_clean || die "Retained restore artifacts detected after writer fencing"
+[ "$(sha256_hex "$LATEST_META")" = "$EXPECTED_META_SHA256" ] || die "Metadata changed under restore fence"
+[ "$(sha256_hex "$PG_DUMP_FILE")" = "$PG_DUMP_SHA256" ] || die "Dump changed under restore fence"
+[ "$(sha256_hex "$STORAGE_ARCHIVE")" = "$STORAGE_SHA256" ] || die "Storage archive changed under restore fence"
 
-# Wipe existing schema for a clean, deterministic restore state
-docker compose exec -T db psql -X -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" -c \
-  "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" \
-  >/dev/null || die "Failed to reset database schema before restore"
+python3 -B "$RESTORE_MAINTENANCE" check-root "$RESTORE_TOKEN" \
+  || die "Restore storage fence lost before SQL mutation"
 
-# Restore from dump with ON_ERROR_STOP=1 — any SQL error aborts immediately
-if ! gunzip -c "$PG_DUMP_FILE" | docker compose exec -T db psql -X -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME"; then
-  err "PostgreSQL restore failed (ON_ERROR_STOP detected an error)"
-  exit 1
+# Fully validate and durably checkpoint the new storage BEFORE SQL mutation.
+python3 -B "$RESTORE_MAINTENANCE" stage \
+  "$RESTORE_TOKEN" "$STORAGE_ARCHIVE" "$STORAGE_SHA256" \
+  "${META_STORAGE_FILE_COUNT:-0}" \
+  || die "Storage staging failed; database and original storage unchanged"
+
+python3 -B "$RESTORE_MAINTENANCE" verify-staged "$RESTORE_TOKEN" \
+  || die "Prepared storage changed before SQL mutation"
+
+# Reset and replay in one PostgreSQL transaction.
+if ! gunzip -c "$PG_DUMP_FILE" | docker compose exec -T db psql \
+    -X -v ON_ERROR_STOP=1 --single-transaction \
+    -U "$DB_USER" -d "$DB_NAME" \
+    -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" -f -; then
+  die "PostgreSQL restore failed; maintenance retained"
 fi
 log "  PostgreSQL restored (ON_ERROR_STOP: enabled)."
 
@@ -953,169 +961,51 @@ log "  PostgreSQL restored (ON_ERROR_STOP: enabled)."
 echo "[3/6] Validating restored database..."
 validate_restored_database
 
-# --- Storage restore (safe: prepare → validate → rename-swap → verify → cleanup) ---
-echo "[4/6] Restoring verified $RECOVERY_STORAGE_TYPE storage mount..."
-if ! recovery_storage_run rw --user root -i --entrypoint sh -- \
-    "$BACKEND_IMAGE" -c '
-set -e
-STORAGE_ROOT="$1"
-EXPECTED_FILE_COUNT="$2"
-STAGE="$STORAGE_ROOT/.restore-staging"
-SWAP="$STORAGE_ROOT/.restore-swap"
+# --- Storage restore under the same host kernel fence ---
+python3 -B "$RESTORE_MAINTENANCE" db-restored "$RESTORE_TOKEN" \
+  || die "Database restore checkpoint refused"
 
-safe_remove_dir() {
-  path="$1"
-  [ -e "$path" ] || [ -L "$path" ] || return 0
-  if [ -L "$path" ] || [ ! -d "$path" ]; then
-    echo "STORAGE_RESTORE_FAIL: unsafe path refused: $path" >&2
-    return 1
-  fi
-  find -P "$path" -depth -type f -exec rm -f {} + 2>/dev/null || return 1
-  find -P "$path" -depth -type l -exec rm -f {} + 2>/dev/null || return 1
-  find -P "$path" -depth -type d -exec rmdir {} + 2>/dev/null || return 1
-  [ ! -e "$path" ] && [ ! -L "$path" ] || return 1
-}
+echo "[4/6] Restoring verified storage..."
 
-# A failed earlier restore may have left the only surviving old bytes here.
-# Preserve every retained artifact; automatic ownership guesses are unsafe.
-for cleanup_path in "$STAGE" "$SWAP"; do
-  if [ -e "$cleanup_path" ] || [ -L "$cleanup_path" ]; then
-    echo "STORAGE_RESTORE_FAIL: retained restore artifacts require operator review: $cleanup_path" >&2
-    exit 1
-  fi
-done
+python3 -B "$RESTORE_MAINTENANCE" switch \
+  "$RESTORE_TOKEN" "$STORAGE_ARCHIVE" "$STORAGE_SHA256" \
+  "${META_STORAGE_FILE_COUNT:-0}" \
+  || die "Storage restore failed; original storage retained"
 
-# --- 1. Prepare: extract to staging ---
-mkdir -p "$STAGE"
-tar -xzf - -C "$STAGE"
-if [ "$(find "$STAGE" -type l | wc -l)" -ne 0 ]; then
-  echo "STORAGE_RESTORE_FAIL: symlink created during extraction" >&2
-  safe_remove_dir "$STAGE" || true
-  exit 1
-fi
-
-# --- 2. Validate: verify staging file count matches metadata ---
-STAGE_COUNT=$(find "$STAGE" -type f | wc -l)
-EXPECTED="${EXPECTED_FILE_COUNT:-0}"
-if [ "$EXPECTED" != "0" ]; then
-  ACTUAL=$((STAGE_COUNT))
-  if [ "$ACTUAL" -lt "$EXPECTED" ]; then
-    safe_remove_dir "$STAGE" || true
-    echo "STORAGE_RESTORE_FAIL: staging file count mismatch (expected >= $EXPECTED, got $ACTUAL)"
-    exit 1
-  fi
-  echo "  staging file count: $ACTUAL (expected $EXPECTED)"
-fi
-
-# Normalize permissions (defense-in-depth: prevent archive from setting
-# dangerous modes like 0000 or 0777)
-find "$STAGE" -type d -exec chmod 755 {} + 2>/dev/null || true
-find "$STAGE" -type f -exec chmod 644 {} + 2>/dev/null || true
-
-# --- 3. Stage: move old content to .restore-swap (atomic rename on same FS) ---
-# Old data is preserved here — NOT deleted — until switch succeeds.
-mkdir -p "$SWAP"
-find "$STORAGE_ROOT" -mindepth 1 -maxdepth 1 \
-  -not -name ".restore-staging" \
-  -not -name ".restore-swap" \
-  -not -name ".tmp" \
-  -exec mv -f {} "$SWAP/" +
-
-# --- 4. Switch: move staging contents to root (atomic rename on same FS) ---
-find "$STAGE" -mindepth 1 -maxdepth 1 -exec mv -f {} "$STORAGE_ROOT/" +
-safe_remove_dir "$STAGE" || {
-  echo "STORAGE_RESTORE_FAIL: could not remove empty staging directory" >&2
-  exit 1
-}
-
-# --- 5. Verify: root now contains the restored data ---
-ROOT_TOTAL=$(find "$STORAGE_ROOT" -type f -not -path "*/.tmp/*" -not -path "*/.restore-swap/*" | wc -l)
-if [ "$EXPECTED" != "0" ]; then
-  if [ "$((ROOT_TOTAL))" -lt "$EXPECTED" ]; then
-    # ROLLBACK: remove only the newly switched entries, then restore old data.
-    echo "  post-switch verification FAILED; rolling back..." >&2
-    for entry in "$STORAGE_ROOT"/* "$STORAGE_ROOT"/.[!.]* "$STORAGE_ROOT"/..?*; do
-      base="${entry##*/}"
-      case "$base" in
-        .restore-swap|.tmp) continue ;;
-      esac
-      [ -e "$entry" ] || [ -L "$entry" ] || continue
-      safe_remove_dir "$entry" || {
-        echo "STORAGE_RESTORE_FAIL: could not remove partial entry during rollback: $entry" >&2
-        exit 1
-      }
-    done
-    find "$SWAP" -mindepth 1 -maxdepth 1 -exec mv -f {} "$STORAGE_ROOT/" +
-    safe_remove_dir "$SWAP" || true
-    echo "STORAGE_RESTORE_FAIL: post-switch verification failed; rollback complete"
-    exit 1
-  fi
-fi
-
-# --- 6. Cleanup: remove old data (already superseded by new) ---
-safe_remove_dir "$SWAP" || {
-  echo "STORAGE_RESTORE_FAIL: could not remove superseded swap data" >&2
-  exit 1
-}
-
-# --- 7. Ensure .tmp exists ---
-mkdir -p "$STORAGE_ROOT/.tmp"
-
-# --- 8. Fix ownership: chown to the container default user ---
-# Docker named volumes are root-owned; restore ran as root above.
-# chown back so the backend (running as nextjs:uid 1001) can read/write.
-NEXTJS_UID=$(id -u nextjs 2>/dev/null || echo 1001)
-NEXTJS_GID=$(id -g nextjs 2>/dev/null || echo 1001)
-chown -R "$NEXTJS_UID:$NEXTJS_GID" "$STORAGE_ROOT"
-echo "  ownership set to uid=$NEXTJS_UID gid=$NEXTJS_GID"
-
-echo "STORAGE_RESTORE_OK: files=$ROOT_TOTAL"
-' recovery-storage "$RECOVERY_STORAGE_TARGET" "${META_STORAGE_FILE_COUNT:-0}" < "$STORAGE_ARCHIVE"; then
-  err "Storage restore failed; application services remain fenced"
-  exit 1
-fi
-log "  Storage restored into verified $RECOVERY_STORAGE_TYPE mount."
-
-# --- Migrate while the backend and its startup cleanup remain fenced ---
+# --- Exact maintenance migration; container acquires the same flock ---
 echo "[5/6] Running migrations with backend stopped..."
-set +e
-recovery_storage_check || die "Storage/image identity changed before migration"
+
 RESTORE_MIGRATION_CONTAINER="homecloud-restore-migration-$RESTORE_TOKEN"
-docker compose run --rm --no-deps --pull never \
-  --name "$RESTORE_MIGRATION_CONTAINER" --label "homecloud.restore.migration=$RESTORE_TOKEN" \
-  -T backend node ./node_modules/typeorm/cli.js migration:run -d dist/data-source.js --transaction all
-MIGRATION_RC=$?
-set -e
-if [ "$MIGRATION_RC" -ne 0 ]; then
-  err "Database migration failed (exit code $MIGRATION_RC); aborting restore"
-  err "Check logs: docker compose logs backend"
-  exit 1
-fi
+
+exec 9<&-
+
+python3 -B "$RESTORE_MAINTENANCE" migrate "$RESTORE_TOKEN" \
+  || die "Restore migration failed; maintenance retained"
+
+exec 9<"$RECOVERY_STORAGE_SOURCE" \
+  || die "Cannot reopen restore storage root"
+
+python3 -B "$RESTORE_MAINTENANCE" acquire-after-migration "$RESTORE_TOKEN" \
+  || die "Post-migration storage fence refused"
+
 log "  Migrations: OK"
 validate_restored_database current
 
-# --- Reconciliation (DB ↔ storage consistency report) ---
-echo ""
 echo "[6/6] Reconciling DB and storage..."
-RECONCILE_SCRIPT="$SCRIPT_DIR/reconcile.py"
-set +e
-python3 "$RECONCILE_SCRIPT" \
-  --db-user "$DB_USER" \
-  --db-name "$DB_NAME" \
-  --backend-image "$BACKEND_IMAGE"
-RECONCILE_RC=$?
-set -e
-if [ "$RECONCILE_RC" -ne 0 ]; then
-  err "Reconciliation found CRITICAL discrepancies — restore is NOT declared successful"
-  err "Review the reconciliation report above."
-  err "Do NOT treat the system as fully recoverable without manual review."
-  exit 1
-fi
-log "  Reconciliation: OK (no critical discrepancies)"
 
-# Start writers only after migration and reconciliation have passed.
-recovery_storage_check || die "Storage/image identity changed before writer restart"
-docker compose up -d --no-recreate --pull never
+python3 -B "$RESTORE_MAINTENANCE" complete "$RESTORE_TOKEN" \
+  || die "Restore verification failed; maintenance retained"
+
+exec 9<&-
+
+# Only the existing service set may restart.
+recovery_storage_check || die "Storage identity changed before restart"
+python3 -B "$RESTORE_MAINTENANCE" restart "$RESTORE_TOKEN" \
+  || die "Restore service restart failed"
+
+restore_ack() {
+  python3 -B "$RESTORE_MAINTENANCE" ack "$RESTORE_TOKEN"
+}
 
 # --- Health check (actual HTTP probe, output captured) ---
 echo ""
@@ -1149,6 +1039,8 @@ else
 fi
 
 echo ""
+restore_ack || die "Restore completion acknowledgement refused"
+
 log "=== Restore completed successfully ==="
 log "Verify:"
 log "  - Backend health : http://localhost:3000/api/v1/health"

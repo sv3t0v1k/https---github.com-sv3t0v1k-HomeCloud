@@ -16,7 +16,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 CORE = 'users files folders share_links upload_sessions refresh_tokens migrations'
-CURRENT = CORE + ' upload_chunks download_capabilities storage_locations upload_workspaces ssd_finalization_operations ssd_finalization_chunks public_share_operations archive_download_capabilities'
+CURRENT = CORE + ' upload_chunks download_capabilities storage_locations upload_workspaces ssd_finalization_operations ssd_finalization_chunks public_share_operations archive_download_capabilities file_copy_admission file_copy_operations'
 MIGRATIONS = []
 for path in sorted((ROOT / 'backend/src/migrations').glob('*.ts')):
     timestamp = path.name.split('-', 1)[0]
@@ -24,8 +24,8 @@ for path in sorted((ROOT / 'backend/src/migrations').glob('*.ts')):
     if not match or not match.group(1).endswith(timestamp):
         raise AssertionError('Unexpected migration source: ' + path.name)
     MIGRATIONS.append(timestamp + ':' + match.group(1))
-if len(MIGRATIONS) != 30:
-    raise AssertionError('Expected 30 source migrations')
+if len(MIGRATIONS) != 31:
+    raise AssertionError('Expected 31 source migrations')
 
 class RestorePreflight(unittest.TestCase):
     def run_fixture(self, tables=CURRENT, replay_fail=False, pending_fail=False,
@@ -100,7 +100,7 @@ docker() {
              [ "$TEST_PENDING_FAIL" = 0 ] || return 7
            else [ "$TEST_REPLAY_FAIL" = 0 ] || return 8; fi ;;
       esac ;;
-    "compose stop backend frontend") ;;
+    "compose stop ingress frontend backend") ;;
     *) printf 'Unexpected Docker fixture call: %s\n' "$*" >&2; return 99 ;;
   esac
 }
@@ -195,7 +195,7 @@ docker() {
             with self.subTest(code=code):
                 result, calls = self.run_fixture(destructive=True, final_rc=code)
                 self.assertEqual(result.returncode, code)
-                self.assertEqual(calls, ['compose stop backend frontend'])
+                self.assertEqual(calls, ['compose stop ingress frontend backend'])
                 self.assertIn('writers remain fenced', result.stderr)
 
     def test_owned_migration_writer_cleanup_and_foreign_refusal(self):
